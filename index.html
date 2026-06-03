@@ -283,9 +283,17 @@ function toast(msg){
   toastTimer=setTimeout(()=>t.classList.remove("show"),2800);
 }
 
-function isAdmin(){return state.profile?.role==="admin";}
-function isHR(){return state.profile?.role==="admin"||state.profile?.role==="hr";}
-function isEmployee(){return state.profile?.role==="employee";}
+// Role helpers — case-insensitive and robust against trailing spaces.
+// Default behavior: if role is unset/invalid, treat user as EMPLOYEE (most restrictive).
+function getUserRole(){
+  const r = (state.profile?.role || "").toString().toLowerCase().trim();
+  if(r === "admin") return "admin";
+  if(r === "hr" || r === "manager") return "hr";
+  return "employee";  // safe default
+}
+function isAdmin(){return getUserRole()==="admin";}
+function isHR(){const r=getUserRole();return r==="admin"||r==="hr";}
+function isEmployee(){return getUserRole()==="employee";}
 
 // Filter rows by role
 function visibleRows(rows){
@@ -1197,7 +1205,11 @@ function renderDailyLog(){
 
 async function saveDaily(){
   if(!dailyForm.employee||!dailyForm.project||!dailyForm.date)return toast("Required: Employee, Date, Project");
-  if(isEmployee()&&dailyForm.employee!==state.profile.employeeName)return toast("You can only add entries for yourself");
+  // Strict employee guard: force own name on save (defense in depth)
+  if(isEmployee()){
+    if(!state.profile.employeeName) return toast("Your account has no employee profile. Contact admin.");
+    dailyForm.employee = state.profile.employeeName;  // force override
+  }
   await fbSave("daily",{
     id:dailyEditId||undefined,
     ...dailyForm,
@@ -1290,7 +1302,11 @@ function renderOvertime(){
 }
 async function saveOT(){
   if(!otForm.employee||!otForm.date||!otForm.hours)return toast("Required: Employee, Date, Hours");
-  if(isEmployee()&&otForm.employee!==state.profile.employeeName)return toast("You can only add for yourself");
+  // Strict employee guard: force own name on save
+  if(isEmployee()){
+    if(!state.profile.employeeName) return toast("Your account has no employee profile. Contact admin.");
+    otForm.employee = state.profile.employeeName;
+  }
   const {hoursH:_h, hoursM:_m, ...cleanForm} = otForm;
   await fbSave("overtime",{
     id:otEditId||undefined,
@@ -1380,7 +1396,11 @@ function renderTravel(){
 }
 async function saveTr(){
   if(!trForm.employee||!trForm.date||!trForm.days)return toast("Required: Employee, Date, Days");
-  if(isEmployee()&&trForm.employee!==state.profile.employeeName)return toast("You can only add for yourself");
+  // Strict employee guard: force own name on save
+  if(isEmployee()){
+    if(!state.profile.employeeName) return toast("Your account has no employee profile. Contact admin.");
+    trForm.employee = state.profile.employeeName;
+  }
   await fbSave("travel",{
     id:trEditId||undefined,
     ...trForm,days:+trForm.days,
@@ -1644,7 +1664,11 @@ function renderLeaves(){
 
 async function saveLeave(){
   if(!leaveForm.employee)return toast("Employee required");
-  if(isEmployee() && leaveForm.employee!==state.profile.employeeName)return toast("You can only add leaves for yourself");
+  // Strict employee guard: force own name on save
+  if(isEmployee()){
+    if(!state.profile.employeeName) return toast("Your account has no employee profile. Contact admin.");
+    leaveForm.employee = state.profile.employeeName;
+  }
   const kind = leaveForm.kind || "full";
   if(kind === "full"){
     if(!leaveForm.from || !leaveForm.to) return toast("From and To dates required");
