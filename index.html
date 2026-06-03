@@ -168,7 +168,8 @@ body{padding-bottom:env(safe-area-inset-bottom,0px)}
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-app.js";
 import {
   getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged,
-  createUserWithEmailAndPassword
+  createUserWithEmailAndPassword,
+  updatePassword, sendPasswordResetEmail, reauthenticateWithCredential, EmailAuthProvider
 } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-auth.js";
 import {
   getFirestore, collection, doc, getDoc, setDoc, deleteDoc, onSnapshot, query, where, getDocs
@@ -200,6 +201,7 @@ if (isConfigured) {
       isConfigured: true,
       app, auth, db,
       signInWithEmailAndPassword, signOut, onAuthStateChanged, createUserWithEmailAndPassword,
+      updatePassword, sendPasswordResetEmail, reauthenticateWithCredential, EmailAuthProvider,
       collection, doc, getDoc, setDoc, deleteDoc, onSnapshot, query, where, getDocs
     };
   } catch(e) { console.error("Firebase init error:", e); }
@@ -512,12 +514,39 @@ function renderLogin(){
           <label>Password</label>
           <input type="password" id="loginPass" required autocomplete="current-password">
           <button class="login-btn" type="submit" id="loginBtn">Sign In</button>
+          <div style="text-align:center;margin-top:14px">
+            <a href="#" onclick="showForgotPassword(event)" style="color:#C9A84C;font-size:13px;text-decoration:none;font-weight:600">🔑 Forgot Password?</a>
+          </div>
           <div id="loginErr"></div>
         </form>
       </div>
     </div>
   `);
 }
+
+window.showForgotPassword = function(e){
+  if(e) e.preventDefault();
+  const email = prompt("Enter your email address:\n\nWe'll send you a password reset link.");
+  if(!email) return;
+  if(!email.includes('@')) { alert("Please enter a valid email address."); return; }
+  sendResetEmail(email);
+};
+
+async function sendResetEmail(email){
+  try {
+    const { auth, sendPasswordResetEmail } = window.__fb;
+    await sendPasswordResetEmail(auth, email.trim());
+    alert(`✓ Password reset email sent!\n\nCheck your inbox at: ${email}\n\nIf you don't see it, check your Spam folder.`);
+  } catch(e) {
+    console.error(e);
+    let msg = "Failed to send reset email";
+    if(e.code === "auth/user-not-found") msg = "No account found with this email";
+    if(e.code === "auth/invalid-email") msg = "Invalid email address";
+    if(e.code === "auth/too-many-requests") msg = "Too many attempts. Try again later.";
+    alert("❌ " + msg);
+  }
+}
+window.sendResetEmail = sendResetEmail;
 
 window.handleLogin=async function(e){
   e.preventDefault();
@@ -558,9 +587,16 @@ function renderApp(){
 }
 
 function getTabs(){
-  const base=["Dashboard","Daily Log","Overtime","Travel","Leaves","HR Report","Reports"];
+  // Base tabs available to ALL users
+  const base=["Dashboard","Daily Log","Overtime","Travel","Leaves"];
+  // HR Report and Reports are ONLY for HR/Admin (not employees)
+  if(isHR()) base.push("HR Report","Reports");
+  // Management tabs for HR
   if(isHR()) base.push("Projects","Locations","Departments");
+  // Admin-only tabs
   if(isAdmin()) base.push("Users","Share");
+  // Profile available to everyone
+  base.push("Profile");
   // make sure current tab still valid
   if(!base.includes(state.tab)) state.tab=base[0];
   return base;
@@ -571,11 +607,19 @@ window.switchTab=function(t){state.tab=t;renderTab();window.scrollTo(0,0);};
 function renderTab(){
   const c=$("content");
   if(!c)return;
+
+  // Security guard: Employees cannot access HR/admin-only tabs
+  const hrOnlyTabs = ["HR Report","Reports","Projects","Locations","Departments","Users","Share"];
+  if(isEmployee() && hrOnlyTabs.includes(state.tab)){
+    state.tab = "Dashboard";  // redirect to safe default
+  }
+
   const fn={
     "Dashboard":renderDashboard,"Daily Log":renderDailyLog,"Overtime":renderOvertime,
     "Travel":renderTravel,"Leaves":renderLeaves,"HR Report":renderHRReport,"Reports":renderFlexReports,
     "Projects":renderProjects,"Locations":renderLocations,"Users":renderUsers,
     "Departments":renderDepartments,"Share":renderShare,
+    "Profile":renderProfile,
   }[state.tab]||renderDashboard;
   c.innerHTML=fn();
 }
@@ -1098,7 +1142,9 @@ function renderDailyLog(){
         <input type="date" value="${dailyForm.date}" onchange="window.dailyForm.date=this.value;render()"></div>
       <div class="field"><label>Employee <span class="req">*</span></label>
         ${isEmployee()
-          ?`<input value="${escapeHtml(state.profile.employeeName||"")}" disabled>`
+          ?`<select onchange="window.dailyForm.employee=this.value;render()">
+              <option value="${escapeHtml(state.profile.employeeName||"")}" selected>${escapeHtml(state.profile.employeeName||"")}</option>
+            </select>`
           :`<select onchange="window.dailyForm.employee=this.value;render()"><option value="">— Select —</option>${empOptions.map(e=>`<option ${e===dailyForm.employee?"selected":""}>${escapeHtml(e)}</option>`).join("")}</select>`}
       </div>
       <div class="field full"><label>Project <span class="req">*</span></label>
@@ -1200,7 +1246,7 @@ function renderOvertime(){
     <div class="sec-hdr">${otEditId?"Edit":"Add"} Overtime</div>
     <div class="form-grid">
       <div class="field"><label>Employee <span class="req">*</span></label>
-        ${isEmployee()?`<input value="${escapeHtml(state.profile.employeeName||"")}" disabled>`:`<select onchange="window.otForm.employee=this.value;render()"><option value="">— Select —</option>${empOptions.map(e=>`<option ${e===otForm.employee?"selected":""}>${escapeHtml(e)}</option>`).join("")}</select>`}</div>
+        ${isEmployee()?`<select onchange="window.otForm.employee=this.value;render()"><option value="${escapeHtml(state.profile.employeeName||"")}" selected>${escapeHtml(state.profile.employeeName||"")}</option></select>`:`<select onchange="window.otForm.employee=this.value;render()"><option value="">— Select —</option>${empOptions.map(e=>`<option ${e===otForm.employee?"selected":""}>${escapeHtml(e)}</option>`).join("")}</select>`}</div>
       <div class="field"><label>Date <span class="req">*</span></label><input type="date" value="${otForm.date}" onchange="window.otForm.date=this.value;render()"></div>
       <div class="field"><label>OT Hours <span class="req">*</span> <span style="font-size:10px;color:var(--muted);font-weight:400">(Hours : Minutes)</span></label><div style="display:flex;gap:6px;align-items:center">
         <select onchange="window.updateOTHours('h',this.value)" style="flex:1">
@@ -1299,7 +1345,7 @@ function renderTravel(){
     <div class="sec-hdr">${trEditId?"Edit":"Add"} Travel</div>
     <div class="form-grid">
       <div class="field"><label>Employee <span class="req">*</span></label>
-        ${isEmployee()?`<input value="${escapeHtml(state.profile.employeeName||"")}" disabled>`:`<select onchange="window.trForm.employee=this.value;render()"><option value="">— Select —</option>${empOptions.map(e=>`<option ${e===trForm.employee?"selected":""}>${escapeHtml(e)}</option>`).join("")}</select>`}</div>
+        ${isEmployee()?`<select onchange="window.trForm.employee=this.value;render()"><option value="${escapeHtml(state.profile.employeeName||"")}" selected>${escapeHtml(state.profile.employeeName||"")}</option></select>`:`<select onchange="window.trForm.employee=this.value;render()"><option value="">— Select —</option>${empOptions.map(e=>`<option ${e===trForm.employee?"selected":""}>${escapeHtml(e)}</option>`).join("")}</select>`}</div>
       <div class="field"><label>Date <span class="req">*</span></label><input type="date" value="${trForm.date}" onchange="window.trForm.date=this.value;render()"></div>
       <div class="field"><label>Days <span class="req">*</span></label><input type="number" min="1" value="${trForm.days||""}" oninput="window.trForm.days=this.value;render()" placeholder="e.g. 3"></div>
       <div class="field"><label>Per Diem (auto)</label><div class="auto yellow ${pd>0?"":"empty"}">${pd>0?fmtMoney(pd)+" IQD":"—"}</div></div>
@@ -1470,7 +1516,7 @@ function renderLeaves(){
     <div class="form-grid">
       <div class="field"><label>Employee <span class="req">*</span></label>
         ${isEmployee()
-          ? `<input value="${escapeHtml(leaveForm.employee)}" disabled>`
+          ? `<select onchange="window.leaveForm.employee=this.value;render()"><option value="${escapeHtml(state.profile.employeeName||"")}" selected>${escapeHtml(state.profile.employeeName||"")}</option></select>`
           : `<select onchange="window.leaveForm.employee=this.value;render()">
               <option value="">— Select —</option>
               ${emps.map(e=>`<option value="${escapeHtml(e)}" ${e===leaveForm.employee?"selected":""}>${escapeHtml(e)}</option>`).join("")}
@@ -2321,6 +2367,190 @@ async function importBackup(file){
 }
 window.exportBackup = exportBackup;
 window.importBackup = importBackup;
+
+// ═══════════════════════════════════════════════════════════════════════
+//  PROFILE PAGE — My Account, Change Password
+// ═══════════════════════════════════════════════════════════════════════
+let profileForm = null;
+
+function renderProfile(){
+  const p = state.profile || {};
+  const u = state.user || {};
+  const role = (p.role || 'employee').toUpperCase();
+  const roleColor = role === 'ADMIN' ? '#C9A84C' : role === 'HR' ? '#2E5FA3' : '#2E7D32';
+
+  // Last sign-in info
+  const lastSignIn = u.metadata?.lastSignInTime ? new Date(u.metadata.lastSignInTime).toLocaleString('en-GB') : 'Unknown';
+  const accountCreated = u.metadata?.creationTime ? new Date(u.metadata.creationTime).toLocaleString('en-GB') : 'Unknown';
+
+  if(!profileForm) profileForm = { current:"", newPass:"", confirm:"", showOldPass:false, showNewPass:false };
+
+  return `<div class="card" style="background:linear-gradient(135deg,#1B3A6B 0%,#2E5FA3 100%);color:white;border:2px solid #C9A84C">
+    <div style="display:flex;align-items:center;gap:14px">
+      <div style="width:64px;height:64px;border:2px solid #C9A84C;border-radius:12px;display:flex;align-items:center;justify-content:center;background:#1B3A6B;flex-shrink:0">
+        <span style="font-family:'DM Serif Display',serif;font-size:20px;color:#C9A84C;font-weight:700">${escapeHtml((p.name||'?').charAt(0).toUpperCase())}</span>
+      </div>
+      <div style="flex:1;min-width:0">
+        <h2 style="font-family:'DM Serif Display',serif;font-size:22px;color:white;margin:0;line-height:1.2">${escapeHtml(p.name || 'User')}</h2>
+        <div style="font-size:12px;color:#B8CFE8;margin-top:4px">${escapeHtml(p.email || '')}</div>
+        <div style="margin-top:8px">
+          <span style="background:${roleColor};color:#1B3A6B;font-size:11px;padding:3px 10px;border-radius:10px;font-weight:800;letter-spacing:0.5px">${role}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">01</span> Account Information</div>
+    <div style="display:grid;gap:10px;margin-top:10px">
+      <div style="display:flex;justify-content:space-between;padding:10px 14px;border:1px solid var(--line);border-radius:8px;background:white">
+        <span style="color:var(--muted);font-size:12px">Email</span>
+        <strong style="color:#1B3A6B">${escapeHtml(p.email || 'N/A')}</strong>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:10px 14px;border:1px solid var(--line);border-radius:8px;background:white">
+        <span style="color:var(--muted);font-size:12px">Full Name</span>
+        <strong style="color:#1B3A6B">${escapeHtml(p.name || 'N/A')}</strong>
+      </div>
+      ${p.employeeName ? `<div style="display:flex;justify-content:space-between;padding:10px 14px;border:1px solid var(--line);border-radius:8px;background:white">
+        <span style="color:var(--muted);font-size:12px">Tracked As</span>
+        <strong style="color:#1B3A6B">${escapeHtml(p.employeeName)}</strong>
+      </div>` : ''}
+      <div style="display:flex;justify-content:space-between;padding:10px 14px;border:1px solid var(--line);border-radius:8px;background:white">
+        <span style="color:var(--muted);font-size:12px">Role</span>
+        <span style="background:${roleColor}22;color:${roleColor};font-size:11px;padding:3px 10px;border-radius:10px;font-weight:700">${role}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:10px 14px;border:1px solid var(--line);border-radius:8px;background:white">
+        <span style="color:var(--muted);font-size:12px">Last Sign In</span>
+        <span style="color:#1B3A6B;font-size:12px">${lastSignIn}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:10px 14px;border:1px solid var(--line);border-radius:8px;background:white">
+        <span style="color:var(--muted);font-size:12px">Account Created</span>
+        <span style="color:#1B3A6B;font-size:12px">${accountCreated}</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">02</span> 🔒 Change Password</div>
+    <p style="font-size:12px;color:var(--muted);margin:0 0 12px">Keep your account safe by using a strong password. Minimum 6 characters.</p>
+
+    <div class="form-grid">
+      <div class="field full"><label>Current Password <span class="req">*</span></label>
+        <div style="position:relative">
+          <input type="${profileForm.showOldPass?'text':'password'}" id="profCurrent" value="${escapeHtml(profileForm.current)}" oninput="window.profileForm.current=this.value" placeholder="Enter your current password" autocomplete="current-password" style="padding-right:42px">
+          <button type="button" onclick="window.profileForm.showOldPass=!window.profileForm.showOldPass;render()" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:transparent;border:none;cursor:pointer;font-size:16px;color:var(--muted)">${profileForm.showOldPass?'🙈':'👁'}</button>
+        </div>
+      </div>
+      <div class="field"><label>New Password <span class="req">*</span></label>
+        <div style="position:relative">
+          <input type="${profileForm.showNewPass?'text':'password'}" id="profNew" value="${escapeHtml(profileForm.newPass)}" oninput="window.profileForm.newPass=this.value;render()" placeholder="At least 6 characters" autocomplete="new-password" style="padding-right:42px">
+          <button type="button" onclick="window.profileForm.showNewPass=!window.profileForm.showNewPass;render()" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:transparent;border:none;cursor:pointer;font-size:16px;color:var(--muted)">${profileForm.showNewPass?'🙈':'👁'}</button>
+        </div>
+      </div>
+      <div class="field"><label>Confirm Password <span class="req">*</span></label>
+        <input type="password" value="${escapeHtml(profileForm.confirm)}" oninput="window.profileForm.confirm=this.value;render()" placeholder="Repeat new password" autocomplete="new-password">
+      </div>
+      ${profileForm.newPass ? `<div class="field full">
+        ${passwordStrengthBar(profileForm.newPass)}
+      </div>` : ''}
+      ${profileForm.newPass && profileForm.confirm ? `<div class="field full" style="padding:8px 12px;border-radius:6px;background:${profileForm.newPass===profileForm.confirm ? '#E8F5E9' : '#FFEBEE'};border:1px solid ${profileForm.newPass===profileForm.confirm ? '#A5D6A7' : '#EF9A9A'};font-size:12px;color:${profileForm.newPass===profileForm.confirm ? '#2E7D32' : '#C62828'};font-weight:600">
+        ${profileForm.newPass===profileForm.confirm ? '✓ Passwords match' : '✗ Passwords do not match'}
+      </div>` : ''}
+    </div>
+    <div class="btn-row" style="margin-top:14px">
+      <button class="btn btn-primary" onclick="changeMyPassword()" ${(!profileForm.current||!profileForm.newPass||profileForm.newPass!==profileForm.confirm||profileForm.newPass.length<6)?'disabled':''}>🔐 Update Password</button>
+      <button class="btn btn-ghost" onclick="window.profileForm={current:'',newPass:'',confirm:'',showOldPass:false,showNewPass:false};render()">Clear</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">03</span> 🔑 Forgot Password?</div>
+    <p style="font-size:12px;color:var(--muted);margin:0 0 12px">If you can't remember your current password, click below to receive a reset link via email.</p>
+    <button class="btn btn-ghost" style="background:#FFF8E1;border:1px solid #C9A84C;color:#7F6000" onclick="requestPasswordReset()">📧 Send Reset Link to ${escapeHtml(p.email || '')}</button>
+  </div>
+
+  <div class="card">
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">04</span> 🚪 Sign Out</div>
+    <p style="font-size:12px;color:var(--muted);margin:0 0 12px">Sign out from this device. You'll need to enter your credentials again to sign back in.</p>
+    <button class="btn btn-danger" onclick="if(confirm('Sign out from this device?')) doSignOut()">Sign Out</button>
+  </div>
+
+  <div class="card" style="background:#F5F8FC;border:1px dashed var(--line)">
+    <div style="font-size:12px;color:var(--muted);text-align:center;line-height:1.6">
+      <strong style="color:#1B3A6B">EjafTech Operation Department Track</strong><br>
+      Account managed via Firebase Authentication · Your data is encrypted and secure
+    </div>
+  </div>`;
+}
+
+function passwordStrengthBar(pw){
+  let score = 0;
+  if(pw.length >= 6) score++;
+  if(pw.length >= 10) score++;
+  if(/[A-Z]/.test(pw) && /[a-z]/.test(pw)) score++;
+  if(/[0-9]/.test(pw)) score++;
+  if(/[^A-Za-z0-9]/.test(pw)) score++;
+  const colors = ['#C62828','#E65100','#F9A825','#558B2F','#2E7D32'];
+  const labels = ['Very Weak','Weak','Fair','Good','Strong'];
+  const idx = Math.min(score, 4);
+  const pct = (score/5)*100;
+  return `<div style="margin-top:4px">
+    <div style="height:6px;background:#F0F0F0;border-radius:3px;overflow:hidden">
+      <div style="height:100%;width:${pct}%;background:${colors[idx]};transition:width 0.3s"></div>
+    </div>
+    <div style="font-size:11px;color:${colors[idx]};font-weight:700;margin-top:4px">Password strength: ${labels[idx]}</div>
+  </div>`;
+}
+
+async function changeMyPassword(){
+  if(!profileForm.current || !profileForm.newPass) return toast("All fields required");
+  if(profileForm.newPass.length < 6) return toast("Password must be 6+ characters");
+  if(profileForm.newPass !== profileForm.confirm) return toast("Passwords don't match");
+  if(profileForm.newPass === profileForm.current) return toast("New password must be different");
+
+  try {
+    const { auth, EmailAuthProvider, reauthenticateWithCredential, updatePassword } = window.__fb;
+    const user = auth.currentUser;
+    if(!user) return toast("Not signed in");
+
+    // Re-authenticate with current password
+    const credential = EmailAuthProvider.credential(user.email, profileForm.current);
+    await reauthenticateWithCredential(user, credential);
+
+    // Update to new password
+    await updatePassword(user, profileForm.newPass);
+
+    toast("✓ Password updated successfully!");
+    profileForm = { current:"", newPass:"", confirm:"", showOldPass:false, showNewPass:false };
+    render();
+  } catch(e) {
+    console.error(e);
+    let msg = "Failed to change password";
+    if(e.code === "auth/wrong-password" || e.code === "auth/invalid-credential") msg = "Current password is incorrect";
+    if(e.code === "auth/weak-password") msg = "New password is too weak";
+    if(e.code === "auth/requires-recent-login") msg = "Please sign out and sign in again, then try";
+    if(e.code === "auth/too-many-requests") msg = "Too many attempts. Try again later.";
+    toast("❌ " + msg);
+  }
+}
+
+async function requestPasswordReset(){
+  const email = state.profile?.email;
+  if(!email) return toast("No email on file");
+  if(!confirm(`Send password reset link to:\n${email}?`)) return;
+  try {
+    const { auth, sendPasswordResetEmail } = window.__fb;
+    await sendPasswordResetEmail(auth, email);
+    alert(`✓ Reset link sent to ${email}!\n\nCheck your inbox (and Spam folder).\n\nThe link expires in 1 hour.`);
+  } catch(e) {
+    console.error(e);
+    toast("❌ Failed to send reset email");
+  }
+}
+
+window.changeMyPassword = changeMyPassword;
+window.requestPasswordReset = requestPasswordReset;
+Object.defineProperty(window,'profileForm',{get:()=>profileForm,set:v=>profileForm=v,configurable:true});
 
 function renderShare(){
   if(!isAdmin()) return `<div class="card"><div class="empty">Access denied — Admin only</div></div>`;
