@@ -245,7 +245,7 @@ const state = {
 };
 
 // Forms
-let dailyForm=null, dailyEditId=null, dailyFilter="";
+let dailyForm=null, dailyEditId=null, dailyFilter="", dailyLocFilter="";
 let otForm=null, otEditId=null;
 let trForm=null, trEditId=null;
 let projForm=null, projEditId=null;
@@ -1135,13 +1135,24 @@ function renderDailyLog(){
     dailyForm={
       date:today(),
       employee:isEmployee()?state.profile.employeeName:"",
-      project:"",start:"",end:"",notes:""
+      project:"",start:"",end:"",location:"",notes:""
     };
   }
   const dur=timeToHrs(dailyForm.start,dailyForm.end);
   const dept=projDept(dailyForm.project);
-  const rows=visibleRows(state.daily).filter(r=>!dailyFilter||r.employee===dailyFilter);
+  // Filter by location too
+  const rows=visibleRows(state.daily).filter(r=>{
+    if(dailyFilter && r.employee!==dailyFilter) return false;
+    if(dailyLocFilter && r.location!==dailyLocFilter) return false;
+    return true;
+  });
   const empOptions=allEmployees();
+  // Location stats (hours by location)
+  const locStats = state.locations.map(l=>{
+    const items = visibleRows(state.daily).filter(r=>r.location===l.name);
+    const hours = items.reduce((s,r)=>s+Number(r.duration||0),0);
+    return {name:l.name, count:items.length, hours};
+  }).filter(l=>l.count>0);
 
   return `<div class="card">
     <div class="sec-hdr">${dailyEditId?"Edit":"Add"} Work Entry</div>
@@ -1164,6 +1175,11 @@ function renderDailyLog(){
         <input type="time" value="${dailyForm.start}" onchange="window.dailyForm.start=this.value;render()"></div>
       <div class="field"><label>End</label>
         <input type="time" value="${dailyForm.end}" onchange="window.dailyForm.end=this.value;render()"></div>
+      <div class="field full"><label>Location <span class="req">*</span></label>
+        <select onchange="window.dailyForm.location=this.value;render()">
+          <option value="">— Select Location —</option>
+          ${state.locations.map(l=>{const n=(l.name||"").trim();return `<option value="${escapeHtml(n)}" ${n===(dailyForm.location||"").trim()?"selected":""}>${escapeHtml(n)}</option>`}).join("")}
+        </select></div>
       <div class="field"><label>Duration</label>
         <div class="auto green ${dur>0?"":"empty"}">${dur>0?fmtHM(dur):"—"}</div></div>
       <div class="field"><label>Dept (auto)</label>
@@ -1177,34 +1193,56 @@ function renderDailyLog(){
     </div>
   </div>
 
+  ${!isEmployee() && locStats.length>0 ? `<div class="card">
+    <div class="card-title">📍 Location Statistics</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px">
+      ${locStats.map(l=>`
+        <div style="border:1px solid var(--line);border-left:4px solid #2E5FA3;border-radius:8px;padding:10px 12px;background:white">
+          <div style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:0.5px">📍 ${escapeHtml(l.name)}</div>
+          <div style="font-family:'DM Serif Display',serif;font-size:20px;color:#2E5FA3;margin-top:2px">${fmtHM(l.hours)}</div>
+          <div style="font-size:10px;color:var(--muted)">${l.count} ${l.count===1?'entry':'entries'}</div>
+        </div>
+      `).join("")}
+    </div>
+  </div>` : ""}
+
   <div class="card">
     <div class="filter-row">
       <span class="card-title" style="margin:0">Work Log</span>
       <span class="count-pill">${rows.length}</span>
-      ${!isEmployee()?`<select onchange="window.dailyFilter=this.value;render()" style="margin-left:auto">
-        <option value="">All</option>
-        ${empOptions.map(e=>`<option ${e===dailyFilter?"selected":""}>${escapeHtml(e)}</option>`).join("")}
-      </select>`:""}
+      <div style="display:flex;gap:6px;margin-left:auto;flex-wrap:wrap">
+        ${!isEmployee()?`<select onchange="window.dailyFilter=this.value;render()" style="padding:6px 10px;border:1px solid var(--line);border-radius:6px;font-size:12px">
+          <option value="">All Employees</option>
+          ${empOptions.map(e=>`<option ${e===dailyFilter?"selected":""}>${escapeHtml(e)}</option>`).join("")}
+        </select>`:""}
+        <select onchange="window.dailyLocFilter=this.value;render()" style="padding:6px 10px;border:1px solid var(--line);border-radius:6px;font-size:12px">
+          <option value="">All Locations</option>
+          ${state.locations.map(l=>`<option value="${escapeHtml(l.name)}" ${l.name===dailyLocFilter?"selected":""}>📍 ${escapeHtml(l.name)}</option>`).join("")}
+        </select>
+      </div>
     </div>
     <div class="tbl-wrap"><table class="tbl">
-      <thead><tr><th>Date</th>${!isEmployee()?"<th>Employee</th>":""}<th>Project</th><th>Dept</th><th>Hrs</th><th></th></tr></thead>
-      <tbody>${rows.length===0?`<tr><td colspan="6" class="empty">No entries yet</td></tr>`:rows.map(r=>{
+      <thead><tr><th>Date</th>${!isEmployee()?"<th>Employee</th>":""}<th>Project</th><th>Dept</th><th>Location</th><th>Hrs</th><th></th></tr></thead>
+      <tbody>${rows.length===0?`<tr><td colspan="7" class="empty">No entries yet</td></tr>`:rows.map(r=>{
         const canEdit=isHR()||r.employee===state.profile.employeeName;
         return `<tr>
           <td>${fmtDate(r.date)}</td>
           ${!isEmployee()?`<td><strong>${escapeHtml(r.employee)}</strong></td>`:""}
           <td>${escapeHtml(r.project||"")}</td>
           <td>${deptBadge(r.dept)}</td>
+          <td>${r.location?`<span style="background:#E3F2FD;color:#1565C0;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600">📍 ${escapeHtml(r.location)}</span>`:'<span style="color:#bbb;font-style:italic;font-size:11px">—</span>'}</td>
           <td><strong style="color:#2E7D32">${fmtHM(r.duration)}</strong></td>
           <td>${canEdit?`<button class="btn btn-sm btn-secondary" onclick="editDaily('${r.id}')">✎</button>
               <button class="btn btn-sm btn-danger" onclick="delDaily('${r.id}')">🗑</button>`:""}</td>
         </tr>`;}).join("")}</tbody>
     </table></div>
-  </div>`;
+  </div>
+  <script>window.dailyLocFilter='${dailyLocFilter}';</script>`;
 }
 
 async function saveDaily(){
   if(!dailyForm.employee||!dailyForm.project||!dailyForm.date)return toast("Required: Employee, Date, Project");
+  if(!dailyForm.location)return toast("Location is required");
   // Strict employee guard: force own name on save (defense in depth)
   if(isEmployee()){
     if(!state.profile.employeeName) return toast("Your account has no employee profile. Contact admin.");
@@ -1222,6 +1260,7 @@ async function saveDaily(){
 }
 async function saveDailyAndNext(){
   if(!dailyForm.employee||!dailyForm.project||!dailyForm.date)return toast("Required: Employee, Date, Project");
+  if(!dailyForm.location)return toast("Location is required");
   if(isEmployee()) return toast("Use Save for single entry");
   // Save first
   await fbSave("daily",{
@@ -1236,11 +1275,12 @@ async function saveDailyAndNext(){
   dailyForm = {...dailyForm, employee:""};
   toast(`Saved for ${savedEmp} ✓ — Select next employee`);
 }
-function editDaily(id){const r=state.daily.find(x=>x.id===id);if(r){dailyForm={...r};dailyEditId=id;render();window.scrollTo(0,0);}}
+function editDaily(id){const r=state.daily.find(x=>x.id===id);if(r){dailyForm={...r,location:r.location||""};dailyEditId=id;render();window.scrollTo(0,0);}}
 async function delDaily(id){if(confirm("Delete this entry?")){await fbDelete("daily",id);toast("Deleted");}}
 function cancelDaily(){dailyForm=null;dailyEditId=null;render();}
 Object.assign(window,{saveDaily,saveDailyAndNext,editDaily,delDaily,cancelDaily});
 Object.defineProperty(window,'dailyForm',{get:()=>dailyForm,set:v=>dailyForm=v});
+Object.defineProperty(window,'dailyLocFilter',{get:()=>dailyLocFilter,set:v=>dailyLocFilter=v});
 Object.defineProperty(window,'dailyFilter',{get:()=>dailyFilter,set:v=>dailyFilter=v});
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -3103,9 +3143,9 @@ function exportFilteredExcel(){
       return ws;
     };
 
-    const dailyData = dr.map(r=>[r.employee||'',r.date||'',r.project||'',r.dept||'',fmtHM(r.duration),r.notes||'']);
-    const wsD = buildDetail('Daily Log', ['Employee','Date','Project','Department','Hours','Notes'], dailyData, COLORS.navyLight);
-    wsD['!cols']=[{wch:22},{wch:12},{wch:26},{wch:16},{wch:10},{wch:30}];
+    const dailyData = dr.map(r=>[r.employee||'',r.date||'',r.project||'',r.dept||'',r.location||'',fmtHM(r.duration),r.notes||'']);
+    const wsD = buildDetail('Daily Log', ['Employee','Date','Project','Department','Location','Hours','Notes'], dailyData, COLORS.navyLight);
+    wsD['!cols']=[{wch:22},{wch:12},{wch:26},{wch:16},{wch:14},{wch:10},{wch:30}];
     XLSX.utils.book_append_sheet(wb, wsD, 'Daily');
 
     const otData = or.map(r=>[r.employee||'',r.date||'',fmtHM(r.hours),r.project||'',r.dept||'',r.location||'']);
@@ -3529,8 +3569,8 @@ function exportExcel(){
 
     // Daily
     const dRows = isHR() ? state.daily : state.daily.filter(r=>r.employee===state.profile.employeeName);
-    const dailyData = dRows.map(r=>[r.date||'', r.employee||'', r.project||'', r.dept||'', r.start||'', r.end||'', fmtHM(r.duration), r.notes||'']);
-    const ws2 = buildDetailSheet('Daily Work Log', ['Date','Employee','Project','Department','Start','End','Duration','Notes'], dailyData, '#'+COLORS.navy);
+    const dailyData = dRows.map(r=>[r.date||'', r.employee||'', r.project||'', r.dept||'', r.location||'', r.start||'', r.end||'', fmtHM(r.duration), r.notes||'']);
+    const ws2 = buildDetailSheet('Daily Work Log', ['Date','Employee','Project','Department','Location','Start','End','Duration','Notes'], dailyData, '#'+COLORS.navy);
     ws2['!cols']=[{wch:12},{wch:22},{wch:26},{wch:14},{wch:8},{wch:8},{wch:11},{wch:30}];
     XLSX.utils.book_append_sheet(wb, ws2, 'Daily Work');
 
