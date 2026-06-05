@@ -238,6 +238,7 @@ const state = {
   user: null,           // Firebase auth user
   profile: null,        // {role, name, email, employeeName, ...} from users collection
   daily: [], overtime: [], travel: [], leaves: [], projects: [], locations: [], users: [], departments: [],
+  workCategories: [], workTasks: [],  // Work Instructions module
   tab: "Dashboard",
   initialized: false,
   unsubs: [],           // active Firestore listeners
@@ -273,6 +274,51 @@ const dayName=(d)=>d?["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][new Date(d).get
 const projDept=(p)=>{const tp=(p||"").trim();return state.projects.find(x=>(x.name||"").trim()===tp)?.dept||"";};
 const deptBadge=(d)=>{if(!d)return "";const c=d==="Enterprise"?"ent":d==="Security"?"sec":"eja";return `<span class="badge badge-${c}">${d}</span>`;};
 const escapeHtml=(s)=>String(s||"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[c]);
+
+// ═══════════════════════════════════════════════════════════════════════
+//  IMAGE COMPRESSION HELPER
+//  Compresses an image File to a base64 string for Firestore storage.
+//  Settings: max 1024px width, 60% JPEG quality → typically ~50-150 KB
+// ═══════════════════════════════════════════════════════════════════════
+function compressImage(file, maxWidth = 1024, quality = 0.6){
+  return new Promise((resolve, reject) => {
+    if(!file || !file.type.startsWith('image/')){
+      return reject(new Error('Not an image'));
+    }
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Read failed'));
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('Image load failed'));
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let w = img.width, h = img.height;
+        if(w > maxWidth){
+          h = Math.round(h * (maxWidth / w));
+          w = maxWidth;
+        }
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        // White background (handles transparent PNGs)
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, w, h);
+        ctx.drawImage(img, 0, 0, w, h);
+        const base64 = canvas.toDataURL('image/jpeg', quality);
+        resolve(base64);
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+// Approximate KB size of a base64 string
+function base64SizeKB(b64){
+  if(!b64) return 0;
+  const len = b64.length - (b64.indexOf(',') + 1);
+  return Math.round(len * 3 / 4 / 1024);
+}
 
 let toastTimer;
 function toast(msg){
@@ -395,6 +441,7 @@ async function subscribeData(){
     ["daily","daily"],["overtime","overtime"],["travel","travel"],["leaves","leaves"],
     ["projects","projects"],["locations","locations"],["users","users"],
     ["departments","departments"],
+    ["workCategories","workCategories"],["workTasks","workTasks"],
   ];
   let firstCount=0;
 
@@ -405,6 +452,8 @@ async function subscribeData(){
       if(["daily","overtime","travel"].includes(col)){
         items.sort((a,b)=>(b.date||"").localeCompare(a.date||""));
       } else if(col==="users"){
+        items.sort((a,b)=>(a.name||"").localeCompare(b.name||""));
+      } else if(col==="workTasks"){
         items.sort((a,b)=>(a.name||"").localeCompare(b.name||""));
       } else {
         items.sort((a,b)=>(a.name||"").localeCompare(b.name||""));
@@ -418,7 +467,7 @@ async function subscribeData(){
       }
 
       firstCount++;
-      if(firstCount>=8 && !state.initialized){
+      if(firstCount>=10 && !state.initialized){
         state.initialized=true;
         renderApp();
       } else if(state.initialized){
@@ -449,6 +498,14 @@ async function seedDefaults(){
     }
     for(const l of DEFAULT_LOCATIONS){
       await setDoc(doc(db,"locations",l.id),{name:l.name});
+    }
+    // Seed default work categories
+    const DEFAULT_WORK_CATEGORIES = [
+      {id:"enterprise_wi", name:"Enterprise", color:"#2E7D32", icon:"🏢"},
+      {id:"security_wi",   name:"Security",   color:"#E65100", icon:"🔒"},
+    ];
+    for(const wc of DEFAULT_WORK_CATEGORIES){
+      await setDoc(doc(db,"workCategories",wc.id),{name:wc.name,color:wc.color,icon:wc.icon});
     }
     toast("Defaults loaded ✓");
   }catch(e){console.error(e);}
@@ -595,8 +652,8 @@ function renderApp(){
 }
 
 function getTabs(){
-  // Base tabs available to ALL users
-  const base=["Dashboard","Daily Log","Overtime","Travel","Leaves"];
+  // Base tabs available to ALL users (including employees)
+  const base=["Dashboard","Daily Log","Overtime","Travel","Leaves","Work Instructions"];
   // HR Report and Reports are ONLY for HR/Admin (not employees)
   if(isHR()) base.push("HR Report","Reports");
   // Management tabs for HR
@@ -617,6 +674,7 @@ function renderTab(){
   if(!c)return;
 
   // Security guard: Employees cannot access HR/admin-only tabs
+  // Note: Work Instructions IS allowed for employees (read-only view)
   const hrOnlyTabs = ["HR Report","Reports","Projects","Locations","Departments","Users","Share"];
   if(isEmployee() && hrOnlyTabs.includes(state.tab)){
     state.tab = "Dashboard";  // redirect to safe default
@@ -626,8 +684,8 @@ function renderTab(){
     "Dashboard":renderDashboard,"Daily Log":renderDailyLog,"Overtime":renderOvertime,
     "Travel":renderTravel,"Leaves":renderLeaves,"HR Report":renderHRReport,"Reports":renderFlexReports,
     "Projects":renderProjects,"Locations":renderLocations,"Users":renderUsers,
-    "Departments":renderDepartments,"Share":renderShare,
-    "Profile":renderProfile,
+    "Departments":renderDepartments,"Work Instructions":renderWorkInstructions,
+    "Share":renderShare,"Profile":renderProfile,
   }[state.tab]||renderDashboard;
   c.innerHTML=fn();
 }
@@ -1135,9 +1193,15 @@ function renderDailyLog(){
     dailyForm={
       date:today(),
       employee:isEmployee()?state.profile.employeeName:"",
-      project:"",start:"",end:"",location:"",notes:""
+      project:"",start:"",end:"",location:"",
+      resolutionText:"",  // mandatory text explanation
+      resolutionImages:[], // array of base64 compressed images
+      notes:""
     };
   }
+  // Ensure resolution fields exist (backward compat for edit)
+  if(!dailyForm.resolutionImages) dailyForm.resolutionImages = [];
+  if(typeof dailyForm.resolutionText === 'undefined') dailyForm.resolutionText = "";
   const dur=timeToHrs(dailyForm.start,dailyForm.end);
   const dept=projDept(dailyForm.project);
   // Filter by location too
@@ -1186,6 +1250,66 @@ function renderDailyLog(){
         <div class="auto purple ${dept?"":"empty"}">${dept||"—"}</div></div>
       <div class="field full"><label>Notes</label>
         <input value="${escapeHtml(dailyForm.notes||"")}" oninput="window.dailyForm.notes=this.value" placeholder="Optional"></div>
+
+      <!-- ═══ RESOLUTION SECTION (MANDATORY) ═══ -->
+      <div class="field full" style="margin-top:6px">
+        <div style="background:linear-gradient(135deg,#FFF8E1 0%,#FFFEF7 100%);border:2px solid #C9A84C;border-radius:10px;padding:14px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding-bottom:8px;border-bottom:1px dashed #C9A84C">
+            <span style="background:#C9A84C;color:#1B3A6B;padding:3px 10px;border-radius:6px;font-size:11px;font-weight:800;letter-spacing:0.5px">RESOLUTION</span>
+            <span style="font-size:12px;color:#7F6000;font-weight:600">📋 Required — Document work performed</span>
+          </div>
+
+          <!-- Resolution Text -->
+          <div style="margin-bottom:12px">
+            <label style="display:block;font-size:12px;font-weight:700;color:#5C4A12;margin-bottom:4px">
+              Work / Troubleshooting Description <span style="color:#C53030">*</span>
+            </label>
+            <textarea
+              rows="3"
+              placeholder="Briefly describe what was done, troubleshooting steps, issues resolved..."
+              oninput="window.dailyForm.resolutionText=this.value"
+              style="width:100%;padding:8px 10px;border:1px solid #C9A84C;border-radius:6px;font-family:inherit;font-size:13px;resize:vertical;background:white">${escapeHtml(dailyForm.resolutionText||"")}</textarea>
+            <div style="font-size:10px;color:#7F6000;margin-top:3px">
+              ${(dailyForm.resolutionText||"").length} characters · minimum 10 required
+            </div>
+          </div>
+
+          <!-- Image Upload -->
+          <div>
+            <label style="display:block;font-size:12px;font-weight:700;color:#5C4A12;margin-bottom:4px">
+              Photos <span style="color:#C53030">*</span>
+              <span style="font-weight:500;color:#7F6000;font-size:11px">(1-3 images, auto-compressed)</span>
+            </label>
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              id="resImageInput"
+              onchange="handleResolutionImages(this.files)"
+              ${(dailyForm.resolutionImages||[]).length >= 3 ? 'disabled' : ''}
+              style="width:100%;padding:8px;border:1px dashed #C9A84C;border-radius:6px;background:white;font-size:12px;cursor:pointer">
+            <div style="font-size:10px;color:#7F6000;margin-top:3px">
+              ${(dailyForm.resolutionImages||[]).length}/3 images uploaded
+              ${(dailyForm.resolutionImages||[]).length >= 3 ? ' · Maximum reached. Remove one to add another.' : ''}
+            </div>
+
+            <!-- Image Previews -->
+            ${(dailyForm.resolutionImages||[]).length > 0 ? `
+              <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px;margin-top:10px">
+                ${(dailyForm.resolutionImages||[]).map((img,idx)=>`
+                  <div style="position:relative;border:2px solid #C9A84C;border-radius:8px;overflow:hidden;background:white;aspect-ratio:1">
+                    <img src="${img.data}" style="width:100%;height:100%;object-fit:cover;display:block" alt="Resolution ${idx+1}">
+                    <div style="position:absolute;bottom:0;left:0;right:0;background:rgba(27,58,107,0.85);color:white;padding:3px 5px;font-size:9px;font-weight:600;text-align:center">
+                      ${img.sizeKB || base64SizeKB(img.data)} KB
+                    </div>
+                    ${isAdmin() ? `<button type="button" onclick="removeResolutionImage(${idx})" style="position:absolute;top:3px;right:3px;background:#C53030;color:white;border:none;width:24px;height:24px;border-radius:50%;cursor:pointer;font-weight:700;font-size:13px;box-shadow:0 2px 6px rgba(0,0,0,0.3)" title="Remove (Admin only)">×</button>` : ''}
+                  </div>
+                `).join("")}
+              </div>
+            ` : ''}
+          </div>
+        </div>
+      </div>
     </div>
     <div class="btn-row">
       <button class="btn btn-primary" onclick="saveDaily()">${dailyEditId?"Update":"Add Entry"}</button>
@@ -1222,9 +1346,11 @@ function renderDailyLog(){
       </div>
     </div>
     <div class="tbl-wrap"><table class="tbl">
-      <thead><tr><th>Date</th>${!isEmployee()?"<th>Employee</th>":""}<th>Project</th><th>Dept</th><th>Location</th><th>Hrs</th><th></th></tr></thead>
-      <tbody>${rows.length===0?`<tr><td colspan="7" class="empty">No entries yet</td></tr>`:rows.map(r=>{
+      <thead><tr><th>Date</th>${!isEmployee()?"<th>Employee</th>":""}<th>Project</th><th>Dept</th><th>Location</th><th>Hrs</th><th>Resolution</th><th></th></tr></thead>
+      <tbody>${rows.length===0?`<tr><td colspan="8" class="empty">No entries yet</td></tr>`:rows.map(r=>{
         const canEdit=isHR()||r.employee===state.profile.employeeName;
+        const imgs = (r.resolutionImages||[]);
+        const hasRes = imgs.length > 0 || (r.resolutionText||"").length > 0;
         return `<tr>
           <td>${fmtDate(r.date)}</td>
           ${!isEmployee()?`<td><strong>${escapeHtml(r.employee)}</strong></td>`:""}
@@ -1232,16 +1358,34 @@ function renderDailyLog(){
           <td>${deptBadge(r.dept)}</td>
           <td>${r.location?`<span style="background:#E3F2FD;color:#1565C0;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600">📍 ${escapeHtml(r.location)}</span>`:'<span style="color:#bbb;font-style:italic;font-size:11px">—</span>'}</td>
           <td><strong style="color:#2E7D32">${fmtHM(r.duration)}</strong></td>
+          <td>${hasRes?`<button class="btn btn-sm" style="background:#FFF8E1;border:1px solid #C9A84C;color:#7F6000;font-weight:700" onclick="viewResolution('${r.id}')" title="View resolution">📷 ${imgs.length}</button>`:'<span style="color:#bbb;font-style:italic;font-size:11px">—</span>'}</td>
           <td>${canEdit?`<button class="btn btn-sm btn-secondary" onclick="editDaily('${r.id}')">✎</button>
               <button class="btn btn-sm btn-danger" onclick="delDaily('${r.id}')">🗑</button>`:""}</td>
         </tr>`;}).join("")}</tbody>
     </table></div>
+    ${isAdmin() && rows.some(r => (r.resolutionImages||[]).length > 0) ? `
+      <div style="margin-top:14px;padding:10px 12px;background:#FEF3C7;border:1px dashed #C9A84C;border-radius:8px;font-size:12px">
+        <strong style="color:#7F6000">🧹 Storage Cleanup (Admin):</strong>
+        <button class="btn btn-sm" style="background:white;border:1px solid #C9A84C;color:#7F6000;margin-left:8px" onclick="purgeOldResolutionImages(1)">Purge images >1 month</button>
+        <button class="btn btn-sm" style="background:white;border:1px solid #C9A84C;color:#7F6000;margin-left:4px" onclick="purgeOldResolutionImages(2)">>2 months</button>
+        <button class="btn btn-sm" style="background:white;border:1px solid #C9A84C;color:#7F6000;margin-left:4px" onclick="purgeOldResolutionImages(3)">>3 months</button>
+        <div style="font-size:11px;color:#7F6000;margin-top:4px;font-style:italic">Removes images only — text descriptions are preserved</div>
+      </div>
+    ` : ''}
   </div>`;
 }
 
 async function saveDaily(){
   if(!dailyForm.employee||!dailyForm.project||!dailyForm.date)return toast("Required: Employee, Date, Project");
   if(!dailyForm.location)return toast("Location is required");
+  // Resolution validation (MANDATORY for new entries)
+  if(!dailyEditId){
+    const txt = (dailyForm.resolutionText||"").trim();
+    if(txt.length < 10) return toast("Resolution description required (min 10 chars)");
+    if(!dailyForm.resolutionImages || dailyForm.resolutionImages.length < 1){
+      return toast("At least 1 resolution photo is required");
+    }
+  }
   // Strict employee guard: force own name on save (defense in depth)
   if(isEmployee()){
     if(!state.profile.employeeName) return toast("Your account has no employee profile. Contact admin.");
@@ -1260,6 +1404,12 @@ async function saveDaily(){
 async function saveDailyAndNext(){
   if(!dailyForm.employee||!dailyForm.project||!dailyForm.date)return toast("Required: Employee, Date, Project");
   if(!dailyForm.location)return toast("Location is required");
+  // Resolution validation
+  const txt = (dailyForm.resolutionText||"").trim();
+  if(txt.length < 10) return toast("Resolution description required (min 10 chars)");
+  if(!dailyForm.resolutionImages || dailyForm.resolutionImages.length < 1){
+    return toast("At least 1 resolution photo is required");
+  }
   if(isEmployee()) return toast("Use Save for single entry");
   // Save first
   await fbSave("daily",{
@@ -1269,15 +1419,164 @@ async function saveDailyAndNext(){
     dept:projDept(dailyForm.project),
     createdBy:state.profile.uid,
   });
-  // Keep form data — only clear employee for next entry
+  // Keep form data — only clear employee and resolution for next entry
   const savedEmp = dailyForm.employee;
-  dailyForm = {...dailyForm, employee:""};
-  toast(`Saved for ${savedEmp} ✓ — Select next employee`);
+  dailyForm = {...dailyForm, employee:"", resolutionText:"", resolutionImages:[]};
+  toast(`Saved for ${savedEmp} ✓ — Add new resolution for next employee`);
 }
-function editDaily(id){const r=state.daily.find(x=>x.id===id);if(r){dailyForm={...r,location:r.location||""};dailyEditId=id;render();window.scrollTo(0,0);}}
+
+// ═══ RESOLUTION IMAGE HANDLERS ═══
+async function handleResolutionImages(fileList){
+  if(!fileList || fileList.length === 0) return;
+  const current = dailyForm.resolutionImages || [];
+  const remaining = 3 - current.length;
+  if(remaining <= 0){
+    toast("Maximum 3 images reached. Remove one first.");
+    return;
+  }
+  const filesToProcess = Array.from(fileList).slice(0, remaining);
+  toast(`Compressing ${filesToProcess.length} image(s)...`);
+  try{
+    for(const file of filesToProcess){
+      // Reject files over 10MB raw (would be too slow to compress on phone)
+      if(file.size > 10 * 1024 * 1024){
+        toast(`${file.name} too large (max 10MB)`); continue;
+      }
+      const base64 = await compressImage(file, 1024, 0.6);
+      const sizeKB = base64SizeKB(base64);
+      if(sizeKB > 500){
+        toast(`Image too large after compression (${sizeKB} KB). Skipped.`); continue;
+      }
+      current.push({ data: base64, sizeKB, addedAt: new Date().toISOString() });
+    }
+    dailyForm.resolutionImages = current;
+    // Clear file input
+    const inp = document.getElementById('resImageInput');
+    if(inp) inp.value = '';
+    render();
+    toast(`✓ ${current.length} image(s) ready`);
+  }catch(e){
+    console.error(e);
+    toast("Image processing failed: " + e.message);
+  }
+}
+
+function removeResolutionImage(index){
+  if(!isAdmin()){
+    toast("Only Admin can remove resolution images");
+    return;
+  }
+  if(!confirm("Remove this resolution image?")) return;
+  const arr = dailyForm.resolutionImages || [];
+  arr.splice(index, 1);
+  dailyForm.resolutionImages = arr;
+  render();
+  toast("Image removed");
+}
+
+// Remove a resolution image from a SAVED record (admin-only, for space cleanup)
+async function deleteResolutionImageFromRecord(recordId, imageIndex){
+  if(!isAdmin()){
+    toast("Only Admin can delete resolution images from records");
+    return;
+  }
+  if(!confirm(`Permanently remove image ${imageIndex+1} from this record?\nThis cannot be undone.`)) return;
+  const rec = state.daily.find(r => r.id === recordId);
+  if(!rec) return toast("Record not found");
+  const imgs = (rec.resolutionImages || []).slice();
+  imgs.splice(imageIndex, 1);
+  await fbSave("daily", { ...rec, id: recordId, resolutionImages: imgs });
+  toast(`Image removed. Record now has ${imgs.length} image(s).`);
+}
+
+// View resolution details in a modal overlay
+function viewResolution(recordId){
+  const r = state.daily.find(x => x.id === recordId);
+  if(!r) return toast("Record not found");
+  const imgs = r.resolutionImages || [];
+  const txt = r.resolutionText || "";
+  const overlay = document.createElement('div');
+  overlay.style.cssText = "position:fixed;inset:0;background:rgba(15,35,71,0.85);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px";
+  overlay.onclick = (e) => { if(e.target === overlay) overlay.remove(); };
+  overlay.innerHTML = `
+    <div style="background:white;border-radius:14px;max-width:700px;width:100%;max-height:90vh;overflow-y:auto;padding:0;box-shadow:0 24px 64px rgba(0,0,0,0.4)">
+      <div style="background:linear-gradient(135deg,#1B3A6B 0%,#2E5FA3 100%);color:white;padding:16px 20px;border-radius:14px 14px 0 0;display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <div style="font-size:11px;letter-spacing:2px;color:#C9A84C;font-weight:700">RESOLUTION</div>
+          <div style="font-size:16px;font-weight:700;margin-top:2px">${escapeHtml(r.employee||"")} · ${fmtDate(r.date)}</div>
+          <div style="font-size:12px;opacity:0.85;margin-top:2px">${escapeHtml(r.project||"")}</div>
+        </div>
+        <button onclick="this.closest('div[style*=\\'position:fixed\\']').remove()" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:white;width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:18px;font-weight:700">×</button>
+      </div>
+      <div style="padding:20px">
+        ${txt ? `
+          <div style="margin-bottom:16px">
+            <div style="font-size:11px;color:#7F6000;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">📋 Description</div>
+            <div style="background:#FFFEF7;border-left:3px solid #C9A84C;padding:12px 14px;border-radius:6px;font-size:13px;line-height:1.7;color:#1A202C;white-space:pre-wrap">${escapeHtml(txt)}</div>
+          </div>
+        ` : ''}
+        ${imgs.length > 0 ? `
+          <div>
+            <div style="font-size:11px;color:#1B3A6B;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">📷 Photos (${imgs.length})</div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px">
+              ${imgs.map((img,idx)=>`
+                <div style="border:2px solid #E0E6ED;border-radius:8px;overflow:hidden;background:#F7FAFC">
+                  <img src="${img.data}" style="width:100%;height:auto;display:block;cursor:pointer" onclick="window.open('${img.data}','_blank')" alt="Photo ${idx+1}">
+                  <div style="padding:5px 8px;background:#1B3A6B;color:white;font-size:10px;font-weight:600;display:flex;justify-content:space-between;align-items:center">
+                    <span>📷 ${idx+1} · ${img.sizeKB||base64SizeKB(img.data)} KB</span>
+                    ${isAdmin() ? `<button onclick="if(confirm('Delete this image from this record?')){deleteResolutionImageFromRecord('${recordId}',${idx});this.closest('div[style*=position]').remove()}" style="background:#C53030;color:white;border:none;padding:2px 6px;border-radius:4px;cursor:pointer;font-size:10px;font-weight:700" title="Admin: Delete">×</button>` : ''}
+                  </div>
+                </div>
+              `).join("")}
+            </div>
+          </div>
+        ` : ''}
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+}
+window.viewResolution = viewResolution;
+
+// Bulk-purge resolution images older than N months (Admin only)
+async function purgeOldResolutionImages(monthsOld){
+  if(!isAdmin()) return toast("Admin only");
+  const cutoff = new Date();
+  cutoff.setMonth(cutoff.getMonth() - monthsOld);
+  const cutoffStr = cutoff.toISOString().slice(0,10);
+  const candidates = state.daily.filter(r => (r.date||'') < cutoffStr && (r.resolutionImages||[]).length > 0);
+  if(candidates.length === 0){
+    return toast(`No records older than ${monthsOld} month(s) with images`);
+  }
+  if(!confirm(`Purge images from ${candidates.length} records older than ${monthsOld} month(s)?\nText descriptions will be kept.\nThis cannot be undone.`)) return;
+  let cleaned = 0;
+  for(const rec of candidates){
+    await fbSave("daily", { ...rec, id: rec.id, resolutionImages: [] });
+    cleaned++;
+  }
+  toast(`✓ Cleaned ${cleaned} records — space freed`);
+}
+function editDaily(id){
+  const r=state.daily.find(x=>x.id===id);
+  if(r){
+    dailyForm={
+      ...r,
+      location:r.location||"",
+      resolutionText:r.resolutionText||"",
+      resolutionImages:r.resolutionImages||[],
+    };
+    dailyEditId=id;
+    render();
+    window.scrollTo(0,0);
+  }
+}
 async function delDaily(id){if(confirm("Delete this entry?")){await fbDelete("daily",id);toast("Deleted");}}
 function cancelDaily(){dailyForm=null;dailyEditId=null;render();}
-Object.assign(window,{saveDaily,saveDailyAndNext,editDaily,delDaily,cancelDaily});
+Object.assign(window,{
+  saveDaily,saveDailyAndNext,editDaily,delDaily,cancelDaily,
+  handleResolutionImages, removeResolutionImage,
+  deleteResolutionImageFromRecord, purgeOldResolutionImages
+});
 Object.defineProperty(window,'dailyForm',{get:()=>dailyForm,set:v=>dailyForm=v});
 Object.defineProperty(window,'dailyLocFilter',{get:()=>dailyLocFilter,set:v=>dailyLocFilter=v});
 Object.defineProperty(window,'dailyFilter',{get:()=>dailyFilter,set:v=>dailyFilter=v});
@@ -2346,6 +2645,268 @@ Object.assign(window, {saveDept, editDept, delDept, cancelDept});
 Object.defineProperty(window,'deptForm',{get:()=>deptForm,set:v=>deptForm=v,configurable:true});
 
 // ═══════════════════════════════════════════════════════════════════════
+//  WORK INSTRUCTIONS MODULE
+//  Categories → Tasks → (Task Name + Google Drive Link + Description)
+// ═══════════════════════════════════════════════════════════════════════
+let wiCategoryForm = null, wiCategoryEditId = null;
+let wiTaskForm = null, wiTaskEditId = null;
+let wiActiveCategory = "";  // filter UI state
+
+function renderWorkInstructions(){
+  // Permission: Everyone can VIEW (read-only). Only ADMIN can edit/add/delete.
+  const canEdit = isAdmin();
+  if(canEdit && !wiCategoryForm) wiCategoryForm = {name:"", icon:"📁", color:"#2E5FA3"};
+
+  const cats = state.workCategories || [];
+  // Auto-select first category on first render
+  if(!wiActiveCategory && cats.length > 0) wiActiveCategory = cats[0].name;
+  const activeTasks = (state.workTasks || []).filter(t => t.category === wiActiveCategory);
+
+  const iconChoices = ["🏢","🔒","⚙️","🔧","💻","📡","🛠️","📋","🗂️","📚","🔌","🛡️","🚨","🏗️","🔍"];
+  const colorChoices = ["#2E7D32","#E65100","#6A1B9A","#1565C0","#C62828","#00838F","#5D4037","#37474F","#AD1457"];
+
+  let h = "";
+
+  // === ADMIN-ONLY: Add Category Form ===
+  if(canEdit){
+    h += `<div class="card">
+      <div class="sec-hdr">${wiCategoryEditId?"Edit":"Add"} Category</div>
+      <div class="form-grid">
+        <div class="field"><label>Category Name <span class="req">*</span></label>
+          <input value="${escapeHtml(wiCategoryForm.name||"")}" oninput="window.wiCategoryForm.name=this.value" placeholder="e.g., Enterprise, Security, Networking"></div>
+        <div class="field"><label>Icon</label>
+          <select onchange="window.wiCategoryForm.icon=this.value;render()">
+            ${iconChoices.map(ic=>`<option value="${ic}" ${ic===wiCategoryForm.icon?"selected":""}>${ic}</option>`).join("")}
+          </select>
+        </div>
+        <div class="field full"><label>Color</label>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            ${colorChoices.map(c=>`<div onclick="window.wiCategoryForm.color='${c}';render()" style="width:28px;height:28px;border-radius:6px;background:${c};cursor:pointer;border:${c===wiCategoryForm.color?'3px solid #1B3A6B':'1px solid #E0E6ED'};box-shadow:0 2px 4px rgba(0,0,0,0.1)"></div>`).join("")}
+          </div>
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="saveWICategory()">${wiCategoryEditId?"Update":"Add Category"}</button>
+        ${wiCategoryEditId?`<button class="btn btn-ghost" onclick="cancelWICategory()">Cancel</button>`:""}
+      </div>
+    </div>`;
+  } else {
+    // === EMPLOYEE/HR: Read-only banner ===
+    h += `<div class="card" style="background:linear-gradient(135deg,#E3F2FD 0%,#F0F4FA 100%);border-left:4px solid #1565C0">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="font-size:28px">📖</div>
+        <div>
+          <div style="font-size:15px;font-weight:800;color:#1B3A6B;margin-bottom:2px">Work Instructions — Reference Library</div>
+          <div style="font-size:12px;color:#1565C0;font-weight:600">View-only access. Contact your administrator to add or modify content.</div>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  // Categories tabs (visible to everyone)
+  h += `<div class="card">
+    <div class="card-title">📚 Categories · ${cats.length}</div>
+    ${cats.length === 0 ? `<div class="empty">${canEdit ? 'No categories. Add one above to begin.' : 'No instructions available yet. Please check back later.'}</div>` : `
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:${canEdit ? '8px' : '0'}">
+        ${cats.map(c => `
+          <div onclick="window.wiActiveCategory='${escapeHtml(c.name)}';render()" style="cursor:pointer;padding:8px 14px;background:${c.name===wiActiveCategory ? c.color : 'white'};color:${c.name===wiActiveCategory ? 'white' : c.color};border:2px solid ${c.color};border-radius:20px;font-size:13px;font-weight:700;display:flex;align-items:center;gap:6px;transition:all 0.2s">
+            <span>${c.icon||"📁"}</span>
+            <span>${escapeHtml(c.name)}</span>
+            <span style="font-size:10px;background:${c.name===wiActiveCategory ? 'rgba(255,255,255,0.25)' : c.color+'22'};padding:1px 6px;border-radius:8px">${state.workTasks.filter(t=>t.category===c.name).length}</span>
+          </div>
+        `).join("")}
+      </div>
+      ${canEdit ? `
+        <div style="display:flex;gap:6px;font-size:11px;flex-wrap:wrap">
+          ${cats.map(c=>`<div style="display:flex;gap:4px"><button class="btn btn-sm btn-secondary" onclick="editWICategory('${c.id}')">✎ ${escapeHtml(c.name)}</button><button class="btn btn-sm btn-danger" onclick="delWICategory('${c.id}')">🗑</button></div>`).join("")}
+        </div>
+      ` : ''}
+    `}
+  </div>`;
+
+  // Tasks for active category
+  if(wiActiveCategory){
+    const activeCat = cats.find(c => c.name === wiActiveCategory);
+    const catColor = activeCat?.color || "#2E5FA3";
+
+    // === ADMIN-ONLY: Add/Edit Task Form ===
+    if(canEdit){
+      if(!wiTaskForm) wiTaskForm = { name:"", category: wiActiveCategory, fileLink:"", fileName:"", description:"" };
+      // Ensure form is for active category
+      if(wiTaskForm.category !== wiActiveCategory && !wiTaskEditId){
+        wiTaskForm = { name:"", category: wiActiveCategory, fileLink:"", fileName:"", description:"" };
+      }
+
+      h += `<div class="card" style="border-top:4px solid ${catColor}">
+        <div class="sec-hdr">${wiTaskEditId?"Edit":"Add"} Task in <span style="color:${catColor}">${escapeHtml(wiActiveCategory)}</span></div>
+        <div class="form-grid">
+          <div class="field full"><label>Task Name <span class="req">*</span></label>
+            <input value="${escapeHtml(wiTaskForm.name||"")}" oninput="window.wiTaskForm.name=this.value" placeholder="e.g., Switch Configuration, Router Reset, Cable Replacement"></div>
+          <div class="field full"><label>Document Link (Google Drive / PDF / Word) <span style="color:var(--muted);font-weight:500">Optional</span></label>
+            <input value="${escapeHtml(wiTaskForm.fileLink||"")}" oninput="window.wiTaskForm.fileLink=this.value" placeholder="https://drive.google.com/file/d/... or any sharable link"></div>
+          <div class="field full"><label>Document Display Name</label>
+            <input value="${escapeHtml(wiTaskForm.fileName||"")}" oninput="window.wiTaskForm.fileName=this.value" placeholder="e.g., Cisco Switch Manual.pdf, Datasheet.docx"></div>
+          <div class="field full"><label>Workflow / Solution / Instructions <span class="req">*</span></label>
+            <textarea rows="6" oninput="window.wiTaskForm.description=this.value" placeholder="Step-by-step instructions, troubleshooting workflow, how to handle this task..." style="width:100%;padding:10px;border:1px solid var(--line);border-radius:6px;font-family:inherit;font-size:13px;resize:vertical">${escapeHtml(wiTaskForm.description||"")}</textarea>
+            <div style="font-size:10px;color:var(--muted);margin-top:3px">${(wiTaskForm.description||"").length} chars · Markdown line breaks supported</div>
+          </div>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-primary" onclick="saveWITask()">${wiTaskEditId?"Update Task":"Add Task"}</button>
+          ${wiTaskEditId?`<button class="btn btn-ghost" onclick="cancelWITask()">Cancel</button>`:""}
+        </div>
+      </div>`;
+    }
+
+    // Tasks list (visible to everyone)
+    h += `<div class="card">
+      <div class="card-title" style="color:${catColor}">${activeCat?.icon||"📁"} ${escapeHtml(wiActiveCategory)} Tasks · ${activeTasks.length}</div>
+      ${activeTasks.length === 0 ? `<div class="empty">${canEdit ? 'No tasks yet in this category. Add the first one above.' : 'No tasks in this category yet.'}</div>` : `
+        <div style="display:flex;flex-direction:column;gap:10px">
+          ${activeTasks.map(t => `
+            <div style="background:white;border:1px solid var(--line);border-left:4px solid ${catColor};border-radius:10px;padding:14px">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:8px">
+                <div style="flex:1">
+                  <div style="font-size:15px;font-weight:700;color:#1B3A6B;margin-bottom:3px">${escapeHtml(t.name)}</div>
+                  <div style="font-size:11px;color:var(--muted)">${escapeHtml(t.category)}${t.fileName ? ` · ${escapeHtml(t.fileName)}` : ''}</div>
+                </div>
+                ${canEdit ? `
+                  <div style="display:flex;gap:4px">
+                    <button class="btn btn-sm btn-secondary" onclick="editWITask('${t.id}')" title="Edit">✎</button>
+                    <button class="btn btn-sm btn-danger" onclick="delWITask('${t.id}')" title="Admin: Delete">🗑</button>
+                  </div>
+                ` : ''}
+              </div>
+              ${t.fileLink ? `
+                <div style="margin-bottom:8px">
+                  <a href="${escapeHtml(t.fileLink)}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;background:#E3F2FD;color:#1565C0;text-decoration:none;border-radius:6px;font-size:12px;font-weight:700;border:1px solid #1565C0">
+                    📄 ${escapeHtml(t.fileName||"Open document")}
+                  </a>
+                  ${canEdit ? `<button onclick="removeWITaskFile('${t.id}')" style="margin-left:6px;background:#FEE;color:#C53030;border:1px solid #C53030;padding:5px 10px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer" title="Admin: Remove file link">×</button>` : ''}
+                </div>
+              ` : ''}
+              ${t.description ? `
+                <div style="background:#F7FAFC;padding:10px 12px;border-radius:6px;font-size:12.5px;line-height:1.7;color:#1A202C;white-space:pre-wrap">${escapeHtml(t.description)}</div>
+              ` : ''}
+            </div>
+          `).join("")}
+        </div>
+      `}
+    </div>`;
+  }
+
+  return h;
+}
+
+async function saveWICategory(){
+  if(!isAdmin()) return toast("Only Admin can manage Work Instructions");
+  const name = (wiCategoryForm.name||"").trim();
+  if(!name) return toast("Category name required");
+  // Check duplicate
+  const existing = state.workCategories.find(c => c.name.toLowerCase() === name.toLowerCase() && c.id !== wiCategoryEditId);
+  if(existing) return toast("Category name already exists");
+  await fbSave("workCategories", {
+    id: wiCategoryEditId || undefined,
+    name,
+    icon: wiCategoryForm.icon || "📁",
+    color: wiCategoryForm.color || "#2E5FA3",
+  });
+  if(!wiCategoryEditId) wiActiveCategory = name;
+  wiCategoryForm = null;
+  wiCategoryEditId = null;
+  toast("Category saved ✓");
+}
+
+function editWICategory(id){
+  if(!isAdmin()) return toast("Only Admin can edit categories");
+  const c = state.workCategories.find(x => x.id === id);
+  if(c){ wiCategoryForm = {...c}; wiCategoryEditId = id; render(); window.scrollTo(0,0); }
+}
+
+async function delWICategory(id){
+  if(!isAdmin()) return toast("Only Admin can delete categories");
+  const c = state.workCategories.find(x => x.id === id);
+  if(!c) return;
+  const taskCount = state.workTasks.filter(t => t.category === c.name).length;
+  let msg = `Delete category "${c.name}"?`;
+  if(taskCount > 0) msg += `\n\n⚠️ This will also delete ${taskCount} task(s) inside it. This cannot be undone.`;
+  if(!confirm(msg)) return;
+  // Delete all tasks in this category first
+  for(const t of state.workTasks.filter(t => t.category === c.name)){
+    await fbDelete("workTasks", t.id);
+  }
+  await fbDelete("workCategories", id);
+  if(wiActiveCategory === c.name) wiActiveCategory = "";
+  toast(`Deleted category + ${taskCount} task(s)`);
+}
+
+function cancelWICategory(){ wiCategoryForm = null; wiCategoryEditId = null; render(); }
+
+async function saveWITask(){
+  if(!isAdmin()) return toast("Only Admin can manage tasks");
+  const name = (wiTaskForm.name||"").trim();
+  const desc = (wiTaskForm.description||"").trim();
+  if(!name) return toast("Task name required");
+  if(!desc) return toast("Task description / workflow required");
+  if(!wiTaskForm.category) return toast("No category selected");
+  // Validate link (if provided)
+  const link = (wiTaskForm.fileLink||"").trim();
+  if(link && !/^https?:\/\//i.test(link)){
+    return toast("Document link must start with http:// or https://");
+  }
+  await fbSave("workTasks", {
+    id: wiTaskEditId || undefined,
+    name,
+    category: wiTaskForm.category,
+    fileLink: link,
+    fileName: (wiTaskForm.fileName||"").trim(),
+    description: desc,
+    createdBy: state.profile.uid,
+  });
+  wiTaskForm = null;
+  wiTaskEditId = null;
+  toast("Task saved ✓");
+}
+
+function editWITask(id){
+  if(!isAdmin()) return toast("Only Admin can edit tasks");
+  const t = state.workTasks.find(x => x.id === id);
+  if(t){
+    wiTaskForm = {...t};
+    wiTaskEditId = id;
+    wiActiveCategory = t.category;
+    render();
+    window.scrollTo(0,0);
+  }
+}
+
+async function delWITask(id){
+  if(!isAdmin()) return toast("Only Admin can delete tasks");
+  if(!confirm("Delete this task? This cannot be undone.")) return;
+  await fbDelete("workTasks", id);
+  toast("Task deleted");
+}
+
+async function removeWITaskFile(id){
+  if(!isAdmin()) return toast("Only Admin can remove file links");
+  const t = state.workTasks.find(x => x.id === id);
+  if(!t) return;
+  if(!confirm(`Remove the document link from task "${t.name}"?\n\nThe task itself will be kept, only the file link is removed.`)) return;
+  await fbSave("workTasks", { ...t, id, fileLink:"", fileName:"" });
+  toast("File link removed");
+}
+
+function cancelWITask(){ wiTaskForm = null; wiTaskEditId = null; render(); }
+
+Object.assign(window, {
+  saveWICategory, editWICategory, delWICategory, cancelWICategory,
+  saveWITask, editWITask, delWITask, cancelWITask, removeWITaskFile,
+});
+Object.defineProperty(window,'wiCategoryForm',{get:()=>wiCategoryForm,set:v=>wiCategoryForm=v,configurable:true});
+Object.defineProperty(window,'wiTaskForm',{get:()=>wiTaskForm,set:v=>wiTaskForm=v,configurable:true});
+Object.defineProperty(window,'wiActiveCategory',{get:()=>wiActiveCategory,set:v=>wiActiveCategory=v,configurable:true});
+
+// ═══════════════════════════════════════════════════════════════════════
 //  SHARE — QR Code (Admin only)
 // ═══════════════════════════════════════════════════════════════════════
 
@@ -2368,6 +2929,8 @@ function exportBackup(){
         overtime: state.overtime,
         travel: state.travel,
         leaves: state.leaves,
+        workCategories: state.workCategories,
+        workTasks: state.workTasks,
       },
       counts: {
         users: state.users.length,
@@ -2378,6 +2941,8 @@ function exportBackup(){
         overtime: state.overtime.length,
         travel: state.travel.length,
         leaves: state.leaves.length,
+        workCategories: state.workCategories.length,
+        workTasks: state.workTasks.length,
       }
     };
     const json = JSON.stringify(backup, null, 2);
