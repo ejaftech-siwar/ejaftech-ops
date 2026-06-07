@@ -962,25 +962,36 @@ async function generateRefNo(reportType="GENERAL"){
   try{
     const year=new Date().getFullYear();
     const cRef=db.collection("reportCounters").doc(String(year));
+
     const n=await db.runTransaction(async(tx)=>{
       const snap=await tx.get(cRef);
-      const next=(snap.exists?(snap.data().count||0):0)+1;
-      tx.set(cRef,{count:next},{merge:true});
+      // If doc doesn't exist OR it's from a previous year, start from 1
+      const stored = snap.exists ? snap.data() : {};
+      const storedYear = stored.year || 0;
+      const current = (storedYear === year) ? (stored.count || 0) : 0;
+      const next = current + 1;
+      tx.set(cRef, { count: next, year: year }, { merge: false }); // full overwrite to reset year
       return next;
     });
+
     const refNo=`RPT-${year}-${String(n).padStart(4,"0")}`;
+
     // Log silently — don't block the export if this fails
     db.collection("reportLog").add({
-      refNo,reportType,
-      exportedBy:state.user?.email,
+      refNo, reportType,
+      exportedBy:    state.user?.email,
       exportedByName:state.profile?.name||state.profile?.employeeName,
-      exportedAt:firebase.firestore.FieldValue.serverTimestamp(),
-      period:getPeriod()
+      exportedAt:    firebase.firestore.FieldValue.serverTimestamp(),
+      period:        getPeriod()
     }).catch(()=>{});
+
     return refNo;
+
   }catch(e){
-    // Graceful fallback — never block the export
-    return `RPT-${new Date().getFullYear()}-${Date.now().toString().slice(-4)}`;
+    // Fallback: show error clearly instead of a random number
+    console.error("generateRefNo failed:", e.message);
+    // Use ERR prefix so it's obvious in the document it didn't work
+    return `RPT-${new Date().getFullYear()}-ERR (check Firestore rules)`;
   }
 }
 
@@ -3525,6 +3536,22 @@ function renderProfile(){
       <strong style="color:#1B3A6B">EjafTech Operation Department Track</strong><br>
       Account managed via Firebase Authentication · Your data is encrypted and secure
     </div>
+
+  \${isAdmin() ? \`<div class="card" style="border-left:4px solid #C9A84C">
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px">
+      <span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">⚙</span>
+      Report Counter Management
+    </div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.6">
+      The sequential report number (RPT-YYYY-NNNN) is stored in Firestore.<br>
+      Use this to reset the counter to 0 so next export starts from RPT-YYYY-0001.
+    </p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+      <button class="btn btn-secondary" onclick="viewReportCounter()" style="font-size:12px">👁 View Current Counter</button>
+      <button class="btn btn-danger" onclick="resetReportCounter()" style="font-size:12px">🔄 Reset to 0001</button>
+    </div>
+    <div id="counterStatus" style="margin-top:10px;font-size:12px;color:#2E7D32;display:none"></div>
+  </div>\` : ''}
   </div>`;
 }
 
@@ -3596,6 +3623,47 @@ async function requestPasswordReset(){
 window.changeMyPassword = changeMyPassword;
 window.requestPasswordReset = requestPasswordReset;
 Object.defineProperty(window,'profileForm',{get:()=>profileForm,set:v=>profileForm=v,configurable:true});
+
+// ── Report Counter Admin Tools ────────────────────────────────────────
+window.viewReportCounter = async function(){
+  if(!isAdmin()) return;
+  try{
+    const year = new Date().getFullYear();
+    const snap = await db.collection("reportCounters").doc(String(year)).get();
+    const el = document.getElementById("counterStatus");
+    if(!el) return;
+    if(snap.exists){
+      const d = snap.data();
+      el.style.display = "block";
+      el.style.color = "#1B3A6B";
+      el.innerHTML = `✅ Current counter for ${year}: <strong>${d.count || 0}</strong> — Next export will be <strong>RPT-${year}-${String((d.count||0)+1).padStart(4,"0")}</strong>`;
+    } else {
+      el.style.display = "block";
+      el.style.color = "#2E7D32";
+      el.innerHTML = `✅ No counter yet for ${year} — First export will be <strong>RPT-${year}-0001</strong>`;
+    }
+  } catch(e){
+    toast("Error reading counter: " + e.message);
+  }
+};
+
+window.resetReportCounter = async function(){
+  if(!isAdmin()) return;
+  const year = new Date().getFullYear();
+  if(!confirm(`Reset the report counter for ${year} to 0?\n\nNext exported report will be RPT-${year}-0001.\n\nThis does not delete any existing reports.`)) return;
+  try{
+    await db.collection("reportCounters").doc(String(year)).set({ count: 0, year: year });
+    const el = document.getElementById("counterStatus");
+    if(el){
+      el.style.display = "block";
+      el.style.color = "#2E7D32";
+      el.innerHTML = `✅ Counter reset! Next export will be <strong>RPT-${year}-0001</strong>`;
+    }
+    toast(`Counter reset ✓ — next report: RPT-${year}-0001`);
+  } catch(e){
+    toast("Error resetting counter: " + e.message);
+  }
+};
 
 function renderShare(){
   if(!isAdmin()) return `<div class="card"><div class="empty">Access denied — Admin only</div></div>`;
