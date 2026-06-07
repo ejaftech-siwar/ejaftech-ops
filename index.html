@@ -172,7 +172,7 @@ import {
   updatePassword, sendPasswordResetEmail, reauthenticateWithCredential, EmailAuthProvider
 } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-auth.js";
 import {
-  getFirestore, collection, doc, getDoc, setDoc, deleteDoc, onSnapshot, query, where, getDocs, addDoc, runTransaction
+  getFirestore, collection, doc, getDoc, setDoc, updateDoc, deleteDoc, onSnapshot, query, where, getDocs, addDoc, runTransaction, deleteField
 } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js";
 
 // ╔═══════════════════════════════════════════════════════════════════╗
@@ -202,7 +202,7 @@ if (isConfigured) {
       app, auth, db,
       signInWithEmailAndPassword, signOut, onAuthStateChanged, createUserWithEmailAndPassword,
       updatePassword, sendPasswordResetEmail, reauthenticateWithCredential, EmailAuthProvider,
-      collection, doc, getDoc, setDoc, deleteDoc, onSnapshot, query, where, getDocs, addDoc, runTransaction
+      collection, doc, getDoc, setDoc, updateDoc, deleteDoc, onSnapshot, query, where, getDocs, addDoc, runTransaction, deleteField
     };
   } catch(e) { console.error("Firebase init error:", e); }
 }
@@ -958,6 +958,64 @@ window.editPeriod=function(e){
 // ═══════════════════════════════════════════════════════════════════════
 //  SEQUENTIAL REPORT NUMBERING — RPT-YYYY-NNNN
 // ═══════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════
+//  DAILY LOG ENTRY AUTO-NUMBERING
+// ═══════════════════════════════════════════════════════════════════════
+// Returns next entry number based on current max in state.daily
+function getNextDailyEntryNo(){
+  if(!state.daily || state.daily.length === 0) return 1;
+  const nums = state.daily
+    .map(r => parseInt(r.entryNo || 0))
+    .filter(n => !isNaN(n) && n > 0);
+  return nums.length > 0 ? Math.max(...nums) + 1 : state.daily.length + 1;
+}
+function formatEntryNo(n){
+  return String(n).padStart(3, "0");
+}
+
+// Assign entry numbers to existing entries that don't have one
+// Called once by admin from Profile — sorts by date then assigns 001,002...
+async function assignEntryNumbersToExisting(){
+  const {db, doc, setDoc} = window.__fb;
+  if(!db) return toast("Database not ready");
+  const sorted = [...state.daily].sort((a,b)=>{
+    const d = (a.date||"").localeCompare(b.date||"");
+    if(d !== 0) return d;
+    return (a.start||"").localeCompare(b.start||"");
+  });
+  let count = 0;
+  for(let i = 0; i < sorted.length; i++){
+    const r = sorted[i];
+    if(!r.entryNo){
+      const data = {...r};
+      const id = data.id; delete data.id;
+      data.entryNo = i + 1;
+      await setDoc(doc(db, "daily", id), data, {merge: true});
+      count++;
+    }
+  }
+  toast(`Assigned numbers to ${count} entries ✓`);
+}
+
+// Reset daily entry counter (sets all entries to re-number from 1 on next assignEntryNumbers call)
+async function resetDailyEntryCounter(){
+  if(!isAdmin()) return;
+  if(!confirm("Reset daily entry counter?\n\nThis will remove numbering from all entries. Use \"Assign Numbers\" after to re-number from 001.")) return;
+  const {db, doc, updateDoc, deleteField} = window.__fb;
+  if(!updateDoc || !deleteField){
+    toast("Update function not available — please refresh");
+    return;
+  }
+  let count = 0;
+  for(const r of state.daily){
+    if(r.entryNo){
+      await updateDoc(doc(db, "daily", r.id), { entryNo: deleteField() });
+      count++;
+    }
+  }
+  toast(`Numbers removed from ${count} entries ✓ — use Assign Numbers to re-number`);
+}
+
 async function generateRefNo(reportType="GENERAL"){
   try{
     const {db, doc, getDoc, setDoc, runTransaction, collection, addDoc} = window.__fb;
@@ -1128,6 +1186,163 @@ function downloadFile(filename, content, mime){
   document.body.appendChild(a); a.click();
   setTimeout(()=>{document.body.removeChild(a);URL.revokeObjectURL(url);},100);
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+//  DAILY LOG EXPORT — PDF & EXCEL
+// ═══════════════════════════════════════════════════════════════════════
+async function exportDailyPDF(){
+  if(!canSeeReports()) return toast("Access denied");
+  const period = getPeriod();
+  // Use current filter (dailyFilter = employee name or "" for all)
+  const filterEmp = dailyFilter || "";
+  const rows = visibleRows(state.daily)
+    .filter(r => !filterEmp || r.employee === filterEmp)
+    .sort((a,b) => {
+      const d = (a.date||"").localeCompare(b.date||"");
+      return d !== 0 ? d : (a.entryNo||0) - (b.entryNo||0);
+    });
+
+  const totalHrs = rows.reduce((s,r)=>s+Number(r.duration||0),0);
+  const depts    = [...new Set(rows.map(r=>r.dept).filter(Boolean))];
+  const emps     = [...new Set(rows.map(r=>r.employee).filter(Boolean))];
+
+  // Dept summary
+  const deptRows = state.departments.map(d=>{
+    const dh = rows.filter(r=>r.dept===d.name).reduce((s,r)=>s+Number(r.duration||0),0);
+    const dc = rows.filter(r=>r.dept===d.name).length;
+    if(!dh && !dc) return '';
+    return `<tr><td><span style="background:${d.color}22;color:${d.color};padding:2px 8px;border-radius:10px;font-weight:700;font-size:10px">${escapeHtml(d.name)}</span></td>
+      <td style="color:${d.color};font-weight:700">${fmtHM(dh)}</td><td>${dc}</td></tr>`;
+  }).filter(Boolean).join('');
+
+  // Emp summary
+  const empSummaryRows = emps.map(e=>{
+    const eh = rows.filter(r=>r.employee===e).reduce((s,r)=>s+Number(r.duration||0),0);
+    const ec = rows.filter(r=>r.employee===e).length;
+    return `<tr><td><strong style="color:#03308B">${employeeBadge(e)}</strong></td>
+      <td style="color:#03308B;font-weight:700">${fmtHM(eh)}</td><td>${ec}</td></tr>`;
+  }).join('');
+
+  // Main entries table
+  const entryRows = rows.map(r=>`<tr>
+    <td style="text-align:center;font-weight:700;color:#03308B;background:#f0f4ff">${r.entryNo ? formatEntryNo(r.entryNo) : '—'}</td>
+    <td>${fmtDate(r.date)}</td>
+    <td><strong style="color:#03308B">${escapeHtml(r.employee||'')}</strong></td>
+    <td>${escapeHtml(r.project||'')}</td>
+    <td><span style="background:${(state.departments.find(d=>d.name===r.dept)||{color:'#888'}).color}22;color:${(state.departments.find(d=>d.name===r.dept)||{color:'#888'}).color};padding:2px 7px;border-radius:8px;font-size:10px;font-weight:700">${escapeHtml(r.dept||'')}</span></td>
+    <td>${r.location?`<span style="background:#E3F2FD;color:#1565C0;padding:2px 7px;border-radius:8px;font-size:10px">📍 ${escapeHtml(r.location)}</span>`:'—'}</td>
+    <td style="color:#2E7D32;font-weight:700">${fmtHM(r.duration)}</td>
+    <td style="font-size:10px;color:#555;max-width:120px;word-break:break-word">${escapeHtml((r.resolutionText||'').slice(0,80))}${(r.resolutionText||'').length>80?'…':''}</td>
+  </tr>`).join('');
+
+  const bodyHTML = `
+    <div class="actions no-print" style="padding:10px;background:#FFF8E1;border:1px solid #FFE082;border-radius:8px;margin-bottom:14px;text-align:center;font-size:13px;color:#7F6000">
+      📄 Choose <strong>"Save as PDF"</strong> in the print dialog
+      <br><br>
+      <button onclick="window.print()" style="background:#03308B;color:#C9A84C;border:none;padding:10px 24px;border-radius:6px;font-weight:700;cursor:pointer;font-size:13px">🖨️ Print / Save as PDF</button>
+      <button onclick="window.close()" style="background:#888;color:white;border:none;padding:10px 20px;border-radius:6px;font-weight:700;cursor:pointer;font-size:13px;margin-left:6px">Close</button>
+    </div>
+    <div class="ksec"><span class="kbad">01</span><h3>Executive Summary${filterEmp?' — '+filterEmp:''}</h3></div>
+    <div class="kr">
+      <div class="kc kb"><div class="kl">Total Hours</div><div class="kv">${fmtHM(totalHrs)}</div><div class="ks">${rows.length} entries</div></div>
+      <div class="kc kg"><div class="kl">Employees</div><div class="kv">${emps.length}</div><div class="ks">active</div></div>
+      <div class="kc ko"><div class="kl">Departments</div><div class="kv">${depts.length}</div><div class="ks">covered</div></div>
+    </div>
+    <div class="ksec"><span class="kbad">02</span><h3>Department Breakdown</h3></div>
+    <table><thead><tr><th>Department</th><th>Hours</th><th>Entries</th></tr></thead><tbody>${deptRows||'<tr><td colspan="3" style="text-align:center;color:#888">No data</td></tr>'}</tbody></table>
+    <div class="ksec"><span class="kbad">03</span><h3>Employee Summary</h3></div>
+    <table><thead><tr><th>Employee</th><th>Hours</th><th>Entries</th></tr></thead><tbody>${empSummaryRows||'<tr><td colspan="3" style="text-align:center;color:#888">No data</td></tr>'}</tbody></table>
+    <div class="ksec"><span class="kbad">04</span><h3>Daily Entries Detail</h3></div>
+    <table>
+      <thead><tr><th style="width:44px">#</th><th>Date</th><th>Employee</th><th>Project</th><th>Dept</th><th>Location</th><th>Hours</th><th>Resolution Summary</th></tr></thead>
+      <tbody>${entryRows||'<tr><td colspan="8" style="text-align:center;color:#888">No entries</td></tr>'}</tbody>
+      <tfoot><tr><td colspan="6"><strong>GRAND TOTAL</strong></td><td style="color:#C9A84C;font-weight:700">${fmtHM(totalHrs)}</td><td>${rows.length} entries</td></tr></tfoot>
+    </table>
+    <script>setTimeout(()=>window.print(),500)<\/script>`;
+
+  await openReportPDF("DAILY_LOG", filterEmp ? `${period} · ${filterEmp}` : period, bodyHTML);
+  toast("Daily Log PDF ready!");
+}
+window.exportDailyPDF = exportDailyPDF;
+
+async function exportDailyExcel(){
+  if(!canSeeReports()) return toast("Access denied");
+  if(typeof XLSX === 'undefined') return toast('Excel library not loaded');
+  try{
+    const {db, doc, setDoc} = window.__fb;
+    const refNo = await generateRefNo('EXCEL_DAILY');
+    const period = getPeriod();
+    const filterEmp = dailyFilter || "";
+    const rows = visibleRows(state.daily)
+      .filter(r => !filterEmp || r.employee === filterEmp)
+      .sort((a,b)=>{
+        const d=(a.date||"").localeCompare(b.date||"");
+        return d!==0?d:(a.entryNo||0)-(b.entryNo||0);
+      });
+
+    const wb = XLSX.utils.book_new();
+    const COLORS = {
+      navy:"03308B", gold:"C9A84C", green:"2E7D32",
+      white:"FFFFFF", bgAlt:"F0F4FF", textDark:"1A1A2E"
+    };
+    const titleSt = {font:{bold:true,sz:16,color:{rgb:COLORS.gold}},fill:{fgColor:{rgb:COLORS.navy}},alignment:{horizontal:"center"}};
+    const subSt   = {font:{italic:true,sz:10,color:{rgb:"6B7B8F"}},alignment:{horizontal:"center"}};
+    const hdSt    = {font:{bold:true,sz:10,color:{rgb:COLORS.white}},fill:{fgColor:{rgb:COLORS.navy}},alignment:{horizontal:"center"}};
+    const setC    = (ws,addr,val,st)=>{ ws[addr]={v:val,t:typeof val==='number'?'n':'s'}; if(st) ws[addr].s=st; };
+    const setM    = (ws,r)=>{ if(!ws['!merges'])ws['!merges']=[]; ws['!merges'].push(r); };
+
+    // ── SHEET 1: Summary ──
+    const ws1 = {};
+    setC(ws1,'A1',`EJAF Technology — Daily Work Log  |  Ref: ${refNo}`,titleSt);
+    setM(ws1,{s:{r:0,c:0},e:{r:0,c:6}});
+    setC(ws1,'A2',`Period: ${period}${filterEmp?' · Employee: '+filterEmp:''}  |  Generated: ${new Date().toLocaleString('en-GB')}`,subSt);
+    setM(ws1,{s:{r:1,c:0},e:{r:1,c:6}});
+    setC(ws1,'A4','#',hdSt); setC(ws1,'B4','Date',hdSt); setC(ws1,'C4','Employee',hdSt);
+    setC(ws1,'D4','Project',hdSt); setC(ws1,'E4','Department',hdSt);
+    setC(ws1,'F4','Location',hdSt); setC(ws1,'G4','Hours',hdSt);
+    rows.forEach((r,i)=>{
+      const row=5+i; const alt=i%2===1;
+      const bg = alt ? COLORS.bgAlt : COLORS.white;
+      const cellSt = {font:{sz:10,color:{rgb:COLORS.textDark}},fill:{fgColor:{rgb:bg}}};
+      setC(ws1,`A${row}`,r.entryNo?Number(r.entryNo):i+1,{...cellSt,alignment:{horizontal:"center"},font:{sz:10,bold:true,color:{rgb:COLORS.navy}}});
+      setC(ws1,`B${row}`,r.date||'',cellSt);
+      setC(ws1,`C${row}`,r.employee||'',cellSt);
+      setC(ws1,`D${row}`,r.project||'',cellSt);
+      setC(ws1,`E${row}`,r.dept||'',cellSt);
+      setC(ws1,`F${row}`,r.location||'',cellSt);
+      setC(ws1,`G${row}`,fmtHM(r.duration),{...cellSt,font:{sz:10,bold:true,color:{rgb:"2E7D32"}}});
+    });
+    const totRow=5+rows.length;
+    const totSt={font:{bold:true,sz:11,color:{rgb:COLORS.gold}},fill:{fgColor:{rgb:"0A1628"}}};
+    setC(ws1,`A${totRow}`,'TOTAL',totSt); setM(ws1,{s:{r:totRow-1,c:0},e:{r:totRow-1,c:5}});
+    setC(ws1,`G${totRow}`,fmtHM(rows.reduce((s,r)=>s+Number(r.duration||0),0)),totSt);
+    ws1['!ref']=`A1:G${totRow}`;
+    ws1['!cols']=[{wch:8},{wch:12},{wch:20},{wch:28},{wch:16},{wch:18},{wch:10}];
+    XLSX.utils.book_append_sheet(wb,ws1,'Daily Log');
+
+    // ── SHEET 2: Department Summary ──
+    const ws2={};
+    setC(ws2,'A1','Department Summary',titleSt); setM(ws2,{s:{r:0,c:0},e:{r:0,c:2}});
+    setC(ws2,'A3','Department',hdSt); setC(ws2,'B3','Hours',hdSt); setC(ws2,'C3','Entries',hdSt);
+    state.departments.forEach((d,i)=>{
+      const dh=rows.filter(r=>r.dept===d.name).reduce((s,r)=>s+Number(r.duration||0),0);
+      const dc=rows.filter(r=>r.dept===d.name).length;
+      if(!dh&&!dc) return;
+      const row=4+i;
+      setC(ws2,`A${row}`,d.name,{font:{bold:true,sz:10,color:{rgb:d.color.replace('#','')}}}); 
+      setC(ws2,`B${row}`,fmtHM(dh),{font:{sz:10,bold:true,color:{rgb:"2E7D32"}}});
+      setC(ws2,`C${row}`,dc,{font:{sz:10}});
+    });
+    ws2['!cols']=[{wch:22},{wch:12},{wch:10}];
+    XLSX.utils.book_append_sheet(wb,ws2,'By Department');
+
+    XLSX.writeFile(wb,`EJAF_Daily_Log_${refNo}.xlsx`);
+    toast("Daily Log Excel exported ✓");
+  } catch(e){
+    console.error(e); toast("Excel export failed: "+e.message);
+  }
+}
+window.exportDailyExcel = exportDailyExcel;
 
 function exportCSV(){
   const period=getPeriod().replace(/[^a-z0-9]+/gi,"_");
@@ -1614,7 +1829,7 @@ function renderDailyLog(){
     <div class="filter-row">
       <span class="card-title" style="margin:0">Work Log</span>
       <span class="count-pill">${rows.length}</span>
-      <div style="display:flex;gap:6px;margin-left:auto;flex-wrap:wrap">
+      <div style="display:flex;gap:6px;margin-left:auto;flex-wrap:wrap;align-items:center">
         ${!isEmployee()?`<select onchange="window.dailyFilter=this.value;render()" style="padding:6px 10px;border:1px solid var(--line);border-radius:6px;font-size:12px">
           <option value="">All Employees</option>
           ${empOptions.map(e=>`<option ${e===dailyFilter?"selected":""}>${escapeHtml(e)}</option>`).join("")}
@@ -1623,15 +1838,17 @@ function renderDailyLog(){
           <option value="">All Locations</option>
           ${state.locations.map(l=>`<option value="${escapeHtml(l.name)}" ${l.name===dailyLocFilter?"selected":""}>📍 ${escapeHtml(l.name)}</option>`).join("")}
         </select>
+        ${canSeeReports()?`<button onclick="exportDailyPDF()" style="background:#03308B;color:#C9A84C;border:none;font-weight:700;padding:6px 14px;border-radius:6px;font-size:12px;cursor:pointer">📄 PDF</button><button onclick="exportDailyExcel()" style="background:#2E7D32;color:white;border:none;font-weight:700;padding:6px 14px;border-radius:6px;font-size:12px;cursor:pointer;margin-left:4px">📊 Excel</button>`:""}        
       </div>
     </div>
     <div class="tbl-wrap"><table class="tbl">
-      <thead><tr><th>Date</th>${!isEmployee()?"<th>Employee</th>":""}<th>Project</th><th>Dept</th><th>Location</th><th>Hrs</th><th>Resolution</th><th></th></tr></thead>
+      <thead><tr><th style="width:48px;text-align:center">#</th><th>Date</th>${!isEmployee()?"<th>Employee</th>":""}<th>Project</th><th>Dept</th><th>Location</th><th>Hrs</th><th>Resolution</th><th></th></tr></thead>
       <tbody>${rows.length===0?`<tr><td colspan="8" class="empty">No entries yet</td></tr>`:rows.map(r=>{
         const canEdit=isHR()||r.employee===state.profile.employeeName;
         const imgs = (r.resolutionImages||[]);
         const hasRes = imgs.length > 0 || (r.resolutionText||"").length > 0;
         return `<tr>
+          <td style="text-align:center;font-size:11px;font-weight:700;color:#03308B;background:#f0f4ff;white-space:nowrap">${r.entryNo ? formatEntryNo(r.entryNo) : '<span style="color:#bbb">—</span>'}</td>
           <td>${fmtDate(r.date)}</td>
           ${!isEmployee()?`<td>${employeeBadge(r.employee)}</td>`:""}
           <td>${escapeHtml(r.project||"")}</td>
@@ -1671,12 +1888,15 @@ async function saveDaily(){
     if(!state.profile.employeeName) return toast("Your account has no employee profile. Contact admin.");
     dailyForm.employee = state.profile.employeeName;  // force override
   }
+  // Auto-assign entry number for new entries only
+  const entryNoToSave = dailyEditId ? undefined : getNextDailyEntryNo();
   await fbSave("daily",{
     id:dailyEditId||undefined,
     ...dailyForm,
     duration:+timeToHrs(dailyForm.start,dailyForm.end).toFixed(4),
     dept:projDept(dailyForm.project),
     createdBy:state.profile.uid,
+    ...(entryNoToSave ? {entryNo: entryNoToSave} : {}),
   });
   dailyForm=null;dailyEditId=null;
   toast(dailyEditId?"Updated ✓":"Added ✓");
@@ -1692,12 +1912,14 @@ async function saveDailyAndNext(){
   }
   if(isEmployee()) return toast("Use Save for single entry");
   // Save first
+  const entryNoNext = getNextDailyEntryNo();
   await fbSave("daily",{
     id:undefined,
     ...dailyForm,
     duration:+timeToHrs(dailyForm.start,dailyForm.end).toFixed(4),
     dept:projDept(dailyForm.project),
     createdBy:state.profile.uid,
+    entryNo: entryNoNext,
   });
   // Keep form data — only clear employee and resolution for next entry
   const savedEmp = dailyForm.employee;
@@ -3551,6 +3773,31 @@ function renderProfile(){
       <button class="btn btn-danger" onclick="resetReportCounter()" style="font-size:12px">🔄 Reset to 0001</button>
     </div>
     <div id="counterStatus" style="margin-top:10px;font-size:12px;color:#2E7D32;display:none"></div>
+  </div>
+
+  <div class="card" style="border-left:4px solid #2E7D32">
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px">
+      <span style="background:#2E7D32;color:white;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">📋</span>
+      Daily Log Entry Numbering
+    </div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.6">
+      Each Daily Log entry gets a unique sequential number (001, 002, 003...).<br>
+      Use <strong>Assign Numbers</strong> to number your existing 47+ entries by date order.<br>
+      New entries will auto-number from that point forward.
+    </p>
+    <div style="background:#f0fff4;border:1px solid #a5d6a7;border-radius:8px;padding:10px;margin-bottom:12px;font-size:12px;color:#2E7D32">
+      📊 Current entries: <strong>${state.daily.length}</strong> total · 
+      <strong>${state.daily.filter(r=>r.entryNo).length}</strong> numbered · 
+      <strong>${state.daily.filter(r=>!r.entryNo).length}</strong> without number
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+      <button class="btn btn-primary" onclick="assignDailyNumbers()" style="font-size:12px;background:#2E7D32;border-color:#2E7D32">
+        ✅ Assign Numbers to Existing Entries
+      </button>
+      <button class="btn btn-danger" onclick="resetDailyNumbers()" style="font-size:12px">
+        🔄 Reset All Numbers
+      </button>
+    </div>
   </div>` : ''}
   </div>`;
 }
@@ -3667,6 +3914,20 @@ window.resetReportCounter = async function(){
   } catch(e){
     toast("Error resetting counter: " + e.message);
   }
+};
+
+// Daily Entry Numbering tools (exposed for Profile buttons)
+window.assignDailyNumbers = async function(){
+  if(!isAdmin()) return;
+  const count = state.daily.filter(r=>!r.entryNo).length;
+  if(count === 0){ toast("All entries already have numbers ✓"); return; }
+  if(!confirm(`Assign sequential numbers to ${count} existing entries?\n\nEntries will be numbered by date order (oldest = 001).`)) return;
+  await assignEntryNumbersToExisting();
+};
+
+window.resetDailyNumbers = async function(){
+  if(!isAdmin()) return;
+  await resetDailyEntryCounter();
 };
 
 function renderShare(){
