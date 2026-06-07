@@ -332,17 +332,27 @@ function toast(msg){
   toastTimer=setTimeout(()=>t.classList.remove("show"),2800);
 }
 
-// Role helpers — case-insensitive and robust against trailing spaces.
-// Default behavior: if role is unset/invalid, treat user as EMPLOYEE (most restrictive).
+// Role helpers — 6-role system v3.0
+// Default: if role is unset/invalid, treat as EMPLOYEE (most restrictive).
 function getUserRole(){
   const r = (state.profile?.role || "").toString().toLowerCase().trim();
-  if(r === "admin") return "admin";
-  if(r === "hr" || r === "manager") return "hr";
-  return "employee";  // safe default
+  if(r === "admin" || r === "owner")  return "admin";   // Owner = full Admin
+  if(r === "support")                  return "support"; // Full access except Users
+  if(r === "hr" || r === "manager")   return "hr";
+  if(r === "it")                       return "it";      // Dashboard + WorkInstructions only
+  return "employee"; // safe default — most restrictive
 }
-function isAdmin(){return getUserRole()==="admin";}
-function isHR(){const r=getUserRole();return r==="admin"||r==="hr";}
-function isEmployee(){return getUserRole()==="employee";}
+function isAdmin()   { return getUserRole() === "admin"; }
+function isSupport() { return getUserRole() === "support"; }
+function isHR()      { const r=getUserRole(); return r==="admin"||r==="hr"||r==="support"; }
+function isIT()      { return getUserRole() === "it"; }
+function isEmployee(){ return getUserRole() === "employee"; }
+// Compound permission checks
+function canManageData()  { return isAdmin() || isSupport() || getUserRole()==="hr"; }
+function canSeeReports()  { return isAdmin() || isSupport() || getUserRole()==="hr"; }
+function canManageUsers() { return isAdmin(); } // Owner maps to admin, so covered
+function canAddWorkInstructions()  { return isAdmin() || isIT(); }
+function canEditWorkInstructions() { return isAdmin(); }
 
 // Filter rows by role
 function visibleRows(rows){
@@ -854,18 +864,37 @@ function renderApp(){
 }
 
 function getTabs(){
-  // Base tabs available to ALL users (including employees)
-  const base=["Dashboard","Daily Log","Overtime","Travel","Leaves","Work Instructions"];
-  // HR Report and Reports are ONLY for HR/Admin (not employees)
-  if(isHR()) base.push("HR Report","Reports");
-  // Management tabs for HR
-  if(isHR()) base.push("Projects","Locations","Departments");
-  // Admin-only tabs
-  if(isAdmin()) base.push("Users","Share");
-  // Profile available to everyone
-  base.push("Profile");
-  // make sure current tab still valid
-  if(!base.includes(state.tab)) state.tab=base[0];
+  const role = getUserRole();
+  // IT role: highly restricted — only Dashboard, Work Instructions, Profile
+  if(role === "it"){
+    const base = ["Dashboard","Work Instructions","Profile"];
+    if(!base.includes(state.tab)) state.tab = base[0];
+    return base;
+  }
+  // Employee: own-data tabs only
+  if(role === "employee"){
+    const base = ["Dashboard","Daily Log","Overtime","Travel","Leaves","Work Instructions","Profile"];
+    if(!base.includes(state.tab)) state.tab = base[0];
+    return base;
+  }
+  // HR: full ops but no Users/Share
+  if(role === "hr"){
+    const base = ["Dashboard","Daily Log","Overtime","Travel","Leaves","Work Instructions",
+                  "HR Report","Reports","Projects","Locations","Departments","Profile"];
+    if(!base.includes(state.tab)) state.tab = base[0];
+    return base;
+  }
+  // Support: full access except Users and Share
+  if(role === "support"){
+    const base = ["Dashboard","Daily Log","Overtime","Travel","Leaves","Work Instructions",
+                  "HR Report","Reports","Projects","Locations","Departments","Profile"];
+    if(!base.includes(state.tab)) state.tab = base[0];
+    return base;
+  }
+  // Admin / Owner: everything
+  const base = ["Dashboard","Daily Log","Overtime","Travel","Leaves","Work Instructions",
+                "HR Report","Reports","Projects","Locations","Departments","Users","Share","Profile"];
+  if(!base.includes(state.tab)) state.tab = base[0];
   return base;
 }
 
@@ -875,11 +904,17 @@ function renderTab(){
   const c=$("content");
   if(!c)return;
 
-  // Security guard: Employees cannot access HR/admin-only tabs
-  // Note: Work Instructions IS allowed for employees (read-only view)
-  const hrOnlyTabs = ["HR Report","Reports","Projects","Locations","Departments","Users","Share"];
-  if(isEmployee() && hrOnlyTabs.includes(state.tab)){
-    state.tab = "Dashboard";  // redirect to safe default
+  // Security guard: enforce per-role tab access
+  const role = getUserRole();
+  if(role === "it"){
+    // IT: only dashboard, work instructions, profile
+    if(!["Dashboard","Work Instructions","Profile"].includes(state.tab)) state.tab="Dashboard";
+  } else if(role === "employee"){
+    // Employee: no HR/admin tabs
+    if(["HR Report","Reports","Projects","Locations","Departments","Users","Share"].includes(state.tab)) state.tab="Dashboard";
+  } else if(role === "support" || role === "hr"){
+    // Support/HR: no Users or Share
+    if(["Users","Share"].includes(state.tab)) state.tab="Dashboard";
   }
 
   const fn={
@@ -919,6 +954,150 @@ window.editPeriod=function(e){
     renderApp();
   }
 };
+
+// ═══════════════════════════════════════════════════════════════════════
+//  SEQUENTIAL REPORT NUMBERING — RPT-YYYY-NNNN
+// ═══════════════════════════════════════════════════════════════════════
+async function generateRefNo(reportType="GENERAL"){
+  try{
+    const year=new Date().getFullYear();
+    const cRef=db.collection("reportCounters").doc(String(year));
+    const n=await db.runTransaction(async(tx)=>{
+      const snap=await tx.get(cRef);
+      const next=(snap.exists?(snap.data().count||0):0)+1;
+      tx.set(cRef,{count:next},{merge:true});
+      return next;
+    });
+    const refNo=`RPT-${year}-${String(n).padStart(4,"0")}`;
+    // Log silently — don't block the export if this fails
+    db.collection("reportLog").add({
+      refNo,reportType,
+      exportedBy:state.user?.email,
+      exportedByName:state.profile?.name||state.profile?.employeeName,
+      exportedAt:firebase.firestore.FieldValue.serverTimestamp(),
+      period:getPeriod()
+    }).catch(()=>{});
+    return refNo;
+  }catch(e){
+    // Graceful fallback — never block the export
+    return `RPT-${new Date().getFullYear()}-${Date.now().toString().slice(-4)}`;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  UNIVERSAL PREMIUM REPORT TEMPLATE
+// ═══════════════════════════════════════════════════════════════════════
+function buildReportHTML(refNo, reportType, periodLabel, bodyHTML){
+  const now=new Date();
+  const dt=now.toLocaleDateString("en-GB",{day:"2-digit",month:"long",year:"numeric"});
+  const tm=now.toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit"});
+  const user=state.profile?.name||state.profile?.employeeName||state.user?.email||"System";
+  const css=`
+    @page{margin:0;size:A4}
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:'Segoe UI',Arial,sans-serif;color:#1A1A2E;font-size:11px;line-height:1.4;background:#fff}
+
+    /* HEADER */
+    .rh{background:linear-gradient(135deg,#03308B 0%,#1a4db5 60%,#0a1628 100%);
+        padding:20px 26px;display:flex;justify-content:space-between;align-items:flex-start;
+        -webkit-print-color-adjust:exact;print-color-adjust:exact}
+    .rl{color:white;font-size:22px;font-weight:900;letter-spacing:2px;line-height:1}
+    .rl span{color:#C9A84C}
+    .rs{color:rgba(255,255,255,.65);font-size:10px;margin-top:4px}
+    .rt{color:rgba(255,255,255,.45);font-size:9px;text-transform:uppercase;letter-spacing:1px;margin-top:2px}
+    .rr{text-align:right}
+    .rn{color:#C9A84C;font-size:13px;font-weight:700}
+    .rm{color:rgba(255,255,255,.65);font-size:9px;margin-top:4px;line-height:1.7}
+
+    /* GOLD DIVIDER */
+    .rd{height:3px;background:linear-gradient(90deg,#C9A84C,#03308B);
+        -webkit-print-color-adjust:exact;print-color-adjust:exact}
+
+    /* BODY */
+    .rb{padding:18px 26px}
+
+    /* SECTION HEADERS */
+    .ksec{display:flex;align-items:center;gap:10px;margin:18px 0 10px;page-break-inside:avoid}
+    .kbad{background:#03308B;color:#C9A84C;font-size:9px;font-weight:700;padding:3px 8px;
+          border-radius:4px;letter-spacing:1px;
+          -webkit-print-color-adjust:exact;print-color-adjust:exact}
+    .ksec h3{font-size:12px;font-weight:700;color:#03308B}
+
+    /* KPI CARDS */
+    .kr{display:flex;gap:8px;margin:14px 0}
+    .kc{flex:1;padding:12px;border-radius:8px;border-left:4px solid;background:#f8faff;
+        page-break-inside:avoid;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    .kl{font-size:8px;text-transform:uppercase;letter-spacing:1px;color:#888}
+    .kv{font-size:19px;font-weight:700;margin-top:2px}
+    .ks{font-size:9px;color:#888;margin-top:1px}
+    .kb{border-color:#03308B}.kb .kv{color:#03308B}
+    .ko{border-color:#E65100}.ko .kv{color:#E65100}
+    .kg{border-color:#2e7d32}.kg .kv{color:#2e7d32}
+    .kp{border-color:#6A1B9A}.kp .kv{color:#6A1B9A}
+    .krd{border-color:#C62828}.krd .kv{color:#C62828}
+
+    /* TABLES */
+    table{width:100%;border-collapse:collapse;margin:8px 0;font-size:10px;border-radius:6px;overflow:hidden}
+    thead tr{background:#03308B;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    thead th{color:white;padding:9px 10px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:.5px;font-weight:700}
+    tbody tr:nth-child(even) td{background:#f0f4ff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    tbody td{padding:7px 10px;border-bottom:1px solid #e0e8ff}
+    tfoot tr{background:#0a1628;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    tfoot td{color:#C9A84C;padding:9px 10px;font-weight:700;font-size:10px;border-top:2px solid #C9A84C}
+    tr.grand td{background:linear-gradient(135deg,#C9A84C,#B58E2E)!important;color:#03308B;font-weight:800!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+
+    /* EMPLOYEE BLOCKS */
+    .emp-block{margin-bottom:10px;border:1px solid #D6E4F0;border-radius:8px;overflow:hidden;page-break-inside:avoid;border-left:4px solid #03308B}
+    .emp-head{background:linear-gradient(135deg,#03308B,#1a4db5);color:white;padding:8px 14px;font-size:11px;font-weight:700;display:flex;justify-content:space-between;align-items:center;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    .emp-head-tag{background:#C9A84C;color:#03308B;padding:2px 9px;border-radius:10px;font-size:10px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    .emp-sub{padding:7px 14px;font-size:11px;font-weight:700;color:white;display:flex;justify-content:space-between;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    .emp-block.ot{border-left-color:#E65100}.emp-block.ot .emp-sub{background:linear-gradient(135deg,#E65100,#BF360C)}
+    .emp-block.tr{border-left-color:#2e7d32}.emp-block.tr .emp-sub{background:linear-gradient(135deg,#2e7d32,#1B5E20)}
+    .emp-block.lv{border-left-color:#C62828}.emp-block.lv .emp-sub{background:linear-gradient(135deg,#C62828,#8B1818)}
+
+    /* FOOTER */
+    .rf{margin-top:24px;padding:12px 26px;background:#f0f4ff;border-top:3px solid #03308B;
+        display:flex;justify-content:space-between;align-items:center;
+        -webkit-print-color-adjust:exact;print-color-adjust:exact}
+    .rfl{font-size:9px;color:#888;line-height:1.6}
+    .rfr{font-size:9px;color:#03308B;font-weight:700}
+
+    .empty{padding:14px;text-align:center;color:#888;font-style:italic;font-size:10px}
+    .actions{padding:12px;background:#FFF8E1;border:1px solid #FFE082;border-radius:8px;margin-bottom:14px;text-align:center;font-size:13px;color:#7F6000}
+    .actions button{background:#03308B;color:#C9A84C;border:none;padding:10px 24px;border-radius:6px;font-weight:700;cursor:pointer;font-size:13px;margin:0 4px}
+    .lv-badge{padding:2px 8px;border-radius:10px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;display:inline-block}
+    @media print{.no-print{display:none}body{background:#fff}}
+  `;
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>${css}</style></head><body>
+<div class="rh">
+  <div>
+    <div class="rl">EJAF <span>TECHNOLOGY</span></div>
+    <div class="rs">Operation Department Track</div>
+    <div class="rt">${reportType.replace(/_/g," ")}</div>
+  </div>
+  <div class="rr">
+    <div class="rn">${refNo}</div>
+    <div class="rm">Exported: ${dt} · ${tm}<br>Period: ${periodLabel}<br>Generated by: ${user}</div>
+  </div>
+</div>
+<div class="rd"></div>
+<div class="rb">${bodyHTML}</div>
+<div class="rf">
+  <div class="rfl">EJAF Technology · Operation Department · Confidential<br>Automatically generated by Operation Department Track</div>
+  <div class="rfr">Powered by Siwar · ${refNo}</div>
+</div>
+</body></html>`;
+}
+
+async function openReportPDF(reportType, periodLabel, bodyHTML){
+  const refNo=await generateRefNo(reportType);
+  const html=buildReportHTML(refNo,reportType,periodLabel,bodyHTML);
+  const win=window.open("","_blank");
+  if(!win){alert("Please allow pop-ups to export PDF");return;}
+  win.document.write(html);
+  win.document.close();
+  win.onload=()=>setTimeout(()=>win.print(),300);
+}
 
 // ═══════════════════════════════════════════════════════════════════════
 //  EXPORTS (Excel CSV + PDF)
@@ -990,157 +1169,64 @@ function exportCSV(){
   toast("Excel CSV downloaded ✓");
 }
 
-function exportPDF(){
-  // Generate a print-friendly HTML page and trigger browser print dialog
-  // User can choose "Save as PDF" in the print dialog (universal on Android Chrome)
+async function exportPDF(){
   const period=getPeriod();
-  const today=new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
   const s=summary();
   const tot=k=>s.reduce((a,b)=>a+b[k],0);
   const emps=isEmployee()?[state.profile.employeeName]:allEmployees();
-  const totalLeaveDays = s.reduce((a,b)=>a+(b.leaveDays||0),0);
-  const depts = state.departments;
-
-  const css=`
-    @page { size: A4; margin: 12mm; }
-    *{box-sizing:border-box;font-family:-apple-system,'Segoe UI',Inter,Arial,sans-serif;}
-    body{margin:0;color:#1A1A2E;font-size:11px;line-height:1.4;background:#fff}
-
-    /* ═══ HEADER (Brand Unified) ═══ */
-    .head{background:linear-gradient(135deg,#1B3A6B 0%,#2E5FA3 100%);color:white;padding:20px 22px;border-radius:10px;margin-bottom:16px;border:2px solid #C9A84C;position:relative;overflow:hidden;page-break-inside:avoid}
-    .head::before{content:'';position:absolute;top:0;right:0;width:140px;height:140px;background:radial-gradient(circle,rgba(201,168,76,0.15),transparent);border-radius:50%}
-    .head-row{display:flex;align-items:center;gap:14px;position:relative}
-    .head-logo{width:54px;height:54px;border:2px solid #C9A84C;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:#1B3A6B}
-    .head-logo span{font-family:Georgia,serif;font-size:16px;color:#C9A84C;font-weight:700}
-    .head-title{font-family:Georgia,serif;font-size:22px;color:#fff;margin:0;line-height:1.2}
-    .head-tag{font-size:10px;color:#C9A84C;text-transform:uppercase;letter-spacing:1.5px;margin-top:3px}
-    .head-meta{font-size:11px;color:#B8CFE8;margin-top:6px}
-    .head-meta strong{color:#fff}
-    .head-by{font-size:10px;color:#8AA8C8;font-style:italic;margin-top:2px}
-
-    /* ═══ KPI CARDS ═══ */
-    .kpi-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:16px;page-break-inside:avoid}
-    .kpi{border:1px solid #D6E4F0;border-radius:8px;padding:10px;background:#fff;border-left-width:4px;border-left-style:solid}
-    .kpi-label{font-size:9px;color:#6B7B8F;text-transform:uppercase;font-weight:700;letter-spacing:0.6px}
-    .kpi-val{font-family:Georgia,serif;font-size:20px;margin-top:2px;font-weight:700}
-    .kpi-sub{font-size:9px;color:#6B7B8F;margin-top:2px}
-
-    /* ═══ SECTION HEADERS ═══ */
-    .sec-h{font-size:14px;background:linear-gradient(90deg,#1B3A6B,#2E5FA3);color:white;padding:9px 14px;border-radius:6px;margin:18px 0 10px;display:flex;align-items:center;gap:10px;page-break-after:avoid}
-    .sec-num{background:#C9A84C;color:#1B3A6B;font-size:10px;padding:2px 8px;border-radius:10px;font-weight:800}
-
-    /* ═══ TABLES ═══ */
-    table{width:100%;border-collapse:collapse;margin-bottom:14px;font-size:10px;border-radius:6px;overflow:hidden}
-    th{background:linear-gradient(135deg,#1B3A6B,#2E5FA3);color:white;padding:8px;text-align:left;font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:0.4px}
-    td{padding:6px 8px;border-bottom:1px solid #E1E8F0}
-    tr:nth-child(even) td{background:#F5F8FC}
-    tr.grand td{background:linear-gradient(135deg,#C9A84C,#B58E2E)!important;color:#1B3A6B;font-weight:800;font-size:11px}
-
-    /* ═══ EMPLOYEE BLOCKS ═══ */
-    .emp-block{margin-bottom:12px;border:1px solid #D6E4F0;border-radius:8px;overflow:hidden;page-break-inside:avoid;border-left:4px solid #2E5FA3}
-    .emp-head{background:linear-gradient(135deg,#1B3A6B,#2E5FA3);color:white;padding:8px 14px;font-size:11px;font-weight:700;display:flex;justify-content:space-between;align-items:center}
-    .emp-head-tag{background:#C9A84C;color:#1B3A6B;padding:2px 9px;border-radius:10px;font-size:10px}
-    .emp-sub{padding:7px 14px;font-size:11px;font-weight:700;color:white;display:flex;justify-content:space-between}
-    .emp-block.ot{border-left-color:#E65100}
-    .emp-block.ot .emp-sub{background:linear-gradient(135deg,#E65100,#BF360C)}
-    .emp-block.tr{border-left-color:#2E7D32}
-    .emp-block.tr .emp-sub{background:linear-gradient(135deg,#2E7D32,#1B5E20)}
-    .emp-block.lv{border-left-color:#C62828}
-    .emp-block.lv .emp-sub{background:linear-gradient(135deg,#C62828,#8B1818)}
-
-    /* ═══ LEAVE TYPE BADGE ═══ */
-    .lv-badge{padding:2px 8px;border-radius:10px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.3px;display:inline-block}
-
-    /* ═══ FOOTER ═══ */
-    .footer{margin-top:20px;padding:12px;background:#F5F8FC;border:1px dashed #D6E4F0;border-radius:6px;text-align:center;font-size:10px;color:#6B7B8F}
-    .footer strong{color:#1B3A6B}
-
-    .empty{padding:14px;text-align:center;color:#888;font-style:italic;font-size:10px}
-    @media print { .no-print { display:none } body{background:#fff} }
-    .actions{padding:12px;background:#FFF8E1;border:1px solid #FFE082;border-radius:8px;margin-bottom:14px;text-align:center;font-size:13px;color:#7F6000}
-    .actions button{background:#1B3A6B;color:#C9A84C;border:none;padding:10px 24px;border-radius:6px;font-weight:700;cursor:pointer;font-size:13px;margin:0 4px}
-  `;
+  const totalLeaveDays=s.reduce((a,b)=>a+(b.leaveDays||0),0);
+  const depts=state.departments;
 
   // KPI Cards
-  const kpiCards = `<div class="kpi-grid">
-    <div class="kpi" style="border-left-color:#2E5FA3">
-      <div class="kpi-label">Total Hours</div>
-      <div class="kpi-val" style="color:#2E5FA3">${fmtHM(tot("total"))}</div>
-      <div class="kpi-sub">${state.daily.length} sessions</div>
-    </div>
-    <div class="kpi" style="border-left-color:#E65100">
-      <div class="kpi-label">Overtime</div>
-      <div class="kpi-val" style="color:#E65100">${fmtHM(tot("ot"))}</div>
-      <div class="kpi-sub">${state.overtime.length} entries</div>
-    </div>
-    <div class="kpi" style="border-left-color:#2E7D32">
-      <div class="kpi-label">Travel Days</div>
-      <div class="kpi-val" style="color:#2E7D32">${tot("tDays")}</div>
-      <div class="kpi-sub">${state.travel.length} trips</div>
-    </div>
-    <div class="kpi" style="border-left-color:#6A1B9A">
-      <div class="kpi-label">Per Diem</div>
-      <div class="kpi-val" style="color:#6A1B9A">${fmtMoney(tot("pd"))}</div>
-      <div class="kpi-sub">IQD total</div>
-    </div>
-    <div class="kpi" style="border-left-color:#C62828">
-      <div class="kpi-label">Leave Days</div>
-      <div class="kpi-val" style="color:#C62828">${totalLeaveDays}</div>
-      <div class="kpi-sub">${state.leaves.length} entries</div>
-    </div>
+  const kpiCards=`<div class="kr">
+    <div class="kc kb"><div class="kl">Total Hours</div><div class="kv">${fmtHM(tot("total"))}</div><div class="ks">${state.daily.length} sessions</div></div>
+    <div class="kc ko"><div class="kl">Overtime</div><div class="kv">${fmtHM(tot("ot"))}</div><div class="ks">${state.overtime.length} entries</div></div>
+    <div class="kc kg"><div class="kl">Travel Days</div><div class="kv">${tot("tDays")}</div><div class="ks">${state.travel.length} trips</div></div>
+    <div class="kc kp"><div class="kl">Per Diem</div><div class="kv">${fmtMoney(tot("pd"))}</div><div class="ks">IQD total</div></div>
+    <div class="kc krd"><div class="kl">Leave Days</div><div class="kv">${totalLeaveDays}</div><div class="ks">${state.leaves.length} entries</div></div>
   </div>`;
 
-  // Summary Table (dynamic departments + leaves column)
-  const deptHeaders = depts.map(d=>`<th style="border-bottom:3px solid ${d.color}">${escapeHtml(d.name.slice(0,10))}</th>`).join('');
+  // Summary Table
+  const deptHeaders=depts.map(d=>`<th>${escapeHtml(d.name.slice(0,10))}</th>`).join('');
   const summaryRows=s.map(r=>`<tr>
-    <td><strong style="color:#1B3A6B">${employeeBadge(r.emp)}</strong></td>
+    <td><strong style="color:#03308B">${employeeBadge(r.emp)}</strong></td>
     ${depts.map(d=>`<td style="color:${d.color};font-weight:700">${fmtHM(r.byDept[d.name]||0)}</td>`).join('')}
-    <td><strong style="color:#1B3A6B">${fmtHM(r.total)}</strong></td>
+    <td><strong>${fmtHM(r.total)}</strong></td>
     <td style="color:#E65100;font-weight:600">${fmtHM(r.ot)}</td>
-    <td style="color:#2E7D32;font-weight:600">${r.tDays||0}</td>
+    <td style="color:#2e7d32;font-weight:600">${r.tDays||0}</td>
     <td style="color:#6A1B9A;font-weight:600">${fmtMoney(r.pd)}</td>
     <td style="color:#C62828;font-weight:600">${(Number(r.leaveDays)||0).toFixed(2)}</td>
-  </tr>`).join("");
-
+  </tr>`).join('');
   const grandRow=!isEmployee()?`<tr class="grand">
     <td>GRAND TOTAL</td>
     ${depts.map(d=>`<td>${fmtHM(s.reduce((acc,r)=>acc+(r.byDept[d.name]||0),0))}</td>`).join('')}
-    <td>${fmtHM(tot("total"))}</td>
-    <td>${fmtHM(tot("ot"))}</td>
-    <td>${tot("tDays")}</td>
-    <td>${fmtMoney(tot("pd"))}</td>
-    <td>${totalLeaveDays}</td>
-  </tr>`:"";
+    <td>${fmtHM(tot("total"))}</td><td>${fmtHM(tot("ot"))}</td>
+    <td>${tot("tDays")}</td><td>${fmtMoney(tot("pd"))}</td><td>${totalLeaveDays}</td>
+  </tr>`:'';
 
-  // Leave type summary
-  const leaveTypeSummary = LEAVE_TYPES.map(lt => {
-    const tot = s.reduce((sum,r)=>sum+(r.leaveBreakdown?.[lt.id]||0),0);
-    if(tot===0) return '';
-    return `<div class="kpi" style="border-left-color:${lt.color}">
-      <div class="kpi-label">${lt.label}</div>
-      <div class="kpi-val" style="color:${lt.color};font-size:18px">${tot}</div>
-      <div class="kpi-sub">days</div>
-    </div>`;
+  // Leave type summary cards
+  const leaveTypeSummary=LEAVE_TYPES.map(lt=>{
+    const t=s.reduce((sum,r)=>sum+(r.leaveBreakdown?.[lt.id]||0),0);
+    if(!t)return '';
+    return `<div class="kc" style="border-left-color:${lt.color};flex:0 0 auto;min-width:100px;padding:10px">
+      <div class="kl">${lt.label}</div><div class="kv" style="color:${lt.color};font-size:17px">${t}</div><div class="ks">days</div></div>`;
   }).filter(Boolean).join('');
 
-  // Leave blocks per employee
-  const lvBlocks = emps.map(emp=>{
-    const my = state.leaves.filter(r=>r.employee===emp);
-    if(my.length===0) return '';
-    const sub = my.reduce((a,r)=>a+Number(r.days||0),0);
+  // Leave blocks
+  const lvBlocks=emps.map(emp=>{
+    const my=state.leaves.filter(r=>r.employee===emp);
+    if(!my.length)return '';
+    const sub=my.reduce((a,r)=>a+Number(r.days||0),0);
     return `<div class="emp-block lv">
       <div class="emp-head"><span>📅 ${employeeBadge(emp)}</span><span class="emp-head-tag">${my.length} leaves</span></div>
       <table><thead><tr><th>Type</th><th>From</th><th>To</th><th>Days</th><th>Notes</th></tr></thead>
-        <tbody>${my.slice().sort((a,b)=>(b.from||"").localeCompare(a.from||"")).map(r=>{
-          const lt = leaveTypeInfo(r.type);
-          return `<tr>
-            <td><span class="lv-badge" style="background:${lt.color}22;color:${lt.color}">${lt.label}</span></td>
-            <td>${escapeHtml(r.from||'')}</td>
-            <td>${escapeHtml(r.to||'')}</td>
-            <td><strong style="color:${lt.color}">${r.days||0}</strong></td>
-            <td style="color:#6B7B8F;font-size:9px">${escapeHtml(r.notes||'—')}</td>
-          </tr>`;
-        }).join('')}</tbody></table>
+      <tbody>${my.slice().sort((a,b)=>(b.from||"").localeCompare(a.from||"")).map(r=>{
+        const lt=leaveTypeInfo(r.type);
+        return `<tr><td><span class="lv-badge" style="background:${lt.color}22;color:${lt.color}">${lt.label}</span></td>
+          <td>${escapeHtml(r.from||'')}</td><td>${escapeHtml(r.to||'')}</td>
+          <td><strong style="color:${lt.color}">${r.days||0}</strong></td>
+          <td style="color:#888;font-size:9px">${escapeHtml(r.notes||'—')}</td></tr>`;
+      }).join('')}</tbody></table>
       <div class="emp-sub"><span>Subtotal</span><span>${sub} days</span></div>
     </div>`;
   }).join('');
@@ -1148,77 +1234,53 @@ function exportPDF(){
   // OT blocks
   const otBlocks=emps.map(emp=>{
     const my=state.overtime.filter(r=>r.employee===emp);
-    if(my.length===0 && !isEmployee()) return '';
+    if(!my.length&&!isEmployee())return '';
     const sub=my.reduce((a,r)=>a+Number(r.hours||0),0);
     return `<div class="emp-block ot">
       <div class="emp-head"><span>▶ ${employeeBadge(emp)}</span><span class="emp-head-tag">${my.length} entries</span></div>
-      ${my.length===0?`<div class="empty">No overtime</div>`:`<table><thead><tr><th>Date</th><th>Day</th><th>Hours</th><th>Project</th><th>Location</th></tr></thead><tbody>${my.map(r=>`<tr><td>${fmtDate(r.date)}</td><td>${r.day||""}</td><td style="color:#E65100;font-weight:700">${fmtHM(r.hours)}</td><td>${escapeHtml(r.project||"—")}</td><td>${escapeHtml(r.location||"—")}</td></tr>`).join("")}</tbody></table>`}
+      ${!my.length?`<div class="empty">No overtime</div>`:`<table><thead><tr><th>Date</th><th>Day</th><th>Hours</th><th>Project</th><th>Location</th></tr></thead>
+      <tbody>${my.map(r=>`<tr><td>${fmtDate(r.date)}</td><td>${r.day||''}</td><td style="color:#E65100;font-weight:700">${fmtHM(r.hours)}</td><td>${escapeHtml(r.project||'—')}</td><td>${escapeHtml(r.location||'—')}</td></tr>`).join('')}</tbody></table>`}
       <div class="emp-sub"><span>Subtotal</span><span>${fmtHM(sub)}</span></div>
     </div>`;
-  }).filter(Boolean).join("");
+  }).filter(Boolean).join('');
 
   // Travel blocks
   const trBlocks=emps.map(emp=>{
     const my=state.travel.filter(r=>r.employee===emp);
-    if(my.length===0 && !isEmployee()) return '';
+    if(!my.length&&!isEmployee())return '';
     const sd=my.reduce((a,r)=>a+Number(r.days||0),0);
     const sp=my.reduce((a,r)=>a+Number(r.perDiem||0),0);
     return `<div class="emp-block tr">
       <div class="emp-head"><span>▶ ${employeeBadge(emp)}</span><span class="emp-head-tag">${my.length} trips</span></div>
-      ${my.length===0?`<div class="empty">No travel</div>`:`<table><thead><tr><th>Date</th><th>Days</th><th>Project</th><th>Location</th><th>Per Diem</th></tr></thead><tbody>${my.map(r=>`<tr><td>${fmtDate(r.date)}</td><td><strong>${r.days}</strong></td><td>${escapeHtml(r.project||"—")}</td><td>${escapeHtml(r.location||"—")}</td><td style="color:#6A1B9A;font-weight:700">${fmtMoney(r.perDiem)}</td></tr>`).join("")}</tbody></table>`}
+      ${!my.length?`<div class="empty">No travel</div>`:`<table><thead><tr><th>Date</th><th>Days</th><th>Project</th><th>Location</th><th>Per Diem</th></tr></thead>
+      <tbody>${my.map(r=>`<tr><td>${fmtDate(r.date)}</td><td><strong>${r.days}</strong></td><td>${escapeHtml(r.project||'—')}</td><td>${escapeHtml(r.location||'—')}</td><td style="color:#6A1B9A;font-weight:700">${fmtMoney(r.perDiem)}</td></tr>`).join('')}</tbody></table>`}
       <div class="emp-sub"><span>Subtotal</span><span>${sd} days · ${fmtMoney(sp)} IQD</span></div>
     </div>`;
-  }).filter(Boolean).join("");
+  }).filter(Boolean).join('');
 
-  const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><title>HR Comprehensive Report — ${escapeHtml(period)}</title><style>${css}</style></head><body>
-    <div class="actions no-print">
-      📄 Click <strong>"Save as PDF"</strong> when the print dialog appears, or use the button below
-      <br><br>
-      <button onclick="window.print()">🖨️ Save as PDF / Print</button>
-      <button onclick="window.close()" style="background:#888">Close</button>
+  const sn=state.leaves.length>0;
+  const bodyHTML=`
+    <div class="actions no-print" style="padding:10px;background:#FFF8E1;border:1px solid #FFE082;border-radius:8px;margin-bottom:14px;text-align:center;font-size:13px;color:#7F6000">
+      📄 In the print dialog, choose <strong>"Save as PDF"</strong>
+      <br><br><button onclick="window.print()" style="background:#03308B;color:#C9A84C;border:none;padding:10px 24px;border-radius:6px;font-weight:700;cursor:pointer;font-size:13px">🖨️ Print / Save as PDF</button>
+      <button onclick="window.close()" style="background:#888;color:white;border:none;padding:10px 20px;border-radius:6px;font-weight:700;cursor:pointer;font-size:13px;margin-left:6px">Close</button>
     </div>
-
-    <div class="head">
-      <div class="head-row">
-        <div class="head-logo"><span>EJAF</span></div>
-        <div style="flex:1">
-          <div class="head-title">HR Comprehensive Report</div>
-          <div class="head-tag">Operation Department Track</div>
-          <div class="head-meta">Period: <strong>${escapeHtml(period)}</strong> · Issued: ${today} · Per Diem: 40,000 IQD/day</div>
-          <div class="head-by">By: ${escapeHtml(state.profile.name||state.profile.email)}</div>
-        </div>
-      </div>
-    </div>
-
-    <h2 class="sec-h"><span class="sec-num">01</span> Executive Summary</h2>
+    <div class="ksec"><span class="kbad">01</span><h3>Executive Summary</h3></div>
     ${kpiCards}
-
-    <h2 class="sec-h"><span class="sec-num">02</span> Staff Work Summary</h2>
+    <div class="ksec"><span class="kbad">02</span><h3>Staff Work Summary</h3></div>
     <table><thead><tr><th>Employee</th>${deptHeaders}<th>Total</th><th>OT</th><th>Travel</th><th>Per Diem</th><th>Leave</th></tr></thead>
-      <tbody>${summaryRows}${grandRow}</tbody></table>
-
-    ${state.leaves.length>0?`<h2 class="sec-h"><span class="sec-num">03</span> Employee Leaves</h2>
-    ${leaveTypeSummary?`<div class="kpi-grid" style="grid-template-columns:repeat(auto-fit,minmax(120px,1fr))">${leaveTypeSummary}</div>`:''}
+    <tbody>${summaryRows}</tbody><tfoot>${grandRow}</tfoot></table>
+    ${sn?`<div class="ksec"><span class="kbad">03</span><h3>Employee Leaves</h3></div>
+    ${leaveTypeSummary?`<div class="kr" style="flex-wrap:wrap">${leaveTypeSummary}</div>`:''}
     ${lvBlocks}`:''}
-
-    <h2 class="sec-h"><span class="sec-num">${state.leaves.length>0?'04':'03'}</span> Overtime by Employee</h2>
+    <div class="ksec"><span class="kbad">${sn?'04':'03'}</span><h3>Overtime by Employee</h3></div>
     ${otBlocks||'<div class="empty">No overtime entries</div>'}
-
-    <h2 class="sec-h"><span class="sec-num">${state.leaves.length>0?'05':'04'}</span> Travel by Employee</h2>
+    <div class="ksec"><span class="kbad">${sn?'05':'04'}</span><h3>Travel by Employee</h3></div>
     ${trBlocks||'<div class="empty">No travel entries</div>'}
+    <script>setTimeout(()=>window.print(),500)<\/script>`;
 
-    <div class="footer">
-      <strong>EjafTech Operations</strong> · Confidential HR Document · Generated by Operation Department Track v4
-    </div>
-
-    <script>setTimeout(()=>window.print(),500)<\/script>
-  </body></html>`;
-
-  const w=window.open("","_blank");
-  if(!w){toast("Allow pop-ups to export PDF");return;}
-  w.document.write(html);
-  w.document.close();
-  toast("PDF print dialog opening...");
+  await openReportPDF("HR_REPORT", period, bodyHTML);
+  toast("PDF export ready!");
 }
 
 window.exportCSV=exportCSV;
@@ -2595,9 +2657,16 @@ function renderUsers(){
         <p style="font-size:11px;color:#7F6000;margin-top:6px;line-height:1.5">Required: We sign back in as you after creating the new user, so Firestore lets us save their profile properly.</p></div>`:""}
       <div class="field"><label>Role <span class="req">*</span></label>
         <select onchange="window.userForm.role=this.value;render()">
-          <option value="employee" ${userForm.role==="employee"?"selected":""}>Employee</option>
-          <option value="hr" ${userForm.role==="hr"?"selected":""}>HR / Manager</option>
-          <option value="admin" ${userForm.role==="admin"?"selected":""}>Admin</option>
+          <optgroup label="Management">
+            <option value="admin"   ${userForm.role==="admin"  ?"selected":""}>👑 Admin — Full access</option>
+            <option value="owner"   ${userForm.role==="owner"  ?"selected":""}>🏛 Owner — Identical to Admin</option>
+            <option value="support" ${userForm.role==="support"?"selected":""}>🛠 Support — Full except Users</option>
+          </optgroup>
+          <optgroup label="Operations">
+            <option value="hr"       ${userForm.role==="hr"      ?"selected":""}>📋 HR / Manager</option>
+            <option value="it"       ${userForm.role==="it"      ?"selected":""}>💻 IT — Dashboard + Work Instructions</option>
+            <option value="employee" ${userForm.role==="employee"?"selected":""}>👤 Employee — Own data only</option>
+          </optgroup>
         </select></div>
       ${userForm.role==="employee"?`<div class="field"><label>Tracked Name <span class="req">*</span></label>
         <input value="${escapeHtml(userForm.employeeName)}" oninput="window.userForm.employeeName=this.value" placeholder="Name in Daily Log lists">
@@ -2623,7 +2692,7 @@ function renderUsers(){
   <div class="card">
     <div class="card-title">Team Members · ${state.users.length}</div>
     ${state.users.map(u=>{
-      const roleCls=u.role==="admin"?"admin":u.role==="hr"?"hr":"emp";
+      const roleCls=u.role==="admin"||u.role==="owner"?"admin":u.role==="hr"||u.role==="support"?"hr":u.role==="it"?"hr":"emp";
       const init=(u.name||u.email||"?").charAt(0).toUpperCase();
       return `<div class="user-row">
         <div class="user-avatar">${init}</div>
@@ -2645,7 +2714,7 @@ function renderUsers(){
       <strong>2.</strong> Copy the User UID<br>
       <strong>3.</strong> Firestore → users collection → Add document<br>
       <strong>4.</strong> Document ID = the UID; add fields: name, email, role, employeeName<br><br>
-      Roles: <code>admin</code> · <code>hr</code> · <code>employee</code>
+      Roles: <code>admin</code> · <code>owner</code> · <code>support</code> · <code>hr</code> · <code>it</code> · <code>employee</code>
     </p>
   </div>
 
@@ -2985,8 +3054,9 @@ let wiTaskForm = null, wiTaskEditId = null;
 let wiActiveCategory = "";  // filter UI state
 
 function renderWorkInstructions(){
-  // Permission: Everyone can VIEW (read-only). Only ADMIN can edit/add/delete.
-  const canEdit = isAdmin();
+  // Permission: Everyone can VIEW. Admin can edit/add/delete all. IT can add tasks only.
+  const canEdit = canEditWorkInstructions(); // Admin only
+  const canAdd  = canAddWorkInstructions();  // Admin + IT
   if(canEdit && !wiCategoryForm) wiCategoryForm = {name:"", icon:"📁", color:"#2E5FA3"};
 
   const cats = state.workCategories || [];
@@ -3020,6 +3090,17 @@ function renderWorkInstructions(){
       <div class="btn-row">
         <button class="btn btn-primary" onclick="saveWICategory()">${wiCategoryEditId?"Update":"Add Category"}</button>
         ${wiCategoryEditId?`<button class="btn btn-ghost" onclick="cancelWICategory()">Cancel</button>`:""}
+      </div>
+    </div>`;
+  } else if(canAdd) {
+    // === IT ROLE: Can add tasks, view categories, but not manage categories ===
+    h += `<div class="card" style="background:linear-gradient(135deg,#E8F4FD 0%,#F0F4FA 100%);border-left:4px solid #0277BD">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="font-size:28px">💻</div>
+        <div>
+          <div style="font-size:15px;font-weight:800;color:#03308B;margin-bottom:2px">Work Instructions — IT Access</div>
+          <div style="font-size:12px;color:#0277BD;font-weight:600">You can view all instructions and add new tasks to existing categories. Category management is Admin only.</div>
+        </div>
       </div>
     </div>`;
   } else {
@@ -3061,8 +3142,8 @@ function renderWorkInstructions(){
     const activeCat = cats.find(c => c.name === wiActiveCategory);
     const catColor = activeCat?.color || "#2E5FA3";
 
-    // === ADMIN-ONLY: Add/Edit Task Form ===
-    if(canEdit){
+    // === ADMIN + IT: Add/Edit Task Form ===
+    if(canAdd){
       if(!wiTaskForm) wiTaskForm = { name:"", category: wiActiveCategory, fileLink:"", fileName:"", description:"" };
       // Ensure form is for active category
       if(wiTaskForm.category !== wiActiveCategory && !wiTaskEditId){
@@ -3175,7 +3256,9 @@ async function delWICategory(id){
 function cancelWICategory(){ wiCategoryForm = null; wiCategoryEditId = null; render(); }
 
 async function saveWITask(){
-  if(!isAdmin()) return toast("Only Admin can manage tasks");
+  if(!canAddWorkInstructions()) return toast("Only Admin and IT can add tasks");
+  // IT cannot edit existing tasks, only add new ones
+  if(wiTaskEditId && !canEditWorkInstructions()) return toast("Only Admin can edit existing tasks");
   const name = (wiTaskForm.name||"").trim();
   const desc = (wiTaskForm.description||"").trim();
   if(!name) return toast("Task name required");
@@ -3877,9 +3960,10 @@ window.applyPreset = (i)=>{
   render();
 };
 
-function exportFilteredExcel(){
+async function exportFilteredExcel(){
   if(typeof XLSX === 'undefined') return toast('Excel library not loaded');
   try{
+    const refNo = await generateRefNo('EXCEL_PERIOD');
     const f = state.reportFilter;
     const inRange = (r) => !r.date ? false : (!(f.from && r.date < f.from) && !(f.to && r.date > f.to));
     const leaveInRange = (l) => !l.from ? false : (!(f.from && l.from < f.from) && !(f.to && l.from > f.to));
@@ -3938,9 +4022,9 @@ function exportFilteredExcel(){
 
     // ═══════ SUMMARY SHEET ═══════
     const ws1 = {};
-    setCell(ws1,'A1',`Period Report — ${f.from||'start'} to ${f.to||'end'}`,titleStyle);
+    setCell(ws1,'A1',`EJAF Technology — Operation Department Track  |  Ref: ${refNo}`,titleStyle);
     setMerge(ws1,{s:{r:0,c:0},e:{r:0,c:7}});
-    setCell(ws1,'A2',`Generated: ${new Date().toLocaleString('en-GB')} · By: ${state.profile.name||state.profile.email}`,{font:{italic:true,sz:10,color:{rgb:"6B7B8F"}},alignment:{horizontal:"center"}});
+    setCell(ws1,'A2',`Period: ${f.from||'start'} → ${f.to||'end'}  |  Generated: ${new Date().toLocaleString('en-GB')} · By: ${state.profile.name||state.profile.email}`,{font:{italic:true,sz:10,color:{rgb:"6B7B8F"}},alignment:{horizontal:"center"}});
     setMerge(ws1,{s:{r:1,c:0},e:{r:1,c:7}});
 
     // KPI row
@@ -4090,7 +4174,7 @@ window.exportFilteredExcel = exportFilteredExcel;
 // ═══════════════════════════════════════════════════════════════════════
 //  EXPORT FILTERED PDF — Unified Style for the Reports Tab
 // ═══════════════════════════════════════════════════════════════════════
-function exportFilteredPDF(){
+async function exportFilteredPDF(){
   try{
     const f = state.reportFilter;
     const inRange = (r) => !r.date ? false : (!(f.from && r.date < f.from) && !(f.to && r.date > f.to));
@@ -4138,46 +4222,6 @@ function exportFilteredPDF(){
       };
     });
 
-    const css=`
-      @page { size: A4; margin: 12mm; }
-      *{box-sizing:border-box;font-family:-apple-system,'Segoe UI',Inter,Arial,sans-serif;}
-      body{margin:0;color:#1A1A2E;font-size:11px;line-height:1.4;background:#fff}
-      .head{background:linear-gradient(135deg,#1B3A6B 0%,#2E5FA3 100%);color:white;padding:20px 22px;border-radius:10px;margin-bottom:16px;border:2px solid #C9A84C;position:relative;overflow:hidden;page-break-inside:avoid}
-      .head::before{content:'';position:absolute;top:0;right:0;width:140px;height:140px;background:radial-gradient(circle,rgba(201,168,76,0.15),transparent);border-radius:50%}
-      .head-row{display:flex;align-items:center;gap:14px;position:relative}
-      .head-logo{width:54px;height:54px;border:2px solid #C9A84C;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:#1B3A6B}
-      .head-logo span{font-family:Georgia,serif;font-size:16px;color:#C9A84C;font-weight:700}
-      .head-title{font-family:Georgia,serif;font-size:22px;color:#fff;margin:0;line-height:1.2}
-      .head-tag{font-size:10px;color:#C9A84C;text-transform:uppercase;letter-spacing:1.5px;margin-top:3px}
-      .head-meta{font-size:11px;color:#B8CFE8;margin-top:6px}
-      .head-meta strong{color:#fff}
-      .head-by{font-size:10px;color:#8AA8C8;font-style:italic;margin-top:2px}
-      .kpi-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:16px;page-break-inside:avoid}
-      .kpi{border:1px solid #D6E4F0;border-radius:8px;padding:10px;background:#fff;border-left-width:4px;border-left-style:solid}
-      .kpi-label{font-size:9px;color:#6B7B8F;text-transform:uppercase;font-weight:700;letter-spacing:0.6px}
-      .kpi-val{font-family:Georgia,serif;font-size:20px;margin-top:2px;font-weight:700}
-      .kpi-sub{font-size:9px;color:#6B7B8F;margin-top:2px}
-      .sec-h{font-size:14px;background:linear-gradient(90deg,#1B3A6B,#2E5FA3);color:white;padding:9px 14px;border-radius:6px;margin:18px 0 10px;display:flex;align-items:center;gap:10px;page-break-after:avoid}
-      .sec-num{background:#C9A84C;color:#1B3A6B;font-size:10px;padding:2px 8px;border-radius:10px;font-weight:800}
-      table{width:100%;border-collapse:collapse;margin-bottom:14px;font-size:10px;border-radius:6px;overflow:hidden}
-      th{background:linear-gradient(135deg,#1B3A6B,#2E5FA3);color:white;padding:8px;text-align:left;font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:0.4px}
-      td{padding:6px 8px;border-bottom:1px solid #E1E8F0}
-      tr:nth-child(even) td{background:#F5F8FC}
-      tr.grand td{background:linear-gradient(135deg,#C9A84C,#B58E2E)!important;color:#1B3A6B;font-weight:800;font-size:11px}
-      .dept-card{border:1px solid #D6E4F0;border-radius:8px;padding:10px 12px;margin-bottom:8px;border-left:4px solid;page-break-inside:avoid}
-      .dept-row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px}
-      .dept-name{font-weight:700;font-size:12px}
-      .dept-val{font-family:Georgia,serif;font-size:16px;font-weight:700}
-      .dept-sub{font-size:10px;color:#6B7B8F;margin-bottom:5px}
-      .bar{height:5px;background:#F0F0F0;border-radius:3px;overflow:hidden}
-      .bar-fill{height:100%}
-      .footer{margin-top:20px;padding:12px;background:#F5F8FC;border:1px dashed #D6E4F0;border-radius:6px;text-align:center;font-size:10px;color:#6B7B8F}
-      .footer strong{color:#1B3A6B}
-      .empty{padding:14px;text-align:center;color:#888;font-style:italic;font-size:10px}
-      @media print { .no-print { display:none } body{background:#fff} }
-      .actions{padding:12px;background:#FFF8E1;border:1px solid #FFE082;border-radius:8px;margin-bottom:14px;text-align:center;font-size:13px;color:#7F6000}
-      .actions button{background:#1B3A6B;color:#C9A84C;border:none;padding:10px 24px;border-radius:6px;font-weight:700;cursor:pointer;font-size:13px;margin:0 4px}
-    `;
 
     const kpiCards = `<div class="kpi-grid">
       <div class="kpi" style="border-left-color:#2E5FA3"><div class="kpi-label">Total Hours</div><div class="kpi-val" style="color:#2E5FA3">${fmtHM(totH)}</div><div class="kpi-sub">${dr.length} sessions</div></div>
@@ -4215,48 +4259,30 @@ function exportFilteredPDF(){
       <td>${fmtHM(totH)}</td><td>${fmtHM(totOT)}</td><td>${totTr}</td><td>${fmtMoney(totPD)}</td><td>${totLv}</td>
     </tr>`:'';
 
-    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Period Report — ${f.from} to ${f.to}</title><style>${css}</style></head><body>
-      <div class="actions no-print">
-        📄 Click <strong>"Save as PDF"</strong> when the print dialog appears
-        <br><br>
-        <button onclick="window.print()">🖨️ Save as PDF / Print</button>
-        <button onclick="window.close()" style="background:#888">Close</button>
+    const rangeLabel=`${f.from||'Start'} → ${f.to||'Today'}`;
+    const kpiCardsU=`<div class="kr">
+      <div class="kc kb"><div class="kl">Total Hours</div><div class="kv">${fmtHM(totH)}</div><div class="ks">${dr.length} sessions</div></div>
+      <div class="kc ko"><div class="kl">Overtime</div><div class="kv">${fmtHM(totOT)}</div><div class="ks">${or.length} entries</div></div>
+      <div class="kc kg"><div class="kl">Travel Days</div><div class="kv">${totTr}</div><div class="ks">${tr.length} trips</div></div>
+      <div class="kc kp"><div class="kl">Per Diem</div><div class="kv">${fmtMoney(totPD)}</div><div class="ks">IQD total</div></div>
+      <div class="kc krd"><div class="kl">Leave Days</div><div class="kv">${totLv}</div><div class="ks">${lv.length} entries</div></div>
+    </div>`;
+    const bodyHTMLF=`
+      <div class="actions no-print" style="padding:10px;background:#FFF8E1;border:1px solid #FFE082;border-radius:8px;margin-bottom:14px;text-align:center;font-size:13px;color:#7F6000">
+        📄 Choose <strong>"Save as PDF"</strong> in the print dialog
+        <br><br><button onclick="window.print()" style="background:#03308B;color:#C9A84C;border:none;padding:10px 24px;border-radius:6px;font-weight:700;cursor:pointer;font-size:13px">🖨️ Print / Save as PDF</button>
+        <button onclick="window.close()" style="background:#888;color:white;border:none;padding:10px 20px;border-radius:6px;font-weight:700;cursor:pointer;font-size:13px;margin-left:6px">Close</button>
       </div>
-
-      <div class="head">
-        <div class="head-row">
-          <div class="head-logo"><span>EJAF</span></div>
-          <div style="flex:1">
-            <div class="head-title">Period Report</div>
-            <div class="head-tag">Operation Department Track</div>
-            <div class="head-meta">Range: <strong>${escapeHtml(f.from||'start')}</strong> → <strong>${escapeHtml(f.to||'today')}</strong> · Issued: ${todayStr}</div>
-            <div class="head-by">By: ${escapeHtml(state.profile.name||state.profile.email)}</div>
-          </div>
-        </div>
-      </div>
-
-      <h2 class="sec-h"><span class="sec-num">01</span> Executive Summary</h2>
-      ${kpiCards}
-
-      <h2 class="sec-h"><span class="sec-num">02</span> Department Performance</h2>
-      ${deptBlocks || '<div class="empty">No departments configured</div>'}
-
-      ${!isEmployee()?`<h2 class="sec-h"><span class="sec-num">03</span> Employee Breakdown</h2>
+      <div class="ksec"><span class="kbad">01</span><h3>Executive Summary</h3></div>
+      ${kpiCardsU}
+      <div class="ksec"><span class="kbad">02</span><h3>Department Performance</h3></div>
+      ${deptBlocks||'<div class="empty">No departments configured</div>'}
+      ${!isEmployee()?`<div class="ksec"><span class="kbad">03</span><h3>Employee Breakdown</h3></div>
       <table><thead><tr><th>Employee</th>${deptHeaders}<th>Total</th><th>OT</th><th>Travel</th><th>Per Diem</th><th>Leave</th></tr></thead>
-        <tbody>${empRows}${grandRow}</tbody></table>`:''}
-
-      <div class="footer">
-        <strong>EjafTech Operations</strong> · Period Report · Generated by Operation Department Track
-      </div>
-
-      <script>setTimeout(()=>window.print(),500)<\/script>
-    </body></html>`;
-
-    const w = window.open('','_blank');
-    if(!w){toast('Allow pop-ups to export PDF');return;}
-    w.document.write(html);
-    w.document.close();
-    toast('PDF print dialog opening...');
+      <tbody>${empRows}</tbody><tfoot>${grandRow}</tfoot></table>`:''}
+      <script>setTimeout(()=>window.print(),500)<\/script>`;
+    await openReportPDF("PERIOD_REPORT", rangeLabel, bodyHTMLF);
+    toast('PDF export ready!');
   }catch(e){
     console.error(e);
     toast('PDF export failed: '+e.message);
@@ -4267,12 +4293,13 @@ window.exportFilteredPDF = exportFilteredPDF;
 // ═══════════════════════════════════════════════════════════════════════
 //  EXPORT: Real .xlsx (SheetJS) — in addition to existing CSV/PDF
 // ═══════════════════════════════════════════════════════════════════════
-function exportExcel(){
+async function exportExcel(){
   if(typeof XLSX === 'undefined'){return toast('Excel library not loaded');}
   try{
     const period = (typeof getPeriod==='function' ? getPeriod() : 'Report');
     const periodSafe = period.replace(/[^a-z0-9]+/gi,'_');
     const todayStr = new Date().toISOString().split('T')[0];
+    const refNo = await generateRefNo('EXCEL_HR');
     const wb = XLSX.utils.book_new();
     const s = summary();
     const tot = k => s.reduce((a,b)=>a+b[k],0);
@@ -4363,11 +4390,11 @@ function exportExcel(){
     const lastColLetter = XLSX.utils.encode_col(numCols - 1);
 
     // Title row (row 1)
-    setCell(ws1, 'A1', 'OPERATION DEPARTMENT TRACK — HR REPORT', titleStyle);
+    setCell(ws1, 'A1', `EJAF TECHNOLOGY — Operation Department Track  |  Ref: ${refNo}`, titleStyle);
     setMerge(ws1, {s:{r:0,c:0},e:{r:0,c:numCols-1}});
 
     // Subtitle (row 2)
-    setCell(ws1, 'A2', `Period: ${period}  |  Generated: ${new Date().toLocaleString('en-GB')}  |  By: ${state.profile.name||state.profile.email}`, subtitleStyle);
+    setCell(ws1, 'A2', `Period: ${period}  |  Ref: ${refNo}  |  Generated: ${new Date().toLocaleString('en-GB')}  |  By: ${state.profile.name||state.profile.email}`, subtitleStyle);
     setMerge(ws1, {s:{r:1,c:0},e:{r:1,c:numCols-1}});
 
     // Empty row 3, then headers row 4
@@ -4568,7 +4595,7 @@ window.exportExcel = exportExcel;
 // ═══════════════════════════════════════════════════════════════════════
 //  DASHBOARD PDF EXPORT — Colored, Visual Report
 // ═══════════════════════════════════════════════════════════════════════
-function exportDashboardPDF(){
+async function exportDashboardPDF(){
   try{
     const period = (typeof getPeriod==='function' ? getPeriod() : 'Report');
     const s = summary();
@@ -4673,69 +4700,32 @@ function exportDashboardPDF(){
       </div>
     </div>`;
 
-    // Full HTML for print
-    const html = `<!DOCTYPE html><html><head>
-      <meta charset="UTF-8">
-      <title>Dashboard - ${period}</title>
-      <style>
-        @page { size: A4; margin: 12mm; }
-        @media print { body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; } }
-        * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-        body { font-family: 'Helvetica Neue', Arial, sans-serif; color: #1A1A2E; background: white; margin: 0; padding: 0; }
-        .header { background: linear-gradient(135deg,#1B3A6B,#2E5FA3); color: white; padding: 20px; margin-bottom: 16px; border-radius: 10px; display: flex; align-items: center; gap: 16px; }
-        .header .logo { width: 60px; height: 60px; background: #1B3A6B; border: 2px solid #C9A84C; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-family: Georgia, serif; font-weight: 900; color: #C9A84C; font-size: 20px; flex-shrink: 0; }
-        .header h1 { margin: 0; font-size: 22px; color: white; }
-        .header .sub { font-size: 11px; color: #B8CFE8; margin-top: 4px; }
-        .header .role { background: #C9A84C; color: #1B3A6B; padding: 4px 12px; border-radius: 14px; font-size: 10px; font-weight: 800; text-transform: uppercase; }
-        .section { background: white; border: 1px solid #D6E4F0; border-radius: 10px; padding: 14px; margin-bottom: 14px; page-break-inside: avoid; }
-        .section-title { font-size: 12px; font-weight: 800; color: #1B3A6B; text-transform: uppercase; letter-spacing: 0.6px; margin: 0 0 12px; padding-bottom: 6px; border-bottom: 2px solid #C9A84C; }
-        .donut-container { display: flex; align-items: center; gap: 20px; }
-        .donut-container svg { flex-shrink: 0; }
-        .legend { flex: 1; }
-        .footer { text-align: center; font-size: 9px; color: #6B7B8F; padding: 10px; border-top: 1px solid #D6E4F0; margin-top: 14px; }
-      </style>
-    </head><body>
-      <div class="header">
-        <div class="logo">EJAF</div>
-        <div style="flex:1">
-          <h1>Operation Department Track</h1>
-          <div class="sub">${escapeHtml(period)} · Generated ${todayStr}</div>
-          <div class="sub">By: ${escapeHtml(state.profile.name||state.profile.email)}</div>
-        </div>
-        <span class="role">${(state.profile.role||'').toUpperCase()}</span>
+    // Build body using universal template
+    const totalLeaveDays = s.reduce((a,b)=>a+(b.leaveDays||0),0);
+    const dashBodyHTML=`
+      <div class="actions no-print" style="padding:10px;background:#FFF8E1;border:1px solid #FFE082;border-radius:8px;margin-bottom:14px;text-align:center;font-size:13px;color:#7F6000">
+        📄 Choose <strong>"Save as PDF"</strong> in the print dialog
+        <br><br><button onclick="window.print()" style="background:#03308B;color:#C9A84C;border:none;padding:10px 24px;border-radius:6px;font-weight:700;cursor:pointer;font-size:13px">🖨️ Print / Save as PDF</button>
+        <button onclick="window.close()" style="background:#888;color:white;border:none;padding:10px 20px;border-radius:6px;font-weight:700;cursor:pointer;font-size:13px;margin-left:6px">Close</button>
       </div>
-
-      ${kpis}
-
-      ${!isEmployee() ? `<div class="section">
-        <div class="section-title">Employee Hours Distribution</div>
-        <div class="donut-container">
-          ${donutSVG}
-          <div class="legend">${legendHTML}</div>
-        </div>
-      </div>` : ''}
-
-      <div class="section">
-        <div class="section-title">Department Performance</div>
-        ${deptBlocks || '<div style="text-align:center;color:#6B7B8F;padding:20px;font-style:italic">No departments configured</div>'}
+      <div class="ksec"><span class="kbad">01</span><h3>Executive Summary</h3></div>
+      <div class="kr">
+        <div class="kc kb"><div class="kl">Total Hours</div><div class="kv">${fmtHM(tHrs)}</div><div class="ks">${state.daily.length} sessions</div></div>
+        <div class="kc ko"><div class="kl">Overtime</div><div class="kv">${fmtHM(tOT)}</div><div class="ks">${state.overtime.length} entries</div></div>
+        <div class="kc kg"><div class="kl">Travel Days</div><div class="kv">${tTr}</div><div class="ks">${state.travel.length} trips</div></div>
+        <div class="kc kp"><div class="kl">Per Diem</div><div class="kv">${fmtMoney(tPD)}</div><div class="ks">IQD total</div></div>
+        <div class="kc krd"><div class="kl">Leave Days</div><div class="kv">${totalLeaveDays}</div><div class="ks">${state.leaves.length} entries</div></div>
       </div>
-
-      <div class="footer">
-        EjafTech Operations · Internal Report · Generated by Operation Department Track
-      </div>
-
-      <script>
-        window.onload = function(){
-          setTimeout(function(){ window.print(); }, 600);
-        };
-      <\/script>
-    </body></html>`;
-
-    const w = window.open('', '_blank');
-    if(!w){ toast('Allow pop-ups to export PDF'); return; }
-    w.document.write(html);
-    w.document.close();
-    toast('Opening print dialog...');
+      ${!isEmployee()?`<div class="ksec"><span class="kbad">02</span><h3>Employee Hours Distribution</h3></div>
+      <div style="display:flex;align-items:center;gap:20px;margin:10px 0">
+        ${donutSVG}
+        <div style="flex:1">${legendHTML}</div>
+      </div>`:''}
+      <div class="ksec"><span class="kbad">${!isEmployee()?'03':'02'}</span><h3>Department Performance</h3></div>
+      ${deptBlocks||'<div class="empty">No departments configured</div>'}
+      <script>window.onload=function(){setTimeout(function(){window.print();},600);};<\/script>`;
+    await openReportPDF("DASHBOARD", period, dashBodyHTML);
+    toast('PDF export ready!');
   } catch(e){
     console.error(e);
     toast('PDF export failed: ' + e.message);
