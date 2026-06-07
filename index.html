@@ -172,7 +172,7 @@ import {
   updatePassword, sendPasswordResetEmail, reauthenticateWithCredential, EmailAuthProvider
 } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-auth.js";
 import {
-  getFirestore, collection, doc, getDoc, setDoc, deleteDoc, onSnapshot, query, where, getDocs, addDoc
+  getFirestore, collection, doc, getDoc, setDoc, deleteDoc, onSnapshot, query, where, getDocs, addDoc, runTransaction
 } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js";
 
 // ╔═══════════════════════════════════════════════════════════════════╗
@@ -202,7 +202,7 @@ if (isConfigured) {
       app, auth, db,
       signInWithEmailAndPassword, signOut, onAuthStateChanged, createUserWithEmailAndPassword,
       updatePassword, sendPasswordResetEmail, reauthenticateWithCredential, EmailAuthProvider,
-      collection, doc, getDoc, setDoc, deleteDoc, onSnapshot, query, where, getDocs, addDoc
+      collection, doc, getDoc, setDoc, deleteDoc, onSnapshot, query, where, getDocs, addDoc, runTransaction
     };
   } catch(e) { console.error("Firebase init error:", e); }
 }
@@ -960,37 +960,37 @@ window.editPeriod=function(e){
 // ═══════════════════════════════════════════════════════════════════════
 async function generateRefNo(reportType="GENERAL"){
   try{
-    const year=new Date().getFullYear();
-    const cRef=db.collection("reportCounters").doc(String(year));
+    const {db, doc, getDoc, setDoc, runTransaction, collection, addDoc} = window.__fb;
+    if(!db) throw new Error("db not ready");
 
-    const n=await db.runTransaction(async(tx)=>{
-      const snap=await tx.get(cRef);
-      // If doc doesn't exist OR it's from a previous year, start from 1
-      const stored = snap.exists ? snap.data() : {};
+    const year = new Date().getFullYear();
+    const counterRef = doc(db, "reportCounters", String(year));
+
+    // Use transaction to safely increment
+    const n = await runTransaction(db, async(tx) => {
+      const snap = await tx.get(counterRef);
+      const stored = snap.exists() ? snap.data() : {};
       const storedYear = stored.year || 0;
       const current = (storedYear === year) ? (stored.count || 0) : 0;
       const next = current + 1;
-      tx.set(cRef, { count: next, year: year }, { merge: false }); // full overwrite to reset year
+      tx.set(counterRef, { count: next, year: year });
       return next;
     });
 
-    const refNo=`RPT-${year}-${String(n).padStart(4,"0")}`;
+    const refNo = `RPT-${year}-${String(n).padStart(4,"0")}`;
 
-    // Log silently — don't block the export if this fails
-    db.collection("reportLog").add({
+    // Log silently — never block export
+    addDoc(collection(db, "reportLog"), {
       refNo, reportType,
-      exportedBy:    state.user?.email,
-      exportedByName:state.profile?.name||state.profile?.employeeName,
-      exportedAt:    firebase.firestore.FieldValue.serverTimestamp(),
-      period:        getPeriod()
+      exportedBy:     state.user?.email,
+      exportedByName: state.profile?.name || state.profile?.employeeName,
+      period:         getPeriod()
     }).catch(()=>{});
 
     return refNo;
 
-  }catch(e){
-    // Fallback: show error clearly instead of a random number
+  } catch(e) {
     console.error("generateRefNo failed:", e.message);
-    // Use ERR prefix so it's obvious in the document it didn't work
     return `RPT-${new Date().getFullYear()}-ERR (check Firestore rules)`;
   }
 }
@@ -3628,12 +3628,13 @@ Object.defineProperty(window,'profileForm',{get:()=>profileForm,set:v=>profileFo
 window.viewReportCounter = async function(){
   if(!isAdmin()) return;
   try{
-    const firestore = firebase.firestore();
+    const {db, doc, getDoc} = window.__fb;
+    if(!db) return toast("Database not ready");
     const year = new Date().getFullYear();
-    const snap = await firestore.collection("reportCounters").doc(String(year)).get();
+    const snap = await getDoc(doc(db, "reportCounters", String(year)));
     const el = document.getElementById("counterStatus");
     if(!el) return;
-    if(snap.exists){
+    if(snap.exists()){
       const d = snap.data();
       el.style.display = "block";
       el.style.color = "#1B3A6B";
@@ -3653,8 +3654,9 @@ window.resetReportCounter = async function(){
   const year = new Date().getFullYear();
   if(!confirm(`Reset the report counter for ${year} to 0?\n\nNext exported report will be RPT-${year}-0001.\n\nThis does not delete any existing reports.`)) return;
   try{
-    const firestore = firebase.firestore();
-    await firestore.collection("reportCounters").doc(String(year)).set({ count: 0, year: year });
+    const {db, doc, setDoc} = window.__fb;
+    if(!db) return toast("Database not ready");
+    await setDoc(doc(db, "reportCounters", String(year)), { count: 0, year: year });
     const el = document.getElementById("counterStatus");
     if(el){
       el.style.display = "block";
