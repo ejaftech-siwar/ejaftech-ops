@@ -172,7 +172,7 @@ import {
   updatePassword, sendPasswordResetEmail, reauthenticateWithCredential, EmailAuthProvider
 } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-auth.js";
 import {
-  getFirestore, collection, doc, getDoc, setDoc, deleteDoc, onSnapshot, query, where, getDocs
+  getFirestore, collection, doc, getDoc, setDoc, deleteDoc, onSnapshot, query, where, getDocs, addDoc
 } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js";
 
 // ╔═══════════════════════════════════════════════════════════════════╗
@@ -202,7 +202,7 @@ if (isConfigured) {
       app, auth, db,
       signInWithEmailAndPassword, signOut, onAuthStateChanged, createUserWithEmailAndPassword,
       updatePassword, sendPasswordResetEmail, reauthenticateWithCredential, EmailAuthProvider,
-      collection, doc, getDoc, setDoc, deleteDoc, onSnapshot, query, where, getDocs
+      collection, doc, getDoc, setDoc, deleteDoc, onSnapshot, query, where, getDocs, addDoc
     };
   } catch(e) { console.error("Firebase init error:", e); }
 }
@@ -2801,23 +2801,15 @@ async function saveNametagEmp(){
   ];
   if(allNames.includes(name.toLowerCase())) return toast(`"${name}" already exists`);
 
-  const {db, collection: col, doc, addDoc, setDoc} = window.__fb;
   try {
-    if(nametagEditId){
-      await setDoc(doc(db,"nametagEmployees",nametagEditId),{
-        name, type: nametagForm.type||"internal",
-        updatedBy: state.profile.uid,
-        updatedAt: new Date().toISOString(),
-      },{merge:true});
-      toast(`Updated: ${name} ✓`);
-    } else {
-      await addDoc(col(db,"nametagEmployees"),{
-        name, type: nametagForm.type||"internal",
-        addedBy: state.profile.uid,
-        addedAt: new Date().toISOString(),
-      });
-      toast(`Added: ${name} ✓`);
-    }
+    await fbSave("nametagEmployees", {
+      id: nametagEditId || undefined,
+      name,
+      type: nametagForm.type || "internal",
+      addedBy: state.profile.uid,
+      addedAt: new Date().toISOString(),
+    });
+    toast(nametagEditId ? `Updated: ${name} ✓` : `Added: ${name} ✓`);
     nametagForm = {name:"", type:"internal"};
     nametagEditId = null;
   } catch(e){ console.error(e); toast("Error: "+e.message); }
