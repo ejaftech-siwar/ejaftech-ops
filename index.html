@@ -3537,7 +3537,7 @@ function renderProfile(){
       Account managed via Firebase Authentication · Your data is encrypted and secure
     </div>
 
-  \${isAdmin() ? \`<div class="card" style="border-left:4px solid #C9A84C">
+  ${isAdmin() ? `<div class="card" style="border-left:4px solid #C9A84C">
     <div class="sec-hdr" style="display:flex;align-items:center;gap:8px">
       <span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">⚙</span>
       Report Counter Management
@@ -3551,7 +3551,7 @@ function renderProfile(){
       <button class="btn btn-danger" onclick="resetReportCounter()" style="font-size:12px">🔄 Reset to 0001</button>
     </div>
     <div id="counterStatus" style="margin-top:10px;font-size:12px;color:#2E7D32;display:none"></div>
-  </div>\` : ''}
+  </div>` : ''}
   </div>`;
 }
 
@@ -3628,8 +3628,9 @@ Object.defineProperty(window,'profileForm',{get:()=>profileForm,set:v=>profileFo
 window.viewReportCounter = async function(){
   if(!isAdmin()) return;
   try{
+    const firestore = firebase.firestore();
     const year = new Date().getFullYear();
-    const snap = await db.collection("reportCounters").doc(String(year)).get();
+    const snap = await firestore.collection("reportCounters").doc(String(year)).get();
     const el = document.getElementById("counterStatus");
     if(!el) return;
     if(snap.exists){
@@ -3652,7 +3653,8 @@ window.resetReportCounter = async function(){
   const year = new Date().getFullYear();
   if(!confirm(`Reset the report counter for ${year} to 0?\n\nNext exported report will be RPT-${year}-0001.\n\nThis does not delete any existing reports.`)) return;
   try{
-    await db.collection("reportCounters").doc(String(year)).set({ count: 0, year: year });
+    const firestore = firebase.firestore();
+    await firestore.collection("reportCounters").doc(String(year)).set({ count: 0, year: year });
     const el = document.getElementById("counterStatus");
     if(el){
       el.style.display = "block";
