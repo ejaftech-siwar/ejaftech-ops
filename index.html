@@ -239,6 +239,8 @@ const state = {
   profile: null,        // {role, name, email, employeeName, ...} from users collection
   daily: [], overtime: [], travel: [], leaves: [], projects: [], locations: [], users: [], departments: [],
   workCategories: [], workTasks: [],  // Work Instructions module
+  nametagEmployees: [],  // Admin-managed nametag-only employees (no auth account)
+  globalEmployeeFilter: [],  // multi-select filter for reports (empty = all)
   tab: "Dashboard",
   initialized: false,
   unsubs: [],           // active Firestore listeners
@@ -252,6 +254,7 @@ let trForm=null, trEditId=null;
 let projForm=null, projEditId=null;
 let locForm="", locEditId=null;
 let userForm=null, userEditId=null;
+let nametagForm={name:"", type:"internal"}, nametagEditId=null;
 
 // ═══════════════════════════════════════════════════════════════════════
 //  HELPERS
@@ -365,9 +368,207 @@ function allEmployees(){
     })
     .map(u => (u.employeeName || "").trim())
     .filter(Boolean);
-  const merged = Array.from(new Set([...EMPLOYEES_DEFAULT, ...fromUsers]));
+  const fromNametags = (state.nametagEmployees || []).map(n => (n.name || "").trim()).filter(Boolean);
+  const merged = Array.from(new Set([...EMPLOYEES_DEFAULT, ...fromUsers, ...fromNametags]));
   return merged;
 }
+
+// ─────────────────────────────────────────────────────────────────────
+// EMPLOYEE TYPE HELPERS — Internal vs External (Outsource/Subcontractor)
+// ─────────────────────────────────────────────────────────────────────
+function isExternalEmployee(name){
+  if(!name) return false;
+  const n = String(name).trim();
+  const tag = (state.nametagEmployees || []).find(e => (e.name||"").trim() === n);
+  return tag && tag.type === "external";
+}
+
+function employeeBadge(name){
+  if(!name) return "—";
+  const safe = escapeHtml(name);
+  if(isExternalEmployee(name)){
+    return `<span style="display:inline-flex;align-items:center;gap:5px;color:#7F4A00;font-weight:700">${safe}<span style="background:linear-gradient(135deg,#FF9800 0%,#FFB74D 100%);color:#fff;padding:1px 7px;border-radius:6px;font-size:9px;font-weight:800;letter-spacing:0.5px;box-shadow:0 1px 3px rgba(0,0,0,0.15)">EXT</span></span>`;
+  }
+  return safe;
+}
+
+function employeePlainBadge(name){
+  // For places where HTML is not appropriate (e.g. Excel export)
+  if(!name) return "";
+  if(isExternalEmployee(name)) return `[EXT] ${name}`;
+  return name;
+}
+
+// Apply global filter to a list of records by `employee` field
+function applyEmployeeFilter(rows){
+  const sel = state.globalEmployeeFilter || [];
+  if(!sel || sel.length === 0) return rows;
+  return rows.filter(r => sel.includes(r.employee));
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// GLOBAL EMPLOYEE FILTER UI (Multi-Select)
+// Used across HR Report, Reports tab, and Dashboard
+// ─────────────────────────────────────────────────────────────────────
+function renderEmployeeFilterUI(label){
+  if(isEmployee()) return "";  // employees don't filter
+  const emps = allEmployees();
+  const sel = state.globalEmployeeFilter || [];
+  const allSelected = sel.length === 0;
+  return `<div style="background:linear-gradient(135deg,#F0F4FA 0%,#E8F0F9 100%);border:1.5px solid #2E5FA3;border-radius:10px;padding:12px 14px;margin-bottom:14px">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:${sel.length>0?'8px':'0'};flex-wrap:wrap">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:18px">👥</span>
+        <div>
+          <div style="font-size:13px;font-weight:700;color:#1B3A6B">${escapeHtml(label||"Filter by Employees")}</div>
+          <div style="font-size:11px;color:#2E5FA3">${allSelected ? `All ${emps.length} employees shown` : `${sel.length} of ${emps.length} selected`}</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn btn-sm" style="background:white;border:1px solid #2E5FA3;color:#2E5FA3;font-weight:700" onclick="openEmployeeFilterModal()">
+          ⚙️ ${allSelected ? 'Select Employees' : 'Edit Selection'}
+        </button>
+        ${!allSelected ? `<button class="btn btn-sm" style="background:white;border:1px solid #C53030;color:#C53030;font-weight:700" onclick="clearEmployeeFilter()">✕ Clear Filter</button>` : ''}
+      </div>
+    </div>
+    ${sel.length > 0 ? `
+      <div style="display:flex;flex-wrap:wrap;gap:6px">
+        ${sel.map(e => {
+          const isExt = isExternalEmployee(e);
+          const bg = isExt ? '#FFB74D' : '#2E5FA3';
+          const fg = isExt ? '#7F4A00' : 'white';
+          return `<span style="background:${bg};color:${fg};padding:3px 10px;border-radius:14px;font-size:11px;font-weight:700;display:inline-flex;align-items:center;gap:4px">
+            ${escapeHtml(e)}${isExt ? '<span style="font-size:8px;background:rgba(0,0,0,0.15);padding:1px 4px;border-radius:3px">EXT</span>' : ''}
+            <button onclick="toggleEmployeeFilter('${escapeHtml(e).replace(/'/g,"&#39;")}');event.stopPropagation()" style="background:rgba(255,255,255,0.3);border:none;color:inherit;width:16px;height:16px;border-radius:50%;cursor:pointer;font-weight:900;font-size:10px;line-height:1;padding:0;display:inline-flex;align-items:center;justify-content:center">×</button>
+          </span>`;
+        }).join("")}
+      </div>
+    ` : ''}
+  </div>`;
+}
+
+// Open a modal to select/deselect employees
+function openEmployeeFilterModal(){
+  const emps = allEmployees();
+  if(emps.length === 0){
+    toast("No employees available");
+    return;
+  }
+  const sel = state.globalEmployeeFilter || [];
+  // Sort: internal first, external last
+  const sorted = emps.slice().sort((a, b) => {
+    const ae = isExternalEmployee(a), be = isExternalEmployee(b);
+    if(ae !== be) return ae ? 1 : -1;
+    return a.localeCompare(b);
+  });
+  const overlay = document.createElement('div');
+  overlay.id = "empFilterOverlay";
+  overlay.style.cssText = "position:fixed;inset:0;background:rgba(15,35,71,0.85);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px";
+  overlay.onclick = (e) => { if(e.target === overlay) overlay.remove(); };
+  overlay.innerHTML = `
+    <div style="background:white;border-radius:14px;max-width:560px;width:100%;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(0,0,0,0.4)">
+      <div style="background:linear-gradient(135deg,#1B3A6B 0%,#2E5FA3 100%);color:white;padding:16px 20px;border-radius:14px 14px 0 0;display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <div style="font-size:11px;letter-spacing:2px;color:#C9A84C;font-weight:700">FILTER</div>
+          <div style="font-size:17px;font-weight:700;margin-top:2px">Select Employees</div>
+        </div>
+        <button onclick="document.getElementById('empFilterOverlay').remove()" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:white;width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:18px;font-weight:700">×</button>
+      </div>
+      <div style="padding:14px 20px;background:#F7FAFC;border-bottom:1px solid #E0E6ED;display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-sm" style="background:#2E5FA3;color:white;border:none;font-weight:700" onclick="filterSelectAll()">✓ Select All (${emps.length})</button>
+        <button class="btn btn-sm" style="background:white;border:1px solid #2E5FA3;color:#2E5FA3;font-weight:700" onclick="filterSelectInternal()">👤 Internal Only</button>
+        <button class="btn btn-sm" style="background:white;border:1px solid #FF9800;color:#7F4A00;font-weight:700" onclick="filterSelectExternal()">[EXT] External Only</button>
+        <button class="btn btn-sm" style="background:white;border:1px solid #C53030;color:#C53030;font-weight:700" onclick="filterClearAll()">✕ Clear</button>
+      </div>
+      <div id="empFilterList" style="flex:1;overflow-y:auto;padding:10px 16px;max-height:400px">
+        ${sorted.map(e => {
+          const isExt = isExternalEmployee(e);
+          const checked = sel.length === 0 ? false : sel.includes(e);
+          return `<label style="display:flex;align-items:center;gap:10px;padding:9px 10px;border:1px solid ${checked?'#2E5FA3':'#E0E6ED'};border-radius:8px;background:${checked?'#F0F4FA':'white'};cursor:pointer;margin-bottom:6px;transition:all 0.15s" onclick="event.stopPropagation()">
+            <input type="checkbox" ${checked?'checked':''} onchange="toggleEmployeeFilter('${escapeHtml(e).replace(/'/g,"&#39;")}',true)" style="width:18px;height:18px;cursor:pointer;accent-color:#2E5FA3">
+            <span style="flex:1;font-size:13px;font-weight:600;color:#1A202C">${escapeHtml(e)}</span>
+            ${isExt ? '<span style="background:linear-gradient(135deg,#FF9800 0%,#FFB74D 100%);color:#fff;padding:2px 8px;border-radius:6px;font-size:10px;font-weight:800;letter-spacing:0.5px">EXT</span>' : '<span style="background:#E8F5E9;color:#2F855A;padding:2px 8px;border-radius:6px;font-size:10px;font-weight:700;letter-spacing:0.5px">INTERNAL</span>'}
+          </label>`;
+        }).join("")}
+      </div>
+      <div style="padding:14px 20px;border-top:1px solid #E0E6ED;display:flex;justify-content:space-between;align-items:center;background:#F7FAFC;border-radius:0 0 14px 14px">
+        <div id="empFilterCount" style="font-size:12px;color:#4A5568;font-weight:600">${sel.length === 0 ? 'All employees (no filter)' : sel.length + ' employee(s) selected'}</div>
+        <button class="btn btn-primary" style="background:#1B3A6B;color:white;font-weight:700" onclick="applyEmployeeFilterModal()">✓ Apply Filter</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+}
+
+function toggleEmployeeFilter(name, fromModal){
+  const sel = state.globalEmployeeFilter || [];
+  const idx = sel.indexOf(name);
+  if(idx >= 0) sel.splice(idx, 1);
+  else sel.push(name);
+  state.globalEmployeeFilter = sel;
+  if(fromModal){
+    // Update count in modal without closing it
+    const cnt = document.getElementById('empFilterCount');
+    if(cnt) cnt.textContent = sel.length === 0 ? 'All employees (no filter)' : sel.length + ' employee(s) selected';
+  } else {
+    render();
+  }
+}
+
+function filterSelectAll(){
+  state.globalEmployeeFilter = [];  // empty = all
+  document.getElementById('empFilterOverlay').remove();
+  render();
+  toast("All employees shown");
+}
+
+function filterSelectInternal(){
+  const emps = allEmployees();
+  state.globalEmployeeFilter = emps.filter(e => !isExternalEmployee(e));
+  document.getElementById('empFilterOverlay').remove();
+  render();
+  toast(`Internal only: ${state.globalEmployeeFilter.length} employees`);
+}
+
+function filterSelectExternal(){
+  const emps = allEmployees();
+  state.globalEmployeeFilter = emps.filter(e => isExternalEmployee(e));
+  if(state.globalEmployeeFilter.length === 0){
+    toast("No external employees to filter");
+    state.globalEmployeeFilter = [];
+    document.getElementById('empFilterOverlay').remove();
+    return;
+  }
+  document.getElementById('empFilterOverlay').remove();
+  render();
+  toast(`External only: ${state.globalEmployeeFilter.length} employees`);
+}
+
+function filterClearAll(){
+  state.globalEmployeeFilter = [];
+  const inputs = document.querySelectorAll('#empFilterList input[type=checkbox]');
+  inputs.forEach(i => i.checked = false);
+  const cnt = document.getElementById('empFilterCount');
+  if(cnt) cnt.textContent = 'All employees (no filter)';
+}
+
+function applyEmployeeFilterModal(){
+  document.getElementById('empFilterOverlay').remove();
+  render();
+  const cnt = (state.globalEmployeeFilter || []).length;
+  toast(cnt === 0 ? "Filter cleared — showing all" : `Filter applied: ${cnt} employee(s)`);
+}
+
+function clearEmployeeFilter(){
+  state.globalEmployeeFilter = [];
+  render();
+  toast("Filter cleared");
+}
+
+Object.assign(window, {
+  openEmployeeFilterModal, toggleEmployeeFilter, filterSelectAll, filterSelectInternal,
+  filterSelectExternal, filterClearAll, applyEmployeeFilterModal, clearEmployeeFilter
+});
 
 // ═══════════════════════════════════════════════════════════════════════
 //  FIREBASE INIT & AUTH
@@ -442,6 +643,7 @@ async function subscribeData(){
     ["projects","projects"],["locations","locations"],["users","users"],
     ["departments","departments"],
     ["workCategories","workCategories"],["workTasks","workTasks"],
+    ["nametagEmployees","nametagEmployees"],
   ];
   let firstCount=0;
 
@@ -467,7 +669,7 @@ async function subscribeData(){
       }
 
       firstCount++;
-      if(firstCount>=10 && !state.initialized){
+      if(firstCount>=11 && !state.initialized){
         state.initialized=true;
         renderApp();
       } else if(state.initialized){
@@ -891,7 +1093,7 @@ function exportPDF(){
   // Summary Table (dynamic departments + leaves column)
   const deptHeaders = depts.map(d=>`<th style="border-bottom:3px solid ${d.color}">${escapeHtml(d.name.slice(0,10))}</th>`).join('');
   const summaryRows=s.map(r=>`<tr>
-    <td><strong style="color:#1B3A6B">${escapeHtml(r.emp)}</strong></td>
+    <td><strong style="color:#1B3A6B">${employeeBadge(r.emp)}</strong></td>
     ${depts.map(d=>`<td style="color:${d.color};font-weight:700">${fmtHM(r.byDept[d.name]||0)}</td>`).join('')}
     <td><strong style="color:#1B3A6B">${fmtHM(r.total)}</strong></td>
     <td style="color:#E65100;font-weight:600">${fmtHM(r.ot)}</td>
@@ -927,7 +1129,7 @@ function exportPDF(){
     if(my.length===0) return '';
     const sub = my.reduce((a,r)=>a+Number(r.days||0),0);
     return `<div class="emp-block lv">
-      <div class="emp-head"><span>📅 ${escapeHtml(emp)}</span><span class="emp-head-tag">${my.length} leaves</span></div>
+      <div class="emp-head"><span>📅 ${employeeBadge(emp)}</span><span class="emp-head-tag">${my.length} leaves</span></div>
       <table><thead><tr><th>Type</th><th>From</th><th>To</th><th>Days</th><th>Notes</th></tr></thead>
         <tbody>${my.slice().sort((a,b)=>(b.from||"").localeCompare(a.from||"")).map(r=>{
           const lt = leaveTypeInfo(r.type);
@@ -949,7 +1151,7 @@ function exportPDF(){
     if(my.length===0 && !isEmployee()) return '';
     const sub=my.reduce((a,r)=>a+Number(r.hours||0),0);
     return `<div class="emp-block ot">
-      <div class="emp-head"><span>▶ ${escapeHtml(emp)}</span><span class="emp-head-tag">${my.length} entries</span></div>
+      <div class="emp-head"><span>▶ ${employeeBadge(emp)}</span><span class="emp-head-tag">${my.length} entries</span></div>
       ${my.length===0?`<div class="empty">No overtime</div>`:`<table><thead><tr><th>Date</th><th>Day</th><th>Hours</th><th>Project</th><th>Location</th></tr></thead><tbody>${my.map(r=>`<tr><td>${fmtDate(r.date)}</td><td>${r.day||""}</td><td style="color:#E65100;font-weight:700">${fmtHM(r.hours)}</td><td>${escapeHtml(r.project||"—")}</td><td>${escapeHtml(r.location||"—")}</td></tr>`).join("")}</tbody></table>`}
       <div class="emp-sub"><span>Subtotal</span><span>${fmtHM(sub)}</span></div>
     </div>`;
@@ -962,7 +1164,7 @@ function exportPDF(){
     const sd=my.reduce((a,r)=>a+Number(r.days||0),0);
     const sp=my.reduce((a,r)=>a+Number(r.perDiem||0),0);
     return `<div class="emp-block tr">
-      <div class="emp-head"><span>▶ ${escapeHtml(emp)}</span><span class="emp-head-tag">${my.length} trips</span></div>
+      <div class="emp-head"><span>▶ ${employeeBadge(emp)}</span><span class="emp-head-tag">${my.length} trips</span></div>
       ${my.length===0?`<div class="empty">No travel</div>`:`<table><thead><tr><th>Date</th><th>Days</th><th>Project</th><th>Location</th><th>Per Diem</th></tr></thead><tbody>${my.map(r=>`<tr><td>${fmtDate(r.date)}</td><td><strong>${r.days}</strong></td><td>${escapeHtml(r.project||"—")}</td><td>${escapeHtml(r.location||"—")}</td><td style="color:#6A1B9A;font-weight:700">${fmtMoney(r.perDiem)}</td></tr>`).join("")}</tbody></table>`}
       <div class="emp-sub"><span>Subtotal</span><span>${sd} days · ${fmtMoney(sp)} IQD</span></div>
     </div>`;
@@ -1023,7 +1225,10 @@ window.exportCSV=exportCSV;
 window.exportPDF=exportPDF;
 
 function summary(){
-  const emps=isEmployee()?[state.profile.employeeName]:allEmployees();
+  const allEmps = isEmployee()?[state.profile.employeeName]:allEmployees();
+  // Apply global filter: if filter is set, only include those employees
+  const sel = state.globalEmployeeFilter || [];
+  const emps = (sel.length > 0 && !isEmployee()) ? allEmps.filter(e => sel.includes(e)) : allEmps;
   const depts = deptNames();
   return emps.filter(Boolean).map(emp=>{
     const d=state.daily.filter(r=>r.employee===emp);
@@ -1117,6 +1322,8 @@ function renderDashboard(){
         </div>
       </div>
     </div>`;
+    // Add global filter UI for non-employees
+    exportBar += renderEmployeeFilterUI("Filter Dashboard by Employees");
   }
 
   const dT={};
@@ -1353,7 +1560,7 @@ function renderDailyLog(){
         const hasRes = imgs.length > 0 || (r.resolutionText||"").length > 0;
         return `<tr>
           <td>${fmtDate(r.date)}</td>
-          ${!isEmployee()?`<td><strong>${escapeHtml(r.employee)}</strong></td>`:""}
+          ${!isEmployee()?`<td>${employeeBadge(r.employee)}</td>`:""}
           <td>${escapeHtml(r.project||"")}</td>
           <td>${deptBadge(r.dept)}</td>
           <td>${r.location?`<span style="background:#E3F2FD;color:#1565C0;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600">📍 ${escapeHtml(r.location)}</span>`:'<span style="color:#bbb;font-style:italic;font-size:11px">—</span>'}</td>
@@ -1628,7 +1835,7 @@ function renderOvertime(){
       <tbody>${rows.length===0?`<tr><td colspan="7" class="empty">No overtime entries</td></tr>`:rows.map(r=>{
         const canEdit=isHR()||r.employee===state.profile.employeeName;
         return `<tr>
-          ${!isEmployee()?`<td><strong>${escapeHtml(r.employee)}</strong></td>`:""}
+          ${!isEmployee()?`<td>${employeeBadge(r.employee)}</td>`:""}
           <td>${fmtDate(r.date)}</td><td style="color:#2E7D32;font-weight:700">${r.day||""}</td>
           <td><strong style="color:#E65100">${fmtHM(r.hours)}</strong></td>
           <td>${escapeHtml(r.project||"—")}</td><td>${escapeHtml(r.location||"—")}</td>
@@ -1722,7 +1929,7 @@ function renderTravel(){
       <tbody>${rows.length===0?`<tr><td colspan="7" class="empty">No travel entries</td></tr>`:rows.map(r=>{
         const canEdit=isHR()||r.employee===state.profile.employeeName;
         return `<tr>
-          ${!isEmployee()?`<td><strong>${escapeHtml(r.employee)}</strong></td>`:""}
+          ${!isEmployee()?`<td>${employeeBadge(r.employee)}</td>`:""}
           <td>${fmtDate(r.date)}</td><td>${r.days}</td>
           <td>${escapeHtml(r.project||"—")}</td><td>${escapeHtml(r.location||"—")}</td>
           <td><strong style="color:#7F6000">${fmtMoney(r.perDiem)}</strong></td>
@@ -2113,6 +2320,9 @@ function renderHRReport(){
     </div>
   </div>`;
 
+  // ═══════ GLOBAL EMPLOYEE FILTER ═══════
+  h += renderEmployeeFilterUI("Filter Report by Employees");
+
   // ═══════ EXECUTIVE KPI SUMMARY ═══════
   h+=`<div class="card">
     <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">01</span> Executive Summary</div>
@@ -2193,7 +2403,7 @@ function renderHRReport(){
     const sub=my.reduce((a,r)=>a+Number(r.days||0),0);
     h+=`<div class="card" style="border-left:4px solid #C62828">
       <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0">
-        <strong style="color:#1B3A6B">📅 ${escapeHtml(emp)}</strong>
+        <strong style="color:#1B3A6B">📅 ${employeeBadge(emp)}</strong>
         <span style="background:#C62828;color:white;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700">${sub} days</span>
       </div>
       <div class="tbl-wrap"><table class="tbl">
@@ -2217,7 +2427,7 @@ function renderHRReport(){
     const sub=my.reduce((a,r)=>a+Number(r.hours||0),0);
     h+=`<div style="border:1px solid var(--line);border-radius:10px;margin-bottom:10px;overflow:hidden;border-left:4px solid #E65100">
       <div style="background:linear-gradient(135deg,#1B3A6B,#2E5FA3);color:white;padding:8px 12px;font-weight:700;font-size:12px;display:flex;justify-content:space-between;align-items:center">
-        <span>▶ ${escapeHtml(emp)}</span>
+        <span>▶ ${employeeBadge(emp)}</span>
         <span style="background:#C9A84C;color:#1B3A6B;padding:2px 10px;border-radius:10px;font-size:11px">${my.length} entries</span>
       </div>
       ${my.length===0?`<div class="empty">No overtime</div>`:`<div class="tbl-wrap"><table class="tbl">
@@ -2237,7 +2447,7 @@ function renderHRReport(){
     const sp=my.reduce((a,r)=>a+Number(r.perDiem||0),0);
     h+=`<div style="border:1px solid var(--line);border-radius:10px;margin-bottom:10px;overflow:hidden;border-left:4px solid #2E7D32">
       <div style="background:linear-gradient(135deg,#1B3A6B,#2E5FA3);color:white;padding:8px 12px;font-weight:700;font-size:12px;display:flex;justify-content:space-between;align-items:center">
-        <span>▶ ${escapeHtml(emp)}</span>
+        <span>▶ ${employeeBadge(emp)}</span>
         <span style="background:#C9A84C;color:#1B3A6B;padding:2px 10px;border-radius:10px;font-size:11px">${my.length} trips</span>
       </div>
       ${my.length===0?`<div class="empty">No travel</div>`:`<div class="tbl-wrap"><table class="tbl">
@@ -2437,6 +2647,67 @@ function renderUsers(){
       <strong>4.</strong> Document ID = the UID; add fields: name, email, role, employeeName<br><br>
       Roles: <code>admin</code> · <code>hr</code> · <code>employee</code>
     </p>
+  </div>
+
+  <!-- ═══ NAMETAG EMPLOYEES (no auth account) ═══ -->
+  <div class="card" style="border-top:4px solid #D4AF37">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+      <div>
+        <div class="card-title" style="margin-bottom:2px">👤 Nametag Employees · ${(state.nametagEmployees||[]).length}</div>
+        <div style="font-size:12px;color:var(--muted)">Registered in tracking lists only — no login account required</div>
+      </div>
+    </div>
+
+    <!-- Add/Edit Nametag Form -->
+    <div style="background:#FFFBEB;border:1px solid #D4AF37;border-radius:10px;padding:14px;margin-bottom:14px">
+      <div style="font-size:13px;font-weight:800;color:#7F6000;margin-bottom:10px">
+        ${nametagEditId ? "✎ Edit Nametag Employee" : "➕ Add Nametag Employee"}
+      </div>
+      <div class="form-grid">
+        <div class="field"><label>Employee Name <span class="req">*</span></label>
+          <input value="${escapeHtml((nametagForm||{}).name||"")}" oninput="window.nametagForm.name=this.value" placeholder="e.g., Ahmad Khalil, Outsource-1"></div>
+        <div class="field"><label>Type <span class="req">*</span></label>
+          <select onchange="window.nametagForm.type=this.value;render()">
+            <option value="internal" ${(nametagForm||{}).type==="internal"?"selected":""}>🏢 Internal</option>
+            <option value="external" ${(nametagForm||{}).type==="external"?"selected":""}>🔶 External / Outsource</option>
+          </select>
+        </div>
+      </div>
+      <div style="font-size:11px;color:#7F6000;margin-bottom:10px">
+        ${(nametagForm||{}).type==="external" ? '🔶 This employee will appear with <strong>[EXT]</strong> orange badge across all reports.' : '🏢 This employee will appear as a regular internal team member.'}
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" style="background:#D4AF37;color:#1B3A6B" onclick="saveNametagEmp()">${nametagEditId?"Update":"Add Employee"}</button>
+        ${nametagEditId?`<button class="btn btn-ghost" onclick="cancelNametagEmp()">Cancel</button>`:""}
+      </div>
+    </div>
+
+    <!-- Nametag Employees List -->
+    ${(state.nametagEmployees||[]).length === 0
+      ? `<div class="empty">No nametag employees yet. Add external workers or contractors above.</div>`
+      : `<div style="display:flex;flex-direction:column;gap:8px">
+          ${(state.nametagEmployees||[]).map(e => {
+            const isExt = e.type === "external";
+            return `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:${isExt ? "linear-gradient(135deg,#FFF3E0 0%,#FFF8E1 100%)" : "#F7FAFC"};border:1px solid ${isExt ? "#FF9800" : "#CBD5E0"};border-radius:8px;gap:10px">
+              <div style="display:flex;align-items:center;gap:10px;flex:1">
+                <div style="width:36px;height:36px;background:${isExt ? "linear-gradient(135deg,#FF9800 0%,#FFB74D 100%)" : "#1B3A6B"};color:white;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;flex-shrink:0">
+                  ${(e.name||"?").charAt(0).toUpperCase()}
+                </div>
+                <div>
+                  <div style="font-weight:700;color:#1A202C;font-size:14px">${escapeHtml(e.name||"")}
+                    ${isExt ? `<span style="display:inline-block;margin-left:6px;padding:1px 7px;background:linear-gradient(135deg,#FF9800,#FFB74D);color:#7F4A00;border-radius:10px;font-size:10px;font-weight:800">EXT</span>` : `<span style="display:inline-block;margin-left:6px;padding:1px 7px;background:#E8F5E9;color:#2F855A;border-radius:10px;font-size:10px;font-weight:700">INTERNAL</span>`}
+                  </div>
+                  <div style="font-size:11px;color:var(--muted)">${isExt ? "External / Outsource" : "Internal employee"} · Nametag only</div>
+                </div>
+              </div>
+              <div style="display:flex;gap:4px">
+                <button class="btn btn-sm btn-secondary" onclick="editNametagEmp('${e.id}')" title="Edit">✎</button>
+                <button class="btn btn-sm btn-danger" onclick="delNametagEmp('${e.id}')" title="Delete (Admin)">🗑</button>
+              </div>
+            </div>`;
+          }).join("")}
+        </div>`
+    }
   </div>`;
 }
 
@@ -2512,6 +2783,75 @@ function cancelUser(){userForm=null;userEditId=null;render();}
 
 Object.assign(window,{saveUser,editUser,delUser,cancelUser});
 Object.defineProperty(window,'userForm',{get:()=>userForm,set:v=>userForm=v});
+
+// ═══════════════════════════════════════════════════════════════════════
+//  NAMETAG EMPLOYEES (name-only, no auth account)
+//  Admin-only write. Everyone can read via allEmployees().
+// ═══════════════════════════════════════════════════════════════════════
+async function saveNametagEmp(){
+  if(!isAdmin()) return toast("Admin only");
+  const name = (nametagForm.name||"").trim();
+  if(!name) return toast("Name is required");
+  if(name.length < 2) return toast("Name must be at least 2 characters");
+
+  // Check duplicate against both users AND nametags
+  const allNames = [
+    ...state.users.map(u=>(u.employeeName||u.name||"").toLowerCase()),
+    ...(state.nametagEmployees||[]).filter(e=>e.id!==nametagEditId).map(e=>(e.name||"").toLowerCase()),
+  ];
+  if(allNames.includes(name.toLowerCase())) return toast(`"${name}" already exists`);
+
+  const {db, collection: col, doc, addDoc, setDoc} = window.__fb;
+  try {
+    if(nametagEditId){
+      await setDoc(doc(db,"nametagEmployees",nametagEditId),{
+        name, type: nametagForm.type||"internal",
+        updatedBy: state.profile.uid,
+        updatedAt: new Date().toISOString(),
+      },{merge:true});
+      toast(`Updated: ${name} ✓`);
+    } else {
+      await addDoc(col(db,"nametagEmployees"),{
+        name, type: nametagForm.type||"internal",
+        addedBy: state.profile.uid,
+        addedAt: new Date().toISOString(),
+      });
+      toast(`Added: ${name} ✓`);
+    }
+    nametagForm = {name:"", type:"internal"};
+    nametagEditId = null;
+  } catch(e){ console.error(e); toast("Error: "+e.message); }
+}
+
+function editNametagEmp(id){
+  if(!isAdmin()) return toast("Admin only");
+  const e = (state.nametagEmployees||[]).find(x=>x.id===id);
+  if(e){ nametagForm = {name: e.name, type: e.type||"internal"}; nametagEditId=id; render(); window.scrollTo(0,0); }
+}
+
+async function delNametagEmp(id){
+  if(!isAdmin()) return toast("Admin only");
+  const e = (state.nametagEmployees||[]).find(x=>x.id===id);
+  if(!e) return;
+  // Warn if this employee has records
+  const hasRecords = [...state.daily,...state.overtime,...state.travel,...state.leaves]
+    .some(r=>r.employee===e.name);
+  const msg = hasRecords
+    ? `Delete "${e.name}"?\n\n⚠ This employee has existing records. The records will remain but the name will no longer appear in dropdowns.`
+    : `Delete "${e.name}" from the tracking list?`;
+  if(!confirm(msg)) return;
+  const{db,doc,deleteDoc}=window.__fb;
+  try {
+    await deleteDoc(doc(db,"nametagEmployees",id));
+    toast(`Deleted: ${e.name}`);
+  } catch(e){ console.error(e); toast("Error: "+e.message); }
+}
+
+function cancelNametagEmp(){ nametagForm={name:"",type:"internal"}; nametagEditId=null; render(); }
+
+Object.assign(window,{saveNametagEmp, editNametagEmp, delNametagEmp, cancelNametagEmp});
+Object.defineProperty(window,'nametagForm',{get:()=>nametagForm,set:v=>nametagForm=v,configurable:true});
+Object.defineProperty(window,'nametagEditId',{get:()=>nametagEditId,set:v=>nametagEditId=v,configurable:true});
 
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -2931,6 +3271,7 @@ function exportBackup(){
         leaves: state.leaves,
         workCategories: state.workCategories,
         workTasks: state.workTasks,
+        nametagEmployees: state.nametagEmployees,
       },
       counts: {
         users: state.users.length,
@@ -2943,6 +3284,7 @@ function exportBackup(){
         leaves: state.leaves.length,
         workCategories: state.workCategories.length,
         workTasks: state.workTasks.length,
+        nametagEmployees: (state.nametagEmployees||[]).length,
       }
     };
     const json = JSON.stringify(backup, null, 2);
@@ -3332,6 +3674,13 @@ function renderFlexReports(){
     if(f.to && r.date > f.to) return false;
     return true;
   };
+
+  // Apply global employee filter
+  const sel = state.globalEmployeeFilter || [];
+  const filterByEmp = (rows) => {
+    if(sel.length === 0) return rows;
+    return rows.filter(r => sel.includes(r.employee));
+  };
   // Leaves use 'from' field as date
   const leaveInRange = (l) => {
     if(!l.from) return false;
@@ -3340,7 +3689,11 @@ function renderFlexReports(){
     return true;
   };
 
-  const allowedEmps = isEmployee() ? [state.profile.employeeName] : allEmployees();
+  const allowedEmpsBase = isEmployee() ? [state.profile.employeeName] : allEmployees();
+  // Apply global employee filter (multi-select)
+  const allowedEmps = (sel.length > 0 && !isEmployee())
+    ? allowedEmpsBase.filter(e => sel.includes(e))
+    : allowedEmpsBase;
   const dailyFiltered = state.daily.filter(r=>inRange(r) && allowedEmps.includes(r.employee));
   const otFiltered = state.overtime.filter(r=>inRange(r) && allowedEmps.includes(r.employee));
   const trFiltered = state.travel.filter(r=>inRange(r) && allowedEmps.includes(r.employee));
@@ -3421,6 +3774,9 @@ function renderFlexReports(){
     </div>
   </div>`;
 
+  // ═══════ GLOBAL EMPLOYEE FILTER ═══════
+  h += renderEmployeeFilterUI("Filter by Employees");
+
   // ═══════ EXECUTIVE KPI SUMMARY (Section 02) ═══════
   h+=`<div class="card">
     <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">02</span> Executive Summary</div>
@@ -3487,7 +3843,7 @@ function renderFlexReports(){
           <th style="color:white">Leave</th>
         </tr></thead>
         <tbody>${empStats.map((e,idx)=>`<tr style="background:${idx%2?'#F5F8FC':'white'}">
-          <td><strong style="color:#1B3A6B">${escapeHtml(e.emp)}</strong></td>
+          <td>${employeeBadge(e.emp)}</td>
           <td><strong style="color:#2E5FA3">${fmtHM(e.hours)}</strong></td>
           <td style="color:var(--muted)">${e.sessions}</td>
           <td style="color:#E65100;font-weight:600">${fmtHM(e.ot)}</td>
@@ -3707,27 +4063,27 @@ function exportFilteredExcel(){
       return ws;
     };
 
-    const dailyData = dr.map(r=>[r.employee||'',r.date||'',r.project||'',r.dept||'',r.location||'',fmtHM(r.duration),r.notes||'']);
+    const dailyData = dr.map(r=>[employeePlainBadge(r.employee||''),r.date||'',r.project||'',r.dept||'',r.location||'',fmtHM(r.duration),r.notes||'']);
     const wsD = buildDetail('Daily Log', ['Employee','Date','Project','Department','Location','Hours','Notes'], dailyData, COLORS.navyLight);
-    wsD['!cols']=[{wch:22},{wch:12},{wch:26},{wch:16},{wch:14},{wch:10},{wch:30}];
+    wsD['!cols']=[{wch:26},{wch:12},{wch:26},{wch:16},{wch:14},{wch:10},{wch:30}];
     XLSX.utils.book_append_sheet(wb, wsD, 'Daily');
 
-    const otData = or.map(r=>[r.employee||'',r.date||'',fmtHM(r.hours),r.project||'',r.dept||'',r.location||'']);
+    const otData = or.map(r=>[employeePlainBadge(r.employee||''),r.date||'',fmtHM(r.hours),r.project||'',r.dept||'',r.location||'']);
     const wsO = buildDetail('Overtime Log', ['Employee','Date','OT Hours','Project','Department','Location'], otData, COLORS.orange);
-    wsO['!cols']=[{wch:22},{wch:12},{wch:12},{wch:26},{wch:16},{wch:16}];
+    wsO['!cols']=[{wch:26},{wch:12},{wch:12},{wch:26},{wch:16},{wch:16}];
     XLSX.utils.book_append_sheet(wb, wsO, 'Overtime');
 
-    const trData = tr.map(r=>[r.employee||'',r.date||'',r.days||0,r.project||'',r.location||'',r.perDiem||0]);
+    const trData = tr.map(r=>[employeePlainBadge(r.employee||''),r.date||'',r.days||0,r.project||'',r.location||'',r.perDiem||0]);
     const wsT = buildDetail('Travel Log', ['Employee','Date','Days','Project','Location','Per Diem'], trData, COLORS.green);
-    wsT['!cols']=[{wch:22},{wch:12},{wch:8},{wch:26},{wch:16},{wch:14}];
+    wsT['!cols']=[{wch:26},{wch:12},{wch:8},{wch:26},{wch:16},{wch:14}];
     XLSX.utils.book_append_sheet(wb, wsT, 'Travel');
 
     const lvData = lv.map(r=>{
       const lt = (typeof leaveTypeInfo==='function') ? leaveTypeInfo(r.type) : {label:r.type||''};
-      return [r.employee||'', lt.label||r.type||'', r.from||'', r.to||'', r.days||0, r.notes||''];
+      return [employeePlainBadge(r.employee||''), lt.label||r.type||'', r.from||'', r.to||'', r.days||0, r.notes||''];
     });
     const wsL = buildDetail('Leaves Log', ['Employee','Type','From','To','Days','Notes'], lvData, COLORS.red);
-    wsL['!cols']=[{wch:22},{wch:18},{wch:12},{wch:12},{wch:8},{wch:30}];
+    wsL['!cols']=[{wch:26},{wch:18},{wch:12},{wch:12},{wch:8},{wch:30}];
     XLSX.utils.book_append_sheet(wb, wsL, 'Leaves');
 
     XLSX.writeFile(wb, `Period_Report_${periodStr}.xlsx`);
