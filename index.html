@@ -244,11 +244,11 @@ const state = {
   tab: "Dashboard",
   initialized: false,
   unsubs: [],           // active Firestore listeners
-  reportFilter: { from: "", to: "" },  // for flexible reports
+  reportFilter: { from: "", to: "", project: "" },  // for flexible reports
 };
 
 // Forms
-let dailyForm=null, dailyEditId=null, dailyFilter="", dailyLocFilter="";
+let dailyForm=null, dailyEditId=null, dailyFilter="", dailyLocFilter="", dailyProjFilter="", dailyEntryFrom="", dailyEntryTo="";
 let otForm=null, otEditId=null;
 let trForm=null, trEditId=null;
 let projForm=null, projEditId=null;
@@ -1194,9 +1194,18 @@ async function exportDailyPDF(){
   if(!canSeeReports()) return toast("Access denied");
   const period = getPeriod();
   // Use current filter (dailyFilter = employee name or "" for all)
-  const filterEmp = dailyFilter || "";
+  const filterEmp   = dailyFilter     || "";
+  const filterProj  = dailyProjFilter || "";
+  const filterEFrom = dailyEntryFrom  ? Number(dailyEntryFrom) : null;
+  const filterETo   = dailyEntryTo    ? Number(dailyEntryTo)   : null;
   const rows = visibleRows(state.daily)
-    .filter(r => !filterEmp || r.employee === filterEmp)
+    .filter(r => {
+      if(filterEmp  && r.employee !== filterEmp)  return false;
+      if(filterProj && r.project  !== filterProj) return false;
+      if(filterEFrom !== null && (r.entryNo||0) < filterEFrom) return false;
+      if(filterETo   !== null && (r.entryNo||0) > filterETo)   return false;
+      return true;
+    })
     .sort((a,b) => {
       const d = (a.date||"").localeCompare(b.date||"");
       return d !== 0 ? d : (a.entryNo||0) - (b.entryNo||0);
@@ -1260,7 +1269,8 @@ async function exportDailyPDF(){
     </table>
     <script>setTimeout(()=>window.print(),500)<\/script>`;
 
-  await openReportPDF("DAILY_LOG", filterEmp ? `${period} · ${filterEmp}` : period, bodyHTML);
+  const activeFilters = [filterEmp, filterProj, (filterEFrom||filterETo) ? `Entry ${filterEFrom||'1'}–${filterETo||'∞'}` : ""].filter(Boolean).join(" · ");
+  await openReportPDF("DAILY_LOG", activeFilters ? `${period} · ${activeFilters}` : period, bodyHTML);
   toast("Daily Log PDF ready!");
 }
 window.exportDailyPDF = exportDailyPDF;
@@ -1272,9 +1282,18 @@ async function exportDailyExcel(){
     const {db, doc, setDoc} = window.__fb;
     const refNo = await generateRefNo('EXCEL_DAILY');
     const period = getPeriod();
-    const filterEmp = dailyFilter || "";
+    const filterEmp   = dailyFilter     || "";
+    const filterProj  = dailyProjFilter || "";
+    const filterEFrom = dailyEntryFrom  ? Number(dailyEntryFrom) : null;
+    const filterETo   = dailyEntryTo    ? Number(dailyEntryTo)   : null;
     const rows = visibleRows(state.daily)
-      .filter(r => !filterEmp || r.employee === filterEmp)
+      .filter(r => {
+        if(filterEmp  && r.employee !== filterEmp)  return false;
+        if(filterProj && r.project  !== filterProj) return false;
+        if(filterEFrom !== null && (r.entryNo||0) < filterEFrom) return false;
+        if(filterETo   !== null && (r.entryNo||0) > filterETo)   return false;
+        return true;
+      })
       .sort((a,b)=>{
         const d=(a.date||"").localeCompare(b.date||"");
         return d!==0?d:(a.entryNo||0)-(b.entryNo||0);
@@ -1703,8 +1722,13 @@ function renderDailyLog(){
   const rows=visibleRows(state.daily).filter(r=>{
     if(dailyFilter && r.employee!==dailyFilter) return false;
     if(dailyLocFilter && r.location!==dailyLocFilter) return false;
+    if(dailyProjFilter && r.project!==dailyProjFilter) return false;
+    if(dailyEntryFrom && (r.entryNo||0) < Number(dailyEntryFrom)) return false;
+    if(dailyEntryTo   && (r.entryNo||0) > Number(dailyEntryTo))   return false;
     return true;
   });
+  // Project options for filter
+  const projOptions = [...new Set(state.daily.map(r=>r.project).filter(Boolean))].sort();
   const empOptions=allEmployees();
   // Location stats (hours by location)
   const locStats = state.locations.map(l=>{
@@ -1836,9 +1860,26 @@ function renderDailyLog(){
         </select>`:""}
         <select onchange="window.dailyLocFilter=this.value;render()" style="padding:6px 10px;border:1px solid var(--line);border-radius:6px;font-size:12px">
           <option value="">All Locations</option>
-          ${state.locations.map(l=>`<option value="${escapeHtml(l.name)}" ${l.name===dailyLocFilter?"selected":""}>📍 ${escapeHtml(l.name)}</option>`).join("")}
+          ${state.locations.map(l=>`<option value="${escapeHtml(l.name)}" ${l.name===dailyLocFilter?"selected":""}>\u{1F4CD} ${escapeHtml(l.name)}</option>`).join("")}
         </select>
-        ${canSeeReports()?`<button onclick="exportDailyPDF()" style="background:#03308B;color:#C9A84C;border:none;font-weight:700;padding:6px 14px;border-radius:6px;font-size:12px;cursor:pointer">📄 PDF</button><button onclick="exportDailyExcel()" style="background:#2E7D32;color:white;border:none;font-weight:700;padding:6px 14px;border-radius:6px;font-size:12px;cursor:pointer;margin-left:4px">📊 Excel</button>`:""}        
+        <select onchange="window.dailyProjFilter=this.value;render()" style="padding:6px 10px;border:1px solid var(--line);border-radius:6px;font-size:12px;max-width:140px">
+          <option value="">All Projects</option>
+          ${projOptions.map(p=>`<option value="${escapeHtml(p)}" ${p===dailyProjFilter?"selected":""}>${escapeHtml(p)}</option>`).join("")}
+        </select>
+        <div style="display:flex;align-items:center;gap:3px;background:#f5f7ff;border:1px solid var(--line);border-radius:6px;padding:0 6px">
+          <span style="font-size:10px;color:#888;white-space:nowrap"># Entry</span>
+          <input type="number" min="1" placeholder="From" value="${dailyEntryFrom}"
+            onchange="window.dailyEntryFrom=this.value;render()"
+            style="width:48px;border:none;background:transparent;font-size:11px;padding:5px 2px;outline:none">
+          <span style="color:#ccc">–</span>
+          <input type="number" min="1" placeholder="To" value="${dailyEntryTo}"
+            onchange="window.dailyEntryTo=this.value;render()"
+            style="width:48px;border:none;background:transparent;font-size:11px;padding:5px 2px;outline:none">
+          ${(dailyEntryFrom||dailyEntryTo)?`<button onclick="window.dailyEntryFrom='';window.dailyEntryTo='';render()" style="border:none;background:none;cursor:pointer;color:#c62828;font-size:12px;padding:0 2px">✕</button>`:""}
+        </div>
+        ${(dailyFilter||dailyLocFilter||dailyProjFilter||dailyEntryFrom||dailyEntryTo)?
+          `<button onclick="window.dailyFilter='';window.dailyLocFilter='';window.dailyProjFilter='';window.dailyEntryFrom='';window.dailyEntryTo='';render()" style="background:#fee2e2;color:#c62828;border:1px solid #fca5a5;padding:5px 10px;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600">✕ Clear All</button>`:""}
+        ${canSeeReports()?`<button onclick="exportDailyPDF()" style="background:#03308B;color:#C9A84C;border:none;font-weight:700;padding:6px 14px;border-radius:6px;font-size:12px;cursor:pointer">\u{1F4C4} PDF</button><button onclick="exportDailyExcel()" style="background:#2E7D32;color:white;border:none;font-weight:700;padding:6px 14px;border-radius:6px;font-size:12px;cursor:pointer;margin-left:4px">\u{1F4CA} Excel</button>`:""}
       </div>
     </div>
     <div class="tbl-wrap"><table class="tbl">
@@ -2082,6 +2123,9 @@ Object.assign(window,{
 Object.defineProperty(window,'dailyForm',{get:()=>dailyForm,set:v=>dailyForm=v});
 Object.defineProperty(window,'dailyLocFilter',{get:()=>dailyLocFilter,set:v=>dailyLocFilter=v});
 Object.defineProperty(window,'dailyFilter',{get:()=>dailyFilter,set:v=>dailyFilter=v});
+Object.defineProperty(window,'dailyProjFilter',{get:()=>dailyProjFilter,set:v=>dailyProjFilter=v});
+Object.defineProperty(window,'dailyEntryFrom',{get:()=>dailyEntryFrom,set:v=>dailyEntryFrom=v});
+Object.defineProperty(window,'dailyEntryTo',{get:()=>dailyEntryTo,set:v=>dailyEntryTo=v});
 
 // ═══════════════════════════════════════════════════════════════════════
 //  OVERTIME
@@ -4102,9 +4146,10 @@ function renderFlexReports(){
   const allowedEmps = (sel.length > 0 && !isEmployee())
     ? allowedEmpsBase.filter(e => sel.includes(e))
     : allowedEmpsBase;
-  const dailyFiltered = state.daily.filter(r=>inRange(r) && allowedEmps.includes(r.employee));
-  const otFiltered = state.overtime.filter(r=>inRange(r) && allowedEmps.includes(r.employee));
-  const trFiltered = state.travel.filter(r=>inRange(r) && allowedEmps.includes(r.employee));
+  const projF = f.project || ""; // project filter
+  const dailyFiltered = state.daily.filter(r=>inRange(r) && allowedEmps.includes(r.employee) && (!projF || r.project===projF));
+  const otFiltered = state.overtime.filter(r=>inRange(r) && allowedEmps.includes(r.employee) && (!projF || r.project===projF));
+  const trFiltered = state.travel.filter(r=>inRange(r) && allowedEmps.includes(r.employee) && (!projF || r.project===projF));
   const lvFiltered = state.leaves.filter(r=>leaveInRange(r) && allowedEmps.includes(r.employee));
 
   // Stats per department
@@ -4176,6 +4221,13 @@ function renderFlexReports(){
         <input type="date" value="${f.from}" onchange="window.setReportFrom(this.value)"></div>
       <div class="field"><label>To Date</label>
         <input type="date" value="${f.to}" onchange="window.setReportTo(this.value)"></div>
+    </div>
+    <div class="field" style="margin-top:10px">
+      <label>Filter by Project</label>
+      <select onchange="state.reportFilter.project=this.value;render()" style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:6px;font-size:13px">
+        <option value="">All Projects</option>
+        ${[...new Set([...state.daily,...state.overtime,...state.travel].map(r=>r.project).filter(Boolean))].sort().map(p=>`<option value="${escapeHtml(p)}" ${p===f.project?"selected":""}>${escapeHtml(p)}</option>`).join("")}
+      </select>
     </div>
     <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px">
       ${presets.map((p,i)=>`<button class="btn btn-sm btn-ghost" onclick="window.applyPreset(${i})">${p.label}</button>`).join("")}
@@ -4270,7 +4322,7 @@ function renderFlexReports(){
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:700" onclick="exportFilteredExcel()">📊 Export Excel</button>
       <button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:700" onclick="exportFilteredPDF()">📄 Export PDF</button>
-      <button class="btn btn-ghost" style="background:transparent;color:white;border:1px solid #C9A84C" onclick="state.reportFilter={from:'',to:''};render()">↺ Reset Filter</button>
+      <button class="btn btn-ghost" style="background:transparent;color:white;border:1px solid #C9A84C" onclick="state.reportFilter={from:'',to:'',project:''};render()">↺ Reset Filter</button>
     </div>
   </div>`;
 
@@ -4279,6 +4331,7 @@ function renderFlexReports(){
 
 window.setReportFrom = (v)=>{state.reportFilter.from=v; render();};
 window.setReportTo = (v)=>{state.reportFilter.to=v; render();};
+window.setReportProject = (v)=>{state.reportFilter.project=v; render();};
 window.applyPreset = (i)=>{
   const presets = [
     ()=>{const d=new Date();return [new Date(d.getFullYear(),d.getMonth(),1), d];},
@@ -4301,9 +4354,10 @@ async function exportFilteredExcel(){
     const inRange = (r) => !r.date ? false : (!(f.from && r.date < f.from) && !(f.to && r.date > f.to));
     const leaveInRange = (l) => !l.from ? false : (!(f.from && l.from < f.from) && !(f.to && l.from > f.to));
     const allowedEmps = isEmployee() ? [state.profile.employeeName] : allEmployees();
-    const dr = state.daily.filter(r=>inRange(r) && allowedEmps.includes(r.employee));
-    const or = state.overtime.filter(r=>inRange(r) && allowedEmps.includes(r.employee));
-    const tr = state.travel.filter(r=>inRange(r) && allowedEmps.includes(r.employee));
+    const projF = f.project || "";
+    const dr = state.daily.filter(r=>inRange(r) && allowedEmps.includes(r.employee) && (!projF||r.project===projF));
+    const or = state.overtime.filter(r=>inRange(r) && allowedEmps.includes(r.employee) && (!projF||r.project===projF));
+    const tr = state.travel.filter(r=>inRange(r) && allowedEmps.includes(r.employee) && (!projF||r.project===projF));
     const lv = state.leaves.filter(r=>leaveInRange(r) && allowedEmps.includes(r.employee));
 
     const wb = XLSX.utils.book_new();
@@ -4513,9 +4567,10 @@ async function exportFilteredPDF(){
     const inRange = (r) => !r.date ? false : (!(f.from && r.date < f.from) && !(f.to && r.date > f.to));
     const leaveInRange = (l) => !l.from ? false : (!(f.from && l.from < f.from) && !(f.to && l.from > f.to));
     const allowedEmps = isEmployee() ? [state.profile.employeeName] : allEmployees();
-    const dr = state.daily.filter(r=>inRange(r) && allowedEmps.includes(r.employee));
-    const or = state.overtime.filter(r=>inRange(r) && allowedEmps.includes(r.employee));
-    const tr = state.travel.filter(r=>inRange(r) && allowedEmps.includes(r.employee));
+    const projF = f.project || "";
+    const dr = state.daily.filter(r=>inRange(r) && allowedEmps.includes(r.employee) && (!projF||r.project===projF));
+    const or = state.overtime.filter(r=>inRange(r) && allowedEmps.includes(r.employee) && (!projF||r.project===projF));
+    const tr = state.travel.filter(r=>inRange(r) && allowedEmps.includes(r.employee) && (!projF||r.project===projF));
     const lv = state.leaves.filter(r=>leaveInRange(r) && allowedEmps.includes(r.employee));
 
     const totH = dr.reduce((s,r)=>s+Number(r.duration||0),0);
@@ -4592,7 +4647,7 @@ async function exportFilteredPDF(){
       <td>${fmtHM(totH)}</td><td>${fmtHM(totOT)}</td><td>${totTr}</td><td>${fmtMoney(totPD)}</td><td>${totLv}</td>
     </tr>`:'';
 
-    const rangeLabel=`${f.from||'Start'} → ${f.to||'Today'}`;
+    const rangeLabel=`${f.from||'Start'} → ${f.to||'Today'}${f.project?' · Project: '+f.project:''}`;
     const kpiCardsU=`<div class="kr">
       <div class="kc kb"><div class="kl">Total Hours</div><div class="kv">${fmtHM(totH)}</div><div class="ks">${dr.length} sessions</div></div>
       <div class="kc ko"><div class="kl">Overtime</div><div class="kv">${fmtHM(totOT)}</div><div class="ks">${or.length} entries</div></div>
