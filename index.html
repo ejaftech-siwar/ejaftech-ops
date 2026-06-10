@@ -248,7 +248,7 @@ const state = {
 };
 
 // Forms
-let dailyForm=null, dailyEditId=null, dailyFilter="", dailyLocFilter="", dailyProjFilter="", dailyEntryFrom="", dailyEntryTo="";
+let dailyForm=null, dailyEditId=null, dailyFilter="", dailyLocFilter="", dailyProjFilter="", dailyEntryNo="";
 let otForm=null, otEditId=null;
 let trForm=null, trEditId=null;
 let projForm=null, projEditId=null;
@@ -849,7 +849,7 @@ function renderApp(){
         <div class="logo-mark">EJAF</div>
         <div class="app-title">
           <h1>Operation Department Track</h1>
-          <p>${escapeHtml(state.profile.name||state.profile.email)} <span id="periodLabelInline" onclick="editPeriod(event)" style="cursor:pointer;text-decoration:underline dotted;opacity:0.9">· ${escapeHtml(getPeriod())}</span></p>
+          <p><span id="periodLabelInline" onclick="editPeriod(event)" style="cursor:pointer;text-decoration:underline dotted;opacity:0.9">${escapeHtml(getPeriod())}</span></p>
         </div>
         <div class="user-chip" onclick="confirm('Sign out?')&&doSignOut()">
           <span class="role-badge">${roleBadge}</span>
@@ -1196,14 +1196,12 @@ async function exportDailyPDF(){
   // Use current filter (dailyFilter = employee name or "" for all)
   const filterEmp   = dailyFilter     || "";
   const filterProj  = dailyProjFilter || "";
-  const filterEFrom = dailyEntryFrom  ? Number(dailyEntryFrom) : null;
-  const filterETo   = dailyEntryTo    ? Number(dailyEntryTo)   : null;
+  const filterENo = dailyEntryNo ? Number(dailyEntryNo) : null;
   const rows = visibleRows(state.daily)
     .filter(r => {
       if(filterEmp  && r.employee !== filterEmp)  return false;
       if(filterProj && r.project  !== filterProj) return false;
-      if(filterEFrom !== null && (r.entryNo||0) < filterEFrom) return false;
-      if(filterETo   !== null && (r.entryNo||0) > filterETo)   return false;
+      if(filterENo !== null && Number(r.entryNo||0) !== filterENo) return false;
       return true;
     })
     .sort((a,b) => {
@@ -1269,7 +1267,7 @@ async function exportDailyPDF(){
     </table>
     <script>setTimeout(()=>window.print(),500)<\/script>`;
 
-  const activeFilters = [filterEmp, filterProj, (filterEFrom||filterETo) ? `Entry ${filterEFrom||'1'}–${filterETo||'∞'}` : ""].filter(Boolean).join(" · ");
+  const activeFilters = [filterEmp, filterProj, filterENo ? `Entry #${String(filterENo).padStart(3,'0')}` : ""].filter(Boolean).join(" · ");
   await openReportPDF("DAILY_LOG", activeFilters ? `${period} · ${activeFilters}` : period, bodyHTML);
   toast("Daily Log PDF ready!");
 }
@@ -1284,14 +1282,12 @@ async function exportDailyExcel(){
     const period = getPeriod();
     const filterEmp   = dailyFilter     || "";
     const filterProj  = dailyProjFilter || "";
-    const filterEFrom = dailyEntryFrom  ? Number(dailyEntryFrom) : null;
-    const filterETo   = dailyEntryTo    ? Number(dailyEntryTo)   : null;
+    const filterENo = dailyEntryNo ? Number(dailyEntryNo) : null;
     const rows = visibleRows(state.daily)
       .filter(r => {
         if(filterEmp  && r.employee !== filterEmp)  return false;
         if(filterProj && r.project  !== filterProj) return false;
-        if(filterEFrom !== null && (r.entryNo||0) < filterEFrom) return false;
-        if(filterETo   !== null && (r.entryNo||0) > filterETo)   return false;
+        if(filterENo !== null && Number(r.entryNo||0) !== filterENo) return false;
         return true;
       })
       .sort((a,b)=>{
@@ -1723,8 +1719,7 @@ function renderDailyLog(){
     if(dailyFilter && r.employee!==dailyFilter) return false;
     if(dailyLocFilter && r.location!==dailyLocFilter) return false;
     if(dailyProjFilter && r.project!==dailyProjFilter) return false;
-    if(dailyEntryFrom && (r.entryNo||0) < Number(dailyEntryFrom)) return false;
-    if(dailyEntryTo   && (r.entryNo||0) > Number(dailyEntryTo))   return false;
+    if(dailyEntryNo && Number(r.entryNo||0) !== Number(dailyEntryNo)) return false;
     return true;
   });
   // Project options for filter
@@ -1868,17 +1863,13 @@ function renderDailyLog(){
         </select>
         <div style="display:flex;align-items:center;gap:3px;background:#f5f7ff;border:1px solid var(--line);border-radius:6px;padding:0 6px">
           <span style="font-size:10px;color:#888;white-space:nowrap"># Entry</span>
-          <input type="number" min="1" placeholder="From" value="${dailyEntryFrom}"
-            onchange="window.dailyEntryFrom=this.value;render()"
-            style="width:48px;border:none;background:transparent;font-size:11px;padding:5px 2px;outline:none">
-          <span style="color:#ccc">–</span>
-          <input type="number" min="1" placeholder="To" value="${dailyEntryTo}"
-            onchange="window.dailyEntryTo=this.value;render()"
-            style="width:48px;border:none;background:transparent;font-size:11px;padding:5px 2px;outline:none">
-          ${(dailyEntryFrom||dailyEntryTo)?`<button onclick="window.dailyEntryFrom='';window.dailyEntryTo='';render()" style="border:none;background:none;cursor:pointer;color:#c62828;font-size:12px;padding:0 2px">✕</button>`:""}
+          <input type="number" min="1" placeholder="e.g. 12" value="${dailyEntryNo}"
+            onchange="window.dailyEntryNo=this.value;render()"
+            style="width:64px;border:none;background:transparent;font-size:11px;padding:5px 2px;outline:none">
+          ${dailyEntryNo?`<button onclick="window.dailyEntryNo='';render()" style="border:none;background:none;cursor:pointer;color:#c62828;font-size:12px;padding:0 2px">✕</button>`:""}
         </div>
-        ${(dailyFilter||dailyLocFilter||dailyProjFilter||dailyEntryFrom||dailyEntryTo)?
-          `<button onclick="window.dailyFilter='';window.dailyLocFilter='';window.dailyProjFilter='';window.dailyEntryFrom='';window.dailyEntryTo='';render()" style="background:#fee2e2;color:#c62828;border:1px solid #fca5a5;padding:5px 10px;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600">✕ Clear All</button>`:""}
+        ${(dailyFilter||dailyLocFilter||dailyProjFilter||dailyEntryNo)?
+          `<button onclick="window.dailyFilter='';window.dailyLocFilter='';window.dailyProjFilter='';window.dailyEntryNo='';render()" style="background:#fee2e2;color:#c62828;border:1px solid #fca5a5;padding:5px 10px;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600">✕ Clear All</button>`:""}
         ${canSeeReports()?`<button onclick="exportDailyPDF()" style="background:#03308B;color:#C9A84C;border:none;font-weight:700;padding:6px 14px;border-radius:6px;font-size:12px;cursor:pointer">\u{1F4C4} PDF</button><button onclick="exportDailyExcel()" style="background:#2E7D32;color:white;border:none;font-weight:700;padding:6px 14px;border-radius:6px;font-size:12px;cursor:pointer;margin-left:4px">\u{1F4CA} Excel</button>`:""}
       </div>
     </div>
@@ -1902,12 +1893,27 @@ function renderDailyLog(){
         </tr>`;}).join("")}</tbody>
     </table></div>
     ${isAdmin() && rows.some(r => (r.resolutionImages||[]).length > 0) ? `
-      <div style="margin-top:14px;padding:10px 12px;background:#FEF3C7;border:1px dashed #C9A84C;border-radius:8px;font-size:12px">
-        <strong style="color:#7F6000">🧹 Storage Cleanup (Admin):</strong>
-        <button class="btn btn-sm" style="background:white;border:1px solid #C9A84C;color:#7F6000;margin-left:8px" onclick="purgeOldResolutionImages(1)">Purge images >1 month</button>
-        <button class="btn btn-sm" style="background:white;border:1px solid #C9A84C;color:#7F6000;margin-left:4px" onclick="purgeOldResolutionImages(2)">>2 months</button>
-        <button class="btn btn-sm" style="background:white;border:1px solid #C9A84C;color:#7F6000;margin-left:4px" onclick="purgeOldResolutionImages(3)">>3 months</button>
-        <div style="font-size:11px;color:#7F6000;margin-top:4px;font-style:italic">Removes images only — text descriptions are preserved</div>
+      <div style="margin-top:14px;padding:12px 14px;background:#FEF3C7;border:1px dashed #C9A84C;border-radius:8px;font-size:12px">
+        <strong style="color:#7F6000">🧹 Storage Cleanup (Admin)</strong>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-top:10px">
+          <div>
+            <label style="font-size:10px;color:#7F6000;display:block;margin-bottom:2px">From Date</label>
+            <input type="date" id="purgeFrom" style="padding:5px 8px;border:1px solid #C9A84C;border-radius:6px;font-size:11px">
+          </div>
+          <div>
+            <label style="font-size:10px;color:#7F6000;display:block;margin-bottom:2px">To Date</label>
+            <input type="date" id="purgeTo" style="padding:5px 8px;border:1px solid #C9A84C;border-radius:6px;font-size:11px">
+          </div>
+          <div>
+            <label style="font-size:10px;color:#7F6000;display:block;margin-bottom:2px">Project</label>
+            <select id="purgeProject" style="padding:5px 8px;border:1px solid #C9A84C;border-radius:6px;font-size:11px;max-width:150px">
+              <option value="">All Projects</option>
+              ${[...new Set(state.daily.map(r=>r.project).filter(Boolean))].sort().map(p=>`<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join("")}
+            </select>
+          </div>
+          <button class="btn btn-sm" style="background:#C62828;border:none;color:white;font-weight:700;padding:6px 14px;border-radius:6px" onclick="purgeResolutionImagesCustom()">🗑️ Purge Images</button>
+        </div>
+        <div style="font-size:11px;color:#7F6000;margin-top:6px;font-style:italic">Deletes photos only from entries matching BOTH the date range AND project. Text descriptions are preserved.</div>
       </div>
     ` : ''}
   </div>`;
@@ -1916,11 +1922,11 @@ function renderDailyLog(){
 async function saveDaily(){
   if(!dailyForm.employee||!dailyForm.project||!dailyForm.date)return toast("Required: Employee, Date, Project");
   if(!dailyForm.location)return toast("Location is required");
-  // Resolution validation (MANDATORY for new entries)
+  // Resolution validation (MANDATORY for new entries — photos optional for Admin)
   if(!dailyEditId){
     const txt = (dailyForm.resolutionText||"").trim();
     if(txt.length < 10) return toast("Resolution description required (min 10 chars)");
-    if(!dailyForm.resolutionImages || dailyForm.resolutionImages.length < 1){
+    if(!isAdmin() && (!dailyForm.resolutionImages || dailyForm.resolutionImages.length < 1)){
       return toast("At least 1 resolution photo is required");
     }
   }
@@ -1945,10 +1951,10 @@ async function saveDaily(){
 async function saveDailyAndNext(){
   if(!dailyForm.employee||!dailyForm.project||!dailyForm.date)return toast("Required: Employee, Date, Project");
   if(!dailyForm.location)return toast("Location is required");
-  // Resolution validation
+  // Resolution validation (photos optional for Admin)
   const txt = (dailyForm.resolutionText||"").trim();
   if(txt.length < 10) return toast("Resolution description required (min 10 chars)");
-  if(!dailyForm.resolutionImages || dailyForm.resolutionImages.length < 1){
+  if(!isAdmin() && (!dailyForm.resolutionImages || dailyForm.resolutionImages.length < 1)){
     return toast("At least 1 resolution photo is required");
   }
   if(isEmployee()) return toast("Use Save for single entry");
@@ -2082,23 +2088,37 @@ function viewResolution(recordId){
 window.viewResolution = viewResolution;
 
 // Bulk-purge resolution images older than N months (Admin only)
-async function purgeOldResolutionImages(monthsOld){
+async function purgeResolutionImagesCustom(){
   if(!isAdmin()) return toast("Admin only");
-  const cutoff = new Date();
-  cutoff.setMonth(cutoff.getMonth() - monthsOld);
-  const cutoffStr = cutoff.toISOString().slice(0,10);
-  const candidates = state.daily.filter(r => (r.date||'') < cutoffStr && (r.resolutionImages||[]).length > 0);
-  if(candidates.length === 0){
-    return toast(`No records older than ${monthsOld} month(s) with images`);
+  const from = document.getElementById("purgeFrom")?.value || "";
+  const to   = document.getElementById("purgeTo")?.value   || "";
+  const proj = document.getElementById("purgeProject")?.value || "";
+  if(!from && !to && !proj){
+    return toast("Select at least a date range or project");
   }
-  if(!confirm(`Purge images from ${candidates.length} records older than ${monthsOld} month(s)?\nText descriptions will be kept.\nThis cannot be undone.`)) return;
+  const candidates = state.daily.filter(r => {
+    if((r.resolutionImages||[]).length === 0) return false;
+    if(from && (r.date||"") < from) return false;
+    if(to   && (r.date||"") > to)   return false;
+    if(proj && r.project !== proj)  return false;
+    return true;
+  });
+  if(candidates.length === 0){
+    return toast("No matching records with images found");
+  }
+  const desc = [
+    from||to ? `Period: ${from||"start"} → ${to||"today"}` : "",
+    proj ? `Project: ${proj}` : ""
+  ].filter(Boolean).join("\n");
+  if(!confirm(`Purge images from ${candidates.length} record(s)?\n${desc}\n\nText descriptions will be kept.\nThis cannot be undone.`)) return;
   let cleaned = 0;
   for(const rec of candidates){
     await fbSave("daily", { ...rec, id: rec.id, resolutionImages: [] });
     cleaned++;
   }
-  toast(`✓ Cleaned ${cleaned} records — space freed`);
+  toast(`✓ Cleaned ${cleaned} record(s) — space freed`);
 }
+window.purgeResolutionImagesCustom = purgeResolutionImagesCustom;
 function editDaily(id){
   const r=state.daily.find(x=>x.id===id);
   if(r){
@@ -2118,14 +2138,13 @@ function cancelDaily(){dailyForm=null;dailyEditId=null;render();}
 Object.assign(window,{
   saveDaily,saveDailyAndNext,editDaily,delDaily,cancelDaily,
   handleResolutionImages, removeResolutionImage,
-  deleteResolutionImageFromRecord, purgeOldResolutionImages
+  deleteResolutionImageFromRecord
 });
 Object.defineProperty(window,'dailyForm',{get:()=>dailyForm,set:v=>dailyForm=v});
 Object.defineProperty(window,'dailyLocFilter',{get:()=>dailyLocFilter,set:v=>dailyLocFilter=v});
 Object.defineProperty(window,'dailyFilter',{get:()=>dailyFilter,set:v=>dailyFilter=v});
 Object.defineProperty(window,'dailyProjFilter',{get:()=>dailyProjFilter,set:v=>dailyProjFilter=v});
-Object.defineProperty(window,'dailyEntryFrom',{get:()=>dailyEntryFrom,set:v=>dailyEntryFrom=v});
-Object.defineProperty(window,'dailyEntryTo',{get:()=>dailyEntryTo,set:v=>dailyEntryTo=v});
+Object.defineProperty(window,'dailyEntryNo',{get:()=>dailyEntryNo,set:v=>dailyEntryNo=v});
 
 // ═══════════════════════════════════════════════════════════════════════
 //  OVERTIME
@@ -2152,7 +2171,7 @@ function renderOvertime(){
         <span style="font-weight:700;color:var(--muted);font-size:18px">:</span>
         <select onchange="window.updateOTHours('m',this.value)" style="flex:1">
           <option value="">MM</option>
-          ${[0,5,10,15,20,25,30,35,40,45,50,55].map(m=>`<option value="${m}" ${otForm.hoursM==m?"selected":""}>${String(m).padStart(2,'0')}</option>`).join("")}
+          ${Array.from({length:60},(_,m)=>`<option value="${m}" ${otForm.hoursM==m?"selected":""}>${String(m).padStart(2,'0')}</option>`).join("")}
         </select>
       </div></div>
       <div class="field"><label>Day (auto)</label><div class="auto green ${day?"":"empty"}">${day||"—"}</div></div>
@@ -3000,6 +3019,8 @@ function renderUsers(){
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
       <div>
         <div class="card-title" style="margin-bottom:2px">👤 Nametag Employees · ${(state.nametagEmployees||[]).length}</div>
+        ${EMPLOYEES_DEFAULT.some(n=>!(state.nametagEmployees||[]).map(e=>(e.name||"").toLowerCase()).includes(n.toLowerCase()) && !state.users.map(u=>(u.employeeName||"").toLowerCase()).includes(n.toLowerCase()))?`
+          <button class="btn btn-sm" onclick="migrateDefaultEmployees()" style="background:#E3F2FD;border:1px solid #1565C0;color:#1565C0;font-size:11px;margin-top:4px">⬆ Make Default Employees Editable</button>`:""}
         <div style="font-size:12px;color:var(--muted)">Registered in tracking lists only — no login account required</div>
       </div>
     </div>
@@ -3147,7 +3168,32 @@ async function saveNametagEmp(){
   ];
   if(allNames.includes(name.toLowerCase())) return toast(`"${name}" already exists`);
 
+  // ── CASCADE RENAME: if editing and name changed, sync across all collections ──
+  let oldName = null;
+  if(nametagEditId){
+    const existing = (state.nametagEmployees||[]).find(e=>e.id===nametagEditId);
+    if(existing && existing.name !== name) oldName = existing.name;
+  }
+
   try {
+    // If name changed, count affected records and confirm
+    if(oldName){
+      const affected = {
+        daily:    state.daily.filter(r=>r.employee===oldName).length,
+        overtime: state.overtime.filter(r=>r.employee===oldName).length,
+        travel:   state.travel.filter(r=>r.employee===oldName).length,
+        leaves:   state.leaves.filter(r=>r.employee===oldName).length,
+      };
+      const total = affected.daily + affected.overtime + affected.travel + affected.leaves;
+      if(total > 0){
+        const msg = `Rename "${oldName}" → "${name}"?\n\nThis will update ${total} record(s):\n` +
+          `· Daily Log: ${affected.daily}\n· Overtime: ${affected.overtime}\n` +
+          `· Travel: ${affected.travel}\n· Leaves: ${affected.leaves}\n\nThis cannot be undone.`;
+        if(!confirm(msg)) return;
+      }
+    }
+
+    // Save the nametag record first
     await fbSave("nametagEmployees", {
       id: nametagEditId || undefined,
       name,
@@ -3155,7 +3201,30 @@ async function saveNametagEmp(){
       addedBy: state.profile.uid,
       addedAt: new Date().toISOString(),
     });
-    toast(nametagEditId ? `Updated: ${name} ✓` : `Added: ${name} ✓`);
+
+    // Cascade the rename across all data collections
+    if(oldName){
+      const {db, doc, updateDoc} = window.__fb;
+      let synced = 0;
+      const collections = [
+        ["daily",    state.daily],
+        ["overtime", state.overtime],
+        ["travel",   state.travel],
+        ["leaves",   state.leaves],
+      ];
+      for(const [colName, rows] of collections){
+        for(const r of rows){
+          if(r.employee === oldName){
+            await updateDoc(doc(db, colName, r.id), { employee: name });
+            synced++;
+          }
+        }
+      }
+      toast(`✓ Renamed & synced ${synced} record(s): ${oldName} → ${name}`);
+    } else {
+      toast(nametagEditId ? `Updated: ${name} ✓` : `Added: ${name} ✓`);
+    }
+
     nametagForm = {name:"", type:"internal"};
     nametagEditId = null;
   } catch(e){ console.error(e); toast("Error: "+e.message); }
@@ -3166,6 +3235,32 @@ function editNametagEmp(id){
   const e = (state.nametagEmployees||[]).find(x=>x.id===id);
   if(e){ nametagForm = {name: e.name, type: e.type||"internal"}; nametagEditId=id; render(); window.scrollTo(0,0); }
 }
+
+// Migrate hardcoded default employees into editable nametag records
+async function migrateDefaultEmployees(){
+  if(!isAdmin()) return toast("Admin only");
+  const existing = (state.nametagEmployees||[]).map(e=>(e.name||"").trim().toLowerCase());
+  const userNames = state.users.map(u=>(u.employeeName||"").trim().toLowerCase()).filter(Boolean);
+  const toMigrate = EMPLOYEES_DEFAULT.filter(n => 
+    !existing.includes(n.toLowerCase()) && !userNames.includes(n.toLowerCase())
+  );
+  if(toMigrate.length === 0){
+    return toast("All default employees are already editable ✓");
+  }
+  if(!confirm(`Make ${toMigrate.length} default employee(s) editable?\n\n${toMigrate.join(", ")}\n\nAfter this, you can edit their names with full data sync.`)) return;
+  for(const name of toMigrate){
+    await fbSave("nametagEmployees", {
+      id: undefined,
+      name,
+      type: "internal",
+      addedBy: state.profile.uid,
+      addedAt: new Date().toISOString(),
+      migratedFromDefault: true,
+    });
+  }
+  toast(`✓ ${toMigrate.length} employee(s) are now editable`);
+}
+window.migrateDefaultEmployees = migrateDefaultEmployees;
 
 async function delNametagEmp(id){
   if(!isAdmin()) return toast("Admin only");
