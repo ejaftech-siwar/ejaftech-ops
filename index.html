@@ -240,6 +240,9 @@ const state = {
   daily: [], overtime: [], travel: [], leaves: [], projects: [], locations: [], users: [], departments: [],
   workCategories: [], workTasks: [],  // Work Instructions module
   nametagEmployees: [],  // Admin-managed nametag-only employees (no auth account)
+  employeePermissions: [],  // Per-employee entry permissions (GPS / Resolution requirements)
+  clients: [],          // Client companies with linked users + projects
+  clientRequests: [],   // Task requests submitted by clients
   globalEmployeeFilter: [],  // multi-select filter for reports (empty = all)
   tab: "Dashboard",
   initialized: false,
@@ -340,7 +343,22 @@ function getUserRole(){
   if(r === "support")                  return "support"; // Full access except Users
   if(r === "hr" || r === "manager")   return "hr";
   if(r === "it")                       return "it";      // Dashboard + WorkInstructions only
+  if(r === "client")                   return "client";  // Client portal: own projects only
   return "employee"; // safe default — most restrictive
+}
+function isClient(){ return getUserRole() === "client"; }
+// Get the client record linked to the logged-in user
+function getMyClientRecord(){
+  if(!isClient()) return null;
+  return (state.clients||[]).find(c => 
+    (c.linkedUserEmail||"").toLowerCase() === (state.profile?.email||"").toLowerCase() ||
+    c.linkedUserUid === state.profile?.uid
+  ) || null;
+}
+// Projects visible to the current client
+function getMyClientProjects(){
+  const c = getMyClientRecord();
+  return c ? (c.projects||[]) : [];
 }
 function isAdmin()   { return getUserRole() === "admin"; }
 function isSupport() { return getUserRole() === "support"; }
@@ -357,6 +375,10 @@ function canEditWorkInstructions() { return isAdmin(); }
 // Filter rows by role
 function visibleRows(rows){
   if(isHR()) return rows;
+  if(isClient()){
+    const myProjects = getMyClientProjects();
+    return rows.filter(r=>myProjects.includes(r.project));
+  }
   return rows.filter(r=>r.employee===state.profile?.employeeName);
 }
 
@@ -654,6 +676,9 @@ async function subscribeData(){
     ["departments","departments"],
     ["workCategories","workCategories"],["workTasks","workTasks"],
     ["nametagEmployees","nametagEmployees"],
+    ["employeePermissions","employeePermissions"],
+    ["clients","clients"],
+    ["clientRequests","clientRequests"],
   ];
   let firstCount=0;
 
@@ -856,7 +881,11 @@ function renderApp(){
           <span>⏻</span>
         </div>
       </div>
-      <nav class="tab-bar">${tabs.map(t=>`<button class="tab ${t===state.tab?"active":""}" onclick="switchTab('${t}')">${t}</button>`).join("")}</nav>
+      <nav class="tab-bar">${tabs.map(t=>{
+        const isReq = t==="Requests";
+        const nReq = isReq ? pendingRequestCount() : 0;
+        return `<button class="tab ${t===state.tab?"active":""}" onclick="switchTab('${t}')" style="position:relative">${t}${nReq?`<span style="position:absolute;top:2px;right:2px;background:#C62828;color:white;font-size:9px;font-weight:800;min-width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 4px">${nReq}</span>`:""}</button>`;
+      }).join("")}</nav>
     </header>
     <main class="content" id="content"></main>
   `);
@@ -865,6 +894,12 @@ function renderApp(){
 
 function getTabs(){
   const role = getUserRole();
+  // Client: portal view only
+  if(role === "client"){
+    const base = ["My Project","Requests","Profile"];
+    if(!base.includes(state.tab)) state.tab = base[0];
+    return base;
+  }
   // IT role: highly restricted — only Dashboard, Work Instructions, Profile
   if(role === "it"){
     const base = ["Dashboard","Work Instructions","Profile"];
@@ -877,25 +912,34 @@ function getTabs(){
     if(!base.includes(state.tab)) state.tab = base[0];
     return base;
   }
-  // HR: full ops but no Users/Share
+  // HR: full ops but no Users/Share/Clients
   if(role === "hr"){
     const base = ["Dashboard","Daily Log","Overtime","Travel","Leaves","Work Instructions",
-                  "HR Report","Reports","Projects","Locations","Departments","Profile"];
+                  "HR Report","Reports","Requests","Projects","Locations","Departments","Profile"];
     if(!base.includes(state.tab)) state.tab = base[0];
     return base;
   }
   // Support: full access except Users and Share
   if(role === "support"){
     const base = ["Dashboard","Daily Log","Overtime","Travel","Leaves","Work Instructions",
-                  "HR Report","Reports","Projects","Locations","Departments","Profile"];
+                  "HR Report","Reports","Requests","Projects","Locations","Departments","Profile"];
     if(!base.includes(state.tab)) state.tab = base[0];
     return base;
   }
   // Admin / Owner: everything
   const base = ["Dashboard","Daily Log","Overtime","Travel","Leaves","Work Instructions",
-                "HR Report","Reports","Projects","Locations","Departments","Users","Share","Profile"];
+                "HR Report","Reports","Requests","Clients","Projects","Locations","Departments","Users","Share","Profile"];
   if(!base.includes(state.tab)) state.tab = base[0];
   return base;
+}
+
+// Pending request count for notification badge
+function pendingRequestCount(){
+  if(isClient()){
+    // Client sees count of their requests with status changes? Keep simple: no badge for client
+    return 0;
+  }
+  return (state.clientRequests||[]).filter(r=>r.status==="new").length;
 }
 
 window.switchTab=function(t){state.tab=t;renderTab();window.scrollTo(0,0);};
@@ -906,15 +950,18 @@ function renderTab(){
 
   // Security guard: enforce per-role tab access
   const role = getUserRole();
-  if(role === "it"){
+  if(role === "client"){
+    // Client: only portal tabs
+    if(!["My Project","Requests","Profile"].includes(state.tab)) state.tab="My Project";
+  } else if(role === "it"){
     // IT: only dashboard, work instructions, profile
     if(!["Dashboard","Work Instructions","Profile"].includes(state.tab)) state.tab="Dashboard";
   } else if(role === "employee"){
     // Employee: no HR/admin tabs
-    if(["HR Report","Reports","Projects","Locations","Departments","Users","Share"].includes(state.tab)) state.tab="Dashboard";
+    if(["HR Report","Reports","Requests","Clients","Projects","Locations","Departments","Users","Share"].includes(state.tab)) state.tab="Dashboard";
   } else if(role === "support" || role === "hr"){
-    // Support/HR: no Users or Share
-    if(["Users","Share"].includes(state.tab)) state.tab="Dashboard";
+    // Support/HR: no Users, Share, or Clients management
+    if(["Users","Share","Clients"].includes(state.tab)) state.tab="Dashboard";
   }
 
   const fn={
@@ -923,7 +970,8 @@ function renderTab(){
     "Projects":renderProjects,"Locations":renderLocations,"Users":renderUsers,
     "Departments":renderDepartments,"Work Instructions":renderWorkInstructions,
     "Share":renderShare,"Profile":renderProfile,
-  }[state.tab]||renderDashboard;
+    "Clients":renderClients,"Requests":renderRequests,"My Project":renderClientPortal,
+  }[state.tab]||(isClient()?renderClientPortal:renderDashboard);
   c.innerHTML=fn();
 }
 window.render=renderTab;
@@ -958,6 +1006,73 @@ window.editPeriod=function(e){
 // ═══════════════════════════════════════════════════════════════════════
 //  SEQUENTIAL REPORT NUMBERING — RPT-YYYY-NNNN
 // ═══════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════
+//  GPS LOCATION CAPTURE + PER-EMPLOYEE PERMISSIONS
+// ═══════════════════════════════════════════════════════════════════════
+// Get user's GPS position. Returns {lat, lng, accuracy} or {denied:true}
+function captureGPS(){
+  return new Promise((resolve)=>{
+    if(!navigator.geolocation){
+      resolve({denied:true, reason:"GPS not supported on this device"});
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos)=>{
+        resolve({
+          lat: +pos.coords.latitude.toFixed(6),
+          lng: +pos.coords.longitude.toFixed(6),
+          accuracy: Math.round(pos.coords.accuracy||0)
+        });
+      },
+      (err)=>{
+        resolve({denied:true, reason: err.code===1 ? "Location permission denied" : "Location unavailable"});
+      },
+      {enableHighAccuracy:true, timeout:10000, maximumAge:60000}
+    );
+  });
+}
+function gpsMapLink(lat,lng){
+  return `https://www.google.com/maps?q=${lat},${lng}`;
+}
+function gpsBadgeHTML(r){
+  if(r.gpsLat && r.gpsLng){
+    return `<a href="${gpsMapLink(r.gpsLat,r.gpsLng)}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:3px;background:#E8F5E9;color:#2E7D32;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;text-decoration:none">🛰️ GPS</a>`;
+  }
+  if(r.gpsDenied){
+    return `<span style="display:inline-flex;align-items:center;gap:3px;background:#FFEBEE;color:#C62828;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600" title="${escapeHtml(r.gpsDenied)}">🚫 GPS</span>`;
+  }
+  return '';
+}
+
+// ── Per-employee entry permissions (managed by Admin in Users tab) ──
+// Stored in Firestore: collection "employeePermissions", doc id = employee name
+// Fields: { gpsRequired: bool, resolutionRequired: bool }
+// Defaults if no record: gpsRequired=true, resolutionRequired=true (for employees)
+function getEmpPermissions(employeeName){
+  const p = (state.employeePermissions||[]).find(x=>x.id===employeeName || x.employee===employeeName);
+  return {
+    gpsRequired:        p ? (p.gpsRequired        !== false) : true,
+    resolutionRequired: p ? (p.resolutionRequired !== false) : true,
+  };
+}
+async function saveEmpPermissions(employeeName, perms){
+  if(!isAdmin()) return toast("Admin only");
+  const {db, doc, setDoc} = window.__fb;
+  await setDoc(doc(db, "employeePermissions", employeeName), {
+    employee: employeeName,
+    gpsRequired:        !!perms.gpsRequired,
+    resolutionRequired: !!perms.resolutionRequired,
+    updatedBy: state.profile.uid,
+    updatedAt: new Date().toISOString(),
+  });
+  toast(`Permissions updated for ${employeeName} ✓`);
+}
+window.toggleEmpPerm = async function(employeeName, field){
+  const cur = getEmpPermissions(employeeName);
+  cur[field] = !cur[field];
+  await saveEmpPermissions(employeeName, cur);
+};
+
 // ═══════════════════════════════════════════════════════════════════════
 //  DAILY LOG ENTRY AUTO-NUMBERING
 // ═══════════════════════════════════════════════════════════════════════
@@ -1237,7 +1352,7 @@ async function exportDailyPDF(){
     <td><strong style="color:#03308B">${escapeHtml(r.employee||'')}</strong></td>
     <td>${escapeHtml(r.project||'')}</td>
     <td><span style="background:${(state.departments.find(d=>d.name===r.dept)||{color:'#888'}).color}22;color:${(state.departments.find(d=>d.name===r.dept)||{color:'#888'}).color};padding:2px 7px;border-radius:8px;font-size:10px;font-weight:700">${escapeHtml(r.dept||'')}</span></td>
-    <td>${r.location?`<span style="background:#E3F2FD;color:#1565C0;padding:2px 7px;border-radius:8px;font-size:10px">📍 ${escapeHtml(r.location)}</span>`:'—'}</td>
+    <td>${r.location?`<span style="background:#E3F2FD;color:#1565C0;padding:2px 7px;border-radius:8px;font-size:10px">📍 ${escapeHtml(r.location)}</span>`:'—'}${r.gpsLat?` <a href="${gpsMapLink(r.gpsLat,r.gpsLng)}" style="font-size:9px;color:#2E7D32;font-weight:700;text-decoration:none">🛰️ Map</a>`:r.gpsDenied?` <span style="font-size:9px;color:#C62828">🚫 GPS</span>`:''}</td>
     <td style="color:#2E7D32;font-weight:700">${fmtHM(r.duration)}</td>
     <td style="font-size:10px;color:#555;max-width:120px;word-break:break-word">${escapeHtml((r.resolutionText||'').slice(0,80))}${(r.resolutionText||'').length>80?'…':''}</td>
   </tr>`).join('');
@@ -1314,7 +1429,7 @@ async function exportDailyExcel(){
     setM(ws1,{s:{r:1,c:0},e:{r:1,c:6}});
     setC(ws1,'A4','#',hdSt); setC(ws1,'B4','Date',hdSt); setC(ws1,'C4','Employee',hdSt);
     setC(ws1,'D4','Project',hdSt); setC(ws1,'E4','Department',hdSt);
-    setC(ws1,'F4','Location',hdSt); setC(ws1,'G4','Hours',hdSt);
+    setC(ws1,'F4','Location',hdSt); setC(ws1,'G4','Hours',hdSt); setC(ws1,'H4','GPS',hdSt);
     rows.forEach((r,i)=>{
       const row=5+i; const alt=i%2===1;
       const bg = alt ? COLORS.bgAlt : COLORS.white;
@@ -1326,13 +1441,14 @@ async function exportDailyExcel(){
       setC(ws1,`E${row}`,r.dept||'',cellSt);
       setC(ws1,`F${row}`,r.location||'',cellSt);
       setC(ws1,`G${row}`,fmtHM(r.duration),{...cellSt,font:{sz:10,bold:true,color:{rgb:"2E7D32"}}});
+      setC(ws1,`H${row}`, r.gpsLat ? gpsMapLink(r.gpsLat,r.gpsLng) : (r.gpsDenied?'GPS denied':''), {...cellSt,font:{sz:9,color:{rgb:r.gpsLat?"2E7D32":"C62828"}}});
     });
     const totRow=5+rows.length;
     const totSt={font:{bold:true,sz:11,color:{rgb:COLORS.gold}},fill:{fgColor:{rgb:"0A1628"}}};
     setC(ws1,`A${totRow}`,'TOTAL',totSt); setM(ws1,{s:{r:totRow-1,c:0},e:{r:totRow-1,c:5}});
     setC(ws1,`G${totRow}`,fmtHM(rows.reduce((s,r)=>s+Number(r.duration||0),0)),totSt);
-    ws1['!ref']=`A1:G${totRow}`;
-    ws1['!cols']=[{wch:8},{wch:12},{wch:20},{wch:28},{wch:16},{wch:18},{wch:10}];
+    ws1['!ref']=`A1:H${totRow}`;
+    ws1['!cols']=[{wch:8},{wch:12},{wch:20},{wch:28},{wch:16},{wch:18},{wch:10},{wch:38}];
     XLSX.utils.book_append_sheet(wb,ws1,'Daily Log');
 
     // ── SHEET 2: Department Summary ──
@@ -1721,6 +1837,14 @@ function renderDailyLog(){
     if(dailyProjFilter && r.project!==dailyProjFilter) return false;
     if(dailyEntryNo && Number(r.entryNo||0) !== Number(dailyEntryNo)) return false;
     return true;
+  }).sort((a,b)=>{
+    // Ascending by entry number (001 at top → latest at bottom)
+    // Entries without numbers go last, sorted by date
+    const an = Number(a.entryNo||0), bn = Number(b.entryNo||0);
+    if(an && bn) return an - bn;
+    if(an && !bn) return -1;
+    if(!an && bn) return 1;
+    return (a.date||"").localeCompare(b.date||"");
   });
   // Project options for filter
   const projOptions = [...new Set(state.daily.map(r=>r.project).filter(Boolean))].sort();
@@ -1885,7 +2009,7 @@ function renderDailyLog(){
           ${!isEmployee()?`<td>${employeeBadge(r.employee)}</td>`:""}
           <td>${escapeHtml(r.project||"")}</td>
           <td>${deptBadge(r.dept)}</td>
-          <td>${r.location?`<span style="background:#E3F2FD;color:#1565C0;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600">📍 ${escapeHtml(r.location)}</span>`:'<span style="color:#bbb;font-style:italic;font-size:11px">—</span>'}</td>
+          <td>${r.location?`<span style="background:#E3F2FD;color:#1565C0;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600">📍 ${escapeHtml(r.location)}</span>`:'<span style="color:#bbb;font-style:italic;font-size:11px">—</span>'} ${gpsBadgeHTML(r)}</td>
           <td><strong style="color:#2E7D32">${fmtHM(r.duration)}</strong></td>
           <td>${hasRes?`<button class="btn btn-sm" style="background:#FFF8E1;border:1px solid #C9A84C;color:#7F6000;font-weight:700" onclick="viewResolution('${r.id}')" title="View resolution">📷 ${imgs.length}</button>`:'<span style="color:#bbb;font-style:italic;font-size:11px">—</span>'}</td>
           <td>${canEdit?`<button class="btn btn-sm btn-secondary" onclick="editDaily('${r.id}')">✎</button>
@@ -1922,19 +2046,45 @@ function renderDailyLog(){
 async function saveDaily(){
   if(!dailyForm.employee||!dailyForm.project||!dailyForm.date)return toast("Required: Employee, Date, Project");
   if(!dailyForm.location)return toast("Location is required");
-  // Resolution validation (MANDATORY for new entries — photos optional for Admin)
+
+  // ── Per-employee permission checks ──
+  // Admin: resolution photos optional always. Employee: depends on their permission record.
+  const perms = getEmpPermissions(dailyForm.employee);
+
+  // Resolution validation for new entries
   if(!dailyEditId){
     const txt = (dailyForm.resolutionText||"").trim();
-    if(txt.length < 10) return toast("Resolution description required (min 10 chars)");
-    if(!isAdmin() && (!dailyForm.resolutionImages || dailyForm.resolutionImages.length < 1)){
-      return toast("At least 1 resolution photo is required");
+    if(isAdmin()){
+      // Admin: text optional too if resolution not strictly needed — keep min text rule relaxed
+      if(txt.length > 0 && txt.length < 10) return toast("Resolution description too short (min 10 chars)");
+    } else if(perms.resolutionRequired){
+      if(txt.length < 10) return toast("Resolution description required (min 10 chars)");
+      if(!dailyForm.resolutionImages || dailyForm.resolutionImages.length < 1){
+        return toast("At least 1 resolution photo is required");
+      }
     }
   }
+
   // Strict employee guard: force own name on save (defense in depth)
   if(isEmployee()){
     if(!state.profile.employeeName) return toast("Your account has no employee profile. Contact admin.");
     dailyForm.employee = state.profile.employeeName;  // force override
   }
+
+  // ── GPS capture (new entries only) ──
+  // Admin: GPS never forced. Employee: captured based on permission (but save allowed even if denied)
+  let gpsData = {};
+  if(!dailyEditId && !isAdmin() && perms.gpsRequired){
+    toast("📡 Capturing GPS location...");
+    const gps = await captureGPS();
+    if(gps.denied){
+      gpsData = { gpsDenied: gps.reason || "Location denied" };
+      toast("⚠ Location unavailable — entry saved with 'GPS denied' note");
+    } else {
+      gpsData = { gpsLat: gps.lat, gpsLng: gps.lng, gpsAccuracy: gps.accuracy };
+    }
+  }
+
   // Auto-assign entry number for new entries only
   const entryNoToSave = dailyEditId ? undefined : getNextDailyEntryNo();
   await fbSave("daily",{
@@ -1944,9 +2094,10 @@ async function saveDaily(){
     dept:projDept(dailyForm.project),
     createdBy:state.profile.uid,
     ...(entryNoToSave ? {entryNo: entryNoToSave} : {}),
+    ...gpsData,
   });
   dailyForm=null;dailyEditId=null;
-  toast(dailyEditId?"Updated ✓":"Added ✓");
+  toast("Saved ✓");
 }
 async function saveDailyAndNext(){
   if(!dailyForm.employee||!dailyForm.project||!dailyForm.date)return toast("Required: Employee, Date, Project");
@@ -2854,6 +3005,8 @@ function renderProjects(){
     <div class="sec-hdr">${projEditId?"Edit":"Add"} Project</div>
     <div class="form-grid">
       <div class="field"><label>Name <span class="req">*</span></label><input value="${escapeHtml(projForm.name)}" oninput="window.projForm.name=this.value" placeholder="e.g. New Project"></div>
+      <div class="field"><label>Estimated Hours <span style="font-size:10px;color:var(--muted)">(for % progress)</span></label>
+        <input type="number" min="0" step="1" value="${projForm.estimatedHours||""}" oninput="window.projForm.estimatedHours=this.value" placeholder="e.g. 200"></div>
       <div class="field"><label>Department</label><select onchange="window.projForm.dept=this.value;render()">
         ${allDepts.map(d=>`<option ${projForm.dept===d?"selected":""}>${escapeHtml(d)}</option>`).join("")}
       </select></div>
@@ -2880,8 +3033,30 @@ async function saveProj(){
   if(!projEditId&&state.projects.find(p=>(p.name||"").trim()===cleanName))return toast("Already exists");
   const id=projEditId||cleanName.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,40);
   if(!id)return toast("Invalid name — use letters/numbers");
-  await fbSave("projects",{id,name:cleanName,dept:projForm.dept});
-  projForm=null;projEditId=null;toast("Saved ✓");
+
+  // ── Cascade rename if name changed (Admin only) ──
+  let oldName = null;
+  if(projEditId){
+    const existing = state.projects.find(p=>p.id===projEditId);
+    if(existing && existing.name !== cleanName) oldName = existing.name;
+  }
+  if(oldName && !isAdmin()) return toast("Only Admin can rename projects");
+  if(oldName){
+    const affected = state.daily.filter(r=>r.project===oldName).length
+      + state.overtime.filter(r=>r.project===oldName).length
+      + state.travel.filter(r=>r.project===oldName).length;
+    if(affected > 0 && !confirm(`Rename "${oldName}" → "${cleanName}"?\n\nThis will update ${affected} record(s) across Daily Log, Overtime, and Travel, plus client assignments.\n\nThis cannot be undone.`)) return;
+  }
+
+  await fbSave("projects",{id,name:cleanName,dept:projForm.dept,estimatedHours:Number(projForm.estimatedHours||0)});
+
+  if(oldName){
+    const synced = await cascadeRenameProject(oldName, cleanName);
+    toast(`✓ Renamed & synced ${synced} record(s)`);
+  } else {
+    toast("Saved ✓");
+  }
+  projForm=null;projEditId=null;
 }
 function editProj(id){const r=state.projects.find(p=>p.id===id);if(r){projForm={...r};projEditId=id;render();window.scrollTo(0,0);}}
 async function delProj(id){if(confirm("Delete?")){await fbDelete("projects",id);toast("Deleted");}}
@@ -2917,8 +3092,30 @@ async function saveLoc(){
   if(!locEditId&&state.locations.find(l=>(l.name||"").trim()===name))return toast("Already exists");
   const id=locEditId||name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,40);
   if(!id)return toast("Invalid name");
+
+  // ── Cascade rename if name changed (Admin only) ──
+  let oldName = null;
+  if(locEditId){
+    const existing = state.locations.find(l=>l.id===locEditId);
+    if(existing && existing.name !== name) oldName = existing.name;
+  }
+  if(oldName && !isAdmin()) return toast("Only Admin can rename locations");
+  if(oldName){
+    const affected = state.daily.filter(r=>r.location===oldName).length
+      + state.overtime.filter(r=>r.location===oldName).length
+      + state.travel.filter(r=>r.location===oldName).length;
+    if(affected > 0 && !confirm(`Rename "${oldName}" → "${name}"?\n\nThis will update ${affected} record(s).\n\nThis cannot be undone.`)) return;
+  }
+
   await fbSave("locations",{id,name});
-  locForm="";locEditId=null;toast("Saved ✓");
+
+  if(oldName){
+    const synced = await cascadeRenameLocation(oldName, name);
+    toast(`✓ Renamed & synced ${synced} record(s)`);
+  } else {
+    toast("Saved ✓");
+  }
+  locForm="";locEditId=null;
 }
 function editLoc(id){const r=state.locations.find(l=>l.id===id);if(r){locForm=r.name;locEditId=id;render();window.scrollTo(0,0);}}
 async function delLoc(id){if(confirm("Delete?")){await fbDelete("locations",id);toast("Deleted");}}
@@ -2988,7 +3185,7 @@ function renderUsers(){
   <div class="card">
     <div class="card-title">Team Members · ${state.users.length}</div>
     ${state.users.map(u=>{
-      const roleCls=u.role==="admin"||u.role==="owner"?"admin":u.role==="hr"||u.role==="support"?"hr":u.role==="it"?"hr":"emp";
+      const roleCls=u.role==="admin"||u.role==="owner"?"admin":u.role==="hr"||u.role==="support"||u.role==="client"?"hr":u.role==="it"?"hr":"emp";
       const init=(u.name||u.email||"?").charAt(0).toUpperCase();
       return `<div class="user-row">
         <div class="user-avatar">${init}</div>
@@ -3075,6 +3272,37 @@ function renderUsers(){
           }).join("")}
         </div>`
     }
+  </div>
+
+  <!-- ═══ PER-EMPLOYEE ENTRY PERMISSIONS (Admin) ═══ -->
+  <div class="card" style="border-left:4px solid #0277BD">
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px">
+      <span style="background:#0277BD;color:white;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">🔐</span>
+      Entry Permissions per Employee
+    </div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.6">
+      Control what each employee must provide when adding a Daily Log entry.<br>
+      <strong>GPS Required:</strong> employee location captured automatically on save (entry still saves if denied, marked "GPS denied").<br>
+      <strong>Resolution Required:</strong> description text + at least 1 photo mandatory.
+    </p>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      ${allEmployees().map(emp => {
+        const p = getEmpPermissions(emp);
+        return `<div style="display:flex;align-items:center;justify-content:space-between;padding:9px 14px;background:#F7FAFC;border:1px solid #E2E8F0;border-radius:8px;gap:10px;flex-wrap:wrap">
+          <div style="font-weight:700;color:#1A202C;font-size:13px;min-width:140px">${employeeBadge(emp)}</div>
+          <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;user-select:none">
+              <input type="checkbox" ${p.gpsRequired?"checked":""} onchange="toggleEmpPerm('${escapeHtml(emp)}','gpsRequired')" style="width:16px;height:16px;cursor:pointer">
+              <span style="color:${p.gpsRequired?'#2E7D32':'#999'};font-weight:600">🛰️ GPS Required</span>
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;user-select:none">
+              <input type="checkbox" ${p.resolutionRequired?"checked":""} onchange="toggleEmpPerm('${escapeHtml(emp)}','resolutionRequired')" style="width:16px;height:16px;cursor:pointer">
+              <span style="color:${p.resolutionRequired?'#03308B':'#999'};font-weight:600">📸 Resolution Required</span>
+            </label>
+          </div>
+        </div>`;
+      }).join("")}
+    </div>
   </div>`;
 }
 
@@ -3395,9 +3623,31 @@ async function saveDept(){
   if(!deptEditId && state.departments.find(d=>(d.name||"").trim()===name)) return toast("Department already exists");
   const id = deptEditId || name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,30);
   if(!id) return toast("Invalid name");
+
+  // ── Cascade rename if name changed (Admin only) ──
+  let oldName = null;
+  if(deptEditId){
+    const existing = state.departments.find(d=>d.id===deptEditId);
+    if(existing && existing.name !== name) oldName = existing.name;
+  }
+  if(oldName && !isAdmin()) return toast("Only Admin can rename departments");
+  if(oldName){
+    const affected = state.daily.filter(r=>r.dept===oldName).length
+      + state.overtime.filter(r=>r.dept===oldName).length
+      + state.travel.filter(r=>r.dept===oldName).length
+      + state.projects.filter(p=>p.dept===oldName).length;
+    if(affected > 0 && !confirm(`Rename "${oldName}" → "${name}"?\n\nThis will update ${affected} record(s) including projects assigned to this department.\n\nThis cannot be undone.`)) return;
+  }
+
   await fbSave("departments",{id, name, color:deptForm.color});
+
+  if(oldName){
+    const synced = await cascadeRenameDepartment(oldName, name);
+    toast(`✓ Renamed & synced ${synced} record(s)`);
+  } else {
+    toast("Saved ✓");
+  }
   deptForm = null; deptEditId = null;
-  toast("Saved ✓");
 }
 function editDept(id){
   const d = state.departments.find(x=>x.id===id);
@@ -3789,6 +4039,427 @@ window.importBackup = importBackup;
 //  PROFILE PAGE — My Account, Change Password
 // ═══════════════════════════════════════════════════════════════════════
 let profileForm = null;
+
+// ═══════════════════════════════════════════════════════════════════════
+//  CLIENTS MODULE — Client companies, linked users, project assignment
+// ═══════════════════════════════════════════════════════════════════════
+let clientForm=null, clientEditId=null;
+
+function renderClients(){
+  if(!isAdmin()) return `<div class="card"><div class="empty">Access denied — Admin only</div></div>`;
+  if(!clientForm) clientForm={name:"", linkedUserEmail:"", projects:[], notes:""};
+
+  const allProjects = state.projects.map(p=>(p.name||"").trim()).filter(Boolean);
+  const clientUsers = state.users.filter(u=>(u.role||"").toLowerCase()==="client");
+
+  let h = `<div class="card" style="border-left:4px solid #C9A84C">
+    <div class="card-title">${clientEditId ? "✎ Edit Client" : "🏢 Add Client"}</div>
+    <div class="form-grid">
+      <div class="field"><label>Client / Company Name <span class="req">*</span></label>
+        <input value="${escapeHtml(clientForm.name||"")}" oninput="window.clientForm.name=this.value" placeholder="e.g., National Security Co."></div>
+      <div class="field"><label>Linked User Account (email)</label>
+        <select onchange="window.clientForm.linkedUserEmail=this.value">
+          <option value="">— No login account —</option>
+          ${clientUsers.map(u=>`<option value="${escapeHtml(u.email)}" ${u.email===clientForm.linkedUserEmail?"selected":""}>${escapeHtml(u.name||u.email)} (${escapeHtml(u.email)})</option>`).join("")}
+        </select>
+        <div style="font-size:10px;color:var(--muted);margin-top:3px">Create the user first in Users tab with role "Client"</div>
+      </div>
+    </div>
+    <div class="field" style="margin-top:8px"><label>Assigned Projects <span class="req">*</span></label>
+      <div style="display:flex;flex-direction:column;gap:5px;max-height:180px;overflow-y:auto;border:1px solid var(--line);border-radius:8px;padding:10px">
+        ${allProjects.length===0?'<span style="font-size:12px;color:var(--muted)">No projects yet — add projects first</span>':
+          allProjects.map(p=>`<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px">
+            <input type="checkbox" ${(clientForm.projects||[]).includes(p)?"checked":""}
+              onchange="window.toggleClientProject('${escapeHtml(p).replace(/'/g,"\\'")}')"
+              style="width:15px;height:15px;cursor:pointer">
+            ${escapeHtml(p)}
+          </label>`).join("")}
+      </div>
+    </div>
+    <div class="field" style="margin-top:8px"><label>Notes</label>
+      <input value="${escapeHtml(clientForm.notes||"")}" oninput="window.clientForm.notes=this.value" placeholder="optional"></div>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="btn btn-primary" onclick="saveClient()">${clientEditId?"Update Client":"Add Client"}</button>
+      ${clientEditId?`<button class="btn btn-ghost" onclick="cancelClient()">Cancel</button>`:""}
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="filter-row">
+      <span class="card-title" style="margin:0">Clients</span>
+      <span class="count-pill">${(state.clients||[]).length}</span>
+    </div>
+    ${(state.clients||[]).length===0
+      ? `<div class="empty">No clients yet</div>`
+      : `<div style="display:flex;flex-direction:column;gap:10px">
+        ${(state.clients||[]).map(c=>{
+          const projList = (c.projects||[]);
+          const totalHrs = state.daily.filter(r=>projList.includes(r.project)).reduce((s,r)=>s+Number(r.duration||0),0);
+          const estHrs = projList.reduce((s,pn)=>{
+            const p = state.projects.find(x=>(x.name||"").trim()===pn);
+            return s + Number(p?.estimatedHours||0);
+          },0);
+          const pct = estHrs>0 ? Math.min(100, Math.round(totalHrs/estHrs*100)) : null;
+          return `<div style="border:1px solid var(--line);border-left:4px solid #C9A84C;border-radius:10px;padding:14px">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">
+              <div style="flex:1;min-width:200px">
+                <div style="font-weight:800;font-size:15px;color:#03308B">🏢 ${escapeHtml(c.name)}</div>
+                <div style="font-size:11px;color:var(--muted);margin-top:2px">
+                  ${c.linkedUserEmail?`👤 ${escapeHtml(c.linkedUserEmail)}`:'<span style="color:#C62828">No login linked</span>'}
+                  ${c.notes?` · ${escapeHtml(c.notes)}`:''}
+                </div>
+                <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:8px">
+                  ${projList.map(p=>`<span style="background:#E8F0FE;color:#03308B;padding:2px 9px;border-radius:10px;font-size:11px;font-weight:600">${escapeHtml(p)}</span>`).join("")}
+                </div>
+              </div>
+              <div style="text-align:right;min-width:120px">
+                <div style="font-size:11px;color:var(--muted)">Total Hours</div>
+                <div style="font-size:18px;font-weight:800;color:#03308B">${fmtHM(totalHrs)}</div>
+                ${pct!==null?`<div style="margin-top:6px">
+                  <div style="font-size:10px;color:var(--muted)">Progress: <strong style="color:${pct>=100?'#2E7D32':'#C9A84C'}">${pct}%</strong></div>
+                  <div style="height:6px;background:#E2E8F0;border-radius:3px;margin-top:3px;overflow:hidden">
+                    <div style="height:100%;width:${pct}%;background:linear-gradient(90deg,#C9A84C,#03308B);border-radius:3px"></div>
+                  </div>
+                </div>`:'<div style="font-size:10px;color:#999;margin-top:4px">Set estimated hours in Projects to track %</div>'}
+              </div>
+            </div>
+            <div style="display:flex;gap:5px;margin-top:10px;justify-content:flex-end">
+              <button class="btn btn-sm btn-secondary" onclick="editClient('${c.id}')">✎ Edit</button>
+              <button class="btn btn-sm btn-danger" onclick="delClient('${c.id}')">🗑 Delete</button>
+            </div>
+          </div>`;
+        }).join("")}
+      </div>`}
+  </div>`;
+  return h;
+}
+
+window.toggleClientProject = function(projName){
+  if(!clientForm.projects) clientForm.projects=[];
+  const i = clientForm.projects.indexOf(projName);
+  if(i>=0) clientForm.projects.splice(i,1);
+  else clientForm.projects.push(projName);
+  render();
+};
+
+async function saveClient(){
+  if(!isAdmin()) return toast("Admin only");
+  const name = (clientForm.name||"").trim();
+  if(!name) return toast("Client name is required");
+  if(!(clientForm.projects||[]).length) return toast("Assign at least 1 project");
+  // Resolve linked user uid
+  let linkedUid = "";
+  if(clientForm.linkedUserEmail){
+    const u = state.users.find(x=>(x.email||"").toLowerCase()===clientForm.linkedUserEmail.toLowerCase());
+    linkedUid = u ? u.id : "";
+  }
+  await fbSave("clients", {
+    id: clientEditId||undefined,
+    name,
+    linkedUserEmail: clientForm.linkedUserEmail||"",
+    linkedUserUid: linkedUid,
+    projects: clientForm.projects||[],
+    notes: clientForm.notes||"",
+    updatedAt: new Date().toISOString(),
+  });
+  toast(clientEditId?"Client updated ✓":"Client added ✓");
+  clientForm=null; clientEditId=null;
+}
+function editClient(id){
+  const c=(state.clients||[]).find(x=>x.id===id);
+  if(c){ clientForm={name:c.name,linkedUserEmail:c.linkedUserEmail||"",projects:[...(c.projects||[])],notes:c.notes||""}; clientEditId=id; render(); window.scrollTo(0,0); }
+}
+async function delClient(id){
+  if(!confirm("Delete this client? Their requests will remain."))return;
+  await fbDelete("clients",id);
+  toast("Client deleted");
+}
+function cancelClient(){clientForm=null;clientEditId=null;render();}
+Object.assign(window,{saveClient,editClient,delClient,cancelClient});
+Object.defineProperty(window,'clientForm',{get:()=>clientForm,set:v=>clientForm=v,configurable:true});
+
+// ═══════════════════════════════════════════════════════════════════════
+//  CLIENT PORTAL — "My Project" tab for client role
+// ═══════════════════════════════════════════════════════════════════════
+function renderClientPortal(){
+  const c = getMyClientRecord();
+  if(!c) return `<div class="card"><div class="empty">⚠ Your account is not linked to any client yet.<br>Please contact the administrator.</div></div>`;
+
+  const myProjects = c.projects||[];
+  const myDaily = state.daily
+    .filter(r=>myProjects.includes(r.project))
+    .sort((a,b)=>{
+      const an=Number(a.entryNo||0), bn=Number(b.entryNo||0);
+      if(an&&bn)return an-bn;
+      return (a.date||"").localeCompare(b.date||"");
+    });
+
+  const totalHrs = myDaily.reduce((s,r)=>s+Number(r.duration||0),0);
+  const estHrs = myProjects.reduce((s,pn)=>{
+    const p = state.projects.find(x=>(x.name||"").trim()===pn);
+    return s + Number(p?.estimatedHours||0);
+  },0);
+  const pct = estHrs>0 ? Math.min(100,Math.round(totalHrs/estHrs*100)) : null;
+
+  // Per-project breakdown
+  const perProject = myProjects.map(pn=>{
+    const rows = state.daily.filter(r=>r.project===pn);
+    const hrs = rows.reduce((s,r)=>s+Number(r.duration||0),0);
+    const p = state.projects.find(x=>(x.name||"").trim()===pn);
+    const est = Number(p?.estimatedHours||0);
+    const ppct = est>0?Math.min(100,Math.round(hrs/est*100)):null;
+    return {name:pn, hrs, est, pct:ppct, count:rows.length};
+  });
+
+  return `<div class="card" style="background:linear-gradient(135deg,#03308B,#1a4db5);border:none;color:white">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+      <div>
+        <div style="font-size:11px;opacity:0.6;text-transform:uppercase;letter-spacing:1px">Client Portal</div>
+        <div style="font-size:20px;font-weight:800;color:#C9A84C;margin-top:2px">🏢 ${escapeHtml(c.name)}</div>
+        <div style="font-size:12px;opacity:0.7;margin-top:2px">${myProjects.length} project(s) · ${myDaily.length} work entries</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:11px;opacity:0.6">Total Hours Delivered</div>
+        <div style="font-size:26px;font-weight:900;color:#C9A84C">${fmtHM(totalHrs)}</div>
+        ${pct!==null?`<div style="font-size:13px;font-weight:700;margin-top:2px">${pct}% Complete</div>`:""}
+      </div>
+    </div>
+    ${pct!==null?`<div style="height:8px;background:rgba(255,255,255,0.15);border-radius:4px;margin-top:14px;overflow:hidden">
+      <div style="height:100%;width:${pct}%;background:linear-gradient(90deg,#C9A84C,#f0d080);border-radius:4px"></div>
+    </div>`:""}
+  </div>
+
+  <div class="card">
+    <div class="card-title">📊 Project Progress</div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      ${perProject.map(p=>`<div style="border:1px solid var(--line);border-radius:8px;padding:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
+          <div style="font-weight:700;color:#03308B;font-size:14px">${escapeHtml(p.name)}</div>
+          <div style="font-size:12px;color:var(--muted)">${fmtHM(p.hrs)}${p.est?` / ${p.est}h est.`:""} · ${p.count} entries</div>
+        </div>
+        ${p.pct!==null?`<div style="display:flex;align-items:center;gap:8px;margin-top:8px">
+          <div style="flex:1;height:7px;background:#E2E8F0;border-radius:4px;overflow:hidden">
+            <div style="height:100%;width:${p.pct}%;background:linear-gradient(90deg,${p.pct>=100?'#2E7D32,#66BB6A':'#C9A84C,#03308B'});border-radius:4px"></div>
+          </div>
+          <span style="font-size:12px;font-weight:700;color:${p.pct>=100?'#2E7D32':'#03308B'}">${p.pct}%</span>
+        </div>`:`<div style="font-size:11px;color:#999;margin-top:4px;font-style:italic">Progress tracking not configured</div>`}
+      </div>`).join("")}
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="filter-row">
+      <span class="card-title" style="margin:0">📋 Work Log — Your Projects</span>
+      <span class="count-pill">${myDaily.length}</span>
+    </div>
+    ${myDaily.length===0?`<div class="empty">No work entries yet for your projects</div>`:
+    `<div class="tbl-wrap"><table class="tbl">
+      <thead><tr><th style="width:44px;text-align:center">#</th><th>Date</th><th>Project</th><th>Hours</th><th>Resolution</th></tr></thead>
+      <tbody>${myDaily.map(r=>`<tr>
+        <td style="text-align:center;font-weight:700;color:#03308B;background:#f0f4ff">${r.entryNo?formatEntryNo(r.entryNo):'—'}</td>
+        <td>${fmtDate(r.date)}</td>
+        <td><strong>${escapeHtml(r.project||"")}</strong></td>
+        <td style="color:#2E7D32;font-weight:700">${fmtHM(r.duration)}</td>
+        <td style="max-width:280px">
+          ${r.resolutionText?`<div style="font-size:12px;color:#444;line-height:1.5">${escapeHtml(r.resolutionText)}</div>`:'<span style="color:#bbb">—</span>'}
+          ${(r.resolutionImages||[]).length?`<div style="display:flex;gap:4px;margin-top:5px;flex-wrap:wrap">
+            ${r.resolutionImages.map((img,i)=>{const src=img.data||img;return `<img src="${src}" onclick="window.open(this.src,'_blank')" style="width:44px;height:44px;object-fit:cover;border-radius:6px;cursor:pointer;border:1px solid #ddd">`;}).join("")}
+          </div>`:""}
+        </td>
+      </tr>`).join("")}</tbody>
+    </table></div>`}
+  </div>`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  REQUESTS MODULE — Client task requests with status workflow
+// ═══════════════════════════════════════════════════════════════════════
+let requestForm=null;
+
+function renderRequests(){
+  // CLIENT VIEW: submit + track own requests
+  if(isClient()){
+    const c = getMyClientRecord();
+    if(!c) return `<div class="card"><div class="empty">Account not linked to a client</div></div>`;
+    if(!requestForm) requestForm={title:"",description:"",project:(c.projects||[])[0]||""};
+    const myReqs = (state.clientRequests||[])
+      .filter(r=>r.clientId===c.id)
+      .sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||""));
+
+    return `<div class="card" style="border-left:4px solid #C9A84C">
+      <div class="card-title">📨 Request New Task</div>
+      <div class="form-grid">
+        <div class="field full"><label>Task Title <span class="req">*</span></label>
+          <input value="${escapeHtml(requestForm.title||"")}" oninput="window.requestForm.title=this.value" placeholder="e.g., Install additional camera at gate 3"></div>
+        <div class="field full"><label>Project</label>
+          <select onchange="window.requestForm.project=this.value">
+            ${(c.projects||[]).map(p=>`<option value="${escapeHtml(p)}" ${p===requestForm.project?"selected":""}>${escapeHtml(p)}</option>`).join("")}
+          </select></div>
+        <div class="field full"><label>Description <span class="req">*</span></label>
+          <textarea rows="3" oninput="window.requestForm.description=this.value" placeholder="Describe what you need...">${escapeHtml(requestForm.description||"")}</textarea></div>
+      </div>
+      <button class="btn btn-primary" style="margin-top:10px" onclick="submitClientRequest()">📨 Submit Request</button>
+    </div>
+
+    <div class="card">
+      <div class="filter-row"><span class="card-title" style="margin:0">My Requests</span><span class="count-pill">${myReqs.length}</span></div>
+      ${myReqs.length===0?`<div class="empty">No requests yet</div>`:
+      `<div style="display:flex;flex-direction:column;gap:8px">
+        ${myReqs.map(r=>`<div style="border:1px solid var(--line);border-left:4px solid ${reqStatusColor(r.status)};border-radius:8px;padding:12px">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap">
+            <div style="flex:1;min-width:180px">
+              <div style="font-weight:700;font-size:14px;color:#1A202C">${escapeHtml(r.title)}</div>
+              <div style="font-size:11px;color:var(--muted);margin-top:2px">${escapeHtml(r.project||"")} · ${fmtDate((r.createdAt||"").slice(0,10))}</div>
+              <div style="font-size:12px;color:#555;margin-top:6px;line-height:1.5">${escapeHtml(r.description||"")}</div>
+            </div>
+            ${reqStatusBadge(r.status)}
+          </div>
+        </div>`).join("")}
+      </div>`}
+    </div>`;
+  }
+
+  // ADMIN/HR/SUPPORT VIEW: manage all requests
+  if(!canSeeReports()) return `<div class="card"><div class="empty">Access denied</div></div>`;
+  const reqs = (state.clientRequests||[]).sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||""));
+  const newCount = reqs.filter(r=>r.status==="new").length;
+
+  return `<div class="card">
+    <div class="filter-row">
+      <span class="card-title" style="margin:0">📨 Client Task Requests</span>
+      <span class="count-pill">${reqs.length}</span>
+      ${newCount?`<span style="background:#C62828;color:white;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700">${newCount} NEW</span>`:""}
+    </div>
+    ${reqs.length===0?`<div class="empty">No client requests yet</div>`:
+    `<div style="display:flex;flex-direction:column;gap:10px">
+      ${reqs.map(r=>{
+        const client = (state.clients||[]).find(c=>c.id===r.clientId);
+        return `<div style="border:1px solid var(--line);border-left:4px solid ${reqStatusColor(r.status)};border-radius:10px;padding:14px">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">
+            <div style="flex:1;min-width:200px">
+              <div style="font-weight:800;font-size:15px;color:#1A202C">${escapeHtml(r.title)}</div>
+              <div style="font-size:11px;color:var(--muted);margin-top:3px">
+                🏢 ${escapeHtml(client?.name||"Unknown client")} · 📁 ${escapeHtml(r.project||"—")} · ${fmtDate((r.createdAt||"").slice(0,10))}
+              </div>
+              <div style="font-size:13px;color:#444;margin-top:8px;line-height:1.6">${escapeHtml(r.description||"")}</div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">
+              ${reqStatusBadge(r.status)}
+              ${isAdmin()||isHR()?`<select onchange="updateRequestStatus('${r.id}',this.value)" style="padding:5px 10px;border:1px solid var(--line);border-radius:6px;font-size:12px;font-weight:600">
+                <option value="new" ${r.status==="new"?"selected":""}>🆕 New</option>
+                <option value="in_progress" ${r.status==="in_progress"?"selected":""}>⚙️ In Progress</option>
+                <option value="completed" ${r.status==="completed"?"selected":""}>✅ Completed</option>
+              </select>`:""}
+              ${isAdmin()?`<button class="btn btn-sm btn-danger" onclick="delRequest('${r.id}')">🗑</button>`:""}
+            </div>
+          </div>
+        </div>`;
+      }).join("")}
+    </div>`}
+  </div>`;
+}
+
+function reqStatusColor(s){
+  return s==="completed"?"#2E7D32":s==="in_progress"?"#E65100":"#C62828";
+}
+function reqStatusBadge(s){
+  const map={
+    new:`<span style="background:#FFEBEE;color:#C62828;padding:4px 12px;border-radius:12px;font-size:11px;font-weight:800;white-space:nowrap">🆕 NEW</span>`,
+    in_progress:`<span style="background:#FFF3E0;color:#E65100;padding:4px 12px;border-radius:12px;font-size:11px;font-weight:800;white-space:nowrap">⚙️ IN PROGRESS</span>`,
+    completed:`<span style="background:#E8F5E9;color:#2E7D32;padding:4px 12px;border-radius:12px;font-size:11px;font-weight:800;white-space:nowrap">✅ COMPLETED</span>`,
+  };
+  return map[s]||map.new;
+}
+
+async function submitClientRequest(){
+  const c = getMyClientRecord();
+  if(!c) return toast("Account not linked to a client");
+  const title=(requestForm.title||"").trim();
+  const desc=(requestForm.description||"").trim();
+  if(!title) return toast("Task title is required");
+  if(!desc) return toast("Description is required");
+  await fbSave("clientRequests",{
+    id: undefined,
+    clientId: c.id,
+    clientName: c.name,
+    project: requestForm.project||"",
+    title, description: desc,
+    status: "new",
+    createdAt: new Date().toISOString(),
+    createdBy: state.profile.uid,
+  });
+  requestForm=null;
+  toast("Request submitted ✓ — our team will review it");
+}
+async function updateRequestStatus(id, status){
+  if(!isAdmin() && !isHR()) return toast("Not allowed");
+  const r=(state.clientRequests||[]).find(x=>x.id===id);
+  if(!r) return;
+  await fbSave("clientRequests",{...r, id, status, statusUpdatedAt:new Date().toISOString(), statusUpdatedBy:state.profile.uid});
+  toast(`Status → ${status.replace("_"," ")} ✓`);
+}
+async function delRequest(id){
+  if(!isAdmin()) return;
+  if(!confirm("Delete this request?"))return;
+  await fbDelete("clientRequests",id);
+  toast("Request deleted");
+}
+Object.assign(window,{submitClientRequest,updateRequestStatus,delRequest});
+Object.defineProperty(window,'requestForm',{get:()=>requestForm,set:v=>requestForm=v,configurable:true});
+
+// ═══════════════════════════════════════════════════════════════════════
+//  CASCADE RENAME — Projects, Departments, Locations (Admin)
+// ═══════════════════════════════════════════════════════════════════════
+async function cascadeRenameProject(oldName, newName){
+  const {db, doc, updateDoc} = window.__fb;
+  let synced=0;
+  // daily, overtime, travel records
+  for(const [col, rows] of [["daily",state.daily],["overtime",state.overtime],["travel",state.travel]]){
+    for(const r of rows){
+      if(r.project===oldName){ await updateDoc(doc(db,col,r.id),{project:newName}); synced++; }
+    }
+  }
+  // clients' project lists
+  for(const c of (state.clients||[])){
+    if((c.projects||[]).includes(oldName)){
+      const np=(c.projects||[]).map(p=>p===oldName?newName:p);
+      await updateDoc(doc(db,"clients",c.id),{projects:np}); synced++;
+    }
+  }
+  // client requests
+  for(const r of (state.clientRequests||[])){
+    if(r.project===oldName){ await updateDoc(doc(db,"clientRequests",r.id),{project:newName}); synced++; }
+  }
+  return synced;
+}
+async function cascadeRenameDepartment(oldName, newName){
+  const {db, doc, updateDoc} = window.__fb;
+  let synced=0;
+  for(const [col, rows] of [["daily",state.daily],["overtime",state.overtime],["travel",state.travel]]){
+    for(const r of rows){
+      if(r.dept===oldName){ await updateDoc(doc(db,col,r.id),{dept:newName}); synced++; }
+    }
+  }
+  // projects that belong to this department
+  for(const p of state.projects){
+    if(p.dept===oldName){ await updateDoc(doc(db,"projects",p.id),{dept:newName}); synced++; }
+  }
+  return synced;
+}
+async function cascadeRenameLocation(oldName, newName){
+  const {db, doc, updateDoc} = window.__fb;
+  let synced=0;
+  for(const [col, rows] of [["daily",state.daily],["overtime",state.overtime],["travel",state.travel]]){
+    for(const r of rows){
+      if(r.location===oldName){ await updateDoc(doc(db,col,r.id),{location:newName}); synced++; }
+    }
+  }
+  return synced;
+}
+window.cascadeRenameProject=cascadeRenameProject;
+window.cascadeRenameDepartment=cascadeRenameDepartment;
+window.cascadeRenameLocation=cascadeRenameLocation;
+
 
 function renderProfile(){
   const p = state.profile || {};
