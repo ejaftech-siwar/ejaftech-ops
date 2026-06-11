@@ -1863,9 +1863,14 @@ function renderDailyLog(){
         <input type="date" value="${dailyForm.date}" onchange="window.dailyForm.date=this.value;render()"></div>
       <div class="field"><label>Employee <span class="req">*</span></label>
         ${isEmployee()
-          ?`<select onchange="window.dailyForm.employee=this.value;render()">
-              <option value="${escapeHtml(state.profile.employeeName||"")}" selected>${escapeHtml(state.profile.employeeName||"")}</option>
-            </select>`
+          ?(state.profile.employeeName
+            ?`<select onchange="window.dailyForm.employee=this.value;render()">
+                <option value="${escapeHtml(state.profile.employeeName)}" selected>${escapeHtml(state.profile.employeeName)}</option>
+              </select>`
+            :`<div style="padding:10px 12px;background:#FFEBEE;border:1px solid #EF9A9A;border-radius:8px;font-size:12px;color:#C62828;font-weight:600">
+                ⚠ Your account has no employee profile linked.<br>
+                <span style="font-weight:400">Ask your administrator to set your "Employee Name" in the Users tab.</span>
+              </div>`)
           :`<select onchange="window.dailyForm.employee=this.value;render()"><option value="">— Select —</option>${empOptions.map(e=>`<option ${e===dailyForm.employee?"selected":""}>${escapeHtml(e)}</option>`).join("")}</select>`}
       </div>
       <div class="field full"><label>Project <span class="req">*</span></label>
@@ -1882,6 +1887,16 @@ function renderDailyLog(){
           <option value="">— Select Location —</option>
           ${state.locations.map(l=>{const n=(l.name||"").trim();return `<option value="${escapeHtml(n)}" ${n===(dailyForm.location||"").trim()?"selected":""}>${escapeHtml(n)}</option>`}).join("")}
         </select></div>
+      ${!isAdmin() && !dailyEditId && getEmpPermissions(dailyForm.employee||state.profile.employeeName||"").gpsRequired ? `
+      <div class="field full">
+        <div style="display:flex;align-items:center;gap:8px;padding:9px 12px;background:#E8F5E9;border:1px solid #A5D6A7;border-radius:8px;font-size:12px;color:#2E7D32">
+          <span style="font-size:16px">🛰️</span>
+          <div>
+            <strong>GPS will be captured automatically</strong> when you save this entry.<br>
+            <span style="font-size:11px;color:#558B2F">Please allow location access if your browser asks. The entry saves even if GPS is unavailable.</span>
+          </div>
+        </div>
+      </div>` : ''}
       <div class="field"><label>Duration</label>
         <div class="auto green ${dur>0?"":"empty"}">${dur>0?fmtHM(dur):"—"}</div></div>
       <div class="field"><label>Dept (auto)</label>
@@ -2044,8 +2059,14 @@ function renderDailyLog(){
 }
 
 async function saveDaily(){
-  if(!dailyForm.employee||!dailyForm.project||!dailyForm.date)return toast("Required: Employee, Date, Project");
-  if(!dailyForm.location)return toast("Location is required");
+  // Specific validation messages — tell the user exactly what's missing
+  if(isEmployee() && !state.profile.employeeName){
+    return toast("⚠ Your account has no employee profile — contact your admin");
+  }
+  if(!dailyForm.employee) return toast("⚠ Employee field is empty");
+  if(!dailyForm.date)     return toast("⚠ Date is required");
+  if(!dailyForm.project)  return toast("⚠ Please select a Project");
+  if(!dailyForm.location) return toast("⚠ Please select a Location");
 
   // ── Per-employee permission checks ──
   // Admin: resolution photos optional always. Employee: depends on their permission record.
@@ -2067,8 +2088,7 @@ async function saveDaily(){
 
   // Strict employee guard: force own name on save (defense in depth)
   if(isEmployee()){
-    if(!state.profile.employeeName) return toast("Your account has no employee profile. Contact admin.");
-    dailyForm.employee = state.profile.employeeName;  // force override
+    dailyForm.employee = state.profile.employeeName;  // force override (validated above)
   }
 
   // ── GPS capture (new entries only) ──
@@ -3159,6 +3179,9 @@ function renderUsers(){
             <option value="hr"       ${userForm.role==="hr"      ?"selected":""}>📋 HR / Manager</option>
             <option value="it"       ${userForm.role==="it"      ?"selected":""}>💻 IT — Dashboard + Work Instructions</option>
             <option value="employee" ${userForm.role==="employee"?"selected":""}>👤 Employee — Own data only</option>
+          </optgroup>
+          <optgroup label="External">
+            <option value="client"   ${userForm.role==="client"  ?"selected":""}>🏢 Client — Project portal only</option>
           </optgroup>
         </select></div>
       ${userForm.role==="employee"?`<div class="field"><label>Tracked Name <span class="req">*</span></label>
