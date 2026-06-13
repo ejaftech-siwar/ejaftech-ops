@@ -51,10 +51,11 @@ body{padding-bottom:env(safe-area-inset-bottom,0px)}
 .app-title p{margin:2px 0 0;font-size:11px;color:#B8CFE8}
 .user-chip{display:flex;align-items:center;gap:6px;padding:6px 10px;border-radius:14px;font-size:11px;font-weight:600;background:rgba(255,255,255,0.12);color:white;cursor:pointer}
 .user-chip .role-badge{background:var(--gold);color:var(--navy);padding:1px 6px;border-radius:8px;font-size:9px;font-weight:800;text-transform:uppercase}
-.tab-bar{display:flex;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;border-top:1px solid rgba(255,255,255,0.1);background:rgba(0,0,0,0.15)}
+.tab-bar{display:flex;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;border-top:1px solid rgba(255,255,255,0.1);background:rgba(0,0,0,0.15);position:relative}
 .tab-bar::-webkit-scrollbar{display:none}
-.tab{flex:0 0 auto;padding:12px 14px;font-size:12px;font-weight:600;color:#94B0CC;background:transparent;border:none;border-bottom:3px solid transparent;cursor:pointer;white-space:nowrap;font-family:inherit}
-.tab.active{color:var(--gold);border-bottom-color:var(--gold);background:rgba(201,168,76,0.08)}
+.tab{flex:0 0 auto;padding:12px 14px;font-size:12px;font-weight:600;color:#94B0CC;background:transparent;border:none;border-bottom:3px solid transparent;cursor:pointer;white-space:nowrap;font-family:inherit;transition:color 0.3s ease,background 0.3s ease}
+.tab.active{color:var(--gold);background:rgba(201,168,76,0.08)}
+.tab-indicator{position:absolute;bottom:0;height:3px;background:var(--gold);border-radius:2px 2px 0 0;transition:left 0.35s cubic-bezier(0.4,0,0.2,1),width 0.35s cubic-bezier(0.4,0,0.2,1);pointer-events:none;box-shadow:0 0 8px rgba(201,168,76,0.5)}
 
 .content{padding:14px 12px 80px;max-width:760px;margin:0 auto}
 .card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);border:1px solid var(--line);padding:16px;margin-bottom:14px}
@@ -881,15 +882,17 @@ function renderApp(){
           <span>⏻</span>
         </div>
       </div>
-      <nav class="tab-bar">${tabs.map(t=>{
+      <nav class="tab-bar" id="tabBar">${tabs.map(t=>{
         const isReq = t==="Requests";
         const nReq = isReq ? pendingRequestCount() : 0;
-        return `<button class="tab ${t===state.tab?"active":""}" onclick="switchTab('${t}')" style="position:relative">${t}${nReq?`<span style="position:absolute;top:2px;right:2px;background:#C62828;color:white;font-size:9px;font-weight:800;min-width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 4px">${nReq}</span>`:""}</button>`;
-      }).join("")}</nav>
+        return `<button class="tab ${t===state.tab?"active":""}" data-tab="${t}" onclick="switchTab('${t}')" style="position:relative">${t}${nReq?`<span style="position:absolute;top:2px;right:2px;background:#C62828;color:white;font-size:9px;font-weight:800;min-width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 4px">${nReq}</span>`:""}</button>`;
+      }).join("")}<span class="tab-indicator" id="tabIndicator"></span></nav>
     </header>
     <main class="content" id="content"></main>
   `);
   renderTab();
+  // Position the sliding gold indicator on initial render
+  requestAnimationFrame(positionTabIndicator);
 }
 
 function getTabs(){
@@ -942,7 +945,35 @@ function pendingRequestCount(){
   return (state.clientRequests||[]).filter(r=>r.status==="new").length;
 }
 
-window.switchTab=function(t){state.tab=t;renderTab();window.scrollTo(0,0);};
+window.switchTab=function(t){
+  state.tab=t;
+  renderTab();
+  window.scrollTo(0,0);
+  // Reposition the sliding gold indicator after the DOM updates
+  requestAnimationFrame(positionTabIndicator);
+};
+
+// Move the gold underline to sit under the active tab
+function positionTabIndicator(){
+  const bar = document.getElementById("tabBar");
+  const ind = document.getElementById("tabIndicator");
+  if(!bar || !ind) return;
+  const active = bar.querySelector(".tab.active");
+  if(!active){ ind.style.width="0"; return; }
+  // Position relative to the scrollable nav (accounts for horizontal scroll)
+  ind.style.left = active.offsetLeft + "px";
+  ind.style.width = active.offsetWidth + "px";
+  // Keep the active tab visible when it's off-screen
+  const barRect = bar.getBoundingClientRect();
+  const tabRect = active.getBoundingClientRect();
+  if(tabRect.right > barRect.right || tabRect.left < barRect.left){
+    active.scrollIntoView({behavior:"smooth", inline:"center", block:"nearest"});
+  }
+}
+window.positionTabIndicator = positionTabIndicator;
+
+// Keep the gold indicator aligned on screen resize / rotation
+window.addEventListener("resize", ()=>{ requestAnimationFrame(positionTabIndicator); });
 
 function renderTab(){
   const c=$("content");
