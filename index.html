@@ -875,7 +875,7 @@ function renderApp(){
         <div class="logo-mark">EJAF</div>
         <div class="app-title">
           <h1>Operation Department Track</h1>
-          <p><span id="periodLabelInline" onclick="editPeriod(event)" style="cursor:pointer;text-decoration:underline dotted;opacity:0.9">${escapeHtml(getPeriod())}</span></p>
+          <p><span id="periodLabelInline" onclick="editPeriod(event)" style="cursor:pointer;${(getPeriodFrom()||getPeriodTo())?'background:#C9A84C;color:#03308B;padding:2px 10px;border-radius:12px;font-weight:700':'text-decoration:underline dotted;opacity:0.9'}">${(getPeriodFrom()||getPeriodTo())?'📅 ':''}${escapeHtml(getPeriod())}${(getPeriodFrom()||getPeriodTo())?' ✕':''}</span></p>
         </div>
         <div class="user-chip" onclick="confirm('Sign out?')&&doSignOut()">
           <span class="role-badge">${roleBadge}</span>
@@ -1023,25 +1023,123 @@ window.render=renderTab;
 // ═══════════════════════════════════════════════════════════════════════
 //  PERIOD MANAGEMENT (editable label, persisted per-user in localStorage)
 // ═══════════════════════════════════════════════════════════════════════
+// ═══ PERIOD / DATE-RANGE SYSTEM ═══
+// Stored as two real dates (ISO yyyy-mm-dd) in localStorage.
+// Empty = no filter (show all). The label is derived from the dates.
+function getPeriodFrom(){ return localStorage.getItem("opt_period_from") || ""; }
+function getPeriodTo(){   return localStorage.getItem("opt_period_to")   || ""; }
+function setPeriodRange(from, to){
+  if(from) localStorage.setItem("opt_period_from", from); else localStorage.removeItem("opt_period_from");
+  if(to)   localStorage.setItem("opt_period_to", to);     else localStorage.removeItem("opt_period_to");
+}
+// Human-readable label for the header and reports
 function getPeriod(){
-  return localStorage.getItem("opt_period") || defaultPeriod();
+  const f = getPeriodFrom(), t = getPeriodTo();
+  if(!f && !t) return defaultPeriod();
+  const fmt = (s)=>{ if(!s) return "…"; const d=new Date(s+"T00:00:00"); return d.toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"}); };
+  if(f && t) return `${fmt(f)} → ${fmt(t)}`;
+  if(f) return `From ${fmt(f)}`;
+  return `Until ${fmt(t)}`;
 }
 function defaultPeriod(){
   const d=new Date();
   return d.toLocaleDateString("en-US",{month:"long",year:"numeric"});
 }
-function setPeriod(v){
-  if(v && v.trim()) localStorage.setItem("opt_period", v.trim());
-  else localStorage.removeItem("opt_period");
+// Legacy setter kept for compatibility (no-op text path)
+function setPeriod(v){ /* replaced by setPeriodRange */ }
+
+// ── CENTRAL DATE FILTER ──
+// Returns true if a record's date falls within the active period range.
+// Records without dates pass only when no filter is active.
+function inActivePeriod(dateStr){
+  const f = getPeriodFrom(), t = getPeriodTo();
+  if(!f && !t) return true;        // no filter → everything passes
+  if(!dateStr) return false;       // filtered but record has no date
+  const d = String(dateStr).slice(0,10);
+  if(f && d < f) return false;
+  if(t && d > t) return false;
+  return true;
 }
+// Apply the active period filter to an array of records (by their .date field)
+function filterByPeriod(rows, dateField="date"){
+  const f = getPeriodFrom(), t = getPeriodTo();
+  if(!f && !t) return rows;
+  return rows.filter(r=>inActivePeriod(r[dateField]));
+}
+
 window.editPeriod=function(e){
   if(e) e.stopPropagation();
-  const cur=getPeriod();
-  const v=prompt("Reporting period:", cur);
-  if(v!==null){
-    setPeriod(v);
-    renderApp();
+  openPeriodDialog();
+};
+
+// Date-range picker dialog (replaces the old text prompt)
+function openPeriodDialog(){
+  const f = getPeriodFrom(), t = getPeriodTo();
+  const existing = document.getElementById("periodDialog");
+  if(existing) existing.remove();
+  const html = `
+    <div id="periodDialog" style="position:fixed;inset:0;background:rgba(10,22,46,0.6);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px" onclick="if(event.target===this)this.remove()">
+      <div style="background:white;border-radius:16px;max-width:380px;width:100%;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,0.3)">
+        <div style="background:linear-gradient(135deg,#03308B,#1a4db5);padding:18px 22px;color:white">
+          <div style="font-size:16px;font-weight:800">📅 Reporting Period</div>
+          <div style="font-size:11px;opacity:0.7;margin-top:2px">All tabs and reports will filter to this date range</div>
+        </div>
+        <div style="padding:20px 22px">
+          <div style="margin-bottom:14px">
+            <label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:5px">From Date</label>
+            <input type="date" id="pdFrom" value="${f}" style="width:100%;padding:11px;border:1px solid #CBD5E1;border-radius:8px;font-size:14px">
+          </div>
+          <div style="margin-bottom:18px">
+            <label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:5px">To Date</label>
+            <input type="date" id="pdTo" value="${t}" style="width:100%;padding:11px;border:1px solid #CBD5E1;border-radius:8px;font-size:14px">
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:18px">
+            <button onclick="window.applyPeriodPreset('thisMonth')" style="flex:1;min-width:90px;padding:7px;background:#F1F5F9;border:1px solid #E2E8F0;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;color:#334155">This Month</button>
+            <button onclick="window.applyPeriodPreset('lastMonth')" style="flex:1;min-width:90px;padding:7px;background:#F1F5F9;border:1px solid #E2E8F0;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;color:#334155">Last Month</button>
+            <button onclick="window.applyPeriodPreset('thisYear')" style="flex:1;min-width:90px;padding:7px;background:#F1F5F9;border:1px solid #E2E8F0;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;color:#334155">This Year</button>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button onclick="window.savePeriodDialog()" style="flex:1;padding:12px;background:#03308B;color:#C9A84C;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">Apply Filter</button>
+            <button onclick="window.clearPeriodDialog()" style="padding:12px 16px;background:#FEE2E2;color:#C62828;border:1px solid #FCA5A5;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">Clear</button>
+          </div>
+          <button onclick="document.getElementById('periodDialog').remove()" style="width:100%;margin-top:8px;padding:9px;background:none;border:none;color:#94A3B8;font-size:12px;cursor:pointer">Cancel</button>
+        </div>
+      </div>
+    </div>`;
+  document.body.insertAdjacentHTML("beforeend", html);
+}
+window.applyPeriodPreset=function(which){
+  const now=new Date();
+  let from, to;
+  if(which==="thisMonth"){
+    from=new Date(now.getFullYear(),now.getMonth(),1);
+    to=new Date(now.getFullYear(),now.getMonth()+1,0);
+  } else if(which==="lastMonth"){
+    from=new Date(now.getFullYear(),now.getMonth()-1,1);
+    to=new Date(now.getFullYear(),now.getMonth(),0);
+  } else if(which==="thisYear"){
+    from=new Date(now.getFullYear(),0,1);
+    to=new Date(now.getFullYear(),11,31);
   }
+  const iso=(d)=>d.toISOString().slice(0,10);
+  const fEl=document.getElementById("pdFrom"), tEl=document.getElementById("pdTo");
+  if(fEl) fEl.value=iso(from);
+  if(tEl) tEl.value=iso(to);
+};
+window.savePeriodDialog=function(){
+  const f=document.getElementById("pdFrom")?.value||"";
+  const t=document.getElementById("pdTo")?.value||"";
+  if(f && t && f > t){ toast("From date must be before To date"); return; }
+  setPeriodRange(f, t);
+  document.getElementById("periodDialog")?.remove();
+  renderApp();
+  toast(f||t ? "Period filter applied ✓" : "Filter cleared");
+};
+window.clearPeriodDialog=function(){
+  setPeriodRange("", "");
+  document.getElementById("periodDialog")?.remove();
+  renderApp();
+  toast("Showing all dates");
 };
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -1353,7 +1451,7 @@ async function exportDailyPDF(){
   const filterEmp   = dailyFilter     || "";
   const filterProj  = dailyProjFilter || "";
   const filterENo = dailyEntryNo ? Number(dailyEntryNo) : null;
-  const rows = visibleRows(state.daily)
+  const rows = filterByPeriod(visibleRows(state.daily))
     .filter(r => {
       if(filterEmp  && r.employee !== filterEmp)  return false;
       if(filterProj && r.project  !== filterProj) return false;
@@ -1439,7 +1537,7 @@ async function exportDailyExcel(){
     const filterEmp   = dailyFilter     || "";
     const filterProj  = dailyProjFilter || "";
     const filterENo = dailyEntryNo ? Number(dailyEntryNo) : null;
-    const rows = visibleRows(state.daily)
+    const rows = filterByPeriod(visibleRows(state.daily))
       .filter(r => {
         if(filterEmp  && r.employee !== filterEmp)  return false;
         if(filterProj && r.project  !== filterProj) return false;
@@ -1691,10 +1789,10 @@ function summary(){
   const emps = (sel.length > 0 && !isEmployee()) ? allEmps.filter(e => sel.includes(e)) : allEmps;
   const depts = deptNames();
   return emps.filter(Boolean).map(emp=>{
-    const d=state.daily.filter(r=>r.employee===emp);
-    const o=state.overtime.filter(r=>r.employee===emp);
-    const t=state.travel.filter(r=>r.employee===emp);
-    const lv=state.leaves.filter(r=>r.employee===emp);
+    const d=filterByPeriod(state.daily).filter(r=>r.employee===emp);
+    const o=filterByPeriod(state.overtime).filter(r=>r.employee===emp);
+    const t=filterByPeriod(state.travel).filter(r=>r.employee===emp);
+    const lv=filterByPeriod(state.leaves,"from").filter(r=>r.employee===emp);
     // Build per-department hours object dynamically
     const byDept = {};
     let total = 0;
@@ -1792,9 +1890,9 @@ function renderDashboard(){
   });
 
   let h = exportBar + `<div class="kpi-grid">
-    <div class="kpi" style="--accent:#2E5FA3"><div class="kpi-label">Total Hours</div><div class="kpi-value">${fmtHM(tHrs)}</div><div class="kpi-sub">${isEmployee()?"your hours":visibleRows(state.daily).length+" sessions"}</div></div>
-    <div class="kpi" style="--accent:#E65100"><div class="kpi-label">Overtime</div><div class="kpi-value">${fmtHM(tOT)}</div><div class="kpi-sub">${visibleRows(state.overtime).length} entries</div></div>
-    <div class="kpi" style="--accent:#2E7D32"><div class="kpi-label">Travel Days</div><div class="kpi-value">${tTr}</div><div class="kpi-sub">${visibleRows(state.travel).length} trips</div></div>
+    <div class="kpi" style="--accent:#2E5FA3"><div class="kpi-label">Total Hours</div><div class="kpi-value">${fmtHM(tHrs)}</div><div class="kpi-sub">${isEmployee()?"your hours":filterByPeriod(visibleRows(state.daily)).length+" sessions"}</div></div>
+    <div class="kpi" style="--accent:#E65100"><div class="kpi-label">Overtime</div><div class="kpi-value">${fmtHM(tOT)}</div><div class="kpi-sub">${filterByPeriod(visibleRows(state.overtime)).length} entries</div></div>
+    <div class="kpi" style="--accent:#2E7D32"><div class="kpi-label">Travel Days</div><div class="kpi-value">${tTr}</div><div class="kpi-sub">${filterByPeriod(visibleRows(state.travel)).length} trips</div></div>
     <div class="kpi" style="--accent:#6A1B9A"><div class="kpi-label">Per Diem</div><div class="kpi-value">${fmtMoney(tPD)}</div><div class="kpi-sub">IQD total</div></div>
   </div>`;
 
@@ -1872,7 +1970,7 @@ function renderDailyLog(){
   const dur=timeToHrs(dailyForm.start,dailyForm.end);
   const dept=projDept(dailyForm.project);
   // Filter by location too
-  const rows=visibleRows(state.daily).filter(r=>{
+  const rows=filterByPeriod(visibleRows(state.daily)).filter(r=>{
     if(dailyFilter && r.employee!==dailyFilter) return false;
     if(dailyLocFilter && r.location!==dailyLocFilter) return false;
     if(dailyProjFilter && r.project!==dailyProjFilter) return false;
@@ -1890,9 +1988,9 @@ function renderDailyLog(){
   // Project options for filter
   const projOptions = [...new Set(state.daily.map(r=>r.project).filter(Boolean))].sort();
   const empOptions=allEmployees();
-  // Location stats (hours by location)
+  // Location stats (hours by location) — respect active period
   const locStats = state.locations.map(l=>{
-    const items = visibleRows(state.daily).filter(r=>r.location===l.name);
+    const items = filterByPeriod(visibleRows(state.daily)).filter(r=>r.location===l.name);
     const hours = items.reduce((s,r)=>s+Number(r.duration||0),0);
     return {name:l.name, count:items.length, hours};
   }).filter(l=>l.count>0);
@@ -2366,7 +2464,7 @@ function renderOvertime(){
     otForm={date:today(),employee:isEmployee()?state.profile.employeeName:"",hours:"",hoursH:"",hoursM:"",project:"",location:"",notes:""};
   }
   const dept=projDept(otForm.project),day=dayName(otForm.date);
-  const rows=visibleRows(state.overtime);
+  const rows=filterByPeriod(visibleRows(state.overtime));
   const empOptions=allEmployees();
 
   return `<div class="card">
@@ -2469,7 +2567,7 @@ function renderTravel(){
     trForm={date:today(),employee:isEmployee()?state.profile.employeeName:"",days:"",project:"",location:"",notes:""};
   }
   const dept=projDept(trForm.project),pd=trForm.days?Number(trForm.days)*PER_DIEM_RATE:0;
-  const rows=visibleRows(state.travel);
+  const rows=filterByPeriod(visibleRows(state.travel));
   const empOptions=allEmployees();
 
   return `<div class="card">
@@ -2627,9 +2725,12 @@ function renderLeaves(){
     };
   }
   const emps = isEmployee() ? [state.profile.employeeName] : allEmployees();
-  const visibleLeaves = isEmployee()
-    ? state.leaves.filter(l => l.employee === state.profile.employeeName)
-    : state.leaves;
+  const visibleLeaves = filterByPeriod(
+    isEmployee()
+      ? state.leaves.filter(l => l.employee === state.profile.employeeName)
+      : state.leaves,
+    "from"
+  );
 
   // Compute current form amount preview
   const formAmount = computeLeaveAmount(leaveForm);
