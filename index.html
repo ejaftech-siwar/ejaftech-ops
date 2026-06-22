@@ -445,14 +445,16 @@ function applyEmployeeFilter(rows){
 // Applies ALL active filters at once: date period + employee + project + location.
 // Used across every report view so filters are consistent everywhere.
 // dateField defaults to "date" (use "from" for leaves).
+// Project/location filters are skipped for records that don't carry those fields
+// (e.g. leaves have no project/location), so they don't vanish unexpectedly.
 function applyReportFilters(rows, dateField="date"){
   let out = filterByPeriod(rows, dateField);          // 1. date range
   const sel = state.globalEmployeeFilter || [];
   if(sel.length > 0) out = out.filter(r => sel.includes(r.employee)); // 2. employee
   const pf = state.globalProjectFilter || "";
-  if(pf) out = out.filter(r => r.project === pf);     // 3. project
+  if(pf) out = out.filter(r => !("project" in r) || r.project === pf); // 3. project (skip if field absent)
   const lf = state.globalLocationFilter || "";
-  if(lf) out = out.filter(r => r.location === lf);    // 4. location
+  if(lf) out = out.filter(r => !("location" in r) || r.location === lf); // 4. location (skip if field absent)
   return out;
 }
 // True if ANY global filter (beyond date) is active
@@ -2517,7 +2519,7 @@ function renderOvertime(){
     otForm={date:today(),employee:isEmployee()?state.profile.employeeName:"",hours:"",hoursH:"",hoursM:"",project:"",location:"",notes:""};
   }
   const dept=projDept(otForm.project),day=dayName(otForm.date);
-  const rows=filterByPeriod(visibleRows(state.overtime));
+  const rows=applyReportFilters(visibleRows(state.overtime));
   const empOptions=allEmployees();
 
   return `<div class="card">
@@ -2548,6 +2550,8 @@ function renderOvertime(){
       ${otEditId?`<button class="btn btn-ghost" onclick="cancelOT()">Cancel</button>`:!isEmployee()?`<button class="btn btn-ghost" style="background:#FFF8E1;border:1px solid #C9A84C;color:#7F6000" onclick="saveOTAndNext()" title="Save and keep date/hours/project to add same OT for another employee">💾 Save & Add for Another Employee</button>`:""}
     </div>
   </div>
+
+  ${renderEmployeeFilterUI("Filter Overtime")}
 
   <div class="card">
     <div class="filter-row"><span class="card-title" style="margin:0">Overtime Log</span><span class="count-pill">${rows.length}</span></div>
@@ -2620,7 +2624,7 @@ function renderTravel(){
     trForm={date:today(),employee:isEmployee()?state.profile.employeeName:"",days:"",project:"",location:"",notes:""};
   }
   const dept=projDept(trForm.project),pd=trForm.days?Number(trForm.days)*PER_DIEM_RATE:0;
-  const rows=filterByPeriod(visibleRows(state.travel));
+  const rows=applyReportFilters(visibleRows(state.travel));
   const empOptions=allEmployees();
 
   return `<div class="card">
@@ -2642,6 +2646,8 @@ function renderTravel(){
       <span style="font-size:11px;color:var(--muted);align-self:center;margin-left:auto">Rate: 40,000 IQD/day</span>
     </div>
   </div>
+
+  ${renderEmployeeFilterUI("Filter Travel")}
 
   <div class="card">
     <div class="filter-row"><span class="card-title" style="margin:0">Travel Log</span><span class="count-pill">${rows.length}</span></div>
@@ -2778,7 +2784,7 @@ function renderLeaves(){
     };
   }
   const emps = isEmployee() ? [state.profile.employeeName] : allEmployees();
-  const visibleLeaves = filterByPeriod(
+  const visibleLeaves = applyReportFilters(
     isEmployee()
       ? state.leaves.filter(l => l.employee === state.profile.employeeName)
       : state.leaves,
@@ -2892,6 +2898,8 @@ function renderLeaves(){
       💡 Equivalent days = total hours ÷ ${WORK_HOURS_PER_DAY} (work day length)
     </div>
   </div>` : ""}
+
+  ${renderEmployeeFilterUI("Filter Leaves")}
 
   <div class="card">
     <div class="card-title">Leave Log · ${visibleLeaves.length}</div>
