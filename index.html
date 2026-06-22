@@ -1634,7 +1634,7 @@ function exportCSV(){
   lines.push("");
 
   // Daily Log
-  const dailyRows=isHR()?state.daily:state.daily.filter(r=>r.employee===state.profile.employeeName);
+  const dailyRows=filterByPeriod(isHR()?state.daily:state.daily.filter(r=>r.employee===state.profile.employeeName));
   lines.push("DAILY WORK LOG");
   lines.push(["Date","Employee","Project","Department","Start","End","Duration","Notes"].map(csvEscape).join(","));
   dailyRows.forEach(r=>{
@@ -1643,7 +1643,7 @@ function exportCSV(){
   lines.push("");
 
   // Overtime
-  const otRows=isHR()?state.overtime:state.overtime.filter(r=>r.employee===state.profile.employeeName);
+  const otRows=filterByPeriod(isHR()?state.overtime:state.overtime.filter(r=>r.employee===state.profile.employeeName));
   lines.push("OVERTIME LOG");
   lines.push(["Date","Day","Employee","Hours","Project","Department","Location","Notes"].map(csvEscape).join(","));
   otRows.forEach(r=>{
@@ -1652,7 +1652,7 @@ function exportCSV(){
   lines.push("");
 
   // Travel
-  const trRows=isHR()?state.travel:state.travel.filter(r=>r.employee===state.profile.employeeName);
+  const trRows=filterByPeriod(isHR()?state.travel:state.travel.filter(r=>r.employee===state.profile.employeeName));
   lines.push("TRAVEL LOG");
   lines.push(["Date","Employee","Days","Project","Department","Location","Per Diem IQD","Notes"].map(csvEscape).join(","));
   trRows.forEach(r=>{
@@ -1675,11 +1675,11 @@ async function exportPDF(){
 
   // KPI Cards
   const kpiCards=`<div class="kr">
-    <div class="kc kb"><div class="kl">Total Hours</div><div class="kv">${fmtHM(tot("total"))}</div><div class="ks">${state.daily.length} sessions</div></div>
-    <div class="kc ko"><div class="kl">Overtime</div><div class="kv">${fmtHM(tot("ot"))}</div><div class="ks">${state.overtime.length} entries</div></div>
-    <div class="kc kg"><div class="kl">Travel Days</div><div class="kv">${tot("tDays")}</div><div class="ks">${state.travel.length} trips</div></div>
+    <div class="kc kb"><div class="kl">Total Hours</div><div class="kv">${fmtHM(tot("total"))}</div><div class="ks">${filterByPeriod(state.daily).length} sessions</div></div>
+    <div class="kc ko"><div class="kl">Overtime</div><div class="kv">${fmtHM(tot("ot"))}</div><div class="ks">${filterByPeriod(state.overtime).length} entries</div></div>
+    <div class="kc kg"><div class="kl">Travel Days</div><div class="kv">${tot("tDays")}</div><div class="ks">${filterByPeriod(state.travel).length} trips</div></div>
     <div class="kc kp"><div class="kl">Per Diem</div><div class="kv">${fmtMoney(tot("pd"))}</div><div class="ks">IQD total</div></div>
-    <div class="kc krd"><div class="kl">Leave Days</div><div class="kv">${totalLeaveDays}</div><div class="ks">${state.leaves.length} entries</div></div>
+    <div class="kc krd"><div class="kl">Leave Days</div><div class="kv">${totalLeaveDays}</div><div class="ks">${filterByPeriod(state.leaves,"from").length} entries</div></div>
   </div>`;
 
   // Summary Table
@@ -1710,7 +1710,7 @@ async function exportPDF(){
 
   // Leave blocks
   const lvBlocks=emps.map(emp=>{
-    const my=state.leaves.filter(r=>r.employee===emp);
+    const my=filterByPeriod(state.leaves,"from").filter(r=>r.employee===emp);
     if(!my.length)return '';
     const sub=my.reduce((a,r)=>a+Number(r.days||0),0);
     return `<div class="emp-block lv">
@@ -1729,7 +1729,7 @@ async function exportPDF(){
 
   // OT blocks
   const otBlocks=emps.map(emp=>{
-    const my=state.overtime.filter(r=>r.employee===emp);
+    const my=filterByPeriod(state.overtime).filter(r=>r.employee===emp);
     if(!my.length&&!isEmployee())return '';
     const sub=my.reduce((a,r)=>a+Number(r.hours||0),0);
     return `<div class="emp-block ot">
@@ -1742,7 +1742,7 @@ async function exportPDF(){
 
   // Travel blocks
   const trBlocks=emps.map(emp=>{
-    const my=state.travel.filter(r=>r.employee===emp);
+    const my=filterByPeriod(state.travel).filter(r=>r.employee===emp);
     if(!my.length&&!isEmployee())return '';
     const sd=my.reduce((a,r)=>a+Number(r.days||0),0);
     const sp=my.reduce((a,r)=>a+Number(r.perDiem||0),0);
@@ -3001,17 +3001,17 @@ function renderHRReport(){
       <div style="border:1px solid var(--line);border-left:4px solid #2E5FA3;border-radius:8px;padding:12px;background:white">
         <div style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:1px">Total Hours</div>
         <div style="font-family:'DM Serif Display',serif;font-size:22px;color:#2E5FA3;margin-top:2px">${fmtHM(tot("total"))}</div>
-        <div style="font-size:10px;color:var(--muted)">${state.daily.length} sessions</div>
+        <div style="font-size:10px;color:var(--muted)">${filterByPeriod(state.daily).length} sessions</div>
       </div>
       <div style="border:1px solid var(--line);border-left:4px solid #E65100;border-radius:8px;padding:12px;background:white">
         <div style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:1px">Overtime</div>
         <div style="font-family:'DM Serif Display',serif;font-size:22px;color:#E65100;margin-top:2px">${fmtHM(tot("ot"))}</div>
-        <div style="font-size:10px;color:var(--muted)">${state.overtime.length} entries</div>
+        <div style="font-size:10px;color:var(--muted)">${filterByPeriod(state.overtime).length} entries</div>
       </div>
       <div style="border:1px solid var(--line);border-left:4px solid #2E7D32;border-radius:8px;padding:12px;background:white">
         <div style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:1px">Travel Days</div>
         <div style="font-family:'DM Serif Display',serif;font-size:22px;color:#2E7D32;margin-top:2px">${tot("tDays")}</div>
-        <div style="font-size:10px;color:var(--muted)">${state.travel.length} trips</div>
+        <div style="font-size:10px;color:var(--muted)">${filterByPeriod(state.travel).length} trips</div>
       </div>
       <div style="border:1px solid var(--line);border-left:4px solid #6A1B9A;border-radius:8px;padding:12px;background:white">
         <div style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:1px">Per Diem</div>
@@ -3021,7 +3021,7 @@ function renderHRReport(){
       <div style="border:1px solid var(--line);border-left:4px solid #C62828;border-radius:8px;padding:12px;background:white">
         <div style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:1px">Leave Days</div>
         <div style="font-family:'DM Serif Display',serif;font-size:22px;color:#C62828;margin-top:2px">${totalLeaveDays.toFixed(2)}</div>
-        <div style="font-size:10px;color:var(--muted)">${state.leaves.length} entries</div>
+        <div style="font-size:10px;color:var(--muted)">${filterByPeriod(state.leaves,"from").length} entries</div>
       </div>
     </div>
   </div>`;
@@ -3069,7 +3069,7 @@ function renderHRReport(){
   </div>`;
 
   emps.forEach(emp=>{
-    const my=state.leaves.filter(r=>r.employee===emp);
+    const my=filterByPeriod(state.leaves,"from").filter(r=>r.employee===emp);
     if(my.length===0) return;
     const sub=my.reduce((a,r)=>a+Number(r.days||0),0);
     h+=`<div class="card" style="border-left:4px solid #C62828">
@@ -3094,7 +3094,7 @@ function renderHRReport(){
   h+=`<div class="card">
     <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">04</span> Overtime by Employee</div>`;
   emps.forEach(emp=>{
-    const my=state.overtime.filter(r=>r.employee===emp);
+    const my=filterByPeriod(state.overtime).filter(r=>r.employee===emp);
     const sub=my.reduce((a,r)=>a+Number(r.hours||0),0);
     h+=`<div style="border:1px solid var(--line);border-radius:10px;margin-bottom:10px;overflow:hidden;border-left:4px solid #E65100">
       <div style="background:linear-gradient(135deg,#1B3A6B,#2E5FA3);color:white;padding:8px 12px;font-weight:700;font-size:12px;display:flex;justify-content:space-between;align-items:center">
@@ -3113,7 +3113,7 @@ function renderHRReport(){
   h+=`<div class="card">
     <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">05</span> Travel by Employee</div>`;
   emps.forEach(emp=>{
-    const my=state.travel.filter(r=>r.employee===emp);
+    const my=filterByPeriod(state.travel).filter(r=>r.employee===emp);
     const sd=my.reduce((a,r)=>a+Number(r.days||0),0);
     const sp=my.reduce((a,r)=>a+Number(r.perDiem||0),0);
     h+=`<div style="border:1px solid var(--line);border-radius:10px;margin-bottom:10px;overflow:hidden;border-left:4px solid #2E7D32">
@@ -5826,28 +5826,28 @@ async function exportExcel(){
     };
 
     // Daily
-    const dRows = isHR() ? state.daily : state.daily.filter(r=>r.employee===state.profile.employeeName);
+    const dRows = filterByPeriod(isHR() ? state.daily : state.daily.filter(r=>r.employee===state.profile.employeeName));
     const dailyData = dRows.map(r=>[r.date||'', r.employee||'', r.project||'', r.dept||'', r.location||'', r.start||'', r.end||'', fmtHM(r.duration), r.notes||'']);
     const ws2 = buildDetailSheet('Daily Work Log', ['Date','Employee','Project','Department','Location','Start','End','Duration','Notes'], dailyData, '#'+COLORS.navy);
     ws2['!cols']=[{wch:12},{wch:22},{wch:26},{wch:14},{wch:8},{wch:8},{wch:11},{wch:30}];
     XLSX.utils.book_append_sheet(wb, ws2, 'Daily Work');
 
     // Overtime
-    const oRows = isHR() ? state.overtime : state.overtime.filter(r=>r.employee===state.profile.employeeName);
+    const oRows = filterByPeriod(isHR() ? state.overtime : state.overtime.filter(r=>r.employee===state.profile.employeeName));
     const otData = oRows.map(r=>[r.employee||'', r.date||'', r.day||'', fmtHM(r.hours), r.project||'', r.dept||'', r.location||'', r.notes||'']);
     const ws3 = buildDetailSheet('Overtime Log', ['Employee','Date','Day','OT Hours','Project','Department','Location','Notes'], otData, '#'+COLORS.orange);
     ws3['!cols']=[{wch:22},{wch:12},{wch:8},{wch:11},{wch:26},{wch:14},{wch:14},{wch:30}];
     XLSX.utils.book_append_sheet(wb, ws3, 'Overtime');
 
     // Travel
-    const tRows = isHR() ? state.travel : state.travel.filter(r=>r.employee===state.profile.employeeName);
+    const tRows = filterByPeriod(isHR() ? state.travel : state.travel.filter(r=>r.employee===state.profile.employeeName));
     const trData = tRows.map(r=>[r.employee||'', r.date||'', r.days||0, r.project||'', r.dept||'', r.location||'', r.perDiem||0, r.notes||'']);
     const ws4 = buildDetailSheet('Travel Log', ['Employee','Date','Days','Project','Department','Location','Per Diem (IQD)','Notes'], trData, '#'+COLORS.green);
     ws4['!cols']=[{wch:22},{wch:12},{wch:8},{wch:26},{wch:14},{wch:14},{wch:16},{wch:30}];
     XLSX.utils.book_append_sheet(wb, ws4, 'Travel');
 
     // Leaves sheet
-    const lRows = isHR() ? state.leaves : state.leaves.filter(r=>r.employee===state.profile.employeeName);
+    const lRows = filterByPeriod(isHR() ? state.leaves : state.leaves.filter(r=>r.employee===state.profile.employeeName), "from");
     const lvData = lRows.map(r=>{
       const lt = (typeof leaveTypeInfo==='function') ? leaveTypeInfo(r.type) : {label:r.type||''};
       return [r.employee||'', lt.label||r.type||'', r.from||'', r.to||'', r.days||0, r.notes||''];
@@ -5869,7 +5869,7 @@ async function exportExcel(){
         const r = 3+idx;
         const alt = idx%2===1;
         const pc = state.projects.filter(p=>p.dept===d.name).length;
-        const hr = state.daily.filter(x=>x.dept===d.name).reduce((s,x)=>s+Number(x.duration||0),0);
+        const hr = filterByPeriod(state.daily).filter(x=>x.dept===d.name).reduce((s,x)=>s+Number(x.duration||0),0);
         setCell(ws5,`A${r}`,d.name,{...empNameStyle(alt),font:{bold:true,sz:11,color:{rgb:d.color.replace('#','')}}});
         setCell(ws5,`B${r}`,'',{...cellStyle(alt),fill:{fgColor:{rgb:d.color.replace('#','')}}});
         setCell(ws5,`C${r}`,pc,numStyle(alt));
@@ -5995,17 +5995,17 @@ async function exportDashboardPDF(){
       <div style="background:white;border-left:4px solid #2E5FA3;border-radius:8px;padding:10px 11px">
         <div style="font-size:8px;color:#6B7B8F;text-transform:uppercase;letter-spacing:0.8px;font-weight:600">Total Hours</div>
         <div style="font-family:Georgia,serif;font-size:17px;color:#2E5FA3;font-weight:700">${fmtHM(tHrs)}</div>
-        <div style="font-size:8px;color:#6B7B8F">${state.daily.length} sessions</div>
+        <div style="font-size:8px;color:#6B7B8F">${filterByPeriod(state.daily).length} sessions</div>
       </div>
       <div style="background:white;border-left:4px solid #E65100;border-radius:8px;padding:10px 11px">
         <div style="font-size:8px;color:#6B7B8F;text-transform:uppercase;letter-spacing:0.8px;font-weight:600">Overtime</div>
         <div style="font-family:Georgia,serif;font-size:17px;color:#E65100;font-weight:700">${fmtHM(tOT)}</div>
-        <div style="font-size:8px;color:#6B7B8F">${state.overtime.length} entries</div>
+        <div style="font-size:8px;color:#6B7B8F">${filterByPeriod(state.overtime).length} entries</div>
       </div>
       <div style="background:white;border-left:4px solid #2E7D32;border-radius:8px;padding:10px 11px">
         <div style="font-size:8px;color:#6B7B8F;text-transform:uppercase;letter-spacing:0.8px;font-weight:600">Travel</div>
         <div style="font-family:Georgia,serif;font-size:17px;color:#2E7D32;font-weight:700">${tTr}</div>
-        <div style="font-size:8px;color:#6B7B8F">${state.travel.length} trips</div>
+        <div style="font-size:8px;color:#6B7B8F">${filterByPeriod(state.travel).length} trips</div>
       </div>
       <div style="background:white;border-left:4px solid #6A1B9A;border-radius:8px;padding:10px 11px">
         <div style="font-size:8px;color:#6B7B8F;text-transform:uppercase;letter-spacing:0.8px;font-weight:600">Per Diem</div>
@@ -6015,7 +6015,7 @@ async function exportDashboardPDF(){
       <div style="background:white;border-left:4px solid #C62828;border-radius:8px;padding:10px 11px">
         <div style="font-size:8px;color:#6B7B8F;text-transform:uppercase;letter-spacing:0.8px;font-weight:600">Leave Days</div>
         <div style="font-family:Georgia,serif;font-size:17px;color:#C62828;font-weight:700">${tLeave}</div>
-        <div style="font-size:8px;color:#6B7B8F">${state.leaves.length} entries</div>
+        <div style="font-size:8px;color:#6B7B8F">${filterByPeriod(state.leaves,"from").length} entries</div>
       </div>
     </div>`;
 
@@ -6029,11 +6029,11 @@ async function exportDashboardPDF(){
       </div>
       <div class="ksec"><span class="kbad">01</span><h3>Executive Summary</h3></div>
       <div class="kr">
-        <div class="kc kb"><div class="kl">Total Hours</div><div class="kv">${fmtHM(tHrs)}</div><div class="ks">${state.daily.length} sessions</div></div>
-        <div class="kc ko"><div class="kl">Overtime</div><div class="kv">${fmtHM(tOT)}</div><div class="ks">${state.overtime.length} entries</div></div>
-        <div class="kc kg"><div class="kl">Travel Days</div><div class="kv">${tTr}</div><div class="ks">${state.travel.length} trips</div></div>
+        <div class="kc kb"><div class="kl">Total Hours</div><div class="kv">${fmtHM(tHrs)}</div><div class="ks">${filterByPeriod(state.daily).length} sessions</div></div>
+        <div class="kc ko"><div class="kl">Overtime</div><div class="kv">${fmtHM(tOT)}</div><div class="ks">${filterByPeriod(state.overtime).length} entries</div></div>
+        <div class="kc kg"><div class="kl">Travel Days</div><div class="kv">${tTr}</div><div class="ks">${filterByPeriod(state.travel).length} trips</div></div>
         <div class="kc kp"><div class="kl">Per Diem</div><div class="kv">${fmtMoney(tPD)}</div><div class="ks">IQD total</div></div>
-        <div class="kc krd"><div class="kl">Leave Days</div><div class="kv">${totalLeaveDays}</div><div class="ks">${state.leaves.length} entries</div></div>
+        <div class="kc krd"><div class="kl">Leave Days</div><div class="kv">${totalLeaveDays}</div><div class="ks">${filterByPeriod(state.leaves,"from").length} entries</div></div>
       </div>
       ${!isEmployee()?`<div class="ksec"><span class="kbad">02</span><h3>Employee Hours Distribution</h3></div>
       <div style="display:flex;align-items:center;gap:20px;margin:10px 0">
