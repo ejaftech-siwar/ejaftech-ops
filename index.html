@@ -2516,7 +2516,7 @@ Object.defineProperty(window,'dailyEntryNo',{get:()=>dailyEntryNo,set:v=>dailyEn
 // ═══════════════════════════════════════════════════════════════════════
 function renderOvertime(){
   if(!otForm){
-    otForm={date:today(),employee:isEmployee()?state.profile.employeeName:"",hours:"",hoursH:"",hoursM:"",project:"",location:"",notes:""};
+    otForm={date:today(),employee:isEmployee()?state.profile.employeeName:"",hours:"",start:"",end:"",project:"",location:"",notes:""};
   }
   const dept=projDept(otForm.project),day=dayName(otForm.date);
   const rows=applyReportFilters(visibleRows(state.overtime));
@@ -2528,17 +2528,11 @@ function renderOvertime(){
       <div class="field"><label>Employee <span class="req">*</span></label>
         ${isEmployee()?`<select onchange="window.otForm.employee=this.value;render()"><option value="${escapeHtml(state.profile.employeeName||"")}" selected>${escapeHtml(state.profile.employeeName||"")}</option></select>`:`<select onchange="window.otForm.employee=this.value;render()"><option value="">— Select —</option>${empOptions.map(e=>`<option ${e===otForm.employee?"selected":""}>${escapeHtml(e)}</option>`).join("")}</select>`}</div>
       <div class="field"><label>Date <span class="req">*</span></label><input type="date" value="${otForm.date}" onchange="window.otForm.date=this.value;render()"></div>
-      <div class="field"><label>OT Hours <span class="req">*</span> <span style="font-size:10px;color:var(--muted);font-weight:400">(Hours : Minutes)</span></label><div style="display:flex;gap:6px;align-items:center">
-        <select onchange="window.updateOTHours('h',this.value)" style="flex:1">
-          <option value="">HH</option>
-          ${Array.from({length:13},(_,i)=>`<option value="${i}" ${otForm.hoursH==i?"selected":""}>${String(i).padStart(2,'0')}</option>`).join("")}
-        </select>
-        <span style="font-weight:700;color:var(--muted);font-size:18px">:</span>
-        <select onchange="window.updateOTHours('m',this.value)" style="flex:1">
-          <option value="">MM</option>
-          ${Array.from({length:60},(_,m)=>`<option value="${m}" ${otForm.hoursM==m?"selected":""}>${String(m).padStart(2,'0')}</option>`).join("")}
-        </select>
-      </div></div>
+      <div class="field"><label>Start Time <span class="req">*</span></label>
+        <input type="time" value="${otForm.start||''}" onchange="window.otForm.start=this.value;window.updateOTDuration();render()"></div>
+      <div class="field"><label>End Time <span class="req">*</span></label>
+        <input type="time" value="${otForm.end||''}" onchange="window.otForm.end=this.value;window.updateOTDuration();render()"></div>
+      <div class="field"><label>OT Duration (auto)</label><div class="auto orange ${otForm.hours&&Number(otForm.hours)>0?"":"empty"}" style="font-weight:800;font-size:16px;color:#E65100">${otForm.hours&&Number(otForm.hours)>0?fmtHM(Number(otForm.hours)):"—"}</div></div>
       <div class="field"><label>Day (auto)</label><div class="auto green ${day?"":"empty"}">${day||"—"}</div></div>
       <div class="field full"><label>Project</label><select onchange="window.otForm.project=this.value;render()"><option value="">— Select —</option>${state.projects.map(p=>{const n=(p.name||"").trim();return `<option value="${escapeHtml(n)}" ${n===(otForm.project||"").trim()?"selected":""}>${escapeHtml(n)}</option>`}).join("")}</select></div>
       <div class="field"><label>Dept (auto)</label><div class="auto purple ${dept?"":"empty"}">${dept||"—"}</div></div>
@@ -2561,7 +2555,7 @@ function renderOvertime(){
         const canEdit=isHR()||r.employee===state.profile.employeeName;
         return `<tr>
           ${!isEmployee()?`<td>${employeeBadge(r.employee)}</td>`:""}
-          <td>${fmtDate(r.date)}</td><td style="color:#2E7D32;font-weight:700">${r.day||""}</td>
+          <td>${fmtDate(r.date)}${r.start&&r.end?`<br><span style="font-size:10px;color:#888">${r.start}–${r.end}</span>`:""}</td><td style="color:#2E7D32;font-weight:700">${r.day||""}</td>
           <td><strong style="color:#E65100">${fmtHM(r.hours)}</strong></td>
           <td>${escapeHtml(r.project||"—")}</td><td>${escapeHtml(r.location||"—")}</td>
           <td>${canEdit?`<button class="btn btn-sm btn-secondary" onclick="editOT('${r.id}')">✎</button>
@@ -2571,28 +2565,34 @@ function renderOvertime(){
   </div>`;
 }
 async function saveOT(){
-  if(!otForm.employee||!otForm.date||!otForm.hours)return toast("Required: Employee, Date, Hours");
+  if(!otForm.employee||!otForm.date) return toast("Required: Employee and Date");
+  if(!otForm.start||!otForm.end) return toast("Required: Start Time and End Time");
+  const computed = timeToHrs(otForm.start, otForm.end);
+  if(computed <= 0) return toast("End time must be after start time");
+  otForm.hours = computed.toFixed(4);
   // Strict employee guard: force own name on save
   if(isEmployee()){
     if(!state.profile.employeeName) return toast("Your account has no employee profile. Contact admin.");
     otForm.employee = state.profile.employeeName;
   }
-  const {hoursH:_h, hoursM:_m, ...cleanForm} = otForm;
   await fbSave("overtime",{
     id:otEditId||undefined,
-    ...cleanForm,hours:+otForm.hours,
+    ...otForm,hours:+otForm.hours,
     dept:projDept(otForm.project),day:dayName(otForm.date),
     createdBy:state.profile.uid,
   });
   otForm=null;otEditId=null;toast("Saved ✓");
 }
 async function saveOTAndNext(){
-  if(!otForm.employee||!otForm.date||!otForm.hours)return toast("Required: Employee, Date, Hours");
+  if(!otForm.employee||!otForm.date)return toast("Required: Employee and Date");
+  if(!otForm.start||!otForm.end) return toast("Required: Start Time and End Time");
   if(isEmployee()) return toast("Use Save for single entry");
-  const {hoursH:_h, hoursM:_m, ...cleanForm} = otForm;
+  const computed = timeToHrs(otForm.start, otForm.end);
+  if(computed <= 0) return toast("End time must be after start time");
+  otForm.hours = computed.toFixed(4);
   await fbSave("overtime",{
     id:undefined,
-    ...cleanForm,hours:+otForm.hours,
+    ...otForm,hours:+otForm.hours,
     dept:projDept(otForm.project),day:dayName(otForm.date),
     createdBy:state.profile.uid,
   });
@@ -2600,18 +2600,14 @@ async function saveOTAndNext(){
   otForm = {...otForm, employee:""};
   toast(`Saved for ${savedEmp} ✓ — Select next employee`);
 }
-function editOT(id){const r=state.overtime.find(x=>x.id===id);if(r){const hrs=Number(r.hours||0);const H=Math.floor(hrs);const M=Math.round((hrs-H)*60/5)*5;otForm={...r,hours:String(r.hours),hoursH:H,hoursM:M};otEditId=id;render();window.scrollTo(0,0);}}
+function editOT(id){const r=state.overtime.find(x=>x.id===id);if(r){otForm={...r,hours:String(r.hours||""),start:r.start||"",end:r.end||""};otEditId=id;render();window.scrollTo(0,0);}}
 async function delOT(id){if(confirm("Delete?")){await fbDelete("overtime",id);toast("Deleted");}}
 function cancelOT(){otForm=null;otEditId=null;render();}
 Object.assign(window,{saveOT,saveOTAndNext,editOT,delOT,cancelOT});
-window.updateOTHours = function(type, val){
-  if(type==='h') otForm.hoursH = val==='' ? '' : Number(val);
-  if(type==='m') otForm.hoursM = val==='' ? '' : Number(val);
-  // Compute decimal hours
-  const H = Number(otForm.hoursH)||0;
-  const M = Number(otForm.hoursM)||0;
-  otForm.hours = (H + M/60).toFixed(4);
-  render();
+window.updateOTDuration = function(){
+  // Compute decimal hours from start/end times (same logic as Daily Log)
+  const computed = timeToHrs(otForm.start, otForm.end);
+  otForm.hours = computed > 0 ? computed.toFixed(4) : "";
 };
 
 Object.defineProperty(window,'otForm',{get:()=>otForm,set:v=>otForm=v});
