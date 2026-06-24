@@ -2386,7 +2386,7 @@ function renderDailyLog(){
           <td><strong style="color:#2E7D32">${fmtHM(r.duration)}</strong></td>
           <td>${hasRes?`<button class="btn btn-sm" style="background:#FFF8E1;border:1px solid #C9A84C;color:#7F6000;font-weight:700" onclick="viewResolution('${r.id}')" title="View resolution">📷 ${imgs.length}</button>`:'<span style="color:#bbb;font-style:italic;font-size:11px">—</span>'}</td>
           <td>${canEdit?`<button class="btn btn-sm btn-secondary" onclick="editDaily('${r.id}')">✎</button>
-              <button class="btn btn-sm btn-danger" onclick="delDaily('${r.id}')">🗑</button>`:""}</td>
+              <button class="btn btn-sm btn-danger" onclick="delDaily('${r.id}')">🗑</button>`:""}${canUseWhatsApp() && (waGetSettings().triggers||[]).includes("daily")?`<button class="btn btn-sm" style="background:#25D366;color:white;border:none;font-weight:700;margin-left:4px" onclick="openWaShareById('${r.id}')" title="Share to WhatsApp">📲</button>`:""}</td>
         </tr>`;}).join("")}</tbody>
     </table></div>
     ${isAdmin() && rows.some(r => (r.resolutionImages||[]).length > 0) ? `
@@ -5164,6 +5164,13 @@ function openWaShare(record){
 }
 window.openWaShare = openWaShare;
 
+// Open WhatsApp share for a daily entry by its ID (used by the row button)
+window.openWaShareById = function(id){
+  const r = (state.daily||[]).find(x=>x.id===id);
+  if(r) openWaShare(r);
+  else toast("Entry not found");
+};
+
 window.sendToWa = async function(contactId){
   const c = (state.waContacts||[]).find(x=>x.id===contactId);
   if(!c) return;
@@ -6640,4 +6647,3 @@ if('serviceWorker' in navigator){
 
 </body>
 </html>
-v
