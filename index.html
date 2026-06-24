@@ -157,6 +157,7 @@ body{padding-bottom:env(safe-area-inset-bottom,0px)}
 
 @media(min-width:600px){.kpi-grid{grid-template-columns:repeat(4,1fr)}}
 </style>
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 </head>
 <body>
 
@@ -246,6 +247,8 @@ const state = {
   clientRequests: [],   // Task requests submitted by clients
   waContacts: [],       // WhatsApp contacts/groups (Firestore)
   waSettings: null,     // WhatsApp settings doc (fields, roles, triggers)
+  emailContacts: [],    // Email recipients (Firestore)
+  emailSettings: null,  // Email settings doc (enabled, keys, fields, triggers)
   globalEmployeeFilter: [],  // multi-select filter for reports (empty = all)
   globalProjectFilter: "",     // single project filter for reports (empty = all)
   globalLocationFilter: "",    // single location filter for reports (empty = all)
@@ -353,6 +356,23 @@ function getUserRole(){
   return "employee"; // safe default — most restrictive
 }
 function isClient(){ return getUserRole() === "client"; }
+
+// Can the current user SEE the "Send Email" button?
+// Requires the email service to be enabled AND role permission.
+function emailGetSettings(){
+  return state.emailSettings || {
+    enabled: false, serviceId:"", templateId:"", publicKey:"",
+    enabledFields: ["employee","date","project","location","duration","resolutionText"],
+    allowedRoles: ["admin"], triggers: ["daily","clientRequests"],
+    subject: "New Task — EJAF Operations",
+  };
+}
+function canUseEmail(){
+  const s = emailGetSettings();
+  if(!s.enabled) return false;  // master switch off
+  if(isAdmin()) return true;
+  return (s.allowedRoles||["admin"]).includes(getUserRole());
+}
 
 // Can the current user SEE the "Share to WhatsApp" button?
 // Admin always can; other roles depend on waSettings.allowedRoles.
@@ -880,6 +900,7 @@ async function subscribeData(){
     ["clients","clients"],
     ["clientRequests","clientRequests"],
     ["waContacts","waContacts"],
+    ["emailContacts","emailContacts"],
   ];
   let firstCount=0;
 
@@ -905,7 +926,7 @@ async function subscribeData(){
       }
 
       firstCount++;
-      if(firstCount>=11 && !state.initialized){
+      if(firstCount>=16 && !state.initialized){
         state.initialized=true;
         renderApp();
       } else if(state.initialized){
@@ -929,6 +950,20 @@ async function subscribeData(){
     if(state.initialized) renderTab();
   });
   state.unsubs.push(waUnsub);
+
+  // Email settings (single doc)
+  const emailUnsub = onSnapshot(doc(db,"settings","email"),(snap)=>{
+    state.emailSettings = snap.exists() ? snap.data() : {
+      enabled: false,
+      serviceId: "", templateId: "", publicKey: "",
+      enabledFields: ["employee","date","project","location","duration","resolutionText"],
+      allowedRoles: ["admin"],
+      triggers: ["daily","clientRequests"],
+      subject: "New Task — EJAF Operations",
+    };
+    if(state.initialized) renderTab();
+  });
+  state.unsubs.push(emailUnsub);
 }
 
 async function seedDefaults(){
@@ -1147,7 +1182,7 @@ function getTabs(){
   }
   // Admin / Owner: everything
   const base = ["Dashboard","Daily Log","Overtime","Travel","Leaves","Work Instructions",
-                "HR Report","Reports","Requests","Clients","Projects","Locations","Departments","Users","WhatsApp","Share","Profile"];
+                "HR Report","Reports","Requests","Clients","Projects","Locations","Departments","Users","WhatsApp","Email","Share","Profile"];
   if(!base.includes(state.tab)) state.tab = base[0];
   return base;
 }
@@ -1213,10 +1248,10 @@ function renderTab(){
     if(!["Dashboard","Work Instructions","Profile"].includes(state.tab)) state.tab="Dashboard";
   } else if(role === "employee"){
     // Employee: no HR/admin tabs
-    if(["HR Report","Reports","Requests","Clients","Projects","Locations","Departments","Users","Share","WhatsApp"].includes(state.tab)) state.tab="Dashboard";
+    if(["HR Report","Reports","Requests","Clients","Projects","Locations","Departments","Users","Share","WhatsApp","Email"].includes(state.tab)) state.tab="Dashboard";
   } else if(role === "support" || role === "hr"){
     // Support/HR: no Users, Share, or Clients management
-    if(["Users","Share","Clients","WhatsApp"].includes(state.tab)) state.tab="Dashboard";
+    if(["Users","Share","Clients","WhatsApp","Email"].includes(state.tab)) state.tab="Dashboard";
   }
 
   const fn={
@@ -1227,6 +1262,7 @@ function renderTab(){
     "Share":renderShare,"Profile":renderProfile,
     "Clients":renderClients,"Requests":renderRequests,"My Project":renderClientPortal,
     "WhatsApp":renderWhatsApp,
+    "Email":renderEmailTab,
   }[state.tab]||(isClient()?renderClientPortal:renderDashboard);
   c.innerHTML=fn();
 }
@@ -2386,7 +2422,7 @@ function renderDailyLog(){
           <td><strong style="color:#2E7D32">${fmtHM(r.duration)}</strong></td>
           <td>${hasRes?`<button class="btn btn-sm" style="background:#FFF8E1;border:1px solid #C9A84C;color:#7F6000;font-weight:700" onclick="viewResolution('${r.id}')" title="View resolution">📷 ${imgs.length}</button>`:'<span style="color:#bbb;font-style:italic;font-size:11px">—</span>'}</td>
           <td>${canEdit?`<button class="btn btn-sm btn-secondary" onclick="editDaily('${r.id}')">✎</button>
-              <button class="btn btn-sm btn-danger" onclick="delDaily('${r.id}')">🗑</button>`:""}${canUseWhatsApp() && (waGetSettings().triggers||[]).includes("daily")?`<button class="btn btn-sm" style="background:#25D366;color:white;border:none;font-weight:700;margin-left:4px" onclick="openWaShareById('${r.id}')" title="Share to WhatsApp">📲</button>`:""}</td>
+              <button class="btn btn-sm btn-danger" onclick="delDaily('${r.id}')">🗑</button>`:""}${canUseWhatsApp() && (waGetSettings().triggers||[]).includes("daily")?`<button class="btn btn-sm" style="background:#25D366;color:white;border:none;font-weight:700;margin-left:4px" onclick="openWaShareById('${r.id}')" title="Share to WhatsApp">📲</button>`:""}${canUseEmail() && (emailGetSettings().triggers||[]).includes("daily")?`<button class="btn btn-sm" style="background:#03308B;color:white;border:none;font-weight:700;margin-left:4px" onclick="openEmailShareById('${r.id}')" title="Send Email">📧</button>`:""}</td>
         </tr>`;}).join("")}</tbody>
     </table></div>
     ${isAdmin() && rows.some(r => (r.resolutionImages||[]).length > 0) ? `
@@ -2483,6 +2519,10 @@ async function saveDaily(){
   // WhatsApp share (new daily entries only, if enabled & permitted)
   if(isNewEntry && canUseWhatsApp() && (waGetSettings().triggers||[]).includes("daily")){
     setTimeout(()=>openWaShare(savedRecord), 400);
+  }
+  // Email share (new daily entries only, if service ON & permitted)
+  else if(isNewEntry && canUseEmail() && (emailGetSettings().triggers||[]).includes("daily")){
+    setTimeout(()=>openEmailShare(savedRecord), 400);
   }
 }
 async function saveDailyAndNext(){
@@ -4790,7 +4830,7 @@ function renderRequests(){
                 <option value="completed" ${r.status==="completed"?"selected":""}>✅ Completed</option>
               </select>`:""}
               ${isAdmin()?`<button class="btn btn-sm btn-danger" onclick="delRequest('${r.id}')">🗑</button>`:""}
-              ${canUseWhatsApp() && (waGetSettings().triggers||[]).includes("clientRequests")?`<button class="btn btn-sm" style="background:#25D366;color:white;border:none;font-weight:700" onclick='openWaShare(${JSON.stringify({employee:r.clientName,project:r.project,date:(r.createdAt||"").slice(0,10),resolutionText:r.title+" — "+r.description,description:r.title+" — "+r.description}).replace(/'/g,"&#39;")})'>📲</button>`:""}
+              ${canUseWhatsApp() && (waGetSettings().triggers||[]).includes("clientRequests")?`<button class="btn btn-sm" style="background:#25D366;color:white;border:none;font-weight:700" onclick='openWaShare(${JSON.stringify({employee:r.clientName,project:r.project,date:(r.createdAt||"").slice(0,10),resolutionText:r.title+" — "+r.description,description:r.title+" — "+r.description}).replace(/'/g,"&#39;")})'>📲</button>`:""}${canUseEmail() && (emailGetSettings().triggers||[]).includes("clientRequests")?`<button class="btn btn-sm" style="background:#03308B;color:white;border:none;font-weight:700" onclick='openEmailShare(${JSON.stringify({employee:r.clientName,project:r.project,date:(r.createdAt||"").slice(0,10),resolutionText:r.title+" — "+r.description,description:r.title+" — "+r.description}).replace(/'/g,"&#39;")})'>📧</button>`:""}
             </div>
           </div>
         </div>`;
@@ -5190,6 +5230,328 @@ window.sendToWa = async function(contactId){
     setTimeout(()=>{ window.open(c.value, "_blank"); }, 600);
   }
   document.getElementById("waShareDialog")?.remove();
+};
+
+
+// ═══════════════════════════════════════════════════════════════════════
+//  EMAIL MODULE (EmailJS) — recipients, settings, send button
+// ═══════════════════════════════════════════════════════════════════════
+let emailContactForm = null, emailContactEditId = null;
+
+const EMAIL_FIELDS = [
+  {id:"entryNo",        label:"Entry #",        icon:"#️⃣"},
+  {id:"employee",       label:"Employee",       icon:"👤"},
+  {id:"date",           label:"Date",           icon:"📅"},
+  {id:"project",        label:"Project",        icon:"📁"},
+  {id:"dept",           label:"Department",     icon:"🏢"},
+  {id:"location",       label:"Location",       icon:"📍"},
+  {id:"duration",       label:"Duration/Hours", icon:"⏱️"},
+  {id:"resolutionText", label:"Description",    icon:"📝"},
+  {id:"notes",          label:"Notes",          icon:"🗒️"},
+];
+
+function renderEmailTab(){
+  if(!isAdmin()) return `<div class="card"><div class="empty">Access denied — Admin only</div></div>`;
+  if(!emailContactForm) emailContactForm = {name:"", email:""};
+  const s = emailGetSettings();
+  const contacts = state.emailContacts || [];
+  const configured = s.serviceId && s.templateId && s.publicKey;
+
+  return `
+  <!-- MASTER SWITCH -->
+  <div class="card" style="border-left:4px solid ${s.enabled?'#2E7D32':'#999'}">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+      <div style="display:flex;align-items:center;gap:12px">
+        <span style="font-size:28px">${s.enabled?'📧':'📭'}</span>
+        <div>
+          <div style="font-size:16px;font-weight:800;color:#1B3A6B">Email Notifications</div>
+          <div style="font-size:12px;color:${s.enabled?'#2E7D32':'#999'};font-weight:600">${s.enabled?'● Service ACTIVE':'○ Service OFF (saving budget)'}</div>
+        </div>
+      </div>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none">
+        <span style="font-size:13px;font-weight:700;color:${s.enabled?'#2E7D32':'#666'}">${s.enabled?'ON':'OFF'}</span>
+        <div onclick="toggleEmailEnabled()" style="width:52px;height:28px;background:${s.enabled?'#2E7D32':'#ccc'};border-radius:14px;position:relative;transition:background 0.3s;cursor:pointer">
+          <div style="position:absolute;top:3px;${s.enabled?'right:3px':'left:3px'};width:22px;height:22px;background:white;border-radius:50%;transition:all 0.3s;box-shadow:0 1px 3px rgba(0,0,0,0.3)"></div>
+        </div>
+      </label>
+    </div>
+    <div style="margin-top:10px;padding:10px 12px;background:#FFF8E1;border-radius:8px;font-size:11px;color:#7F6000;line-height:1.6">
+      💡 <strong>Budget tip:</strong> Free EmailJS plan allows ~200 emails/month. Turn the service OFF anytime to preserve your quota. When OFF, the "Send Email" button is hidden everywhere.
+    </div>
+  </div>
+
+  <!-- EMAILJS KEYS -->
+  <div class="card" style="border-left:4px solid #03308B">
+    <div class="card-title">🔑 EmailJS Configuration ${configured?'<span style="color:#2E7D32;font-size:11px">✓ Configured</span>':'<span style="color:#C53030;font-size:11px">⚠ Not configured</span>'}</div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:12px">Get these from your free <strong>emailjs.com</strong> account (Dashboard → Account / Email Services / Email Templates).</p>
+    <div class="field" style="margin-bottom:8px"><label>Service ID</label>
+      <input value="${escapeHtml(s.serviceId||"")}" onchange="setEmailKey('serviceId',this.value)" placeholder="service_xxxxxxx"></div>
+    <div class="field" style="margin-bottom:8px"><label>Template ID</label>
+      <input value="${escapeHtml(s.templateId||"")}" onchange="setEmailKey('templateId',this.value)" placeholder="template_xxxxxxx"></div>
+    <div class="field" style="margin-bottom:8px"><label>Public Key</label>
+      <input value="${escapeHtml(s.publicKey||"")}" onchange="setEmailKey('publicKey',this.value)" placeholder="xxxxxxxxxxxxxxxx"></div>
+    <div style="padding:10px 12px;background:#E8F0FE;border-radius:8px;font-size:11px;color:#1B3A6B;line-height:1.7;margin-top:8px">
+      📌 <strong>Your EmailJS template must include these variables:</strong><br>
+      <code style="background:white;padding:1px 5px;border-radius:3px">{{subject}}</code>
+      <code style="background:white;padding:1px 5px;border-radius:3px">{{message}}</code>
+      <code style="background:white;padding:1px 5px;border-radius:3px">{{to_email}}</code><br>
+      Set the template's "To Email" field to <code style="background:white;padding:1px 5px;border-radius:3px">{{to_email}}</code>
+    </div>
+    ${configured?`<button class="btn btn-sm" style="background:#03308B;color:#C9A84C;margin-top:10px" onclick="sendTestEmail()">📨 Send Test Email</button>`:''}
+  </div>
+
+  <!-- RECIPIENTS -->
+  <div class="card" style="border-left:4px solid #25D366">
+    <div class="card-title">${emailContactEditId?"Edit Recipient":"➕ Add Email Recipient"}</div>
+    <div class="form-grid">
+      <div class="field"><label>Name / Label <span class="req">*</span></label>
+        <input value="${escapeHtml(emailContactForm.name||"")}" oninput="window.emailContactForm.name=this.value" placeholder="e.g. Operations Manager"></div>
+      <div class="field"><label>Email Address <span class="req">*</span></label>
+        <input type="email" value="${escapeHtml(emailContactForm.email||"")}" oninput="window.emailContactForm.email=this.value" placeholder="manager@ejaftech.iq"></div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="btn btn-primary" style="background:#25D366;border-color:#25D366" onclick="saveEmailContact()">${emailContactEditId?"Update":"Add Recipient"}</button>
+      ${emailContactEditId?`<button class="btn btn-ghost" onclick="cancelEmailContact()">Cancel</button>`:""}
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="filter-row"><span class="card-title" style="margin:0">Saved Recipients</span><span class="count-pill">${contacts.length}</span></div>
+    ${contacts.length===0?`<div class="empty">No recipients yet</div>`:
+    `<div style="display:flex;flex-direction:column;gap:8px">
+      ${contacts.map(c=>`<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;background:#F7FAF8;border:1px solid #D7E8DD;border-radius:8px">
+        <div style="display:flex;align-items:center;gap:10px;min-width:0">
+          <span style="font-size:20px">✉️</span>
+          <div style="min-width:0">
+            <div style="font-weight:700;font-size:13px;color:#1B3A6B">${escapeHtml(c.name)}</div>
+            <div style="font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(c.email)}</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:5px;flex-shrink:0">
+          <button class="btn btn-sm btn-secondary" onclick="editEmailContact('${c.id}')">✎</button>
+          <button class="btn btn-sm btn-danger" onclick="delEmailContact('${c.id}')">🗑</button>
+        </div>
+      </div>`).join("")}
+    </div>`}
+  </div>
+
+  <!-- MESSAGE FIELDS -->
+  <div class="card" style="border-left:4px solid #6A1B9A">
+    <div class="card-title">⚙️ Email Content — Fields to Include</div>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      ${EMAIL_FIELDS.map(f=>{
+        const on = (s.enabledFields||[]).includes(f.id);
+        return `<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;padding:7px 10px;background:${on?'#F3E5F5':'#F7F7F7'};border-radius:6px">
+          <input type="checkbox" ${on?"checked":""} onchange="toggleEmailField('${f.id}')" style="width:16px;height:16px;cursor:pointer">
+          <span style="font-size:15px">${f.icon}</span>
+          <span style="font-weight:600;color:${on?'#6A1B9A':'#666'}">${f.label}</span>
+        </label>`;
+      }).join("")}
+    </div>
+    <div class="field" style="margin-top:12px"><label>Email Subject</label>
+      <input value="${escapeHtml(s.subject||"")}" onchange="setEmailSubject(this.value)" placeholder="New Task — EJAF Operations"></div>
+  </div>
+
+  <!-- WHO CAN SEE -->
+  <div class="card" style="border-left:4px solid #0277BD">
+    <div class="card-title">👁️ Who Can Send Emails</div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:10px">Admin always can. Select other roles (only works while service is ON).</p>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      ${[["hr","📋 HR / Manager"],["support","🛠 Support"],["it","💻 IT"],["employee","👤 Employee"]].map(([role,lbl])=>{
+        const on = (s.allowedRoles||["admin"]).includes(role);
+        return `<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;padding:7px 10px;background:${on?'#E1F5FE':'#F7F7F7'};border-radius:6px">
+          <input type="checkbox" ${on?"checked":""} onchange="toggleEmailRole('${role}')" style="width:16px;height:16px;cursor:pointer">
+          <span style="font-weight:600;color:${on?'#0277BD':'#666'}">${lbl}</span>
+        </label>`;
+      }).join("")}
+    </div>
+  </div>
+
+  <!-- TRIGGERS -->
+  <div class="card" style="border-left:4px solid #E65100">
+    <div class="card-title">🎯 When to Show the Email Button</div>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      ${[["daily","📋 After adding a Daily Log entry"],["clientRequests","📨 After a Client Request"]].map(([trig,lbl])=>{
+        const on = (s.triggers||[]).includes(trig);
+        return `<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;padding:7px 10px;background:${on?'#FFF3E0':'#F7F7F7'};border-radius:6px">
+          <input type="checkbox" ${on?"checked":""} onchange="toggleEmailTrigger('${trig}')" style="width:16px;height:16px;cursor:pointer">
+          <span style="font-weight:600;color:${on?'#E65100':'#666'}">${lbl}</span>
+        </label>`;
+      }).join("")}
+    </div>
+  </div>`;
+}
+
+// ── Recipient CRUD ──
+async function saveEmailContact(){
+  if(!isAdmin()) return toast("Admin only");
+  const name=(emailContactForm.name||"").trim();
+  const email=(emailContactForm.email||"").trim();
+  if(!name) return toast("Name is required");
+  if(!email || !email.includes("@") || !email.includes(".")) return toast("Valid email required");
+  await fbSave("emailContacts",{
+    id: emailContactEditId||undefined,
+    name, email, createdBy: state.profile.uid,
+  });
+  toast(emailContactEditId?"Recipient updated ✓":"Recipient added ✓");
+  emailContactForm=null; emailContactEditId=null;
+}
+function editEmailContact(id){
+  const c=(state.emailContacts||[]).find(x=>x.id===id);
+  if(c){ emailContactForm={name:c.name,email:c.email}; emailContactEditId=id; render(); window.scrollTo(0,0); }
+}
+async function delEmailContact(id){
+  if(!confirm("Delete this recipient?"))return;
+  await fbDelete("emailContacts",id);
+  toast("Deleted");
+}
+function cancelEmailContact(){ emailContactForm=null; emailContactEditId=null; render(); }
+Object.assign(window,{saveEmailContact,editEmailContact,delEmailContact,cancelEmailContact});
+Object.defineProperty(window,'emailContactForm',{get:()=>emailContactForm,set:v=>emailContactForm=v,configurable:true});
+
+// ── Settings updates ──
+async function emailSaveSettings(patch){
+  if(!isAdmin()) return;
+  const {db, doc, setDoc} = window.__fb;
+  const next = {...emailGetSettings(), ...patch};
+  await setDoc(doc(db,"settings","email"), next, {merge:true});
+}
+window.toggleEmailEnabled = async function(){
+  const s = emailGetSettings();
+  if(!s.enabled && (!s.serviceId||!s.templateId||!s.publicKey)){
+    return toast("Configure EmailJS keys first");
+  }
+  await emailSaveSettings({enabled: !s.enabled});
+  toast(!s.enabled ? "Email service ON ✓" : "Email service OFF — budget saved");
+};
+window.setEmailKey = async function(key,val){ await emailSaveSettings({[key]:val.trim()}); toast("Saved ✓"); };
+window.setEmailSubject = async function(v){ await emailSaveSettings({subject:v}); toast("Subject updated ✓"); };
+window.toggleEmailField = async function(fid){
+  const s=emailGetSettings(); const arr=[...(s.enabledFields||[])];
+  const i=arr.indexOf(fid); if(i>=0)arr.splice(i,1);else arr.push(fid);
+  await emailSaveSettings({enabledFields:arr});
+};
+window.toggleEmailRole = async function(role){
+  const s=emailGetSettings(); const arr=[...(s.allowedRoles||["admin"])];
+  const i=arr.indexOf(role); if(i>=0)arr.splice(i,1);else arr.push(role);
+  await emailSaveSettings({allowedRoles:arr});
+};
+window.toggleEmailTrigger = async function(trig){
+  const s=emailGetSettings(); const arr=[...(s.triggers||[])];
+  const i=arr.indexOf(trig); if(i>=0)arr.splice(i,1);else arr.push(trig);
+  await emailSaveSettings({triggers:arr});
+};
+
+// ── Build email body from a record ──
+function buildEmailBody(record){
+  const s = emailGetSettings();
+  const fields = s.enabledFields || [];
+  const lines = [];
+  const map = {
+    entryNo:        ()=> record.entryNo ? `Entry #: ${formatEntryNo(record.entryNo)}` : "",
+    employee:       ()=> record.employee ? `Employee: ${record.employee}` : "",
+    date:           ()=> record.date ? `Date: ${fmtDate(record.date)}` : "",
+    project:        ()=> record.project ? `Project: ${record.project}` : "",
+    dept:           ()=> record.dept ? `Department: ${record.dept}` : "",
+    location:       ()=> record.location ? `Location: ${record.location}` : "",
+    duration:       ()=> (record.duration||record.hours) ? `Duration: ${fmtHM(record.duration||record.hours)}` : "",
+    resolutionText: ()=> record.resolutionText ? `Description: ${record.resolutionText}` : (record.description?`Description: ${record.description}`:""),
+    notes:          ()=> record.notes ? `Notes: ${record.notes}` : "",
+  };
+  fields.forEach(f=>{ const fn=map[f]; if(fn){const l=fn(); if(l)lines.push(l);} });
+  return lines.join("\n");
+}
+
+// ── Send test email ──
+window.sendTestEmail = async function(){
+  const s = emailGetSettings();
+  if(!s.serviceId||!s.templateId||!s.publicKey) return toast("Configure keys first");
+  const contacts = state.emailContacts||[];
+  if(contacts.length===0) return toast("Add at least one recipient first");
+  if(typeof emailjs==="undefined") return toast("EmailJS not loaded — check connection");
+  toast("Sending test...");
+  try{
+    emailjs.init({publicKey:s.publicKey});
+    await emailjs.send(s.serviceId, s.templateId, {
+      subject: (s.subject||"Test") + " (TEST)",
+      message: "✅ This is a test email from Operation Department Track.\n\nIf you received this, your EmailJS setup works!",
+      to_email: contacts[0].email,
+    });
+    toast(`✓ Test sent to ${contacts[0].email}`);
+  }catch(e){
+    toast("Failed: " + (e.text||e.message||"check keys"));
+  }
+};
+
+// ── Open email send dialog (pick recipients) ──
+function openEmailShare(record){
+  if(!canUseEmail()) return;
+  const contacts = state.emailContacts || [];
+  const body = buildEmailBody(record);
+  window.__emailBody = body;
+
+  const existing = document.getElementById("emailShareDialog");
+  if(existing) existing.remove();
+
+  const html = `
+    <div id="emailShareDialog" style="position:fixed;inset:0;background:rgba(10,22,46,0.6);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px" onclick="if(event.target===this)this.remove()">
+      <div style="background:white;border-radius:16px;max-width:400px;width:100%;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,0.3);max-height:85vh;display:flex;flex-direction:column">
+        <div style="background:#03308B;padding:16px 20px;color:white;display:flex;align-items:center;gap:10px">
+          <span style="font-size:24px">📧</span>
+          <div><div style="font-size:16px;font-weight:800">Send Email Notification</div><div style="font-size:11px;opacity:0.9">Select recipients</div></div>
+        </div>
+        <div style="padding:14px 18px;overflow-y:auto">
+          <div style="background:#F0F4FA;border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:11px;color:#475569;white-space:pre-wrap;max-height:120px;overflow-y:auto;border:1px solid #E2E8F0">${escapeHtml(body)}</div>
+          ${contacts.length===0
+            ? `<div style="text-align:center;padding:20px;color:#999;font-size:13px">No recipients saved.<br>Add some in the Email tab.</div>`
+            : `<div style="display:flex;flex-direction:column;gap:7px;margin-bottom:12px">
+                <button onclick="sendEmailToAll()" style="display:flex;align-items:center;justify-content:center;gap:8px;padding:12px;background:#03308B;color:#C9A84C;border:none;border-radius:9px;cursor:pointer;font-weight:700;font-size:14px">📨 Send to All (${contacts.length})</button>
+                <div style="text-align:center;font-size:11px;color:#999">— or pick one —</div>
+                ${contacts.map(c=>`<button onclick="sendEmailToOne('${c.id}')" style="display:flex;align-items:center;gap:10px;padding:10px 13px;background:#F7FAF8;border:1px solid #D7E8DD;border-radius:9px;cursor:pointer;text-align:left;width:100%">
+                  <span style="font-size:18px">✉️</span>
+                  <div style="flex:1;min-width:0"><div style="font-weight:700;font-size:13px;color:#1B3A6B">${escapeHtml(c.name)}</div><div style="font-size:10px;color:#888;overflow:hidden;text-overflow:ellipsis">${escapeHtml(c.email)}</div></div>
+                </button>`).join("")}
+              </div>`}
+        </div>
+        <div style="padding:10px 18px;border-top:1px solid #eee">
+          <button onclick="document.getElementById('emailShareDialog').remove()" style="width:100%;padding:10px;background:none;border:none;color:#94A3B8;font-size:13px;cursor:pointer">Close</button>
+        </div>
+      </div>
+    </div>`;
+  document.body.insertAdjacentHTML("beforeend", html);
+}
+window.openEmailShare = openEmailShare;
+window.openEmailShareById = function(id){
+  const r = (state.daily||[]).find(x=>x.id===id);
+  if(r) openEmailShare(r); else toast("Entry not found");
+};
+
+async function doSendEmail(recipients){
+  const s = emailGetSettings();
+  if(typeof emailjs==="undefined") return toast("EmailJS not loaded");
+  const body = window.__emailBody || "";
+  toast(`Sending to ${recipients.length}...`);
+  try{
+    emailjs.init({publicKey:s.publicKey});
+    let sent=0;
+    for(const r of recipients){
+      await emailjs.send(s.serviceId, s.templateId, {
+        subject: s.subject||"New Task — EJAF Operations",
+        message: body,
+        to_email: r.email,
+      });
+      sent++;
+    }
+    toast(`✓ Email sent to ${sent} recipient${sent>1?'s':''}`);
+  }catch(e){
+    toast("Failed: " + (e.text||e.message||"check setup"));
+  }
+  document.getElementById("emailShareDialog")?.remove();
+}
+window.sendEmailToAll = function(){ doSendEmail(state.emailContacts||[]); };
+window.sendEmailToOne = function(id){
+  const c=(state.emailContacts||[]).find(x=>x.id===id);
+  if(c) doSendEmail([c]);
 };
 
 
