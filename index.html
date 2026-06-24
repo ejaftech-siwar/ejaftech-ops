@@ -244,12 +244,15 @@ const state = {
   employeePermissions: [],  // Per-employee entry permissions (GPS / Resolution requirements)
   clients: [],          // Client companies with linked users + projects
   clientRequests: [],   // Task requests submitted by clients
+  waContacts: [],       // WhatsApp contacts/groups (Firestore)
+  waSettings: null,     // WhatsApp settings doc (fields, roles, triggers)
   globalEmployeeFilter: [],  // multi-select filter for reports (empty = all)
   globalProjectFilter: "",     // single project filter for reports (empty = all)
   globalLocationFilter: "",    // single location filter for reports (empty = all)
   tab: "Dashboard",
   initialized: false,
   unsubs: [],           // active Firestore listeners
+  _sessionUnsub: null,  // session-lock listener
   reportFilter: { from: "", to: "", project: "" },  // for flexible reports
 };
 
@@ -350,6 +353,14 @@ function getUserRole(){
   return "employee"; // safe default — most restrictive
 }
 function isClient(){ return getUserRole() === "client"; }
+
+// Can the current user SEE the "Share to WhatsApp" button?
+// Admin always can; other roles depend on waSettings.allowedRoles.
+function canUseWhatsApp(){
+  if(isAdmin()) return true;
+  const allowed = (state.waSettings?.allowedRoles) || ["admin"];
+  return allowed.includes(getUserRole());
+}
 // Get the client record linked to the logged-in user
 function getMyClientRecord(){
   if(!isClient()) return null;
@@ -662,6 +673,127 @@ window.addEventListener('fb-ready',()=>{
   watchAuth();
 });
 
+// ═══════════════════════════════════════════════════════════════════════
+//  SINGLE-DEVICE SESSION LOCK
+//  Each device has a persistent deviceId. On login, we claim the user's
+//  active session. If another device already holds it (and the user isn't
+//  admin and doesn't have multi-device permission), the new login is blocked.
+// ═══════════════════════════════════════════════════════════════════════
+function getDeviceId(){
+  let id = localStorage.getItem("odt_device_id");
+  if(!id){
+    id = "dev_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2,10);
+    localStorage.setItem("odt_device_id", id);
+  }
+  return id;
+}
+function getDeviceLabel(){
+  const ua = navigator.userAgent || "";
+  let device = "Device";
+  if(/iPhone|iPad|iPod/i.test(ua)) device = "iPhone/iPad";
+  else if(/Android/i.test(ua)) device = "Android";
+  else if(/Windows/i.test(ua)) device = "Windows PC";
+  else if(/Macintosh/i.test(ua)) device = "Mac";
+  else if(/Linux/i.test(ua)) device = "Linux";
+  let browser = "";
+  if(/Edg/i.test(ua)) browser = "Edge";
+  else if(/Chrome/i.test(ua)) browser = "Chrome";
+  else if(/Firefox/i.test(ua)) browser = "Firefox";
+  else if(/Safari/i.test(ua)) browser = "Safari";
+  return browser ? device + " · " + browser : device;
+}
+
+// Try to claim the session for this device. Returns {ok:true} or {ok:false, reason, heldBy}.
+async function claimSession(profile){
+  const {db, doc, getDoc, setDoc} = window.__fb;
+  const deviceId = getDeviceId();
+  // Admins and multi-device users bypass the lock entirely
+  const role = (profile.role||"").toLowerCase();
+  const isAdminRole = role === "admin" || role === "owner";
+  const multiAllowed = profile.allowMultiDevice === true;
+  if(isAdminRole || multiAllowed){
+    // Still record this device (informational), but never block
+    try{
+      await setDoc(doc(db,"users",profile.uid),{
+        activeSession: deviceId,
+        activeSessionLabel: getDeviceLabel(),
+        activeSessionAt: new Date().toISOString(),
+      },{merge:true});
+    }catch(e){}
+    return {ok:true};
+  }
+  // Single-device users: check current holder
+  try{
+    const snap = await getDoc(doc(db,"users",profile.uid));
+    const data = snap.exists() ? snap.data() : {};
+    const current = data.activeSession || "";
+    if(current && current !== deviceId){
+      // Another device holds the session → block this one
+      return {ok:false, reason:"elsewhere", heldBy: data.activeSessionLabel || "another device", since: data.activeSessionAt};
+    }
+    // Claim it
+    await setDoc(doc(db,"users",profile.uid),{
+      activeSession: deviceId,
+      activeSessionLabel: getDeviceLabel(),
+      activeSessionAt: new Date().toISOString(),
+    },{merge:true});
+    return {ok:true};
+  }catch(e){
+    console.error("claimSession error:", e);
+    return {ok:true}; // fail-open: don't lock people out on errors
+  }
+}
+
+// Release this device's claim on sign-out (only if we currently hold it)
+async function releaseSession(){
+  try{
+    const {db, doc, getDoc, updateDoc} = window.__fb;
+    if(!state.profile) return;
+    const deviceId = getDeviceId();
+    const snap = await getDoc(doc(db,"users",state.profile.uid));
+    if(snap.exists() && snap.data().activeSession === deviceId){
+      await updateDoc(doc(db,"users",state.profile.uid),{ activeSession: "" });
+    }
+  }catch(e){}
+}
+
+// Watch the user doc; if another device takes over the session, force logout here.
+// (Used when admin resets a session, or for the rare race condition.)
+function watchSessionLock(){
+  try{
+    const {db, doc, onSnapshot} = window.__fb;
+    if(!state.profile) return;
+    const role = (state.profile.role||"").toLowerCase();
+    if(role==="admin"||role==="owner"||state.profile.allowMultiDevice===true) return; // exempt
+    const deviceId = getDeviceId();
+    if(state._sessionUnsub){ try{state._sessionUnsub();}catch(e){} }
+    state._sessionUnsub = onSnapshot(doc(db,"users",state.profile.uid),(snap)=>{
+      if(!snap.exists()) return;
+      const active = snap.data().activeSession || "";
+      if(active && active !== deviceId){
+        // Someone else claimed the session → log this device out
+        if(state._sessionUnsub){ try{state._sessionUnsub();}catch(e){} state._sessionUnsub=null; }
+        forceLogoutElsewhere(snap.data().activeSessionLabel || "another device");
+      }
+    });
+  }catch(e){}
+}
+
+async function forceLogoutElsewhere(label){
+  try{
+    const {auth, signOut} = window.__fb;
+    cleanupSubs();
+    await signOut(auth);
+  }catch(e){}
+  renderRoot(`<div class="login-bg"><div class="login-card" style="text-align:center">
+    <div class="login-logo">EJAF</div>
+    <div style="font-size:40px;margin:14px 0">🔒</div>
+    <h2 style="color:#C53030">Signed Out</h2>
+    <div class="sub" style="margin-top:8px">Your account was opened on another device.</div>
+    <button class="login-btn" onclick="location.reload()" style="margin-top:18px">Sign In Again</button>
+  </div></div>`);
+}
+
 function watchAuth(){
   const{auth,onAuthStateChanged}=window.__fb;
   onAuthStateChanged(auth,async(user)=>{
@@ -669,7 +801,23 @@ function watchAuth(){
       state.user=user;
       await loadProfile();
       if(state.profile){
+        // ── Single-device session lock ──
+        const claim = await claimSession(state.profile);
+        if(!claim.ok){
+          // Another device holds the session → block this login
+          const {auth:a, signOut} = window.__fb;
+          try{ await signOut(a); }catch(e){}
+          renderRoot(`<div class="login-bg"><div class="login-card" style="text-align:center">
+            <div class="login-logo">EJAF</div>
+            <div style="font-size:40px;margin:14px 0">🔒</div>
+            <h2 style="color:#C53030">Active on Another Device</h2>
+            <div class="sub" style="margin-top:8px">Sign out there first, then try again.</div>
+            <button class="login-btn" onclick="location.reload()" style="margin-top:18px">Try Again</button>
+          </div></div>`);
+          return;
+        }
         await subscribeData();
+        watchSessionLock();
       } else {
         const uid = state.user.uid;
         const email = state.user.email;
@@ -718,7 +866,7 @@ function cleanupSubs(){
 
 async function subscribeData(){
   cleanupSubs();
-  const{db,collection,onSnapshot}=window.__fb;
+  const{db,collection,onSnapshot,doc}=window.__fb;
   state.initialized=false;
   renderRoot(`<div class="loader"><div class="loader-spin"></div></div>`);
 
@@ -731,6 +879,7 @@ async function subscribeData(){
     ["employeePermissions","employeePermissions"],
     ["clients","clients"],
     ["clientRequests","clientRequests"],
+    ["waContacts","waContacts"],
   ];
   let firstCount=0;
 
@@ -768,6 +917,18 @@ async function subscribeData(){
     });
     state.unsubs.push(unsub);
   });
+
+  // WhatsApp settings (single doc)
+  const waUnsub = onSnapshot(doc(db,"settings","whatsapp"),(snap)=>{
+    state.waSettings = snap.exists() ? snap.data() : {
+      enabledFields: ["employee","date","project","location","duration","resolutionText"],
+      allowedRoles: ["admin"],
+      triggers: ["daily","clientRequests"],
+      messageHeader: "🔔 New Task — EJAF Operations",
+    };
+    if(state.initialized) renderTab();
+  });
+  state.unsubs.push(waUnsub);
 }
 
 async function seedDefaults(){
@@ -833,6 +994,8 @@ async function doSignIn(email,password){
 async function doSignOut(){
   try{
     const{auth,signOut}=window.__fb;
+    await releaseSession();  // free this device's session claim
+    if(state._sessionUnsub){ try{state._sessionUnsub();}catch(e){} state._sessionUnsub=null; }
     cleanupSubs();
     await signOut(auth);
   }catch(e){console.error(e);}
@@ -984,7 +1147,7 @@ function getTabs(){
   }
   // Admin / Owner: everything
   const base = ["Dashboard","Daily Log","Overtime","Travel","Leaves","Work Instructions",
-                "HR Report","Reports","Requests","Clients","Projects","Locations","Departments","Users","Share","Profile"];
+                "HR Report","Reports","Requests","Clients","Projects","Locations","Departments","Users","WhatsApp","Share","Profile"];
   if(!base.includes(state.tab)) state.tab = base[0];
   return base;
 }
@@ -1050,10 +1213,10 @@ function renderTab(){
     if(!["Dashboard","Work Instructions","Profile"].includes(state.tab)) state.tab="Dashboard";
   } else if(role === "employee"){
     // Employee: no HR/admin tabs
-    if(["HR Report","Reports","Requests","Clients","Projects","Locations","Departments","Users","Share"].includes(state.tab)) state.tab="Dashboard";
+    if(["HR Report","Reports","Requests","Clients","Projects","Locations","Departments","Users","Share","WhatsApp"].includes(state.tab)) state.tab="Dashboard";
   } else if(role === "support" || role === "hr"){
     // Support/HR: no Users, Share, or Clients management
-    if(["Users","Share","Clients"].includes(state.tab)) state.tab="Dashboard";
+    if(["Users","Share","Clients","WhatsApp"].includes(state.tab)) state.tab="Dashboard";
   }
 
   const fn={
@@ -1063,6 +1226,7 @@ function renderTab(){
     "Departments":renderDepartments,"Work Instructions":renderWorkInstructions,
     "Share":renderShare,"Profile":renderProfile,
     "Clients":renderClients,"Requests":renderRequests,"My Project":renderClientPortal,
+    "WhatsApp":renderWhatsApp,
   }[state.tab]||(isClient()?renderClientPortal:renderDashboard);
   c.innerHTML=fn();
 }
@@ -2301,17 +2465,25 @@ async function saveDaily(){
 
   // Auto-assign entry number for new entries only
   const entryNoToSave = dailyEditId ? undefined : getNextDailyEntryNo();
-  await fbSave("daily",{
-    id:dailyEditId||undefined,
+  const isNewEntry = !dailyEditId;
+  const savedRecord = {
     ...dailyForm,
     duration:+timeToHrs(dailyForm.start,dailyForm.end).toFixed(4),
     dept:projDept(dailyForm.project),
-    createdBy:state.profile.uid,
     ...(entryNoToSave ? {entryNo: entryNoToSave} : {}),
+  };
+  await fbSave("daily",{
+    id:dailyEditId||undefined,
+    ...savedRecord,
+    createdBy:state.profile.uid,
     ...gpsData,
   });
   dailyForm=null;dailyEditId=null;
   toast("Saved ✓");
+  // WhatsApp share (new daily entries only, if enabled & permitted)
+  if(isNewEntry && canUseWhatsApp() && (waGetSettings().triggers||[]).includes("daily")){
+    setTimeout(()=>openWaShare(savedRecord), 400);
+  }
 }
 async function saveDailyAndNext(){
   if(!dailyForm.employee||!dailyForm.project||!dailyForm.date)return toast("Required: Employee, Date, Project");
@@ -2336,6 +2508,7 @@ async function saveDailyAndNext(){
   // Keep form data — only clear employee and resolution for next entry
   const savedEmp = dailyForm.employee;
   dailyForm = {...dailyForm, employee:"", resolutionText:"", resolutionImages:[]};
+  render();
   toast(`Saved for ${savedEmp} ✓ — Add new resolution for next employee`);
 }
 
@@ -2598,6 +2771,7 @@ async function saveOTAndNext(){
   });
   const savedEmp = otForm.employee;
   otForm = {...otForm, employee:""};
+  render();
   toast(`Saved for ${savedEmp} ✓ — Select next employee`);
 }
 function editOT(id){const r=state.overtime.find(x=>x.id===id);if(r){otForm={...r,hours:String(r.hours||""),start:r.start||"",end:r.end||""};otEditId=id;render();window.scrollTo(0,0);}}
@@ -2993,6 +3167,7 @@ async function saveLeaveAndNext(){
   });
   const savedEmp = leaveForm.employee;
   leaveForm = {...leaveForm, employee:""};
+  render();
   toast(`Saved for ${savedEmp} ✓ — Select next employee`);
 }
 function editLeave(id){
@@ -3413,14 +3588,27 @@ function renderUsers(){
     ${state.users.map(u=>{
       const roleCls=u.role==="admin"||u.role==="owner"?"admin":u.role==="hr"||u.role==="support"||u.role==="client"?"hr":u.role==="it"?"hr":"emp";
       const init=(u.name||u.email||"?").charAt(0).toUpperCase();
-      return `<div class="user-row">
+      const isAdminUser = (u.role||"").toLowerCase()==="admin" || (u.role||"").toLowerCase()==="owner";
+      const multiOn = u.allowMultiDevice === true;
+      const hasActiveSession = !!u.activeSession;
+      return `<div class="user-row" style="flex-wrap:wrap">
         <div class="user-avatar">${init}</div>
         <div class="user-info">
           <div class="name">${escapeHtml(u.name||"(no name)")} <span class="badge badge-${roleCls}">${(u.role||"").toUpperCase()}</span></div>
           <div class="email">${escapeHtml(u.email||"")} ${u.employeeName?`· ${escapeHtml(u.employeeName)}`:""}</div>
+          ${hasActiveSession?`<div style="font-size:10px;color:#2E7D32;margin-top:3px">🟢 Active on: ${escapeHtml(u.activeSessionLabel||"a device")}</div>`:`<div style="font-size:10px;color:#999;margin-top:3px">⚪ Not signed in</div>`}
         </div>
         ${u.id!==state.profile.uid?`<button class="btn btn-sm btn-secondary" onclick="editUser('${u.id}')">✎</button>
         <button class="btn btn-sm btn-danger" onclick="delUser('${u.id}')">🗑</button>`:`<span style="font-size:10px;color:var(--muted)">YOU</span>`}
+        <div style="flex-basis:100%;display:flex;align-items:center;gap:10px;margin-top:8px;padding-top:8px;border-top:1px solid #eee;flex-wrap:wrap">
+          ${isAdminUser
+            ? `<span style="font-size:11px;color:#6A1B9A;font-weight:600">👑 Admin — multiple devices always allowed</span>`
+            : `<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;user-select:none">
+                <input type="checkbox" ${multiOn?"checked":""} onchange="toggleMultiDevice('${u.id}')" style="width:16px;height:16px;cursor:pointer">
+                <span style="color:${multiOn?'#2E7D32':'#666'};font-weight:600">📱💻 Allow Multiple Devices</span>
+              </label>`}
+          ${hasActiveSession && !isAdminUser ? `<button class="btn btn-sm" style="background:#FFF3E0;border:1px solid #FB8C00;color:#E65100;font-size:11px;padding:4px 10px" onclick="resetUserSession('${u.id}')">🔓 Reset Session</button>` : ''}
+        </div>
       </div>`;
     }).join("")}
   </div>
@@ -3603,6 +3791,31 @@ async function delUser(id){
 function cancelUser(){userForm=null;userEditId=null;render();}
 
 Object.assign(window,{saveUser,editUser,delUser,cancelUser});
+
+// ── Multi-device permission & session management (Admin) ──
+window.toggleMultiDevice = async function(userId){
+  if(!isAdmin()) return toast("Admin only");
+  const u = state.users.find(x=>x.id===userId);
+  if(!u) return;
+  const newVal = !(u.allowMultiDevice === true);
+  try{
+    const {db, doc, updateDoc} = window.__fb;
+    await updateDoc(doc(db,"users",userId),{ allowMultiDevice: newVal });
+    toast(newVal ? `${u.name||"User"}: multiple devices allowed ✓` : `${u.name||"User"}: single device only ✓`);
+  }catch(e){ toast("Error: "+e.message); }
+};
+
+window.resetUserSession = async function(userId){
+  if(!isAdmin()) return toast("Admin only");
+  const u = state.users.find(x=>x.id===userId);
+  if(!u) return;
+  if(!confirm(`Reset active session for ${u.name||"this user"}?\\n\\nThey will be signed out on their current device and can sign in again anywhere.`)) return;
+  try{
+    const {db, doc, updateDoc} = window.__fb;
+    await updateDoc(doc(db,"users",userId),{ activeSession: "" });
+    toast("Session reset ✓ — user can now sign in on any device");
+  }catch(e){ toast("Error: "+e.message); }
+};
 Object.defineProperty(window,'userForm',{get:()=>userForm,set:v=>userForm=v});
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -4577,6 +4790,7 @@ function renderRequests(){
                 <option value="completed" ${r.status==="completed"?"selected":""}>✅ Completed</option>
               </select>`:""}
               ${isAdmin()?`<button class="btn btn-sm btn-danger" onclick="delRequest('${r.id}')">🗑</button>`:""}
+              ${canUseWhatsApp() && (waGetSettings().triggers||[]).includes("clientRequests")?`<button class="btn btn-sm" style="background:#25D366;color:white;border:none;font-weight:700" onclick='openWaShare(${JSON.stringify({employee:r.clientName,project:r.project,date:(r.createdAt||"").slice(0,10),resolutionText:r.title+" — "+r.description,description:r.title+" — "+r.description}).replace(/'/g,"&#39;")})'>📲</button>`:""}
             </div>
           </div>
         </div>`;
@@ -4685,6 +4899,291 @@ async function cascadeRenameLocation(oldName, newName){
 window.cascadeRenameProject=cascadeRenameProject;
 window.cascadeRenameDepartment=cascadeRenameDepartment;
 window.cascadeRenameLocation=cascadeRenameLocation;
+
+
+// ═══════════════════════════════════════════════════════════════════════
+//  WHATSAPP MODULE — contacts, settings, and share button
+// ═══════════════════════════════════════════════════════════════════════
+let waContactForm = null, waContactEditId = null;
+
+// Available message fields the admin can toggle
+const WA_FIELDS = [
+  {id:"entryNo",        label:"Entry #",        icon:"#️⃣"},
+  {id:"employee",       label:"Employee",       icon:"👤"},
+  {id:"date",           label:"Date",           icon:"📅"},
+  {id:"project",        label:"Project",        icon:"📁"},
+  {id:"dept",           label:"Department",     icon:"🏢"},
+  {id:"location",       label:"Location",       icon:"📍"},
+  {id:"duration",       label:"Duration/Hours", icon:"⏱️"},
+  {id:"resolutionText", label:"Description",    icon:"📝"},
+  {id:"notes",          label:"Notes",          icon:"🗒️"},
+];
+
+function waGetSettings(){
+  return state.waSettings || {
+    enabledFields: ["employee","date","project","location","duration","resolutionText"],
+    allowedRoles: ["admin"],
+    triggers: ["daily","clientRequests"],
+    messageHeader: "🔔 New Task — EJAF Operations",
+  };
+}
+
+function renderWhatsApp(){
+  if(!isAdmin()) return `<div class="card"><div class="empty">Access denied — Admin only</div></div>`;
+  if(!waContactForm) waContactForm = {name:"", type:"number", value:""};
+  const s = waGetSettings();
+  const contacts = state.waContacts || [];
+
+  return `<div class="card" style="border-left:4px solid #25D366">
+    <div class="card-title">📲 ${waContactEditId?"Edit Contact":"Add WhatsApp Contact / Group"}</div>
+    <div class="form-grid">
+      <div class="field"><label>Name / Label <span class="req">*</span></label>
+        <input value="${escapeHtml(waContactForm.name||"")}" oninput="window.waContactForm.name=this.value" placeholder="e.g. Operations Group"></div>
+      <div class="field"><label>Type <span class="req">*</span></label>
+        <select onchange="window.waContactForm.type=this.value;render()">
+          <option value="number" ${waContactForm.type==="number"?"selected":""}>📱 Personal Number (auto-send)</option>
+          <option value="group" ${waContactForm.type==="group"?"selected":""}>👥 Group (copy + paste)</option>
+        </select></div>
+    </div>
+    <div class="field" style="margin-top:8px">
+      <label>${waContactForm.type==="group"?"Group Invite Link":"Phone Number (with country code)"} <span class="req">*</span></label>
+      <input value="${escapeHtml(waContactForm.value||"")}" oninput="window.waContactForm.value=this.value"
+        placeholder="${waContactForm.type==="group"?"https://chat.whatsapp.com/xxxxx":"9647701234567"}">
+      <div style="font-size:10px;color:var(--muted);margin-top:3px">
+        ${waContactForm.type==="group"
+          ? "Paste the group's invite link (Group Info → Invite to Group via link). Message is copied to clipboard; you paste & send."
+          : "Numbers only, no + or spaces. Example: 964 then number → 9647701234567. Message opens ready to send."}
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="btn btn-primary" style="background:#25D366;border-color:#25D366" onclick="saveWaContact()">${waContactEditId?"Update":"Add Contact"}</button>
+      ${waContactEditId?`<button class="btn btn-ghost" onclick="cancelWaContact()">Cancel</button>`:""}
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="filter-row"><span class="card-title" style="margin:0">Saved Contacts & Groups</span><span class="count-pill">${contacts.length}</span></div>
+    ${contacts.length===0?`<div class="empty">No contacts yet</div>`:
+    `<div style="display:flex;flex-direction:column;gap:8px">
+      ${contacts.map(c=>`<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;background:#F7FAF8;border:1px solid #D7E8DD;border-radius:8px">
+        <div style="display:flex;align-items:center;gap:10px;min-width:0">
+          <span style="font-size:20px">${c.type==="group"?"👥":"📱"}</span>
+          <div style="min-width:0">
+            <div style="font-weight:700;font-size:13px;color:#1B3A6B">${escapeHtml(c.name)}</div>
+            <div style="font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.type==="group"?"Group link":escapeHtml(c.value)}</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:5px;flex-shrink:0">
+          <button class="btn btn-sm btn-secondary" onclick="editWaContact('${c.id}')">✎</button>
+          <button class="btn btn-sm btn-danger" onclick="delWaContact('${c.id}')">🗑</button>
+        </div>
+      </div>`).join("")}
+    </div>`}
+  </div>
+
+  <div class="card" style="border-left:4px solid #03308B">
+    <div class="card-title">⚙️ Message Content — Fields to Include</div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:10px">Choose which details appear in the WhatsApp message.</p>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      ${WA_FIELDS.map(f=>{
+        const on = (s.enabledFields||[]).includes(f.id);
+        return `<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;padding:7px 10px;background:${on?'#E8F5E9':'#F7F7F7'};border-radius:6px">
+          <input type="checkbox" ${on?"checked":""} onchange="toggleWaField('${f.id}')" style="width:16px;height:16px;cursor:pointer">
+          <span style="font-size:15px">${f.icon}</span>
+          <span style="font-weight:600;color:${on?'#2E7D32':'#666'}">${f.label}</span>
+        </label>`;
+      }).join("")}
+    </div>
+    <div class="field" style="margin-top:12px">
+      <label>Message Header</label>
+      <input value="${escapeHtml(s.messageHeader||"")}" onchange="window.setWaHeader(this.value)" placeholder="🔔 New Task — EJAF Operations">
+    </div>
+  </div>
+
+  <div class="card" style="border-left:4px solid #6A1B9A">
+    <div class="card-title">👁️ Who Can See the WhatsApp Button</div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:10px">Admin always has access. Select which other roles can share to WhatsApp.</p>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      ${[["hr","📋 HR / Manager"],["support","🛠 Support"],["it","💻 IT"],["employee","👤 Employee"]].map(([role,lbl])=>{
+        const on = (s.allowedRoles||["admin"]).includes(role);
+        return `<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;padding:7px 10px;background:${on?'#F3E5F5':'#F7F7F7'};border-radius:6px">
+          <input type="checkbox" ${on?"checked":""} onchange="toggleWaRole('${role}')" style="width:16px;height:16px;cursor:pointer">
+          <span style="font-weight:600;color:${on?'#6A1B9A':'#666'}">${lbl}</span>
+        </label>`;
+      }).join("")}
+    </div>
+  </div>
+
+  <div class="card" style="border-left:4px solid #E65100">
+    <div class="card-title">🎯 When to Show the Button</div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:10px">Show the WhatsApp share button after these actions.</p>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      ${[["daily","📋 After adding a Daily Log entry"],["clientRequests","📨 After a Client Request"]].map(([trig,lbl])=>{
+        const on = (s.triggers||[]).includes(trig);
+        return `<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;padding:7px 10px;background:${on?'#FFF3E0':'#F7F7F7'};border-radius:6px">
+          <input type="checkbox" ${on?"checked":""} onchange="toggleWaTrigger('${trig}')" style="width:16px;height:16px;cursor:pointer">
+          <span style="font-weight:600;color:${on?'#E65100':'#666'}">${lbl}</span>
+        </label>`;
+      }).join("")}
+    </div>
+  </div>`;
+}
+
+// ── Contact CRUD ──
+async function saveWaContact(){
+  if(!isAdmin()) return toast("Admin only");
+  const name=(waContactForm.name||"").trim();
+  const value=(waContactForm.value||"").trim();
+  if(!name) return toast("Name is required");
+  if(!value) return toast(waContactForm.type==="group"?"Group link required":"Phone number required");
+  if(waContactForm.type==="number"){
+    const clean = value.replace(/[^0-9]/g,"");
+    if(clean.length < 8) return toast("Invalid phone number");
+    waContactForm.value = clean;
+  } else {
+    if(!value.includes("chat.whatsapp.com")) return toast("Invalid group invite link");
+  }
+  await fbSave("waContacts",{
+    id: waContactEditId||undefined,
+    name, type: waContactForm.type, value: waContactForm.value,
+    createdBy: state.profile.uid,
+  });
+  toast(waContactEditId?"Contact updated ✓":"Contact added ✓");
+  waContactForm=null; waContactEditId=null;
+}
+function editWaContact(id){
+  const c=(state.waContacts||[]).find(x=>x.id===id);
+  if(c){ waContactForm={name:c.name,type:c.type,value:c.value}; waContactEditId=id; render(); window.scrollTo(0,0); }
+}
+async function delWaContact(id){
+  if(!confirm("Delete this contact?"))return;
+  await fbDelete("waContacts",id);
+  toast("Deleted");
+}
+function cancelWaContact(){ waContactForm=null; waContactEditId=null; render(); }
+Object.assign(window,{saveWaContact,editWaContact,delWaContact,cancelWaContact});
+Object.defineProperty(window,'waContactForm',{get:()=>waContactForm,set:v=>waContactForm=v,configurable:true});
+
+// ── Settings updates ──
+async function waSaveSettings(patch){
+  if(!isAdmin()) return;
+  const {db, doc, setDoc} = window.__fb;
+  const cur = waGetSettings();
+  const next = {...cur, ...patch};
+  await setDoc(doc(db,"settings","whatsapp"), next, {merge:true});
+}
+window.toggleWaField = async function(fid){
+  const s = waGetSettings();
+  const arr = [...(s.enabledFields||[])];
+  const i = arr.indexOf(fid);
+  if(i>=0) arr.splice(i,1); else arr.push(fid);
+  await waSaveSettings({enabledFields:arr});
+};
+window.toggleWaRole = async function(role){
+  const s = waGetSettings();
+  const arr = [...(s.allowedRoles||["admin"])];
+  const i = arr.indexOf(role);
+  if(i>=0) arr.splice(i,1); else arr.push(role);
+  await waSaveSettings({allowedRoles:arr});
+};
+window.toggleWaTrigger = async function(trig){
+  const s = waGetSettings();
+  const arr = [...(s.triggers||[])];
+  const i = arr.indexOf(trig);
+  if(i>=0) arr.splice(i,1); else arr.push(trig);
+  await waSaveSettings({triggers:arr});
+};
+window.setWaHeader = async function(v){
+  await waSaveSettings({messageHeader: v});
+  toast("Header updated ✓");
+};
+
+// ── Build message text from a record using enabled fields ──
+function buildWaMessage(record){
+  const s = waGetSettings();
+  const fields = s.enabledFields || [];
+  const lines = [s.messageHeader || "🔔 New Task — EJAF Operations", ""];
+  const fieldMap = {
+    entryNo:        ()=> record.entryNo ? `#️⃣ Entry: ${formatEntryNo(record.entryNo)}` : "",
+    employee:       ()=> record.employee ? `👤 Employee: ${record.employee}` : "",
+    date:           ()=> record.date ? `📅 Date: ${fmtDate(record.date)}` : "",
+    project:        ()=> record.project ? `📁 Project: ${record.project}` : "",
+    dept:           ()=> record.dept ? `🏢 Dept: ${record.dept}` : "",
+    location:       ()=> record.location ? `📍 Location: ${record.location}` : "",
+    duration:       ()=> (record.duration||record.hours) ? `⏱️ Duration: ${fmtHM(record.duration||record.hours)}` : "",
+    resolutionText: ()=> record.resolutionText ? `📝 ${record.resolutionText}` : (record.description ? `📝 ${record.description}` : ""),
+    notes:          ()=> record.notes ? `🗒️ Notes: ${record.notes}` : "",
+  };
+  fields.forEach(f=>{
+    const fn = fieldMap[f];
+    if(fn){ const line = fn(); if(line) lines.push(line); }
+  });
+  return lines.join("\n");
+}
+
+// ── Show the WhatsApp share dialog (pick a contact, then send) ──
+function openWaShare(record){
+  if(!canUseWhatsApp()) return;
+  const contacts = state.waContacts || [];
+  const msg = buildWaMessage(record);
+  // Stash for the send handler
+  window.__waMsg = msg;
+  window.__waRecord = record;
+
+  const existing = document.getElementById("waShareDialog");
+  if(existing) existing.remove();
+
+  const html = `
+    <div id="waShareDialog" style="position:fixed;inset:0;background:rgba(10,22,46,0.6);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px" onclick="if(event.target===this)this.remove()">
+      <div style="background:white;border-radius:16px;max-width:400px;width:100%;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,0.3);max-height:85vh;display:flex;flex-direction:column">
+        <div style="background:#25D366;padding:16px 20px;color:white;display:flex;align-items:center;gap:10px">
+          <span style="font-size:24px">📲</span>
+          <div><div style="font-size:16px;font-weight:800">Share to WhatsApp</div><div style="font-size:11px;opacity:0.9">Choose a contact or group</div></div>
+        </div>
+        <div style="padding:14px 18px;overflow-y:auto">
+          <div style="background:#F0F4FA;border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:11px;color:#475569;white-space:pre-wrap;max-height:120px;overflow-y:auto;border:1px solid #E2E8F0">${escapeHtml(msg)}</div>
+          ${contacts.length===0
+            ? `<div style="text-align:center;padding:20px;color:#999;font-size:13px">No contacts saved yet.<br>Add some in the WhatsApp tab.</div>`
+            : `<div style="display:flex;flex-direction:column;gap:7px">
+                ${contacts.map(c=>`<button onclick="sendToWa('${c.id}')" style="display:flex;align-items:center;gap:10px;padding:11px 13px;background:#F7FAF8;border:1px solid #D7E8DD;border-radius:9px;cursor:pointer;text-align:left;width:100%">
+                  <span style="font-size:20px">${c.type==="group"?"👥":"📱"}</span>
+                  <div style="flex:1;min-width:0">
+                    <div style="font-weight:700;font-size:13px;color:#1B3A6B">${escapeHtml(c.name)}</div>
+                    <div style="font-size:10px;color:#888">${c.type==="group"?"Group — copy & paste":"Number — opens ready to send"}</div>
+                  </div>
+                  <span style="color:#25D366;font-weight:900;font-size:18px">→</span>
+                </button>`).join("")}
+              </div>`}
+        </div>
+        <div style="padding:10px 18px;border-top:1px solid #eee">
+          <button onclick="document.getElementById('waShareDialog').remove()" style="width:100%;padding:10px;background:none;border:none;color:#94A3B8;font-size:13px;cursor:pointer">Close</button>
+        </div>
+      </div>
+    </div>`;
+  document.body.insertAdjacentHTML("beforeend", html);
+}
+window.openWaShare = openWaShare;
+
+window.sendToWa = async function(contactId){
+  const c = (state.waContacts||[]).find(x=>x.id===contactId);
+  if(!c) return;
+  const msg = window.__waMsg || "";
+  if(c.type==="number"){
+    // Personal number — opens chat with message ready
+    const url = `https://wa.me/${c.value}?text=${encodeURIComponent(msg)}`;
+    window.open(url, "_blank");
+  } else {
+    // Group — copy message to clipboard, then open the group link
+    try{
+      await navigator.clipboard.writeText(msg);
+      toast("✓ Message copied! Paste it in the group.");
+    }catch(e){
+      toast("Copy failed — message shown below, copy manually");
+    }
+    setTimeout(()=>{ window.open(c.value, "_blank"); }, 600);
+  }
+  document.getElementById("waShareDialog")?.remove();
+};
 
 
 function renderProfile(){
@@ -6141,3 +6640,4 @@ if('serviceWorker' in navigator){
 
 </body>
 </html>
+v
