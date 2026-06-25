@@ -365,8 +365,43 @@ function emailGetSettings(){
     enabledFields: ["employee","date","project","location","duration","resolutionText"],
     allowedRoles: ["admin"], triggers: ["daily","clientRequests"],
     subject: "New Task — EJAF Operations",
+    autoSend: true,            // master: send automatically on new task
+    includeEmployees: false,   // also send to all users with employee role
+    includeClients: false,     // also send to all client users
   };
 }
+
+// Resolve the full recipient list: manual contacts + (optionally) all employees + all clients.
+// Returns array of {name, email}, de-duplicated by email.
+function resolveEmailRecipients(){
+  const s = emailGetSettings();
+  const out = [];
+  const seen = new Set();
+  const add = (name, email) => {
+    if(!email || !email.includes("@")) return;
+    const key = email.toLowerCase().trim();
+    if(seen.has(key)) return;
+    seen.add(key);
+    out.push({name: name||email, email: email.trim()});
+  };
+  // 1. Manual recipients
+  (state.emailContacts||[]).forEach(c => add(c.name, c.email));
+  // 2. All employee-role users (if enabled)
+  if(s.includeEmployees){
+    (state.users||[]).forEach(u => {
+      const role = (u.role||"").toLowerCase();
+      if(role==="employee" || role==="hr" || role==="support" || role==="it") add(u.name, u.email);
+    });
+  }
+  // 3. All client users (if enabled)
+  if(s.includeClients){
+    (state.users||[]).forEach(u => {
+      if((u.role||"").toLowerCase()==="client") add(u.name, u.email);
+    });
+  }
+  return out;
+}
+
 function canUseEmail(){
   const s = emailGetSettings();
   if(!s.enabled) return false;  // master switch off
@@ -960,6 +995,7 @@ async function subscribeData(){
       allowedRoles: ["admin"],
       triggers: ["daily","clientRequests"],
       subject: "New Task — EJAF Operations",
+      autoSend: true, includeEmployees: false, includeClients: false,
     };
     if(state.initialized) renderTab();
   });
@@ -1739,6 +1775,7 @@ async function exportDailyPDF(){
   const entryRows = rows.map(r=>`<tr>
     <td style="text-align:center;font-weight:700;color:#03308B;background:#f0f4ff">${r.entryNo ? formatEntryNo(r.entryNo) : '—'}</td>
     <td>${fmtDate(r.date)}</td>
+    <td style="font-size:10px;color:#555;white-space:nowrap">${r.start&&r.end?`${r.start}–${r.end}`:'—'}</td>
     <td><strong style="color:#03308B">${escapeHtml(r.employee||'')}</strong></td>
     <td>${escapeHtml(r.project||'')}</td>
     <td><span style="background:${(state.departments.find(d=>d.name===r.dept)||{color:'#888'}).color}22;color:${(state.departments.find(d=>d.name===r.dept)||{color:'#888'}).color};padding:2px 7px;border-radius:8px;font-size:10px;font-weight:700">${escapeHtml(r.dept||'')}</span></td>
@@ -1766,9 +1803,9 @@ async function exportDailyPDF(){
     <table><thead><tr><th>Employee</th><th>Hours</th><th>Entries</th></tr></thead><tbody>${empSummaryRows||'<tr><td colspan="3" style="text-align:center;color:#888">No data</td></tr>'}</tbody></table>
     <div class="ksec"><span class="kbad">04</span><h3>Daily Entries Detail</h3></div>
     <table>
-      <thead><tr><th style="width:44px">#</th><th>Date</th><th>Employee</th><th>Project</th><th>Dept</th><th>Location</th><th>Hours</th><th>Resolution Summary</th></tr></thead>
-      <tbody>${entryRows||'<tr><td colspan="8" style="text-align:center;color:#888">No entries</td></tr>'}</tbody>
-      <tfoot><tr><td colspan="6"><strong>GRAND TOTAL</strong></td><td style="color:#C9A84C;font-weight:700">${fmtHM(totalHrs)}</td><td>${rows.length} entries</td></tr></tfoot>
+      <thead><tr><th style="width:44px">#</th><th>Date</th><th>Time</th><th>Employee</th><th>Project</th><th>Dept</th><th>Location</th><th>Hours</th><th>Resolution Summary</th></tr></thead>
+      <tbody>${entryRows||'<tr><td colspan="9" style="text-align:center;color:#888">No entries</td></tr>'}</tbody>
+      <tfoot><tr><td colspan="7"><strong>GRAND TOTAL</strong></td><td style="color:#C9A84C;font-weight:700">${fmtHM(totalHrs)}</td><td>${rows.length} entries</td></tr></tfoot>
     </table>
     <script>setTimeout(()=>window.print(),500)<\/script>`;
 
@@ -1816,29 +1853,30 @@ async function exportDailyExcel(){
     setC(ws1,'A1',`EJAF Technology — Daily Work Log  |  Ref: ${refNo}`,titleSt);
     setM(ws1,{s:{r:0,c:0},e:{r:0,c:6}});
     setC(ws1,'A2',`Period: ${period}${filterEmp?' · Employee: '+filterEmp:''}  |  Generated: ${new Date().toLocaleString('en-GB')}`,subSt);
-    setM(ws1,{s:{r:1,c:0},e:{r:1,c:6}});
-    setC(ws1,'A4','#',hdSt); setC(ws1,'B4','Date',hdSt); setC(ws1,'C4','Employee',hdSt);
-    setC(ws1,'D4','Project',hdSt); setC(ws1,'E4','Department',hdSt);
-    setC(ws1,'F4','Location',hdSt); setC(ws1,'G4','Hours',hdSt); setC(ws1,'H4','GPS',hdSt);
+    setM(ws1,{s:{r:1,c:0},e:{r:1,c:7}});
+    setC(ws1,'A4','#',hdSt); setC(ws1,'B4','Date',hdSt); setC(ws1,'C4','Time',hdSt);
+    setC(ws1,'D4','Employee',hdSt); setC(ws1,'E4','Project',hdSt); setC(ws1,'F4','Department',hdSt);
+    setC(ws1,'G4','Location',hdSt); setC(ws1,'H4','Hours',hdSt); setC(ws1,'I4','GPS',hdSt);
     rows.forEach((r,i)=>{
       const row=5+i; const alt=i%2===1;
       const bg = alt ? COLORS.bgAlt : COLORS.white;
       const cellSt = {font:{sz:10,color:{rgb:COLORS.textDark}},fill:{fgColor:{rgb:bg}}};
       setC(ws1,`A${row}`,r.entryNo?Number(r.entryNo):i+1,{...cellSt,alignment:{horizontal:"center"},font:{sz:10,bold:true,color:{rgb:COLORS.navy}}});
       setC(ws1,`B${row}`,r.date||'',cellSt);
-      setC(ws1,`C${row}`,r.employee||'',cellSt);
-      setC(ws1,`D${row}`,r.project||'',cellSt);
-      setC(ws1,`E${row}`,r.dept||'',cellSt);
-      setC(ws1,`F${row}`,r.location||'',cellSt);
-      setC(ws1,`G${row}`,fmtHM(r.duration),{...cellSt,font:{sz:10,bold:true,color:{rgb:"2E7D32"}}});
-      setC(ws1,`H${row}`, r.gpsLat ? gpsMapLink(r.gpsLat,r.gpsLng) : (r.gpsDenied?'GPS denied':''), {...cellSt,font:{sz:9,color:{rgb:r.gpsLat?"2E7D32":"C62828"}}});
+      setC(ws1,`C${row}`,(r.start&&r.end)?`${r.start}–${r.end}`:'',{...cellSt,font:{sz:9,color:{rgb:COLORS.textDark}}});
+      setC(ws1,`D${row}`,r.employee||'',cellSt);
+      setC(ws1,`E${row}`,r.project||'',cellSt);
+      setC(ws1,`F${row}`,r.dept||'',cellSt);
+      setC(ws1,`G${row}`,r.location||'',cellSt);
+      setC(ws1,`H${row}`,fmtHM(r.duration),{...cellSt,font:{sz:10,bold:true,color:{rgb:"2E7D32"}}});
+      setC(ws1,`I${row}`, r.gpsLat ? gpsMapLink(r.gpsLat,r.gpsLng) : (r.gpsDenied?'GPS denied':''), {...cellSt,font:{sz:9,color:{rgb:r.gpsLat?"2E7D32":"C62828"}}});
     });
     const totRow=5+rows.length;
     const totSt={font:{bold:true,sz:11,color:{rgb:COLORS.gold}},fill:{fgColor:{rgb:"0A1628"}}};
-    setC(ws1,`A${totRow}`,'TOTAL',totSt); setM(ws1,{s:{r:totRow-1,c:0},e:{r:totRow-1,c:5}});
-    setC(ws1,`G${totRow}`,fmtHM(rows.reduce((s,r)=>s+Number(r.duration||0),0)),totSt);
-    ws1['!ref']=`A1:H${totRow}`;
-    ws1['!cols']=[{wch:8},{wch:12},{wch:20},{wch:28},{wch:16},{wch:18},{wch:10},{wch:38}];
+    setC(ws1,`A${totRow}`,'TOTAL',totSt); setM(ws1,{s:{r:totRow-1,c:0},e:{r:totRow-1,c:6}});
+    setC(ws1,`H${totRow}`,fmtHM(rows.reduce((s,r)=>s+Number(r.duration||0),0)),totSt);
+    ws1['!ref']=`A1:I${totRow}`;
+    ws1['!cols']=[{wch:8},{wch:12},{wch:14},{wch:20},{wch:28},{wch:16},{wch:18},{wch:10},{wch:38}];
     XLSX.utils.book_append_sheet(wb,ws1,'Daily Log');
 
     // ── SHEET 2: Department Summary ──
@@ -1896,9 +1934,9 @@ function exportCSV(){
   // Overtime
   const otRows=applyReportFilters(isHR()?state.overtime:state.overtime.filter(r=>r.employee===state.profile.employeeName));
   lines.push("OVERTIME LOG");
-  lines.push(["Date","Day","Employee","Hours","Project","Department","Location","Notes"].map(csvEscape).join(","));
+  lines.push(["Date","Day","Employee","Start","End","Hours","Project","Department","Location","Notes"].map(csvEscape).join(","));
   otRows.forEach(r=>{
-    lines.push([r.date,r.day||"",r.employee,fmtHM(r.hours),r.project||"",r.dept||"",r.location||"",r.notes||""].map(csvEscape).join(","));
+    lines.push([r.date,r.day||"",r.employee,r.start||"",r.end||"",fmtHM(r.hours),r.project||"",r.dept||"",r.location||"",r.notes||""].map(csvEscape).join(","));
   });
   lines.push("");
 
@@ -1989,8 +2027,8 @@ async function exportPDF(){
     const sub=my.reduce((a,r)=>a+Number(r.hours||0),0);
     return `<div class="emp-block ot">
       <div class="emp-head"><span>▶ ${employeeBadge(emp)}</span><span class="emp-head-tag">${my.length} entries</span></div>
-      ${!my.length?`<div class="empty">No overtime</div>`:`<table><thead><tr><th>Date</th><th>Day</th><th>Hours</th><th>Project</th><th>Location</th></tr></thead>
-      <tbody>${my.map(r=>`<tr><td>${fmtDate(r.date)}</td><td>${r.day||''}</td><td style="color:#E65100;font-weight:700">${fmtHM(r.hours)}</td><td>${escapeHtml(r.project||'—')}</td><td>${escapeHtml(r.location||'—')}</td></tr>`).join('')}</tbody></table>`}
+      ${!my.length?`<div class="empty">No overtime</div>`:`<table><thead><tr><th>Date</th><th>Time</th><th>Day</th><th>Hours</th><th>Project</th><th>Location</th></tr></thead>
+      <tbody>${my.map(r=>`<tr><td>${fmtDate(r.date)}</td><td style="font-size:10px;color:#555;white-space:nowrap">${r.start&&r.end?`${r.start}–${r.end}`:'—'}</td><td>${r.day||''}</td><td style="color:#E65100;font-weight:700">${fmtHM(r.hours)}</td><td>${escapeHtml(r.project||'—')}</td><td>${escapeHtml(r.location||'—')}</td></tr>`).join('')}</tbody></table>`}
       <div class="emp-sub"><span>Subtotal</span><span>${fmtHM(sub)}</span></div>
     </div>`;
   }).filter(Boolean).join('');
@@ -2501,13 +2539,13 @@ async function saveDaily(){
 
   // Auto-assign entry number for new entries only
   const entryNoToSave = dailyEditId ? undefined : getNextDailyEntryNo();
-  const isNewEntry = !dailyEditId;
   const savedRecord = {
     ...dailyForm,
     duration:+timeToHrs(dailyForm.start,dailyForm.end).toFixed(4),
     dept:projDept(dailyForm.project),
     ...(entryNoToSave ? {entryNo: entryNoToSave} : {}),
   };
+  const isNewDailyEntry = !dailyEditId;
   await fbSave("daily",{
     id:dailyEditId||undefined,
     ...savedRecord,
@@ -2516,13 +2554,10 @@ async function saveDaily(){
   });
   dailyForm=null;dailyEditId=null;
   toast("Saved ✓");
-  // WhatsApp share (new daily entries only, if enabled & permitted)
-  if(isNewEntry && canUseWhatsApp() && (waGetSettings().triggers||[]).includes("daily")){
-    setTimeout(()=>openWaShare(savedRecord), 400);
-  }
-  // Email share (new daily entries only, if service ON & permitted)
-  else if(isNewEntry && canUseEmail() && (emailGetSettings().triggers||[]).includes("daily")){
-    setTimeout(()=>openEmailShare(savedRecord), 400);
+  // WhatsApp stays manual (📲 button per row).
+  // Email auto-sends on NEW entries when the service + autoSend are ON.
+  if(isNewDailyEntry && (emailGetSettings().triggers||[]).includes("daily")){
+    autoSendTaskEmail(savedRecord);
   }
 }
 async function saveDailyAndNext(){
@@ -2537,20 +2572,76 @@ async function saveDailyAndNext(){
   if(isEmployee()) return toast("Use Save for single entry");
   // Save first
   const entryNoNext = getNextDailyEntryNo();
-  await fbSave("daily",{
-    id:undefined,
+  const recordForEmail = {
     ...dailyForm,
     duration:+timeToHrs(dailyForm.start,dailyForm.end).toFixed(4),
     dept:projDept(dailyForm.project),
-    createdBy:state.profile.uid,
     entryNo: entryNoNext,
+  };
+  await fbSave("daily",{
+    id:undefined,
+    ...recordForEmail,
+    createdBy:state.profile.uid,
   });
+  // Accumulate this entry for a SINGLE combined email (all employees on the task).
+  // A debounce timer fires the email a few seconds after the last "Save & Add".
+  if((emailGetSettings().triggers||[]).includes("daily")){
+    bufferTaskEmail(recordForEmail);
+  }
   // Keep form data — only clear employee and resolution for next entry
   const savedEmp = dailyForm.employee;
   dailyForm = {...dailyForm, employee:"", resolutionText:"", resolutionImages:[]};
   render();
   toast(`Saved for ${savedEmp} ✓ — Add new resolution for next employee`);
 }
+
+// ── Combined email buffer for "Save & Add for Another Employee" ──
+// Collects entries, then sends ONE email listing all employees after a pause.
+let _emailBuffer = [];
+let _emailBufferTimer = null;
+function bufferTaskEmail(record){
+  _emailBuffer.push(record);
+  if(_emailBufferTimer) clearTimeout(_emailBufferTimer);
+  // Wait 6 seconds after the last addition, then send one combined email
+  _emailBufferTimer = setTimeout(flushTaskEmailBuffer, 6000);
+  toast(`📧 ${_emailBuffer.length} employee(s) queued — email sends shortly…`);
+}
+async function flushTaskEmailBuffer(){
+  if(_emailBuffer.length === 0) return;
+  const entries = _emailBuffer.slice();
+  _emailBuffer = [];
+  if(_emailBufferTimer){ clearTimeout(_emailBufferTimer); _emailBufferTimer = null; }
+
+  const s = emailGetSettings();
+  if(!s.enabled || !s.autoSend) return;
+  if(!s.serviceId || !s.templateId || !s.publicKey) return;
+  if(typeof emailjs === "undefined") return;
+  const recipients = resolveEmailRecipients();
+  if(recipients.length === 0) return;
+
+  // Build a combined body: shared task details + list of all employees
+  const first = entries[0];
+  const names = entries.map(e=>e.employee).filter(Boolean);
+  const combined = { ...first, employee: names.join(", ") };
+  const body = buildEmailBody(combined);
+
+  try{
+    emailjs.init({publicKey:s.publicKey});
+    let sent = 0;
+    for(const r of recipients){
+      await emailjs.send(s.serviceId, s.templateId, {
+        subject: s.subject || "New Task — EJAF Operations",
+        message: body,
+        to_email: r.email,
+      });
+      sent++;
+    }
+    toast(`📧 Combined email (${names.length} employees) sent to ${sent} recipient${sent>1?'s':''}`);
+  }catch(e){
+    toast("Auto-email failed: " + (e.text||e.message||"check setup"));
+  }
+}
+window.flushTaskEmailBuffer = flushTaskEmailBuffer;
 
 // ═══ RESOLUTION IMAGE HANDLERS ═══
 async function handleResolutionImages(fileList){
@@ -5335,6 +5426,44 @@ function renderEmailTab(){
     </div>`}
   </div>
 
+  <!-- AUTO-SEND -->
+  <div class="card" style="border-left:4px solid ${s.autoSend?'#2E7D32':'#999'}">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:24px">${s.autoSend?'⚡':'✋'}</span>
+        <div>
+          <div style="font-size:14px;font-weight:800;color:#1B3A6B">Automatic Sending</div>
+          <div style="font-size:11px;color:${s.autoSend?'#2E7D32':'#999'};font-weight:600">${s.autoSend?'● Sends instantly on each new task':'○ Manual only (📧 button)'}</div>
+        </div>
+      </div>
+      <div onclick="toggleEmailAutoSend()" style="width:52px;height:28px;background:${s.autoSend?'#2E7D32':'#ccc'};border-radius:14px;position:relative;cursor:pointer;transition:background 0.3s">
+        <div style="position:absolute;top:3px;${s.autoSend?'right:3px':'left:3px'};width:22px;height:22px;background:white;border-radius:50%;transition:all 0.3s;box-shadow:0 1px 3px rgba(0,0,0,0.3)"></div>
+      </div>
+    </div>
+    <div style="margin-top:10px;padding:9px 12px;background:#FFF8E1;border-radius:8px;font-size:11px;color:#7F6000;line-height:1.6">
+      ⚡ When ON: a new Daily Log entry emails all recipients automatically. "Save & Add for Another Employee" sends one combined email listing every employee. When OFF, use the 📧 button per row.
+    </div>
+  </div>
+
+  <!-- RECIPIENT SOURCES -->
+  <div class="card" style="border-left:4px solid #00838F">
+    <div class="card-title">📋 Recipient Sources</div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:10px">Beyond the manual list above, automatically include:</p>
+    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;padding:9px 11px;background:${s.includeEmployees?'#E0F7FA':'#F7F7F7'};border-radius:6px;margin-bottom:6px">
+      <input type="checkbox" ${s.includeEmployees?"checked":""} onchange="toggleEmailIncludeEmployees()" style="width:16px;height:16px;cursor:pointer">
+      <span style="font-size:15px">👥</span>
+      <span style="font-weight:600;color:${s.includeEmployees?'#00838F':'#666'}">All staff (Employees, HR, Support, IT)</span>
+    </label>
+    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;padding:9px 11px;background:${s.includeClients?'#E0F7FA':'#F7F7F7'};border-radius:6px">
+      <input type="checkbox" ${s.includeClients?"checked":""} onchange="toggleEmailIncludeClients()" style="width:16px;height:16px;cursor:pointer">
+      <span style="font-size:15px">🏢</span>
+      <span style="font-weight:600;color:${s.includeClients?'#00838F':'#666'}">All Clients</span>
+    </label>
+    <div style="margin-top:10px;padding:8px 11px;background:#F0F4FA;border-radius:7px;font-size:11px;color:#475569">
+      📊 Current recipients: <strong>${resolveEmailRecipients().length}</strong> total (manual + selected sources)
+    </div>
+  </div>
+
   <!-- MESSAGE FIELDS -->
   <div class="card" style="border-left:4px solid #6A1B9A">
     <div class="card-title">⚙️ Email Content — Fields to Include</div>
@@ -5440,6 +5569,19 @@ window.toggleEmailTrigger = async function(trig){
   const s=emailGetSettings(); const arr=[...(s.triggers||[])];
   const i=arr.indexOf(trig); if(i>=0)arr.splice(i,1);else arr.push(trig);
   await emailSaveSettings({triggers:arr});
+};
+window.toggleEmailAutoSend = async function(){
+  const s=emailGetSettings();
+  await emailSaveSettings({autoSend: !s.autoSend});
+  toast(!s.autoSend ? "Auto-send ON ⚡" : "Auto-send OFF — manual only");
+};
+window.toggleEmailIncludeEmployees = async function(){
+  const s=emailGetSettings();
+  await emailSaveSettings({includeEmployees: !s.includeEmployees});
+};
+window.toggleEmailIncludeClients = async function(){
+  const s=emailGetSettings();
+  await emailSaveSettings({includeClients: !s.includeClients});
 };
 
 // ── Build email body from a record ──
@@ -5548,11 +5690,39 @@ async function doSendEmail(recipients){
   }
   document.getElementById("emailShareDialog")?.remove();
 }
-window.sendEmailToAll = function(){ doSendEmail(state.emailContacts||[]); };
+window.sendEmailToAll = function(){ doSendEmail(resolveEmailRecipients()); };
 window.sendEmailToOne = function(id){
   const c=(state.emailContacts||[]).find(x=>x.id===id);
   if(c) doSendEmail([c]);
 };
+
+// Silent automatic email for a new task — sends to ALL resolved recipients,
+// no dialog. Builds its own body from the record. Used when autoSend is ON.
+async function autoSendTaskEmail(record){
+  const s = emailGetSettings();
+  if(!s.enabled || !s.autoSend) return;                    // master / auto off
+  if(!s.serviceId || !s.templateId || !s.publicKey) return; // not configured
+  if(typeof emailjs === "undefined") return;                // SDK missing
+  const recipients = resolveEmailRecipients();
+  if(recipients.length === 0) return;                       // no one to send to
+  const body = buildEmailBody(record);
+  try{
+    emailjs.init({publicKey:s.publicKey});
+    let sent = 0;
+    for(const r of recipients){
+      await emailjs.send(s.serviceId, s.templateId, {
+        subject: s.subject || "New Task — EJAF Operations",
+        message: body,
+        to_email: r.email,
+      });
+      sent++;
+    }
+    toast(`📧 Auto-emailed ${sent} recipient${sent>1?'s':''}`);
+  }catch(e){
+    toast("Auto-email failed: " + (e.text||e.message||"check setup"));
+  }
+}
+window.autoSendTaskEmail = autoSendTaskEmail;
 
 
 function renderProfile(){
@@ -6391,9 +6561,9 @@ async function exportFilteredExcel(){
     wsD['!cols']=[{wch:26},{wch:12},{wch:26},{wch:16},{wch:14},{wch:10},{wch:30}];
     XLSX.utils.book_append_sheet(wb, wsD, 'Daily');
 
-    const otData = or.map(r=>[employeePlainBadge(r.employee||''),r.date||'',fmtHM(r.hours),r.project||'',r.dept||'',r.location||'']);
-    const wsO = buildDetail('Overtime Log', ['Employee','Date','OT Hours','Project','Department','Location'], otData, COLORS.orange);
-    wsO['!cols']=[{wch:26},{wch:12},{wch:12},{wch:26},{wch:16},{wch:16}];
+    const otData = or.map(r=>[employeePlainBadge(r.employee||''),r.date||'',r.start||'',r.end||'',fmtHM(r.hours),r.project||'',r.dept||'',r.location||'']);
+    const wsO = buildDetail('Overtime Log', ['Employee','Date','Start','End','OT Hours','Project','Department','Location'], otData, COLORS.orange);
+    wsO['!cols']=[{wch:26},{wch:12},{wch:8},{wch:8},{wch:12},{wch:26},{wch:16},{wch:16}];
     XLSX.utils.book_append_sheet(wb, wsO, 'Overtime');
 
     const trData = tr.map(r=>[employeePlainBadge(r.employee||''),r.date||'',r.days||0,r.project||'',r.location||'',r.perDiem||0]);
@@ -6763,9 +6933,9 @@ async function exportExcel(){
 
     // Overtime
     const oRows = applyReportFilters(isHR() ? state.overtime : state.overtime.filter(r=>r.employee===state.profile.employeeName));
-    const otData = oRows.map(r=>[r.employee||'', r.date||'', r.day||'', fmtHM(r.hours), r.project||'', r.dept||'', r.location||'', r.notes||'']);
-    const ws3 = buildDetailSheet('Overtime Log', ['Employee','Date','Day','OT Hours','Project','Department','Location','Notes'], otData, '#'+COLORS.orange);
-    ws3['!cols']=[{wch:22},{wch:12},{wch:8},{wch:11},{wch:26},{wch:14},{wch:14},{wch:30}];
+    const otData = oRows.map(r=>[r.employee||'', r.date||'', r.day||'', r.start||'', r.end||'', fmtHM(r.hours), r.project||'', r.dept||'', r.location||'', r.notes||'']);
+    const ws3 = buildDetailSheet('Overtime Log', ['Employee','Date','Day','Start','End','OT Hours','Project','Department','Location','Notes'], otData, '#'+COLORS.orange);
+    ws3['!cols']=[{wch:22},{wch:12},{wch:8},{wch:8},{wch:8},{wch:11},{wch:26},{wch:14},{wch:14},{wch:30}];
     XLSX.utils.book_append_sheet(wb, ws3, 'Overtime');
 
     // Travel
