@@ -362,10 +362,11 @@ function isClient(){ return getUserRole() === "client"; }
 function emailGetSettings(){
   return state.emailSettings || {
     enabled: false, serviceId:"", templateId:"", publicKey:"",
-    enabledFields: ["employee","date","project","location","duration","resolutionText"],
+    enabledFields: ["employee","date","time","project","location","duration","resolutionText"],
     allowedRoles: ["admin"], triggers: ["daily","clientRequests"],
     subject: "New Task — EJAF Operations",
     autoSend: true,            // master: send automatically on new task
+    requestRecipients: [],     // dedicated emails for client-request alerts
     includeEmployees: false,   // also send to all users with employee role
     includeClients: false,     // also send to all client users
   };
@@ -977,7 +978,7 @@ async function subscribeData(){
   // WhatsApp settings (single doc)
   const waUnsub = onSnapshot(doc(db,"settings","whatsapp"),(snap)=>{
     state.waSettings = snap.exists() ? snap.data() : {
-      enabledFields: ["employee","date","project","location","duration","resolutionText"],
+      enabledFields: ["employee","date","time","project","location","duration","resolutionText"],
       allowedRoles: ["admin"],
       triggers: ["daily","clientRequests"],
       messageHeader: "🔔 New Task — EJAF Operations",
@@ -991,11 +992,11 @@ async function subscribeData(){
     state.emailSettings = snap.exists() ? snap.data() : {
       enabled: false,
       serviceId: "", templateId: "", publicKey: "",
-      enabledFields: ["employee","date","project","location","duration","resolutionText"],
+      enabledFields: ["employee","date","time","project","location","duration","resolutionText"],
       allowedRoles: ["admin"],
       triggers: ["daily","clientRequests"],
       subject: "New Task — EJAF Operations",
-      autoSend: true, includeEmployees: false, includeClients: false,
+      autoSend: true, includeEmployees: false, includeClients: false, requestRecipients: [],
     };
     if(state.initialized) renderTab();
   });
@@ -1943,9 +1944,9 @@ function exportCSV(){
   // Travel
   const trRows=applyReportFilters(isHR()?state.travel:state.travel.filter(r=>r.employee===state.profile.employeeName));
   lines.push("TRAVEL LOG");
-  lines.push(["Date","Employee","Days","Project","Department","Location","Per Diem IQD","Notes"].map(csvEscape).join(","));
+  lines.push(["Date","Employee","Days","Project","Department","Location","Per Diem IQD","Per Diem Status","Notes"].map(csvEscape).join(","));
   trRows.forEach(r=>{
-    lines.push([r.date,r.employee,r.days,r.project||"",r.dept||"",r.location||"",r.perDiem||0,r.notes||""].map(csvEscape).join(","));
+    lines.push([r.date,r.employee,r.days,r.project||"",r.dept||"",r.location||"",r.perDiem||0,(r.perDiemStatus||"received")==="received"?"Received":"Not Received",r.notes||""].map(csvEscape).join(","));
   });
 
   // UTF-8 BOM so Excel recognizes Arabic and special chars
@@ -2027,8 +2028,8 @@ async function exportPDF(){
     const sub=my.reduce((a,r)=>a+Number(r.hours||0),0);
     return `<div class="emp-block ot">
       <div class="emp-head"><span>▶ ${employeeBadge(emp)}</span><span class="emp-head-tag">${my.length} entries</span></div>
-      ${!my.length?`<div class="empty">No overtime</div>`:`<table><thead><tr><th>Date</th><th>Time</th><th>Day</th><th>Hours</th><th>Project</th><th>Location</th></tr></thead>
-      <tbody>${my.map(r=>`<tr><td>${fmtDate(r.date)}</td><td style="font-size:10px;color:#555;white-space:nowrap">${r.start&&r.end?`${r.start}–${r.end}`:'—'}</td><td>${r.day||''}</td><td style="color:#E65100;font-weight:700">${fmtHM(r.hours)}</td><td>${escapeHtml(r.project||'—')}</td><td>${escapeHtml(r.location||'—')}</td></tr>`).join('')}</tbody></table>`}
+      ${!my.length?`<div class="empty">No overtime</div>`:`<table><thead><tr><th>Date</th><th>Time</th><th>Day</th><th>Hours</th><th>Project</th><th>Location</th><th>Notes</th></tr></thead>
+      <tbody>${my.map(r=>`<tr><td>${fmtDate(r.date)}</td><td style="font-size:10px;color:#555;white-space:nowrap">${r.start&&r.end?`${r.start}–${r.end}`:'—'}</td><td>${r.day||''}</td><td style="color:#E65100;font-weight:700">${fmtHM(r.hours)}</td><td>${escapeHtml(r.project||'—')}</td><td>${escapeHtml(r.location||'—')}</td><td style="font-size:10px;color:#555">${escapeHtml(r.notes||'—')}</td></tr>`).join('')}</tbody></table>`}
       <div class="emp-sub"><span>Subtotal</span><span>${fmtHM(sub)}</span></div>
     </div>`;
   }).filter(Boolean).join('');
@@ -2041,8 +2042,8 @@ async function exportPDF(){
     const sp=my.reduce((a,r)=>a+Number(r.perDiem||0),0);
     return `<div class="emp-block tr">
       <div class="emp-head"><span>▶ ${employeeBadge(emp)}</span><span class="emp-head-tag">${my.length} trips</span></div>
-      ${!my.length?`<div class="empty">No travel</div>`:`<table><thead><tr><th>Date</th><th>Days</th><th>Project</th><th>Location</th><th>Per Diem</th></tr></thead>
-      <tbody>${my.map(r=>`<tr><td>${fmtDate(r.date)}</td><td><strong>${r.days}</strong></td><td>${escapeHtml(r.project||'—')}</td><td>${escapeHtml(r.location||'—')}</td><td style="color:#6A1B9A;font-weight:700">${fmtMoney(r.perDiem)}</td></tr>`).join('')}</tbody></table>`}
+      ${!my.length?`<div class="empty">No travel</div>`:`<table><thead><tr><th>Date</th><th>Days</th><th>Project</th><th>Location</th><th>Per Diem</th><th>Status</th></tr></thead>
+      <tbody>${my.map(r=>`<tr><td>${fmtDate(r.date)}</td><td><strong>${r.days}</strong></td><td>${escapeHtml(r.project||'—')}</td><td>${escapeHtml(r.location||'—')}</td><td style="color:#6A1B9A;font-weight:700">${fmtMoney(r.perDiem)}</td><td style="font-weight:700;color:${(r.perDiemStatus||'received')==='received'?'#2E7D32':'#C62828'}">${(r.perDiemStatus||'received')==='received'?'✅ Received':'❌ Not Received'}</td></tr>`).join('')}</tbody></table>`}
       <div class="emp-sub"><span>Subtotal</span><span>${sd} days · ${fmtMoney(sp)} IQD</span></div>
     </div>`;
   }).filter(Boolean).join('');
@@ -2555,9 +2556,18 @@ async function saveDaily(){
   dailyForm=null;dailyEditId=null;
   toast("Saved ✓");
   // WhatsApp stays manual (📲 button per row).
-  // Email auto-sends on NEW entries when the service + autoSend are ON.
+  // Email logic:
+  //  - If a "Save & Add" sequence is in progress, this entry is the FINAL one:
+  //    add it to the buffer and send ONE combined email for all employees now.
+  //  - Otherwise, send a single auto-email for just this entry.
   if(isNewDailyEntry && (emailGetSettings().triggers||[]).includes("daily")){
-    autoSendTaskEmail(savedRecord);
+    if(_emailBuffer.length > 0){
+      _emailBuffer.push(savedRecord);          // include this last employee
+      if(_emailBufferTimer){ clearTimeout(_emailBufferTimer); _emailBufferTimer = null; }
+      flushTaskEmailBuffer();                  // combined email, immediately
+    } else {
+      autoSendTaskEmail(savedRecord);          // single-entry email
+    }
   }
 }
 async function saveDailyAndNext(){
@@ -2602,9 +2612,10 @@ let _emailBufferTimer = null;
 function bufferTaskEmail(record){
   _emailBuffer.push(record);
   if(_emailBufferTimer) clearTimeout(_emailBufferTimer);
-  // Wait 6 seconds after the last addition, then send one combined email
-  _emailBufferTimer = setTimeout(flushTaskEmailBuffer, 6000);
-  toast(`📧 ${_emailBuffer.length} employee(s) queued — email sends shortly…`);
+  // Fallback: if the user never clicks the final "Add Work Entry", send the
+  // combined email automatically 60s after the last "Save & Add".
+  _emailBufferTimer = setTimeout(flushTaskEmailBuffer, 60000);
+  toast(`📧 ${_emailBuffer.length} employee(s) queued — click "Add Work Entry" for the last one to send the combined email`);
 }
 async function flushTaskEmailBuffer(){
   if(_emailBuffer.length === 0) return;
@@ -2623,7 +2634,7 @@ async function flushTaskEmailBuffer(){
   const first = entries[0];
   const names = entries.map(e=>e.employee).filter(Boolean);
   const combined = { ...first, employee: names.join(", ") };
-  const body = buildEmailBody(combined);
+  const body = buildEmailBodyAuto(combined);
 
   try{
     emailjs.init({publicKey:s.publicKey});
@@ -2939,6 +2950,10 @@ function renderTravel(){
       <div class="field full"><label>Project</label><select onchange="window.trForm.project=this.value;render()"><option value="">— Select —</option>${state.projects.map(p=>{const n=(p.name||"").trim();return `<option value="${escapeHtml(n)}" ${n===(trForm.project||"").trim()?"selected":""}>${escapeHtml(n)}</option>`}).join("")}</select></div>
       <div class="field"><label>Dept (auto)</label><div class="auto purple ${dept?"":"empty"}">${dept||"—"}</div></div>
       <div class="field"><label>Location</label><select onchange="window.trForm.location=this.value"><option value="">— Select —</option>${state.locations.map(l=>{const n=(l.name||"").trim();return `<option value="${escapeHtml(n)}" ${n===(trForm.location||"").trim()?"selected":""}>${escapeHtml(n)}</option>`}).join("")}</select></div>
+      <div class="field"><label>Per Diem Status</label><select onchange="window.trForm.perDiemStatus=this.value;render()">
+        <option value="received" ${(trForm.perDiemStatus||"received")==="received"?"selected":""}>✅ Received</option>
+        <option value="not_received" ${trForm.perDiemStatus==="not_received"?"selected":""}>❌ Not Received</option>
+      </select></div>
       <div class="field full"><label>Notes</label><input value="${escapeHtml(trForm.notes||"")}" oninput="window.trForm.notes=this.value" placeholder="Optional"></div>
     </div>
     <div class="btn-row">
@@ -2953,14 +2968,16 @@ function renderTravel(){
   <div class="card">
     <div class="filter-row"><span class="card-title" style="margin:0">Travel Log</span><span class="count-pill">${rows.length}</span></div>
     <div class="tbl-wrap"><table class="tbl">
-      <thead><tr>${!isEmployee()?"<th>Employee</th>":""}<th>Date</th><th>Days</th><th>Project</th><th>Location</th><th>Per Diem</th><th></th></tr></thead>
-      <tbody>${rows.length===0?`<tr><td colspan="7" class="empty">No travel entries</td></tr>`:rows.map(r=>{
+      <thead><tr>${!isEmployee()?"<th>Employee</th>":""}<th>Date</th><th>Days</th><th>Project</th><th>Location</th><th>Per Diem</th><th>Status</th><th></th></tr></thead>
+      <tbody>${rows.length===0?`<tr><td colspan="8" class="empty">No travel entries</td></tr>`:rows.map(r=>{
         const canEdit=isHR()||r.employee===state.profile.employeeName;
+        const pdRec=(r.perDiemStatus||"received")==="received";
         return `<tr>
           ${!isEmployee()?`<td>${employeeBadge(r.employee)}</td>`:""}
           <td>${fmtDate(r.date)}</td><td>${r.days}</td>
           <td>${escapeHtml(r.project||"—")}</td><td>${escapeHtml(r.location||"—")}</td>
           <td><strong style="color:#7F6000">${fmtMoney(r.perDiem)}</strong></td>
+          <td><span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:${pdRec?'#E8F5E9':'#FFEBEE'};color:${pdRec?'#2E7D32':'#C62828'}">${pdRec?'✅ Received':'❌ Not Received'}</span></td>
           <td>${canEdit?`<button class="btn btn-sm btn-secondary" onclick="editTr('${r.id}')">✎</button>
               <button class="btn btn-sm btn-danger" onclick="delTr('${r.id}')">🗑</button>`:""}</td>
         </tr>`;}).join("")}</tbody>
@@ -2979,6 +2996,7 @@ async function saveTr(){
     ...trForm,days:+trForm.days,
     dept:projDept(trForm.project),
     perDiem:+trForm.days*PER_DIEM_RATE,
+    perDiemStatus: trForm.perDiemStatus||"received",
     createdBy:state.profile.uid,
   });
   trForm=null;trEditId=null;toast("Saved ✓");
@@ -2991,6 +3009,7 @@ async function saveTrAndNext(){
     ...trForm,days:+trForm.days,
     dept:projDept(trForm.project),
     perDiem:+trForm.days*PER_DIEM_RATE,
+    perDiemStatus: trForm.perDiemStatus||"received",
     createdBy:state.profile.uid,
   });
   const savedEmp = trForm.employee;
@@ -4949,19 +4968,66 @@ async function submitClientRequest(){
   const desc=(requestForm.description||"").trim();
   if(!title) return toast("Task title is required");
   if(!desc) return toast("Description is required");
-  await fbSave("clientRequests",{
-    id: undefined,
+  const savedRequest = {
     clientId: c.id,
     clientName: c.name,
     project: requestForm.project||"",
     title, description: desc,
     status: "new",
     createdAt: new Date().toISOString(),
+  };
+  await fbSave("clientRequests",{
+    id: undefined,
+    ...savedRequest,
     createdBy: state.profile.uid,
   });
   requestForm=null;
   toast("Request submitted ✓ — our team will review it");
+  // Auto-email the admin-specified recipients about this new request.
+  autoSendRequestEmail(savedRequest);
 }
+
+// Silent auto-email for a NEW client request → goes to the request-notification
+// recipients the admin configured (falls back to the main email recipients).
+async function autoSendRequestEmail(req){
+  const s = emailGetSettings();
+  if(!s.enabled) return;                                    // master off
+  if(!(s.triggers||[]).includes("clientRequests")) return;  // trigger off
+  if(!s.serviceId || !s.templateId || !s.publicKey) return; // not configured
+  if(typeof emailjs === "undefined") return;
+  // Use dedicated request recipients if set, else fall back to all email recipients
+  let recipients = [];
+  const reqList = s.requestRecipients || [];
+  if(reqList.length > 0){
+    recipients = reqList.filter(e=>e && e.includes("@")).map(e=>({name:e, email:e}));
+  } else {
+    recipients = resolveEmailRecipients();
+  }
+  if(recipients.length === 0) return;
+  const body =
+    `🔔 New Client Request\n\n` +
+    `Client: ${req.clientName||"—"}\n` +
+    `Project: ${req.project||"—"}\n` +
+    `Title: ${req.title||"—"}\n` +
+    `Description: ${req.description||"—"}\n` +
+    `Submitted: ${fmtDate((req.createdAt||"").slice(0,10))}`;
+  try{
+    emailjs.init({publicKey:s.publicKey});
+    let sent = 0;
+    for(const r of recipients){
+      await emailjs.send(s.serviceId, s.templateId, {
+        subject: (s.subject||"EJAF Operations") + " — New Client Request",
+        message: body,
+        to_email: r.email,
+      });
+      sent++;
+    }
+    toast(`📧 Request notification sent to ${sent} recipient${sent>1?'s':''}`);
+  }catch(e){
+    toast("Request email failed: " + (e.text||e.message||"check setup"));
+  }
+}
+window.autoSendRequestEmail = autoSendRequestEmail;
 async function updateRequestStatus(id, status){
   if(!isAdmin() && !isHR()) return toast("Not allowed");
   const r=(state.clientRequests||[]).find(x=>x.id===id);
@@ -5052,7 +5118,7 @@ const WA_FIELDS = [
 
 function waGetSettings(){
   return state.waSettings || {
-    enabledFields: ["employee","date","project","location","duration","resolutionText"],
+    enabledFields: ["employee","date","time","project","location","duration","resolutionText"],
     allowedRoles: ["admin"],
     triggers: ["daily","clientRequests"],
     messageHeader: "🔔 New Task — EJAF Operations",
@@ -5333,6 +5399,7 @@ const EMAIL_FIELDS = [
   {id:"entryNo",        label:"Entry #",        icon:"#️⃣"},
   {id:"employee",       label:"Employee",       icon:"👤"},
   {id:"date",           label:"Date",           icon:"📅"},
+  {id:"time",           label:"Start–End Time", icon:"🕐"},
   {id:"project",        label:"Project",        icon:"📁"},
   {id:"dept",           label:"Department",     icon:"🏢"},
   {id:"location",       label:"Location",       icon:"📍"},
@@ -5508,6 +5575,26 @@ function renderEmailTab(){
         </label>`;
       }).join("")}
     </div>
+  </div>
+
+  <!-- CLIENT REQUEST RECIPIENTS -->
+  <div class="card" style="border-left:4px solid #AD1457">
+    <div class="card-title">📨 Client Request Notifications</div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:10px">When a client submits a new request, these addresses get an automatic email. ${(s.triggers||[]).includes("clientRequests")?'':'<strong style="color:#C62828">⚠ Enable the "After a Client Request" trigger above first.</strong>'}</p>
+    <div class="field" style="margin-bottom:8px"><label>Add notification email</label>
+      <div style="display:flex;gap:6px">
+        <input id="reqEmailInput" type="email" placeholder="manager@ejaftech.iq" style="flex:1">
+        <button class="btn btn-sm" style="background:#AD1457;color:white;border:none;font-weight:700" onclick="addRequestRecipient()">Add</button>
+      </div>
+    </div>
+    ${(s.requestRecipients||[]).length===0
+      ? `<div style="padding:10px 12px;background:#FCE4EC;border-radius:7px;font-size:11px;color:#880E4F">No dedicated recipients — requests will fall back to the main recipient list above.</div>`
+      : `<div style="display:flex;flex-direction:column;gap:6px">
+          ${(s.requestRecipients||[]).map((em,idx)=>`<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 12px;background:#FCE4EC;border:1px solid #F8BBD0;border-radius:8px">
+            <div style="display:flex;align-items:center;gap:8px;min-width:0"><span style="font-size:16px">✉️</span><span style="font-size:12px;color:#880E4F;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(em)}</span></div>
+            <button class="btn btn-sm btn-danger" onclick="removeRequestRecipient(${idx})">🗑</button>
+          </div>`).join("")}
+        </div>`}
   </div>`;
 }
 
@@ -5583,6 +5670,24 @@ window.toggleEmailIncludeClients = async function(){
   const s=emailGetSettings();
   await emailSaveSettings({includeClients: !s.includeClients});
 };
+window.addRequestRecipient = async function(){
+  const inp = document.getElementById("reqEmailInput");
+  const email = (inp?.value||"").trim();
+  if(!email || !email.includes("@") || !email.includes(".")) return toast("Enter a valid email");
+  const s = emailGetSettings();
+  const list = [...(s.requestRecipients||[])];
+  if(list.map(e=>e.toLowerCase()).includes(email.toLowerCase())) return toast("Already added");
+  list.push(email);
+  await emailSaveSettings({requestRecipients:list});
+  toast("Recipient added ✓");
+};
+window.removeRequestRecipient = async function(idx){
+  const s = emailGetSettings();
+  const list = [...(s.requestRecipients||[])];
+  list.splice(idx,1);
+  await emailSaveSettings({requestRecipients:list});
+  toast("Removed");
+};
 
 // ── Build email body from a record ──
 function buildEmailBody(record){
@@ -5593,6 +5698,7 @@ function buildEmailBody(record){
     entryNo:        ()=> record.entryNo ? `Entry #: ${formatEntryNo(record.entryNo)}` : "",
     employee:       ()=> record.employee ? `Employee: ${record.employee}` : "",
     date:           ()=> record.date ? `Date: ${fmtDate(record.date)}` : "",
+    time:           ()=> (record.start&&record.end) ? `Time: ${record.start}–${record.end}` : "",
     project:        ()=> record.project ? `Project: ${record.project}` : "",
     dept:           ()=> record.dept ? `Department: ${record.dept}` : "",
     location:       ()=> record.location ? `Location: ${record.location}` : "",
@@ -5604,7 +5710,33 @@ function buildEmailBody(record){
   return lines.join("\n");
 }
 
-// ── Send test email ──
+// Auto-send body: ALWAYS includes Start–End time (even if not toggled in settings),
+// so automatic task emails always carry the work hours.
+function buildEmailBodyAuto(record){
+  const s = emailGetSettings();
+  const fields = [...(s.enabledFields || [])];
+  if(!fields.includes("time")){
+    // insert time right after date if present, else at the front
+    const di = fields.indexOf("date");
+    if(di >= 0) fields.splice(di+1, 0, "time");
+    else fields.unshift("time");
+  }
+  const map = {
+    entryNo:        ()=> record.entryNo ? `Entry #: ${formatEntryNo(record.entryNo)}` : "",
+    employee:       ()=> record.employee ? `Employee: ${record.employee}` : "",
+    date:           ()=> record.date ? `Date: ${fmtDate(record.date)}` : "",
+    time:           ()=> (record.start&&record.end) ? `Time: ${record.start}–${record.end}` : "",
+    project:        ()=> record.project ? `Project: ${record.project}` : "",
+    dept:           ()=> record.dept ? `Department: ${record.dept}` : "",
+    location:       ()=> record.location ? `Location: ${record.location}` : "",
+    duration:       ()=> (record.duration||record.hours) ? `Duration: ${fmtHM(record.duration||record.hours)}` : "",
+    resolutionText: ()=> record.resolutionText ? `Description: ${record.resolutionText}` : (record.description?`Description: ${record.description}`:""),
+    notes:          ()=> record.notes ? `Notes: ${record.notes}` : "",
+  };
+  const lines = [];
+  fields.forEach(f=>{ const fn=map[f]; if(fn){const l=fn(); if(l)lines.push(l);} });
+  return lines.join("\n");
+}
 window.sendTestEmail = async function(){
   const s = emailGetSettings();
   if(!s.serviceId||!s.templateId||!s.publicKey) return toast("Configure keys first");
@@ -5705,7 +5837,7 @@ async function autoSendTaskEmail(record){
   if(typeof emailjs === "undefined") return;                // SDK missing
   const recipients = resolveEmailRecipients();
   if(recipients.length === 0) return;                       // no one to send to
-  const body = buildEmailBody(record);
+  const body = buildEmailBodyAuto(record);
   try{
     emailjs.init({publicKey:s.publicKey});
     let sent = 0;
@@ -6561,14 +6693,14 @@ async function exportFilteredExcel(){
     wsD['!cols']=[{wch:26},{wch:12},{wch:26},{wch:16},{wch:14},{wch:10},{wch:30}];
     XLSX.utils.book_append_sheet(wb, wsD, 'Daily');
 
-    const otData = or.map(r=>[employeePlainBadge(r.employee||''),r.date||'',r.start||'',r.end||'',fmtHM(r.hours),r.project||'',r.dept||'',r.location||'']);
-    const wsO = buildDetail('Overtime Log', ['Employee','Date','Start','End','OT Hours','Project','Department','Location'], otData, COLORS.orange);
-    wsO['!cols']=[{wch:26},{wch:12},{wch:8},{wch:8},{wch:12},{wch:26},{wch:16},{wch:16}];
+    const otData = or.map(r=>[employeePlainBadge(r.employee||''),r.date||'',r.start||'',r.end||'',fmtHM(r.hours),r.project||'',r.dept||'',r.location||'',r.notes||'']);
+    const wsO = buildDetail('Overtime Log', ['Employee','Date','Start','End','OT Hours','Project','Department','Location','Notes'], otData, COLORS.orange);
+    wsO['!cols']=[{wch:26},{wch:12},{wch:8},{wch:8},{wch:12},{wch:26},{wch:16},{wch:16},{wch:30}];
     XLSX.utils.book_append_sheet(wb, wsO, 'Overtime');
 
-    const trData = tr.map(r=>[employeePlainBadge(r.employee||''),r.date||'',r.days||0,r.project||'',r.location||'',r.perDiem||0]);
-    const wsT = buildDetail('Travel Log', ['Employee','Date','Days','Project','Location','Per Diem'], trData, COLORS.green);
-    wsT['!cols']=[{wch:26},{wch:12},{wch:8},{wch:26},{wch:16},{wch:14}];
+    const trData = tr.map(r=>[employeePlainBadge(r.employee||''),r.date||'',r.days||0,r.project||'',r.location||'',r.perDiem||0,(r.perDiemStatus||'received')==='received'?'Received':'Not Received',r.notes||'']);
+    const wsT = buildDetail('Travel Log', ['Employee','Date','Days','Project','Location','Per Diem','Per Diem Status','Notes'], trData, COLORS.green);
+    wsT['!cols']=[{wch:26},{wch:12},{wch:8},{wch:26},{wch:16},{wch:14},{wch:16},{wch:30}];
     XLSX.utils.book_append_sheet(wb, wsT, 'Travel');
 
     const lvData = lv.map(r=>{
@@ -6940,9 +7072,9 @@ async function exportExcel(){
 
     // Travel
     const tRows = applyReportFilters(isHR() ? state.travel : state.travel.filter(r=>r.employee===state.profile.employeeName));
-    const trData = tRows.map(r=>[r.employee||'', r.date||'', r.days||0, r.project||'', r.dept||'', r.location||'', r.perDiem||0, r.notes||'']);
-    const ws4 = buildDetailSheet('Travel Log', ['Employee','Date','Days','Project','Department','Location','Per Diem (IQD)','Notes'], trData, '#'+COLORS.green);
-    ws4['!cols']=[{wch:22},{wch:12},{wch:8},{wch:26},{wch:14},{wch:14},{wch:16},{wch:30}];
+    const trData = tRows.map(r=>[r.employee||'', r.date||'', r.days||0, r.project||'', r.dept||'', r.location||'', r.perDiem||0, (r.perDiemStatus||'received')==='received'?'Received':'Not Received', r.notes||'']);
+    const ws4 = buildDetailSheet('Travel Log', ['Employee','Date','Days','Project','Department','Location','Per Diem (IQD)','Per Diem Status','Notes'], trData, '#'+COLORS.green);
+    ws4['!cols']=[{wch:22},{wch:12},{wch:8},{wch:26},{wch:14},{wch:14},{wch:16},{wch:16},{wch:30}];
     XLSX.utils.book_append_sheet(wb, ws4, 'Travel');
 
     // Leaves sheet
