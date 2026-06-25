@@ -277,6 +277,7 @@ const state = {
   waSettings: null,     // WhatsApp settings doc (fields, roles, triggers)
   emailContacts: [],    // Email recipients (Firestore)
   emailSettings: null,  // Email settings doc (enabled, keys, fields, triggers)
+  scheduledReports: null, // Scheduled reports config (date range, time, recipients, message)
   globalEmployeeFilter: [],  // multi-select filter for reports (empty = all)
   globalProjectFilter: "",     // single project filter for reports (empty = all)
   globalLocationFilter: "",    // single location filter for reports (empty = all)
@@ -1029,6 +1030,22 @@ async function subscribeData(){
     if(state.initialized) renderTab();
   });
   state.unsubs.push(emailUnsub);
+
+  // Scheduled reports config
+  const schedUnsub = onSnapshot(doc(db,"settings","scheduledReports"),(snap)=>{
+    state.scheduledReports = snap.exists() ? snap.data() : {
+      enabled: false,
+      fromDate: "", toDate: "",
+      sendTime: "23:30",
+      recipients: [],
+      subject: "EJAF Operations — Periodic Reports",
+      message: "Please find attached the operations reports for the specified period.",
+      reports: ["daily","hr","dashboard"],
+      lastSent: "",
+    };
+    if(state.initialized) renderTab();
+  });
+  state.unsubs.push(schedUnsub);
 }
 
 async function seedDefaults(){
@@ -5436,6 +5453,224 @@ const EMAIL_FIELDS = [
   {id:"notes",          label:"Notes",          icon:"🗒️"},
 ];
 
+// ═══════════════════════════════════════════════════════════════════════
+//  SCHEDULED REPORTS MODULE
+//  Admin configures: date range + send time + recipients + custom message
+//  + which reports. Config is SAVED for the future server-side scheduler.
+//  A manual "Send Now" button sends a text summary email via EmailJS today.
+// ═══════════════════════════════════════════════════════════════════════
+function schedGetSettings(){
+  return state.scheduledReports || {
+    enabled: false, fromDate:"", toDate:"", sendTime:"23:30",
+    recipients: [], subject:"EJAF Operations — Periodic Reports",
+    message:"Please find attached the operations reports for the specified period.",
+    reports:["daily","hr","dashboard"], lastSent:"",
+  };
+}
+
+async function schedSave(patch){
+  if(!isAdmin()) return;
+  const {db, doc, setDoc} = window.__fb;
+  const next = {...schedGetSettings(), ...patch};
+  await setDoc(doc(db,"settings","scheduledReports"), next, {merge:true});
+}
+
+function renderScheduledReportsCard(){
+  const s = schedGetSettings();
+  const REPORT_OPTS = [
+    ["daily","📋 Daily Work Log"],
+    ["hr","📊 HR Report"],
+    ["dashboard","📈 Dashboard"],
+  ];
+  return `
+  <div class="card" style="border-left:4px solid #1565C0">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:6px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:24px">📅</span>
+        <div>
+          <div style="font-size:15px;font-weight:800;color:#1B3A6B">Automatic Scheduled Reports</div>
+          <div style="font-size:11px;color:${s.enabled?'#2E7D32':'#999'};font-weight:600">${s.enabled?'● Automatic sending ENABLED (runs on server)':'○ Automatic sending OFF — manual button only'}</div>
+        </div>
+      </div>
+      <div onclick="toggleSchedEnabled()" style="width:52px;height:28px;background:${s.enabled?'#2E7D32':'#ccc'};border-radius:14px;position:relative;cursor:pointer;transition:background 0.3s">
+        <div style="position:absolute;top:3px;${s.enabled?'right:3px':'left:3px'};width:22px;height:22px;background:white;border-radius:50%;transition:all 0.3s;box-shadow:0 1px 3px rgba(0,0,0,0.3)"></div>
+      </div>
+    </div>
+
+    <div style="padding:10px 12px;background:#E3F2FD;border-radius:8px;font-size:11px;color:#0D47A1;line-height:1.7;margin-bottom:12px">
+      ℹ️ <strong>How it works:</strong> Set the period, time, recipients, and message below. Once your app moves to the company server, reports will be generated as PDF and emailed automatically at the chosen time — even when no one has the app open. For now, use <strong>"Send Summary Now"</strong> to email a text summary on demand.
+    </div>
+
+    <div class="form-grid">
+      <div class="field"><label>From Date</label><input type="date" value="${s.fromDate||''}" onchange="setSchedField('fromDate',this.value)"></div>
+      <div class="field"><label>To Date</label><input type="date" value="${s.toDate||''}" onchange="setSchedField('toDate',this.value)"></div>
+      <div class="field"><label>Send Time (server)</label><input type="time" value="${s.sendTime||'23:30'}" onchange="setSchedField('sendTime',this.value)"></div>
+    </div>
+
+    <div style="margin-top:12px">
+      <label style="font-size:12px;font-weight:700;color:#1B3A6B;display:block;margin-bottom:6px">Reports to include:</label>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        ${REPORT_OPTS.map(([id,lbl])=>{
+          const on = (s.reports||[]).includes(id);
+          return `<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;padding:7px 10px;background:${on?'#E3F2FD':'#F7F7F7'};border-radius:6px">
+            <input type="checkbox" ${on?"checked":""} onchange="toggleSchedReport('${id}')" style="width:16px;height:16px;cursor:pointer">
+            <span style="font-weight:600;color:${on?'#1565C0':'#666'}">${lbl}</span>
+          </label>`;
+        }).join("")}
+      </div>
+    </div>
+
+    <div class="field" style="margin-top:12px"><label>Email Subject</label>
+      <input value="${escapeHtml(s.subject||'')}" onchange="setSchedField('subject',this.value)" placeholder="EJAF Operations — Periodic Reports"></div>
+
+    <div class="field"><label>Custom Message (admin)</label>
+      <textarea onchange="setSchedField('message',this.value)" rows="3" style="width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:8px;font-family:inherit;font-size:13px;resize:vertical" placeholder="Write the message that goes with the reports...">${escapeHtml(s.message||'')}</textarea></div>
+
+    <div style="margin-top:10px">
+      <label style="font-size:12px;font-weight:700;color:#1B3A6B;display:block;margin-bottom:6px">Report Recipients:</label>
+      <div class="field" style="margin-bottom:8px">
+        <div style="display:flex;gap:6px">
+          <input id="schedEmailInput" type="email" placeholder="director@ejaftech.iq" style="flex:1">
+          <button class="btn btn-sm" style="background:#1565C0;color:white;border:none;font-weight:700" onclick="addSchedRecipient()">Add</button>
+        </div>
+      </div>
+      ${(s.recipients||[]).length===0
+        ? `<div style="padding:9px 12px;background:#E3F2FD;border-radius:7px;font-size:11px;color:#0D47A1">No recipients yet — add at least one.</div>`
+        : `<div style="display:flex;flex-direction:column;gap:6px">
+            ${(s.recipients||[]).map((em,idx)=>`<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 12px;background:#E3F2FD;border:1px solid #90CAF9;border-radius:8px">
+              <div style="display:flex;align-items:center;gap:8px;min-width:0"><span style="font-size:16px">✉️</span><span style="font-size:12px;color:#0D47A1;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(em)}</span></div>
+              <button class="btn btn-sm btn-danger" onclick="removeSchedRecipient(${idx})">🗑</button>
+            </div>`).join("")}
+          </div>`}
+    </div>
+
+    <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn" style="background:#1565C0;color:white;border:none;font-weight:700" onclick="sendScheduledReportsNow()">📨 Send Summary Now</button>
+      ${s.lastSent?`<span style="font-size:11px;color:var(--muted);align-self:center">Last sent: ${escapeHtml(s.lastSent)}</span>`:''}
+    </div>
+  </div>`;
+}
+
+// ── Settings updates ──
+window.toggleSchedEnabled = async function(){
+  const s = schedGetSettings();
+  await schedSave({enabled: !s.enabled});
+  toast(!s.enabled ? "Automatic sending ENABLED — activates on server ✓" : "Automatic sending OFF — manual button still works");
+};
+window.setSchedField = async function(field, val){ await schedSave({[field]: val}); toast("Saved ✓"); };
+window.toggleSchedReport = async function(id){
+  const s = schedGetSettings(); const arr=[...(s.reports||[])];
+  const i=arr.indexOf(id); if(i>=0)arr.splice(i,1);else arr.push(id);
+  await schedSave({reports:arr});
+};
+window.addSchedRecipient = async function(){
+  const inp = document.getElementById("schedEmailInput");
+  const email = (inp?.value||"").trim();
+  if(!email || !email.includes("@") || !email.includes(".")) return toast("Enter a valid email");
+  const s = schedGetSettings();
+  const list = [...(s.recipients||[])];
+  if(list.map(e=>e.toLowerCase()).includes(email.toLowerCase())) return toast("Already added");
+  list.push(email);
+  await schedSave({recipients:list});
+  toast("Recipient added ✓");
+};
+window.removeSchedRecipient = async function(idx){
+  const s = schedGetSettings();
+  const list = [...(s.recipients||[])];
+  list.splice(idx,1);
+  await schedSave({recipients:list});
+  toast("Removed");
+};
+
+// ── Build a text summary of the reports for the chosen period ──
+function buildScheduledSummary(){
+  const s = schedGetSettings();
+  const from = s.fromDate, to = s.toDate;
+  const inRange = (d) => {
+    if(!d) return false;
+    if(from && d < from) return false;
+    if(to && d > to) return false;
+    return true;
+  };
+  const daily = (state.daily||[]).filter(r=>inRange(r.date));
+  const ot = (state.overtime||[]).filter(r=>inRange(r.date));
+  const travel = (state.travel||[]).filter(r=>inRange(r.date));
+  const leaves = (state.leaves||[]).filter(r=>inRange(r.fromDate||r.date));
+
+  const totDailyHrs = daily.reduce((a,r)=>a+Number(r.duration||0),0);
+  const totOtHrs = ot.reduce((a,r)=>a+Number(r.hours||0),0);
+  const totTravelDays = travel.reduce((a,r)=>a+Number(r.days||0),0);
+  const totPerDiem = travel.reduce((a,r)=>a+Number(r.perDiem||0),0);
+
+  const lines = [];
+  lines.push(s.message||"");
+  lines.push("");
+  lines.push("════════════════════════");
+  lines.push(`PERIOD: ${from||'—'} to ${to||'—'}`);
+  lines.push("════════════════════════");
+  lines.push("");
+
+  if((s.reports||[]).includes("daily")){
+    lines.push("📋 DAILY WORK LOG");
+    lines.push(`   Entries: ${daily.length}`);
+    lines.push(`   Total hours: ${fmtHM(totDailyHrs)}`);
+    lines.push("");
+  }
+  if((s.reports||[]).includes("hr")){
+    lines.push("📊 HR REPORT");
+    lines.push(`   Overtime entries: ${ot.length} (${fmtHM(totOtHrs)})`);
+    lines.push(`   Travel trips: ${travel.length} (${totTravelDays} days)`);
+    lines.push(`   Per diem total: ${fmtMoney(totPerDiem)} IQD`);
+    lines.push(`   Leave records: ${leaves.length}`);
+    lines.push("");
+  }
+  if((s.reports||[]).includes("dashboard")){
+    const emps = new Set(daily.map(r=>r.employee).filter(Boolean));
+    lines.push("📈 DASHBOARD SUMMARY");
+    lines.push(`   Active employees: ${emps.size}`);
+    lines.push(`   Total work hours: ${fmtHM(totDailyHrs)}`);
+    lines.push(`   Total overtime: ${fmtHM(totOtHrs)}`);
+    lines.push("");
+  }
+  lines.push("────────────────────────");
+  lines.push("Note: Full PDF reports will be attached automatically once the system runs on the company server.");
+  lines.push("");
+  lines.push("EJAF Technology — Operations Department");
+  lines.push("Powered by Siwar");
+  return lines.join("\n");
+}
+
+window.sendScheduledReportsNow = async function(){
+  const s = schedGetSettings();
+  const es = emailGetSettings();
+  if(!es.serviceId || !es.templateId || !es.publicKey) return toast("Configure EmailJS keys first (above)");
+  if(!es.enabled) return toast("Turn ON the main email service first");
+  if(!s.fromDate || !s.toDate) return toast("Set From and To dates");
+  if((s.recipients||[]).length===0) return toast("Add at least one report recipient");
+  if(typeof emailjs==="undefined") return toast("EmailJS not loaded");
+
+  const body = buildScheduledSummary();
+  toast(`Sending to ${s.recipients.length}...`);
+  try{
+    emailjs.init({publicKey:es.publicKey});
+    let sent = 0;
+    for(const email of s.recipients){
+      await emailjs.send(es.serviceId, es.templateId, {
+        subject: s.subject || "EJAF Operations — Periodic Reports",
+        message: body,
+        to_email: email,
+      });
+      sent++;
+    }
+    const stamp = new Date().toLocaleString('en-GB');
+    await schedSave({lastSent: stamp});
+    toast(`📧 Report summary sent to ${sent} recipient${sent>1?'s':''}`);
+  }catch(e){
+    toast("Send failed: " + (e.text||e.message||"check setup"));
+  }
+};
+
+
 function renderEmailTab(){
   if(!isAdmin()) return `<div class="card"><div class="empty">Access denied — Admin only</div></div>`;
   if(!emailContactForm) emailContactForm = {name:"", email:""};
@@ -5623,7 +5858,8 @@ function renderEmailTab(){
             <button class="btn btn-sm btn-danger" onclick="removeRequestRecipient(${idx})">🗑</button>
           </div>`).join("")}
         </div>`}
-  </div>`;
+  </div>
+  ${renderScheduledReportsCard()}`;
 }
 
 // ── Recipient CRUD ──
