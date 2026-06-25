@@ -22,7 +22,7 @@
 <style>
 :root{--navy:#1B3A6B;--navy-2:#2E5FA3;--gold:#C9A84C;--gold-2:#B58E2E;--bg:#F5F8FC;--card:#FFFFFF;--line:#D6E4F0;--text:#1A1A2E;--muted:#6B7B8F;--green:#2E7D32;--green-bg:#E8F2E8;--orange:#E65100;--orange-bg:#FCEAE0;--purple:#6A1B9A;--purple-bg:#F0E8F7;--yellow:#FFF2CC;--yellow-text:#7F6000;--red:#C0392B;--shadow:0 2px 12px rgba(27,58,107,0.08);--shadow-lg:0 8px 28px rgba(27,58,107,0.15);--radius:14px;--radius-sm:8px}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{margin:0;padding:0;font-family:'Inter',-apple-system,system-ui,sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased;overscroll-behavior:contain}
+html,body{margin:0;padding:0;font-family:'Inter',-apple-system,system-ui,sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased;overscroll-behavior:contain;-webkit-text-size-adjust:100%;text-size-adjust:100%;-webkit-tap-highlight-color:transparent;touch-action:pan-x pan-y}
 body{padding-bottom:env(safe-area-inset-bottom,0px)}
 
 /* Login screen */
@@ -156,6 +156,61 @@ body{padding-bottom:env(safe-area-inset-bottom,0px)}
 @keyframes spin{to{transform:rotate(360deg)}}
 
 @media(min-width:600px){.kpi-grid{grid-template-columns:repeat(4,1fr)}}
+
+/* ═══════════════════════════════════════════════════════════
+   RESPONSIVE DESIGN — Tablet & Desktop
+   Mobile stays as-is (≤768px). Larger screens use more space.
+   ═══════════════════════════════════════════════════════════ */
+
+/* Tablet (768px+) — wider content, centered tabs */
+@media(min-width:768px){
+  .content{max-width:1000px;padding:20px 24px 80px}
+  .header-row{padding:14px 28px}
+  .app-title h1{font-size:17px}
+  .app-title p{font-size:12px}
+  .tab-bar{padding:0 16px;justify-content:center;flex-wrap:wrap;overflow-x:visible}
+  .tab{padding:14px 18px;font-size:13px}
+  .card{padding:20px}
+  .form-grid{grid-template-columns:repeat(3,1fr)}
+  .kpi-grid{grid-template-columns:repeat(4,1fr);gap:14px}
+  .kpi-value{font-size:26px}
+}
+
+/* Desktop (1024px+) — full use of screen, larger tables */
+@media(min-width:1024px){
+  .content{max-width:1240px;padding:24px 32px 80px}
+  .header-row{padding:16px 40px}
+  .logo-mark{width:48px;height:48px;font-size:18px}
+  .app-title h1{font-size:19px}
+  .tab-bar{padding:0 24px}
+  .tab{padding:14px 22px;font-size:14px}
+  .card{padding:24px}
+  .card-title{font-size:14px}
+  .kpi-value{font-size:30px}
+  /* Tables breathe more on desktop */
+  .tbl th,.tbl td{padding:11px 14px;font-size:13px}
+  /* Forms can use 3-4 columns on wide screens */
+  .form-grid{grid-template-columns:repeat(3,1fr);gap:14px}
+  /* Dashboard / report cards can sit side-by-side via grid where used */
+  .desktop-2col{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
+}
+
+/* Large desktop (1440px+) — comfortable max width, no over-stretching */
+@media(min-width:1440px){
+  .content{max-width:1360px}
+  .form-grid{grid-template-columns:repeat(4,1fr)}
+}
+
+/* Make all tables horizontally scrollable on any screen if too wide */
+.tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+
+/* Hover effects only on devices that support hover (desktop) */
+@media(hover:hover){
+  .tab:hover{color:var(--gold);background:rgba(201,168,76,0.05)}
+  .card:hover{box-shadow:var(--shadow-lg)}
+  .btn:hover{filter:brightness(1.05)}
+  .kpi:hover{transform:translateY(-2px);transition:transform 0.2s}
+}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <script>
@@ -7556,13 +7611,23 @@ if('serviceWorker' in navigator){
   // Android requires a REAL same-origin sw.js file (not a Blob) to offer full "Install app".
   // Try the real file first; if it's missing (e.g. local single-file use), fall back to Blob.
   window.addEventListener('load', function(){
-    navigator.serviceWorker.register('sw.js', {scope: './'}).catch(function(){
-      // Fallback: Blob-based SW (works for caching, but Android may only offer "Add to Home screen")
-      var swCode = "const CACHE='ejaftech-v3';"
+    navigator.serviceWorker.register('sw.js', {scope: './'}).then(function(reg){
+      // Check for updates on every load; if a new SW takes control, reload once.
+      reg.update();
+      var refreshing = false;
+      navigator.serviceWorker.addEventListener('controllerchange', function(){
+        if(refreshing) return;
+        refreshing = true;
+        window.location.reload();
+      });
+    }).catch(function(){
+      // Fallback: Blob-based SW (network-first for HTML so the app always updates)
+      var swCode = "const CACHE='ejaftech-v4';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
-        + "self.addEventListener('activate',e=>self.clients.claim());"
+        + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
         + "if(e.request.url.includes('firebase')||e.request.url.includes('googleapis')||e.request.url.includes('gstatic'))return;"
+        + "if(e.request.mode==='navigate'||e.request.destination==='document'){e.respondWith(fetch(e.request).then(resp=>{const c=resp.clone();caches.open(CACHE).then(ca=>ca.put(e.request,c));return resp;}).catch(()=>caches.match(e.request).then(r=>r||caches.match('./'))));return;}"
         + "e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request).then(resp=>{"
         + "if(e.request.url.startsWith(self.location.origin)){const c=resp.clone();caches.open(CACHE).then(ca=>ca.put(e.request,c));}"
         + "return resp;}).catch(()=>caches.match('./'))));"
