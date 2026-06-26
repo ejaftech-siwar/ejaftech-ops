@@ -656,6 +656,20 @@ function applyReportFilters(rows, dateField="date"){
   return out;
 }
 // True if ANY global filter (beyond date) is active
+// Build a short human label of the active filters (for report headers)
+function reportFilterLabel(){
+  const parts = [];
+  const sel = state.globalEmployeeFilter || [];
+  if(sel.length===1) parts.push(sel[0]);
+  else if(sel.length>1) parts.push(`${sel.length} employees`);
+  if(state.globalBranchFilter) parts.push(`Branch: ${state.globalBranchFilter}`);
+  if(state.globalEmpDeptFilter) parts.push(`${state.globalEmpDeptFilter} staff`);
+  if(state.globalTaskDeptFilter) parts.push(`${state.globalTaskDeptFilter} tasks`);
+  if(state.globalProjectFilter) parts.push(state.globalProjectFilter);
+  if(state.globalLocationFilter) parts.push(state.globalLocationFilter);
+  return parts.join(" · ");
+}
+
 function hasActiveReportFilter(){
   return (state.globalEmployeeFilter||[]).length>0 ||
          !!state.globalProjectFilter ||
@@ -1935,14 +1949,10 @@ function downloadFile(filename, content, mime){
 async function exportDailyPDF(){
   if(!canSeeReports()) return toast("Access denied");
   const period = getPeriod();
-  // Use current filter (dailyFilter = employee name or "" for all)
-  const filterEmp   = dailyFilter     || "";
-  const filterProj  = dailyProjFilter || "";
+  // Use the UNIFIED global filters + the local "# Entry" filter
   const filterENo = dailyEntryNo ? Number(dailyEntryNo) : null;
-  const rows = filterByPeriod(visibleRows(state.daily))
+  const rows = applyReportFilters(visibleRows(state.daily))
     .filter(r => {
-      if(filterEmp  && r.employee !== filterEmp)  return false;
-      if(filterProj && r.project  !== filterProj) return false;
       if(filterENo !== null && Number(r.entryNo||0) !== filterENo) return false;
       return true;
     })
@@ -1992,7 +2002,7 @@ async function exportDailyPDF(){
       <button onclick="window.print()" style="background:#03308B;color:#C9A84C;border:none;padding:10px 24px;border-radius:6px;font-weight:700;cursor:pointer;font-size:13px">🖨️ Print / Save as PDF</button>
       <button onclick="window.close()" style="background:#888;color:white;border:none;padding:10px 20px;border-radius:6px;font-weight:700;cursor:pointer;font-size:13px;margin-left:6px">Close</button>
     </div>
-    <div class="ksec"><span class="kbad">01</span><h3>Executive Summary${filterEmp?' — '+filterEmp:''}</h3></div>
+    <div class="ksec"><span class="kbad">01</span><h3>Executive Summary${reportFilterLabel()?' — '+reportFilterLabel():''}</h3></div>
     <div class="kr">
       <div class="kc kb"><div class="kl">Total Hours</div><div class="kv">${fmtHM(totalHrs)}</div><div class="ks">${rows.length} entries</div></div>
       <div class="kc kg"><div class="kl">Employees</div><div class="kv">${emps.length}</div><div class="ks">active</div></div>
@@ -2010,7 +2020,7 @@ async function exportDailyPDF(){
     </table>
     <script>setTimeout(()=>window.print(),500)<\/script>`;
 
-  const activeFilters = [filterEmp, filterProj, filterENo ? `Entry #${String(filterENo).padStart(3,'0')}` : ""].filter(Boolean).join(" · ");
+  const activeFilters = [reportFilterLabel(), filterENo ? `Entry #${String(filterENo).padStart(3,'0')}` : ""].filter(Boolean).join(" · ");
   await openReportPDF("DAILY_LOG", activeFilters ? `${period} · ${activeFilters}` : period, bodyHTML);
   toast("Daily Log PDF ready!");
 }
@@ -2023,13 +2033,9 @@ async function exportDailyExcel(){
     const {db, doc, setDoc} = window.__fb;
     const refNo = await generateRefNo('EXCEL_DAILY');
     const period = getPeriod();
-    const filterEmp   = dailyFilter     || "";
-    const filterProj  = dailyProjFilter || "";
     const filterENo = dailyEntryNo ? Number(dailyEntryNo) : null;
-    const rows = filterByPeriod(visibleRows(state.daily))
+    const rows = applyReportFilters(visibleRows(state.daily))
       .filter(r => {
-        if(filterEmp  && r.employee !== filterEmp)  return false;
-        if(filterProj && r.project  !== filterProj) return false;
         if(filterENo !== null && Number(r.entryNo||0) !== filterENo) return false;
         return true;
       })
@@ -2053,7 +2059,7 @@ async function exportDailyExcel(){
     const ws1 = {};
     setC(ws1,'A1',`EJAF Technology — Daily Work Log  |  Ref: ${refNo}`,titleSt);
     setM(ws1,{s:{r:0,c:0},e:{r:0,c:6}});
-    setC(ws1,'A2',`Period: ${period}${filterEmp?' · Employee: '+filterEmp:''}  |  Generated: ${new Date().toLocaleString('en-GB')}`,subSt);
+    setC(ws1,'A2',`Period: ${period}${reportFilterLabel()?' · '+reportFilterLabel():''}  |  Generated: ${new Date().toLocaleString('en-GB')}`,subSt);
     setM(ws1,{s:{r:1,c:0},e:{r:1,c:9}});
     setC(ws1,'A4','#',hdSt); setC(ws1,'B4','Date',hdSt); setC(ws1,'C4','Time',hdSt);
     setC(ws1,'D4','Employee',hdSt); setC(ws1,'E4','Project',hdSt); setC(ws1,'F4','Site',hdSt);
@@ -2493,11 +2499,9 @@ function renderDailyLog(){
   if(typeof dailyForm.equipment === 'undefined') dailyForm.equipment = "";
   const dur=timeToHrs(dailyForm.start,dailyForm.end);
   const dept=projDept(dailyForm.project);
-  // Filter by location too
-  const rows=filterByPeriod(visibleRows(state.daily)).filter(r=>{
-    if(dailyFilter && r.employee!==dailyFilter) return false;
-    if(dailyLocFilter && r.location!==dailyLocFilter) return false;
-    if(dailyProjFilter && r.project!==dailyProjFilter) return false;
+  // Use the UNIFIED global filters (employees/branch/staff-dept/task-dept/projects/locations)
+  // plus the local "# Entry" filter which only makes sense here in the Daily Log.
+  const rows=applyReportFilters(visibleRows(state.daily)).filter(r=>{
     if(dailyEntryNo && Number(r.entryNo||0) !== Number(dailyEntryNo)) return false;
     return true;
   }).sort((a,b)=>{
@@ -2672,18 +2676,6 @@ function renderDailyLog(){
       <span class="card-title" style="margin:0">Work Log</span>
       <span class="count-pill">${rows.length}</span>
       <div style="display:flex;gap:6px;margin-left:auto;flex-wrap:wrap;align-items:center">
-        ${!isEmployee()?`<select onchange="window.dailyFilter=this.value;render()" style="padding:6px 10px;border:1px solid var(--line);border-radius:6px;font-size:12px">
-          <option value="">All Employees</option>
-          ${empOptions.map(e=>`<option ${e===dailyFilter?"selected":""}>${escapeHtml(e)}</option>`).join("")}
-        </select>`:""}
-        <select onchange="window.dailyLocFilter=this.value;render()" style="padding:6px 10px;border:1px solid var(--line);border-radius:6px;font-size:12px">
-          <option value="">All Locations</option>
-          ${state.locations.map(l=>`<option value="${escapeHtml(l.name)}" ${l.name===dailyLocFilter?"selected":""}>\u{1F4CD} ${escapeHtml(l.name)}</option>`).join("")}
-        </select>
-        <select onchange="window.dailyProjFilter=this.value;render()" style="padding:6px 10px;border:1px solid var(--line);border-radius:6px;font-size:12px;max-width:140px">
-          <option value="">All Projects</option>
-          ${projOptions.map(p=>`<option value="${escapeHtml(p)}" ${p===dailyProjFilter?"selected":""}>${escapeHtml(p)}</option>`).join("")}
-        </select>
         <div style="display:flex;align-items:center;gap:3px;background:#f5f7ff;border:1px solid var(--line);border-radius:6px;padding:0 6px">
           <span style="font-size:10px;color:#888;white-space:nowrap"># Entry</span>
           <input type="number" min="1" placeholder="e.g. 12" value="${dailyEntryNo}"
@@ -2691,11 +2683,10 @@ function renderDailyLog(){
             style="width:64px;border:none;background:transparent;font-size:11px;padding:5px 2px;outline:none">
           ${dailyEntryNo?`<button onclick="window.dailyEntryNo='';render()" style="border:none;background:none;cursor:pointer;color:#c62828;font-size:12px;padding:0 2px">✕</button>`:""}
         </div>
-        ${(dailyFilter||dailyLocFilter||dailyProjFilter||dailyEntryNo)?
-          `<button onclick="window.dailyFilter='';window.dailyLocFilter='';window.dailyProjFilter='';window.dailyEntryNo='';render()" style="background:#fee2e2;color:#c62828;border:1px solid #fca5a5;padding:5px 10px;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600">✕ Clear All</button>`:""}
         ${canSeeReports()?`<button onclick="exportDailyPDF()" style="background:#03308B;color:#C9A84C;border:none;font-weight:700;padding:6px 14px;border-radius:6px;font-size:12px;cursor:pointer">\u{1F4C4} PDF</button><button onclick="exportDailyExcel()" style="background:#2E7D32;color:white;border:none;font-weight:700;padding:6px 14px;border-radius:6px;font-size:12px;cursor:pointer;margin-left:4px">\u{1F4CA} Excel</button>`:""}
       </div>
     </div>
+    ${!isEmployee()?renderEmployeeFilterUI("Filter Work Log"):""}
     <div class="tbl-wrap"><table class="tbl">
       <thead><tr><th style="width:48px;text-align:center">#</th><th>Date</th>${!isEmployee()?"<th>Employee</th>":""}<th>Project</th><th>Dept</th><th>Location</th><th>Hrs</th><th>Resolution</th><th></th></tr></thead>
       <tbody>${rows.length===0?`<tr><td colspan="8" class="empty">No entries yet</td></tr>`:rows.map(r=>{
@@ -3840,50 +3831,108 @@ async function parseImportFile(file, deptName){
     const rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:""});
     if(rows.length < 2) return toast("File looks empty");
 
-    // Detect columns from the header row (flexible naming)
-    const header = rows[0].map(h=>String(h||"").trim().toLowerCase());
+    // Detect columns from the header row (flexible naming, English + Arabic)
+    const header = rows[0].map(h=>String(h||"").trim());
+    const headerLow = header.map(h=>h.toLowerCase());
     const findCol = (...names)=>{
-      for(const n of names){ const i = header.findIndex(h=>h.includes(n)); if(i>=0) return i; }
+      for(const n of names){ const i = headerLow.findIndex(h=>h.includes(n)); if(i>=0) return i; }
       return -1;
     };
     const ci = {
-      project: findCol("project","مشروع"),
-      site:    findCol("site","موقع","location"),
-      equip:   findCol("equipment","equip","device","جهاز"),
-      spec:    findCol("spec","specification","specs","مواصفات","details"),
+      project: findCol("project","مشروع","proj"),
+      site:    findCol("site","موقع","location","loc"),
+      equip:   findCol("equipment","equip","device","جهاز","معدة","hardware"),
+      spec:    findCol("spec","specification","specs","مواصفات","details","تفاصيل","model","نوع"),
     };
-    if(ci.project < 0) return toast("No 'Project' column found in file");
 
-    // Build a structured map: { projectName: { siteName: [ {name, spec}, ... ] } }
-    const map = {};
-    for(let r=1; r<rows.length; r++){
-      const row = rows[r];
-      const pName = String(row[ci.project]||"").trim();
-      if(!pName) continue;
-      const sName = ci.site>=0 ? String(row[ci.site]||"").trim() : "";
-      const eName = ci.equip>=0 ? String(row[ci.equip]||"").trim() : "";
-      const eSpec = ci.spec>=0 ? String(row[ci.spec]||"").trim() : "";
-      if(!map[pName]) map[pName] = {};
-      if(sName){
-        if(!map[pName][sName]) map[pName][sName] = [];
-        if(eName) map[pName][sName].push({name:eName, spec:eSpec});
-      }
+    // If the Project column wasn't auto-detected, ask the user to map columns.
+    if(ci.project < 0){
+      showColumnMapper(rows, header, deptName);
+      return;
     }
 
-    const projNames = Object.keys(map);
-    if(projNames.length===0) return toast("No valid rows found");
-
-    // Confirm with a summary
-    let totalSites=0, totalEquip=0;
-    projNames.forEach(p=>{ const sites=Object.keys(map[p]); totalSites+=sites.length; sites.forEach(s=>totalEquip+=map[p][s].length); });
-    if(!confirm(`Import into "${deptName}"?\n\n• ${projNames.length} project(s)\n• ${totalSites} site(s)\n• ${totalEquip} equipment\n\nThis ADDS to existing data (merge).`)) return;
-
-    await mergeImport(map, deptName);
+    const map = buildImportMap(rows, ci);
+    finishImport(map, deptName);
   }catch(err){
     console.error(err);
     toast("Import failed: "+(err.message||"bad file"));
   }
 }
+
+// Build the structured map from rows + column indices
+function buildImportMap(rows, ci){
+  const map = {};
+  for(let r=1; r<rows.length; r++){
+    const row = rows[r];
+    const pName = String(row[ci.project]||"").trim();
+    if(!pName) continue;
+    const sName = ci.site>=0 ? String(row[ci.site]||"").trim() : "";
+    const eName = ci.equip>=0 ? String(row[ci.equip]||"").trim() : "";
+    const eSpec = ci.spec>=0 ? String(row[ci.spec]||"").trim() : "";
+    if(!map[pName]) map[pName] = {};
+    if(sName){
+      if(!map[pName][sName]) map[pName][sName] = [];
+      if(eName) map[pName][sName].push({name:eName, spec:eSpec});
+    }
+  }
+  return map;
+}
+
+// Confirm summary then merge
+function finishImport(map, deptName){
+  const projNames = Object.keys(map);
+  if(projNames.length===0) return toast("No valid rows found");
+  let totalSites=0, totalEquip=0;
+  projNames.forEach(p=>{ const sites=Object.keys(map[p]); totalSites+=sites.length; sites.forEach(s=>totalEquip+=map[p][s].length); });
+  if(!confirm(`Import into "${deptName}"?\n\n• ${projNames.length} project(s)\n• ${totalSites} site(s)\n• ${totalEquip} equipment\n\nThis ADDS to existing data (merge).`)) return;
+  mergeImport(map, deptName);
+}
+
+// ── Smart fallback: let the user map which column is which ──
+let _importRows = null, _importDept = "";
+function showColumnMapper(rows, header, deptName){
+  _importRows = rows; _importDept = deptName;
+  const opts = (selId)=> header.map((h,i)=>`<option value="${i}">${escapeHtml(h||('Column '+(i+1)))}</option>`).join("");
+  const existing = document.getElementById('colMapOverlay');
+  if(existing) existing.remove();
+  const wrap = document.createElement('div');
+  wrap.id = 'colMapOverlay';
+  wrap.innerHTML = `
+  <div onclick="if(event.target===this)document.getElementById('colMapOverlay').remove()" style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:flex-start;justify-content:center;padding:20px;overflow-y:auto">
+    <div style="background:white;border-radius:16px;max-width:480px;width:100%;box-shadow:0 24px 64px rgba(0,0,0,0.4);margin-top:30px">
+      <div style="background:#00897B;color:white;padding:16px 20px;border-radius:16px 16px 0 0;display:flex;align-items:center;justify-content:space-between">
+        <div style="font-size:16px;font-weight:800">🔗 Match Your Columns</div>
+        <button onclick="document.getElementById('colMapOverlay').remove()" style="background:rgba(255,255,255,0.2);border:none;color:white;width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:18px;font-weight:700">×</button>
+      </div>
+      <div style="padding:20px">
+        <p style="font-size:12px;color:#555;margin-bottom:16px;line-height:1.6">We could not detect the columns automatically. Tell us which column is which (importing into <strong>${escapeHtml(deptName)}</strong>):</p>
+        <div class="field"><label>📁 Project column <span style="color:#c62828">*</span></label>
+          <select id="mapProject" style="width:100%;padding:9px;border:1px solid var(--line);border-radius:8px">${opts()}</select></div>
+        <div class="field"><label>🏗 Site column (optional)</label>
+          <select id="mapSite" style="width:100%;padding:9px;border:1px solid var(--line);border-radius:8px"><option value="-1">— None —</option>${opts()}</select></div>
+        <div class="field"><label>🔧 Equipment column (optional)</label>
+          <select id="mapEquip" style="width:100%;padding:9px;border:1px solid var(--line);border-radius:8px"><option value="-1">— None —</option>${opts()}</select></div>
+        <div class="field"><label>📋 Specifications column (optional)</label>
+          <select id="mapSpec" style="width:100%;padding:9px;border:1px solid var(--line);border-radius:8px"><option value="-1">— None —</option>${opts()}</select></div>
+        <button class="btn btn-primary" style="width:100%;margin-top:10px" onclick="applyColumnMapping()">Import with these columns</button>
+      </div>
+    </div>
+  </div>`;
+  document.body.appendChild(wrap);
+}
+
+window.applyColumnMapping = function(){
+  const ci = {
+    project: parseInt(document.getElementById('mapProject').value),
+    site:    parseInt(document.getElementById('mapSite').value),
+    equip:   parseInt(document.getElementById('mapEquip').value),
+    spec:    parseInt(document.getElementById('mapSpec').value),
+  };
+  const ov = document.getElementById('colMapOverlay'); if(ov) ov.remove();
+  if(!_importRows) return toast("No file loaded");
+  const map = buildImportMap(_importRows, ci);
+  finishImport(map, _importDept);
+};
 
 async function mergeImport(map, deptName){
   toast("Importing...");
@@ -8279,7 +8328,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v12';"
+      var swCode = "const CACHE='ejaftech-v13';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
