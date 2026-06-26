@@ -322,7 +322,7 @@ const PER_DIEM_RATE = 40000;
 const state = {
   user: null,           // Firebase auth user
   profile: null,        // {role, name, email, employeeName, ...} from users collection
-  daily: [], overtime: [], travel: [], leaves: [], projects: [], locations: [], users: [], departments: [],
+  daily: [], overtime: [], travel: [], leaves: [], projects: [], locations: [], users: [], departments: [], branches: [],
   workCategories: [], workTasks: [],  // Work Instructions module
   nametagEmployees: [],  // Admin-managed nametag-only employees (no auth account)
   employeePermissions: [],  // Per-employee entry permissions (GPS / Resolution requirements)
@@ -336,6 +336,7 @@ const state = {
   globalEmployeeFilter: [],  // multi-select filter for reports (empty = all)
   globalProjectFilter: "",     // single project filter for reports (empty = all)
   globalLocationFilter: "",    // single location filter for reports (empty = all)
+  globalBranchFilter: "",      // single branch filter for reports (empty = all)
   tab: "Dashboard",
   initialized: false,
   unsubs: [],           // active Firestore listeners
@@ -560,8 +561,32 @@ function allEmployees(){
 }
 
 // ─────────────────────────────────────────────────────────────────────
-// EMPLOYEE TYPE HELPERS — Internal vs External (Outsource/Subcontractor)
+// SUPERVISOR HELPERS — a supervisor can log data for their team members
 // ─────────────────────────────────────────────────────────────────────
+// Is the current user a supervisor?
+function isSupervisor(){
+  const me = state.profile || {};
+  return me.isSupervisor === true;
+}
+// Names of employees who report to the current supervisor (+ the supervisor themselves)
+function myTeamEmployees(){
+  const me = state.profile || {};
+  const myName = me.employeeName || me.name || "";
+  const team = state.users
+    .filter(u => (u.supervisorName||"") === myName && (u.employeeName||u.name))
+    .map(u => (u.employeeName || u.name || "").trim())
+    .filter(Boolean);
+  // include the supervisor themselves if they have a tracked name
+  if(myName) team.unshift(myName);
+  return Array.from(new Set(team));
+}
+// The list of employees the current user is allowed to enter data for
+function enterableEmployees(){
+  if(isHR()) return allEmployees();              // HR/Admin → everyone
+  if(isSupervisor()) return myTeamEmployees();    // Supervisor → their team
+  if(isEmployee()) return state.profile.employeeName ? [state.profile.employeeName] : [];
+  return [];
+}
 function isExternalEmployee(name){
   if(!name) return false;
   const n = String(name).trim();
@@ -606,6 +631,13 @@ function applyReportFilters(rows, dateField="date"){
   if(pf) out = out.filter(r => !("project" in r) || r.project === pf); // 3. project (skip if field absent)
   const lf = state.globalLocationFilter || "";
   if(lf) out = out.filter(r => !("location" in r) || r.location === lf); // 4. location (skip if field absent)
+  const bf = state.globalBranchFilter || "";
+  if(bf){                                              // 5. branch (map employee → branch via users)
+    const branchEmployees = new Set(
+      state.users.filter(u=>(u.branch||"")===bf).map(u=>u.employeeName||u.name)
+    );
+    out = out.filter(r => !("employee" in r) || branchEmployees.has(r.employee));
+  }
   return out;
 }
 // True if ANY global filter (beyond date) is active
@@ -613,6 +645,7 @@ function hasActiveReportFilter(){
   return (state.globalEmployeeFilter||[]).length>0 ||
          !!state.globalProjectFilter ||
          !!state.globalLocationFilter ||
+         !!state.globalBranchFilter ||
          !!getPeriodFrom() || !!getPeriodTo();
 }
 
@@ -627,25 +660,31 @@ function renderEmployeeFilterUI(label){
   const allSelected = sel.length === 0;
   const projF = state.globalProjectFilter || "";
   const locF = state.globalLocationFilter || "";
+  const branchF = state.globalBranchFilter || "";
   const allProjects = [...new Set([...state.daily,...state.overtime,...state.travel].map(r=>r.project).filter(Boolean))].sort();
   const allLocations = [...new Set([...state.daily,...state.overtime,...state.travel].map(r=>r.location).filter(Boolean))].sort();
+  const allBranches = (state.branches||[]).map(b=>b.name).filter(Boolean).sort();
   return `<div style="background:linear-gradient(135deg,#F0F4FA 0%,#E8F0F9 100%);border:1.5px solid #2E5FA3;border-radius:10px;padding:12px 14px;margin-bottom:14px">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:${sel.length>0?'8px':'0'};flex-wrap:wrap">
       <div style="display:flex;align-items:center;gap:8px">
         <span style="font-size:18px">🔎</span>
         <div>
           <div style="font-size:13px;font-weight:700;color:#1B3A6B">${escapeHtml(label||"Filter Report")}</div>
-          <div style="font-size:11px;color:#2E5FA3">${allSelected ? `All ${emps.length} employees` : `${sel.length} of ${emps.length} selected`}${projF?` · 📁 ${escapeHtml(projF)}`:''}${locF?` · 📍 ${escapeHtml(locF)}`:''}</div>
+          <div style="font-size:11px;color:#2E5FA3">${allSelected ? `All ${emps.length} employees` : `${sel.length} of ${emps.length} selected`}${branchF?` · 🏙️ ${escapeHtml(branchF)}`:''}${projF?` · 📁 ${escapeHtml(projF)}`:''}${locF?` · 📍 ${escapeHtml(locF)}`:''}</div>
         </div>
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap">
         <button class="btn btn-sm" style="background:white;border:1px solid #2E5FA3;color:#2E5FA3;font-weight:700" onclick="openEmployeeFilterModal()">
           👥 ${allSelected ? 'Employees' : 'Edit'}
         </button>
-        ${(!allSelected||projF||locF) ? `<button class="btn btn-sm" style="background:white;border:1px solid #C53030;color:#C53030;font-weight:700" onclick="clearAllReportFilters()">✕ Clear All</button>` : ''}
+        ${(!allSelected||projF||locF||branchF) ? `<button class="btn btn-sm" style="background:white;border:1px solid #C53030;color:#C53030;font-weight:700" onclick="clearAllReportFilters()">✕ Clear All</button>` : ''}
       </div>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+      ${allBranches.length>0?`<select onchange="window.setGlobalBranchFilter(this.value)" style="flex:1;min-width:140px;padding:7px 10px;border:1px solid #1565C0;border-radius:6px;font-size:12px;background:white;color:#1B3A6B;font-weight:600">
+        <option value="">🏙️ All Branches</option>
+        ${allBranches.map(b=>`<option value="${escapeHtml(b)}" ${b===branchF?"selected":""}>${escapeHtml(b)}</option>`).join("")}
+      </select>`:''}
       <select onchange="window.setGlobalProjectFilter(this.value)" style="flex:1;min-width:140px;padding:7px 10px;border:1px solid #2E5FA3;border-radius:6px;font-size:12px;background:white;color:#1B3A6B">
         <option value="">📁 All Projects</option>
         ${allProjects.map(p=>`<option value="${escapeHtml(p)}" ${p===projF?"selected":""}>${escapeHtml(p)}</option>`).join("")}
@@ -674,10 +713,12 @@ function renderEmployeeFilterUI(label){
 // Project / Location global filter setters
 window.setGlobalProjectFilter = function(v){ state.globalProjectFilter = v||""; renderApp(); };
 window.setGlobalLocationFilter = function(v){ state.globalLocationFilter = v||""; renderApp(); };
+window.setGlobalBranchFilter = function(v){ state.globalBranchFilter = v||""; renderApp(); };
 window.clearAllReportFilters = function(){
   state.globalEmployeeFilter = [];
   state.globalProjectFilter = "";
   state.globalLocationFilter = "";
+  state.globalBranchFilter = "";
   renderApp();
   toast("All report filters cleared");
 };
@@ -1014,6 +1055,7 @@ async function subscribeData(){
     ["daily","daily"],["overtime","overtime"],["travel","travel"],["leaves","leaves"],
     ["projects","projects"],["locations","locations"],["users","users"],
     ["departments","departments"],
+    ["branches","branches"],
     ["workCategories","workCategories"],["workTasks","workTasks"],
     ["nametagEmployees","nametagEmployees"],
     ["employeePermissions","employeePermissions"],
@@ -1046,7 +1088,7 @@ async function subscribeData(){
       }
 
       firstCount++;
-      if(firstCount>=16 && !state.initialized){
+      if(firstCount>=17 && !state.initialized){
         state.initialized=true;
         renderApp();
       } else if(state.initialized){
@@ -1116,6 +1158,8 @@ async function seedDefaults(){
     for(const d of DEFAULT_DEPTS){
       await setDoc(doc(db,"departments",d.id),{name:d.name,color:d.color});
     }
+    // Seed default branch (Erbil)
+    await setDoc(doc(db,"branches","erbil"),{name:"Erbil"});
     for(const p of DEFAULT_PROJECTS){
       await setDoc(doc(db,"projects",p.id),{name:p.name,dept:p.dept});
     }
@@ -1320,7 +1364,7 @@ function getTabs(){
   }
   // Admin / Owner: everything
   const base = ["Dashboard","Daily Log","Overtime","Travel","Leaves","Work Instructions",
-                "HR Report","Reports","Requests","Clients","Projects","Locations","Departments","Users","WhatsApp","Email","Share","Profile"];
+                "HR Report","Reports","Requests","Clients","Projects","Locations","Departments","Branches","Users","WhatsApp","Email","Share","Profile"];
   if(!base.includes(state.tab)) state.tab = base[0];
   return base;
 }
@@ -1386,7 +1430,7 @@ function renderTab(){
     if(!["Dashboard","Work Instructions","Profile"].includes(state.tab)) state.tab="Dashboard";
   } else if(role === "employee"){
     // Employee: no HR/admin tabs
-    if(["HR Report","Reports","Requests","Clients","Projects","Locations","Departments","Users","Share","WhatsApp","Email"].includes(state.tab)) state.tab="Dashboard";
+    if(["HR Report","Reports","Requests","Clients","Projects","Locations","Departments","Branches","Users","Share","WhatsApp","Email"].includes(state.tab)) state.tab="Dashboard";
   } else if(role === "support" || role === "hr"){
     // Support/HR: no Users, Share, or Clients management
     if(["Users","Share","Clients","WhatsApp","Email"].includes(state.tab)) state.tab="Dashboard";
@@ -1396,7 +1440,7 @@ function renderTab(){
     "Dashboard":renderDashboard,"Daily Log":renderDailyLog,"Overtime":renderOvertime,
     "Travel":renderTravel,"Leaves":renderLeaves,"HR Report":renderHRReport,"Reports":renderFlexReports,
     "Projects":renderProjects,"Locations":renderLocations,"Users":renderUsers,
-    "Departments":renderDepartments,"Work Instructions":renderWorkInstructions,
+    "Departments":renderDepartments,"Branches":renderBranches,"Work Instructions":renderWorkInstructions,
     "Share":renderShare,"Profile":renderProfile,
     "Clients":renderClients,"Requests":renderRequests,"My Project":renderClientPortal,
     "WhatsApp":renderWhatsApp,
@@ -2396,7 +2440,7 @@ function renderDailyLog(){
       <div class="field"><label>Date <span class="req">*</span></label>
         <input type="date" value="${dailyForm.date}" onchange="window.dailyForm.date=this.value;render()"></div>
       <div class="field"><label>Employee <span class="req">*</span></label>
-        ${isEmployee()
+        ${isEmployee() && !isSupervisor()
           ?(state.profile.employeeName
             ?`<select onchange="window.dailyForm.employee=this.value;render()">
                 <option value="${escapeHtml(state.profile.employeeName)}" selected>${escapeHtml(state.profile.employeeName)}</option>
@@ -2405,7 +2449,8 @@ function renderDailyLog(){
                 ⚠ Your account has no employee profile linked.<br>
                 <span style="font-weight:400">Ask your administrator to set your "Employee Name" in the Users tab.</span>
               </div>`)
-          :`<select onchange="window.dailyForm.employee=this.value;render()"><option value="">— Select —</option>${empOptions.map(e=>`<option ${e===dailyForm.employee?"selected":""}>${escapeHtml(e)}</option>`).join("")}</select>`}
+          :`<select onchange="window.dailyForm.employee=this.value;render()"><option value="">— Select —</option>${(isSupervisor()&&!isHR()?myTeamEmployees():empOptions).map(e=>`<option ${e===dailyForm.employee?"selected":""}>${escapeHtml(e)}</option>`).join("")}</select>
+          ${isSupervisor()&&!isHR()?`<p style="font-size:11px;color:#6A1B9A;margin-top:4px">👔 You can log for your team members.</p>`:''}`}
       </div>
       <div class="field full"><label>Project <span class="req">*</span></label>
         <select onchange="window.dailyForm.project=this.value;render()">
@@ -2621,8 +2666,15 @@ async function saveDaily(){
   }
 
   // Strict employee guard: force own name on save (defense in depth)
-  if(isEmployee()){
+  // Supervisors may save for their team; plain employees are locked to themselves.
+  if(isEmployee() && !isSupervisor()){
     dailyForm.employee = state.profile.employeeName;  // force override (validated above)
+  } else if(isSupervisor() && !isHR()){
+    // Supervisor: ensure the chosen employee is actually on their team
+    const team = myTeamEmployees();
+    if(!team.includes(dailyForm.employee)){
+      return toast("⚠ You can only log for your team members");
+    }
   }
 
   // ── GPS capture (new entries only) ──
@@ -3777,7 +3829,7 @@ Object.defineProperty(window,'locForm',{get:()=>locForm,set:v=>locForm=v});
 // ═══════════════════════════════════════════════════════════════════════
 function renderUsers(){
   if(!isAdmin())return `<div class="card"><div class="empty">Access denied — Admin only</div></div>`;
-  if(!userForm)userForm={name:"",email:"",password:"",role:"employee",employeeName:""};
+  if(!userForm)userForm={name:"",email:"",password:"",role:"employee",employeeName:"",branch:"",userDept:"",jobTitle:"",supervisorName:"",isSupervisor:false};
 
   return `<div class="card">
     <div class="sec-hdr">${userEditId?"Edit":"Add"} User</div>
@@ -3813,6 +3865,34 @@ function renderUsers(){
             <option value="client"   ${userForm.role==="client"  ?"selected":""}>🏢 Client — Project portal only</option>
           </optgroup>
         </select></div>
+
+      ${userForm.role!=="client"?`
+      <div class="field"><label>🏙️ Branch / City</label>
+        <select onchange="window.userForm.branch=this.value">
+          <option value="">— Select Branch —</option>
+          ${(state.branches||[]).map(b=>{const n=(b.name||"").trim();return `<option value="${escapeHtml(n)}" ${n===(userForm.branch||"").trim()?"selected":""}>${escapeHtml(n)}</option>`}).join("")}
+        </select>
+        ${(state.branches||[]).length===0?`<p style="font-size:11px;color:#C62828;margin-top:4px">No branches yet — add them in the Branches tab first.</p>`:''}</div>
+      <div class="field"><label>🏢 Department</label>
+        <select onchange="window.userForm.userDept=this.value">
+          <option value="">— Select Department —</option>
+          ${state.departments.map(d=>{const n=(d.name||"").trim();return `<option value="${escapeHtml(n)}" ${n===(userForm.userDept||"").trim()?"selected":""}>${escapeHtml(n)}</option>`}).join("")}
+        </select></div>
+      <div class="field"><label>💼 Job Title</label>
+        <input value="${escapeHtml(userForm.jobTitle||'')}" oninput="window.userForm.jobTitle=this.value" placeholder="e.g. Field Technician"></div>
+      <div class="field"><label>👔 Reports To (Supervisor)</label>
+        <select onchange="window.userForm.supervisorName=this.value">
+          <option value="">— None —</option>
+          ${state.users.filter(u=>(u.isSupervisor||(u.role||'').toLowerCase()==='admin') && u.name).map(u=>`<option value="${escapeHtml(u.employeeName||u.name)}" ${(u.employeeName||u.name)===(userForm.supervisorName||'')?"selected":""}>${escapeHtml(u.name)}</option>`).join("")}
+        </select>
+        <p style="font-size:11px;color:var(--muted);margin-top:4px;line-height:1.4">The supervisor can enter data for their team members.</p></div>
+      <div class="field full" style="background:#F3E5F5;border:1px solid #CE93D8;border-radius:8px;padding:10px">
+        <label style="color:#6A1B9A;font-size:13px">
+          <input type="checkbox" ${userForm.isSupervisor?'checked':''} onchange="window.userForm.isSupervisor=this.checked;render()" style="margin-right:6px">
+          👔 This user is a Supervisor
+        </label>
+        <p style="font-size:11px;color:#4A148C;margin:6px 0 0;line-height:1.5">Supervisors can add Daily Log / Overtime / Travel / Leave entries for the employees who report to them.</p>
+      </div>`:''}
       ${userForm.role==="employee"?`<div class="field"><label>Tracked Name <span class="req">*</span></label>
         <input value="${escapeHtml(userForm.employeeName)}" oninput="window.userForm.employeeName=this.value" placeholder="Name in Daily Log lists">
         <p style="font-size:11px;color:var(--muted);margin-top:4px;line-height:1.4">This name appears in Daily/Overtime/Travel employee dropdowns</p></div>`:`
@@ -3985,6 +4065,11 @@ async function saveUser(){
     role:role,
     employeeName: trackedName,
     isTrackedEmployee: isEmp ? true : !!userForm.isTrackedEmployee,
+    branch: userForm.branch || "",
+    userDept: userForm.userDept || "",
+    jobTitle: userForm.jobTitle || "",
+    supervisorName: userForm.supervisorName || "",
+    isSupervisor: !!userForm.isSupervisor,
   };
 
   if(userEditId){
@@ -4030,7 +4115,7 @@ async function saveUser(){
 
 function editUser(id){
   const u=state.users.find(x=>x.id===id);
-  if(u){userForm={name:u.name||"",email:u.email||"",password:"",role:u.role||"employee",employeeName:u.employeeName||""};userEditId=id;render();window.scrollTo(0,0);}
+  if(u){userForm={name:u.name||"",email:u.email||"",password:"",role:u.role||"employee",employeeName:u.employeeName||"",branch:u.branch||"",userDept:u.userDept||"",jobTitle:u.jobTitle||"",supervisorName:u.supervisorName||"",isSupervisor:!!u.isSupervisor,isTrackedEmployee:!!u.isTrackedEmployee};userEditId=id;render();window.scrollTo(0,0);}
 }
 
 async function delUser(id){
@@ -4241,6 +4326,110 @@ function deptNames(){
 // ═══════════════════════════════════════════════════════════════════════
 let deptForm = null;
 let deptEditId = null;
+
+// ═══════════════════════════════════════════════════════════════════════
+//  BRANCHES MODULE — Company branches (cities)
+// ═══════════════════════════════════════════════════════════════════════
+let branchForm=null, branchEditId=null;
+
+function renderBranches(){
+  if(!isHR()) return `<div class="card"><div class="empty">Access denied — HR/Admin only</div></div>`;
+  if(!branchForm) branchForm = {name:""};
+
+  // Count employees per branch
+  const stats = (state.branches||[]).map(b=>{
+    const empCount = state.users.filter(u=>(u.branch||"")===b.name).length;
+    const dailyCount = state.daily.filter(r=>{
+      const emp = state.users.find(u=>(u.employeeName||u.name)===r.employee);
+      return emp && (emp.branch||"")===b.name;
+    }).length;
+    return {...b, empCount, dailyCount};
+  });
+
+  return `<div class="card">
+    <div class="sec-hdr">${branchEditId?"Edit":"Add"} Branch / City</div>
+    <div class="form-grid">
+      <div class="field full"><label>Branch Name <span class="req">*</span></label>
+        <input value="${escapeHtml(branchForm.name)}" oninput="window.branchForm.name=this.value" placeholder="e.g. Erbil, Baghdad, Basra"></div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="saveBranch()">${branchEditId?"Update":"Add Branch"}</button>
+      ${branchEditId?`<button class="btn btn-ghost" onclick="cancelBranch()">Cancel</button>`:""}
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Branches · ${(state.branches||[]).length}</div>
+    ${(state.branches||[]).length===0?`<div class="empty">No branches yet. Add your first city above (e.g. Erbil).</div>`:`
+    <div style="display:grid;gap:10px">
+      ${stats.map(b=>`
+        <div style="border:1px solid var(--line);border-left:5px solid #1565C0;border-radius:10px;padding:12px 14px;background:white">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+            <div style="flex:1;min-width:0">
+              <div style="font-weight:800;color:#1565C0;font-size:15px">🏙️ ${escapeHtml(b.name)}</div>
+              <div style="font-size:11px;color:var(--muted);margin-top:4px">
+                ${b.empCount} employee${b.empCount===1?'':'s'} · ${b.dailyCount} work entr${b.dailyCount===1?'y':'ies'}
+              </div>
+            </div>
+            <button class="btn btn-sm btn-secondary" onclick="editBranch('${b.id}')">✎</button>
+            <button class="btn btn-sm btn-danger" onclick="delBranch('${b.id}')">🗑</button>
+          </div>
+        </div>
+      `).join("")}
+    </div>`}
+  </div>
+
+  <div class="card" style="background:#E3F2FD;border:1px solid #90CAF9">
+    <p style="font-size:12px;color:#0D47A1;margin:0 0 10px;line-height:1.6">
+      <strong>ℹ️ How branches work:</strong> Each branch is a city (Erbil, Baghdad, Basra…). When you add an employee in the Users tab, you assign them to a branch and a department. Reports can then be filtered by branch, so you can generate a separate monthly report for each city.
+    </p>
+    ${(state.branches||[]).length>0 && state.users.some(u=>!u.branch && (u.role||'')!=='client')?`
+    <div style="border-top:1px solid #90CAF9;padding-top:10px;margin-top:6px">
+      <p style="font-size:12px;color:#0D47A1;margin:0 0 8px"><strong>Quick setup:</strong> ${state.users.filter(u=>!u.branch && (u.role||'')!=='client').length} user(s) have no branch yet. Assign them all to:</p>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        ${(state.branches||[]).map(b=>`<button class="btn btn-sm" style="background:#1565C0;color:white;border:none" onclick="bulkAssignBranch('${escapeHtml(b.name)}')">→ ${escapeHtml(b.name)}</button>`).join("")}
+      </div>
+    </div>`:''}
+  </div>`;
+}
+
+// Bulk-assign all branch-less non-client users to a branch (one-time setup helper)
+window.bulkAssignBranch = async function(branchName){
+  const targets = state.users.filter(u=>!u.branch && (u.role||'')!=='client');
+  if(targets.length===0) return toast("All users already have a branch");
+  if(!confirm(`Assign ${targets.length} user(s) to ${branchName}?`)) return;
+  const {db, doc, setDoc} = window.__fb;
+  let done=0;
+  for(const u of targets){
+    try{ await setDoc(doc(db,"users",u.id), {branch:branchName}, {merge:true}); done++; }catch(e){}
+  }
+  toast(`✓ ${done} user(s) assigned to ${branchName}`);
+};
+
+async function saveBranch(){
+  if(!isHR()) return toast("HR/Admin only");
+  const name=(branchForm.name||"").trim();
+  if(!name) return toast("Branch name required");
+  // Prevent duplicates
+  const exists=(state.branches||[]).some(b=>(b.name||"").toLowerCase()===name.toLowerCase() && b.id!==branchEditId);
+  if(exists) return toast("Branch already exists");
+  await fbSave("branches",{id:branchEditId||undefined, name});
+  toast(branchEditId?"Branch updated ✓":"Branch added ✓");
+  branchForm=null; branchEditId=null;
+}
+function editBranch(id){
+  const b=(state.branches||[]).find(x=>x.id===id);
+  if(b){ branchForm={name:b.name}; branchEditId=id; render(); window.scrollTo(0,0); }
+}
+async function delBranch(id){
+  if(!confirm("Delete this branch? Employees assigned to it will show no branch until reassigned."))return;
+  await fbDelete("branches",id);
+  toast("Branch deleted");
+}
+function cancelBranch(){ branchForm=null; branchEditId=null; render(); }
+Object.assign(window,{saveBranch,editBranch,delBranch,cancelBranch});
+Object.defineProperty(window,'branchForm',{get:()=>branchForm,set:v=>branchForm=v,configurable:true});
+
 
 function renderDepartments(){
   if(!isHR()) return `<div class="card"><div class="empty">Access denied — HR/Admin only</div></div>`;
@@ -7630,7 +7819,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v7';"
+      var swCode = "const CACHE='ejaftech-v8';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
