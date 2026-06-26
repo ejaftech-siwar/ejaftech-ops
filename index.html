@@ -1085,6 +1085,16 @@ async function subscribeData(){
   ];
   let firstCount=0;
 
+  // Safety net: if collections haven't all loaded within 8 seconds (e.g. a missing
+  // Firestore rule blocks one), show the app anyway so it never freezes on loading.
+  setTimeout(()=>{
+    if(!state.initialized){
+      console.warn("Init timeout — showing app with partial data");
+      state.initialized=true;
+      renderApp();
+    }
+  }, 8000);
+
   subs.forEach(([col,key])=>{
     const unsub=onSnapshot(collection(db,col),async(snap)=>{
       const items=[];
@@ -1116,6 +1126,13 @@ async function subscribeData(){
     },(err)=>{
       console.error(`${col} sync error:`,err);
       toast(`Sync error: ${col}`);
+      // IMPORTANT: still count this collection so the app doesn't freeze on the
+      // loading screen if one collection fails (e.g. missing Firestore rule).
+      firstCount++;
+      if(firstCount>=17 && !state.initialized){
+        state.initialized=true;
+        renderApp();
+      }
     });
     state.unsubs.push(unsub);
   });
@@ -4154,7 +4171,7 @@ function renderUsers(){
           ${hasActiveSession?`<div style="font-size:10px;color:#2E7D32;margin-top:3px">🟢 Active on: ${escapeHtml(u.activeSessionLabel||"a device")}</div>`:`<div style="font-size:10px;color:#999;margin-top:3px">⚪ Not signed in</div>`}
         </div>
         ${u.id!==state.profile.uid?`<button class="btn btn-sm btn-secondary" onclick="editUser('${u.id}')">✎</button>
-        <button class="btn btn-sm btn-danger" onclick="delUser('${u.id}')">🗑</button>`:`<span style="font-size:10px;color:var(--muted)">YOU</span>`}
+        <button class="btn btn-sm btn-danger" onclick="delUser('${u.id}')">🗑</button>`:`<button class="btn btn-sm btn-secondary" onclick="editUser('${u.id}')">✎</button><span style="font-size:10px;color:var(--muted);margin-left:4px">YOU</span>`}
         <div style="flex-basis:100%;display:flex;align-items:center;gap:10px;margin-top:8px;padding-top:8px;border-top:1px solid #eee;flex-wrap:wrap">
           ${isAdminUser
             ? `<span style="font-size:11px;color:#6A1B9A;font-weight:600">👑 Admin — multiple devices always allowed</span>`
@@ -4293,6 +4310,16 @@ function renderUsers(){
 
 async function saveUser(){
   if(!userForm.name.trim()||!userForm.email.trim())return toast("Name and email required");
+
+  // Self-edit protection: if you're editing your OWN account, keep your admin/owner
+  // role so you can never accidentally lock yourself out of the admin panel.
+  if(userEditId && userEditId===state.profile.uid){
+    const myRole = (state.profile.role||"").toLowerCase();
+    if((myRole==="admin"||myRole==="owner") && userForm.role!==state.profile.role){
+      userForm.role = state.profile.role;
+      toast("Your admin role is kept for safety");
+    }
+  }
 
   // Build user data with proper isTrackedEmployee handling
   const role = userForm.role;
@@ -8068,7 +8095,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v10';"
+      var swCode = "const CACHE='ejaftech-v11';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
