@@ -337,6 +337,7 @@ const state = {
   globalProjectFilter: "",     // single project filter for reports (empty = all)
   globalLocationFilter: "",    // single location filter for reports (empty = all)
   globalBranchFilter: "",      // single branch filter for reports (empty = all)
+  globalEmpDeptFilter: "",     // filter by EMPLOYEE's department (who they are, not the task's dept)
   tab: "Dashboard",
   initialized: false,
   unsubs: [],           // active Firestore listeners
@@ -351,7 +352,7 @@ let trForm=null, trEditId=null;
 let projForm=null, projEditId=null;
 let locForm="", locEditId=null;
 let userForm=null, userEditId=null;
-let nametagForm={name:"", type:"internal"}, nametagEditId=null;
+let nametagForm={name:"", type:"internal", branch:"", dept:""}, nametagEditId=null;
 
 // ═══════════════════════════════════════════════════════════════════════
 //  HELPERS
@@ -632,11 +633,20 @@ function applyReportFilters(rows, dateField="date"){
   const lf = state.globalLocationFilter || "";
   if(lf) out = out.filter(r => !("location" in r) || r.location === lf); // 4. location (skip if field absent)
   const bf = state.globalBranchFilter || "";
-  if(bf){                                              // 5. branch (map employee → branch via users)
-    const branchEmployees = new Set(
-      state.users.filter(u=>(u.branch||"")===bf).map(u=>u.employeeName||u.name)
-    );
+  if(bf){                                              // 5. branch (map employee → branch via users + nametags)
+    const branchEmployees = new Set([
+      ...state.users.filter(u=>(u.branch||"")===bf).map(u=>u.employeeName||u.name),
+      ...(state.nametagEmployees||[]).filter(n=>(n.branch||"")===bf).map(n=>n.name),
+    ].filter(Boolean));
     out = out.filter(r => !("employee" in r) || branchEmployees.has(r.employee));
+  }
+  const edf = state.globalEmpDeptFilter || "";
+  if(edf){                                             // 6. employee's department (who they are, not the task dept)
+    const deptEmployees = new Set([
+      ...state.users.filter(u=>(u.userDept||"")===edf).map(u=>u.employeeName||u.name),
+      ...(state.nametagEmployees||[]).filter(n=>(n.dept||"")===edf).map(n=>n.name),
+    ].filter(Boolean));
+    out = out.filter(r => !("employee" in r) || deptEmployees.has(r.employee));
   }
   return out;
 }
@@ -646,6 +656,7 @@ function hasActiveReportFilter(){
          !!state.globalProjectFilter ||
          !!state.globalLocationFilter ||
          !!state.globalBranchFilter ||
+         !!state.globalEmpDeptFilter ||
          !!getPeriodFrom() || !!getPeriodTo();
 }
 
@@ -661,29 +672,35 @@ function renderEmployeeFilterUI(label){
   const projF = state.globalProjectFilter || "";
   const locF = state.globalLocationFilter || "";
   const branchF = state.globalBranchFilter || "";
+  const empDeptF = state.globalEmpDeptFilter || "";
   const allProjects = [...new Set([...state.daily,...state.overtime,...state.travel].map(r=>r.project).filter(Boolean))].sort();
   const allLocations = [...new Set([...state.daily,...state.overtime,...state.travel].map(r=>r.location).filter(Boolean))].sort();
   const allBranches = (state.branches||[]).map(b=>b.name).filter(Boolean).sort();
+  const allEmpDepts = state.departments.map(d=>d.name).filter(Boolean).sort();
   return `<div style="background:linear-gradient(135deg,#F0F4FA 0%,#E8F0F9 100%);border:1.5px solid #2E5FA3;border-radius:10px;padding:12px 14px;margin-bottom:14px">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:${sel.length>0?'8px':'0'};flex-wrap:wrap">
       <div style="display:flex;align-items:center;gap:8px">
         <span style="font-size:18px">🔎</span>
         <div>
           <div style="font-size:13px;font-weight:700;color:#1B3A6B">${escapeHtml(label||"Filter Report")}</div>
-          <div style="font-size:11px;color:#2E5FA3">${allSelected ? `All ${emps.length} employees` : `${sel.length} of ${emps.length} selected`}${branchF?` · 🏙️ ${escapeHtml(branchF)}`:''}${projF?` · 📁 ${escapeHtml(projF)}`:''}${locF?` · 📍 ${escapeHtml(locF)}`:''}</div>
+          <div style="font-size:11px;color:#2E5FA3">${allSelected ? `All ${emps.length} employees` : `${sel.length} of ${emps.length} selected`}${branchF?` · 🏙️ ${escapeHtml(branchF)}`:''}${empDeptF?` · 👥 ${escapeHtml(empDeptF)}`:''}${projF?` · 📁 ${escapeHtml(projF)}`:''}${locF?` · 📍 ${escapeHtml(locF)}`:''}</div>
         </div>
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap">
         <button class="btn btn-sm" style="background:white;border:1px solid #2E5FA3;color:#2E5FA3;font-weight:700" onclick="openEmployeeFilterModal()">
           👥 ${allSelected ? 'Employees' : 'Edit'}
         </button>
-        ${(!allSelected||projF||locF||branchF) ? `<button class="btn btn-sm" style="background:white;border:1px solid #C53030;color:#C53030;font-weight:700" onclick="clearAllReportFilters()">✕ Clear All</button>` : ''}
+        ${(!allSelected||projF||locF||branchF||empDeptF) ? `<button class="btn btn-sm" style="background:white;border:1px solid #C53030;color:#C53030;font-weight:700" onclick="clearAllReportFilters()">✕ Clear All</button>` : ''}
       </div>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
       ${allBranches.length>0?`<select onchange="window.setGlobalBranchFilter(this.value)" style="flex:1;min-width:140px;padding:7px 10px;border:1px solid #1565C0;border-radius:6px;font-size:12px;background:white;color:#1B3A6B;font-weight:600">
         <option value="">🏙️ All Branches</option>
         ${allBranches.map(b=>`<option value="${escapeHtml(b)}" ${b===branchF?"selected":""}>${escapeHtml(b)}</option>`).join("")}
+      </select>`:''}
+      ${allEmpDepts.length>0?`<select onchange="window.setGlobalEmpDeptFilter(this.value)" style="flex:1;min-width:140px;padding:7px 10px;border:1px solid #6A1B9A;border-radius:6px;font-size:12px;background:white;color:#1B3A6B;font-weight:600">
+        <option value="">👥 All Staff Depts</option>
+        ${allEmpDepts.map(d=>`<option value="${escapeHtml(d)}" ${d===empDeptF?"selected":""}>${escapeHtml(d)} staff</option>`).join("")}
       </select>`:''}
       <select onchange="window.setGlobalProjectFilter(this.value)" style="flex:1;min-width:140px;padding:7px 10px;border:1px solid #2E5FA3;border-radius:6px;font-size:12px;background:white;color:#1B3A6B">
         <option value="">📁 All Projects</option>
@@ -714,11 +731,13 @@ function renderEmployeeFilterUI(label){
 window.setGlobalProjectFilter = function(v){ state.globalProjectFilter = v||""; renderApp(); };
 window.setGlobalLocationFilter = function(v){ state.globalLocationFilter = v||""; renderApp(); };
 window.setGlobalBranchFilter = function(v){ state.globalBranchFilter = v||""; renderApp(); };
+window.setGlobalEmpDeptFilter = function(v){ state.globalEmpDeptFilter = v||""; renderApp(); };
 window.clearAllReportFilters = function(){
   state.globalEmployeeFilter = [];
   state.globalProjectFilter = "";
   state.globalLocationFilter = "";
   state.globalBranchFilter = "";
+  state.globalEmpDeptFilter = "";
   renderApp();
   toast("All report filters cleared");
 };
@@ -1625,6 +1644,7 @@ function getEmpPermissions(employeeName){
   return {
     gpsRequired:        p ? (p.gpsRequired        !== false) : true,
     resolutionRequired: p ? (p.resolutionRequired !== false) : true,
+    equipmentRequired:  p ? (p.equipmentRequired  === true)  : false,  // OFF by default
   };
 }
 async function saveEmpPermissions(employeeName, perms){
@@ -1634,6 +1654,7 @@ async function saveEmpPermissions(employeeName, perms){
     employee: employeeName,
     gpsRequired:        !!perms.gpsRequired,
     resolutionRequired: !!perms.resolutionRequired,
+    equipmentRequired:  !!perms.equipmentRequired,
     updatedBy: state.profile.uid,
     updatedAt: new Date().toISOString(),
   });
@@ -1923,7 +1944,7 @@ async function exportDailyPDF(){
     <td>${fmtDate(r.date)}</td>
     <td style="font-size:10px;color:#555;white-space:nowrap">${r.start&&r.end?`${r.start}–${r.end}`:'—'}</td>
     <td><strong style="color:#03308B">${escapeHtml(r.employee||'')}</strong></td>
-    <td>${escapeHtml(r.project||'')}</td>
+    <td>${escapeHtml(r.project||'')}${(r.site||r.equipment)?`<br><span style="font-size:9px;color:#1565C0">${r.site?`🏗 ${escapeHtml(r.site)}`:''}${r.equipment?` · 🔧 ${escapeHtml(r.equipment)}`:''}</span>`:''}</td>
     <td><span style="background:${(state.departments.find(d=>d.name===r.dept)||{color:'#888'}).color}22;color:${(state.departments.find(d=>d.name===r.dept)||{color:'#888'}).color};padding:2px 7px;border-radius:8px;font-size:10px;font-weight:700">${escapeHtml(r.dept||'')}</span></td>
     <td>${r.location?`<span style="background:#E3F2FD;color:#1565C0;padding:2px 7px;border-radius:8px;font-size:10px">📍 ${escapeHtml(r.location)}</span>`:'—'}${r.gpsLat?` <a href="${gpsMapLink(r.gpsLat,r.gpsLng)}" style="font-size:9px;color:#2E7D32;font-weight:700;text-decoration:none">🛰️ Map</a>`:r.gpsDenied?` <span style="font-size:9px;color:#C62828">🚫 GPS</span>`:''}</td>
     <td style="color:#2E7D32;font-weight:700">${fmtHM(r.duration)}</td>
@@ -1999,10 +2020,11 @@ async function exportDailyExcel(){
     setC(ws1,'A1',`EJAF Technology — Daily Work Log  |  Ref: ${refNo}`,titleSt);
     setM(ws1,{s:{r:0,c:0},e:{r:0,c:6}});
     setC(ws1,'A2',`Period: ${period}${filterEmp?' · Employee: '+filterEmp:''}  |  Generated: ${new Date().toLocaleString('en-GB')}`,subSt);
-    setM(ws1,{s:{r:1,c:0},e:{r:1,c:7}});
+    setM(ws1,{s:{r:1,c:0},e:{r:1,c:9}});
     setC(ws1,'A4','#',hdSt); setC(ws1,'B4','Date',hdSt); setC(ws1,'C4','Time',hdSt);
-    setC(ws1,'D4','Employee',hdSt); setC(ws1,'E4','Project',hdSt); setC(ws1,'F4','Department',hdSt);
-    setC(ws1,'G4','Location',hdSt); setC(ws1,'H4','Hours',hdSt); setC(ws1,'I4','GPS',hdSt);
+    setC(ws1,'D4','Employee',hdSt); setC(ws1,'E4','Project',hdSt); setC(ws1,'F4','Site',hdSt);
+    setC(ws1,'G4','Equipment',hdSt); setC(ws1,'H4','Department',hdSt);
+    setC(ws1,'I4','Location',hdSt); setC(ws1,'J4','Hours',hdSt); setC(ws1,'K4','GPS',hdSt);
     rows.forEach((r,i)=>{
       const row=5+i; const alt=i%2===1;
       const bg = alt ? COLORS.bgAlt : COLORS.white;
@@ -2012,17 +2034,19 @@ async function exportDailyExcel(){
       setC(ws1,`C${row}`,(r.start&&r.end)?`${r.start}–${r.end}`:'',{...cellSt,font:{sz:9,color:{rgb:COLORS.textDark}}});
       setC(ws1,`D${row}`,r.employee||'',cellSt);
       setC(ws1,`E${row}`,r.project||'',cellSt);
-      setC(ws1,`F${row}`,r.dept||'',cellSt);
-      setC(ws1,`G${row}`,r.location||'',cellSt);
-      setC(ws1,`H${row}`,fmtHM(r.duration),{...cellSt,font:{sz:10,bold:true,color:{rgb:"2E7D32"}}});
-      setC(ws1,`I${row}`, r.gpsLat ? gpsMapLink(r.gpsLat,r.gpsLng) : (r.gpsDenied?'GPS denied':''), {...cellSt,font:{sz:9,color:{rgb:r.gpsLat?"2E7D32":"C62828"}}});
+      setC(ws1,`F${row}`,r.site||'',cellSt);
+      setC(ws1,`G${row}`,r.equipment||'',cellSt);
+      setC(ws1,`H${row}`,r.dept||'',cellSt);
+      setC(ws1,`I${row}`,r.location||'',cellSt);
+      setC(ws1,`J${row}`,fmtHM(r.duration),{...cellSt,font:{sz:10,bold:true,color:{rgb:"2E7D32"}}});
+      setC(ws1,`K${row}`, r.gpsLat ? gpsMapLink(r.gpsLat,r.gpsLng) : (r.gpsDenied?'GPS denied':''), {...cellSt,font:{sz:9,color:{rgb:r.gpsLat?"2E7D32":"C62828"}}});
     });
     const totRow=5+rows.length;
     const totSt={font:{bold:true,sz:11,color:{rgb:COLORS.gold}},fill:{fgColor:{rgb:"0A1628"}}};
-    setC(ws1,`A${totRow}`,'TOTAL',totSt); setM(ws1,{s:{r:totRow-1,c:0},e:{r:totRow-1,c:6}});
-    setC(ws1,`H${totRow}`,fmtHM(rows.reduce((s,r)=>s+Number(r.duration||0),0)),totSt);
-    ws1['!ref']=`A1:I${totRow}`;
-    ws1['!cols']=[{wch:8},{wch:12},{wch:14},{wch:20},{wch:28},{wch:16},{wch:18},{wch:10},{wch:38}];
+    setC(ws1,`A${totRow}`,'TOTAL',totSt); setM(ws1,{s:{r:totRow-1,c:0},e:{r:totRow-1,c:8}});
+    setC(ws1,`J${totRow}`,fmtHM(rows.reduce((s,r)=>s+Number(r.duration||0),0)),totSt);
+    ws1['!ref']=`A1:K${totRow}`;
+    ws1['!cols']=[{wch:8},{wch:12},{wch:14},{wch:20},{wch:24},{wch:18},{wch:20},{wch:16},{wch:16},{wch:10},{wch:38}];
     XLSX.utils.book_append_sheet(wb,ws1,'Daily Log');
 
     // ── SHEET 2: Department Summary ──
@@ -2071,9 +2095,9 @@ function exportCSV(){
   // Daily Log
   const dailyRows=applyReportFilters(isHR()?state.daily:state.daily.filter(r=>r.employee===state.profile.employeeName));
   lines.push("DAILY WORK LOG");
-  lines.push(["Date","Employee","Project","Department","Start","End","Duration","Notes"].map(csvEscape).join(","));
+  lines.push(["Date","Employee","Project","Site","Equipment","Department","Start","End","Duration","Notes"].map(csvEscape).join(","));
   dailyRows.forEach(r=>{
-    lines.push([r.date,r.employee,r.project,r.dept,r.start,r.end,fmtHM(r.duration),r.notes||""].map(csvEscape).join(","));
+    lines.push([r.date,r.employee,r.project,r.site||"",r.equipment||"",r.dept,r.start,r.end,fmtHM(r.duration),r.notes||""].map(csvEscape).join(","));
   });
   lines.push("");
 
@@ -2398,14 +2422,17 @@ function renderDailyLog(){
       date:today(),
       employee:isEmployee()?state.profile.employeeName:"",
       project:"",start:"",end:"",location:"",
+      site:"",equipment:"",  // site + equipment (from project's sites)
       resolutionText:"",  // mandatory text explanation
       resolutionImages:[], // array of base64 compressed images
       notes:""
     };
   }
-  // Ensure resolution fields exist (backward compat for edit)
+  // Ensure fields exist (backward compat for edit)
   if(!dailyForm.resolutionImages) dailyForm.resolutionImages = [];
   if(typeof dailyForm.resolutionText === 'undefined') dailyForm.resolutionText = "";
+  if(typeof dailyForm.site === 'undefined') dailyForm.site = "";
+  if(typeof dailyForm.equipment === 'undefined') dailyForm.equipment = "";
   const dur=timeToHrs(dailyForm.start,dailyForm.end);
   const dept=projDept(dailyForm.project);
   // Filter by location too
@@ -2453,10 +2480,30 @@ function renderDailyLog(){
           ${isSupervisor()&&!isHR()?`<p style="font-size:11px;color:#6A1B9A;margin-top:4px">👔 You can log for your team members.</p>`:''}`}
       </div>
       <div class="field full"><label>Project <span class="req">*</span></label>
-        <select onchange="window.dailyForm.project=this.value;render()">
+        <select onchange="window.dailyForm.project=this.value;window.dailyForm.site='';window.dailyForm.equipment='';render()">
           <option value="">— Select —</option>
           ${state.projects.map(p=>{const n=(p.name||"").trim();return `<option value="${escapeHtml(n)}" ${n===(dailyForm.project||"").trim()?"selected":""}>${escapeHtml(n)}</option>`}).join("")}
         </select></div>
+      ${(()=>{
+        const proj = state.projects.find(p=>(p.name||"").trim()===(dailyForm.project||"").trim());
+        const sites = proj?.sites || [];
+        if(sites.length===0) return "";  // project has no sites → skip
+        const selSite = sites.find(s=>s.name===dailyForm.site);
+        const equip = selSite?.equipment || [];
+        const equipReq = !isAdmin() && getEmpPermissions(dailyForm.employee||state.profile.employeeName||"").equipmentRequired;
+        return `
+      <div class="field full"><label>🏗 Site ${equipReq?'<span class="req">*</span>':'<span style="font-size:10px;color:var(--muted)">(optional)</span>'}</label>
+        <select onchange="window.dailyForm.site=this.value;window.dailyForm.equipment='';render()">
+          <option value="">— Select Site —</option>
+          ${sites.map(s=>`<option value="${escapeHtml(s.name)}" ${s.name===(dailyForm.site||"")?"selected":""}>${escapeHtml(s.name)}</option>`).join("")}
+        </select></div>
+      ${dailyForm.site && equip.length>0 ? `
+      <div class="field full"><label>🔧 Equipment ${equipReq?'<span class="req">*</span>':'<span style="font-size:10px;color:var(--muted)">(optional)</span>'}</label>
+        <select onchange="window.dailyForm.equipment=this.value;render()">
+          <option value="">— Select Equipment —</option>
+          ${equip.map(eq=>`<option value="${escapeHtml(eq)}" ${eq===(dailyForm.equipment||"")?"selected":""}>${escapeHtml(eq)}</option>`).join("")}
+        </select></div>` : (dailyForm.site ? `<div class="field full"><div style="font-size:11px;color:#888;padding:6px 10px;background:#F7F7F7;border-radius:6px">No equipment registered for this site.</div></div>` : '')}`;
+      })()}
       <div class="field"><label>Start</label>
         <input type="time" value="${dailyForm.start}" onchange="window.dailyForm.start=this.value;render()"></div>
       <div class="field"><label>End</label>
@@ -2601,7 +2648,7 @@ function renderDailyLog(){
           <td style="text-align:center;font-size:11px;font-weight:700;color:#03308B;background:#f0f4ff;white-space:nowrap">${r.entryNo ? formatEntryNo(r.entryNo) : '<span style="color:#bbb">—</span>'}</td>
           <td>${fmtDate(r.date)}</td>
           ${!isEmployee()?`<td>${employeeBadge(r.employee)}</td>`:""}
-          <td>${escapeHtml(r.project||"")}</td>
+          <td>${escapeHtml(r.project||"")}${(r.site||r.equipment)?`<div style="font-size:10px;color:#1565C0;margin-top:2px">${r.site?`🏗 ${escapeHtml(r.site)}`:''}${r.equipment?` · 🔧 ${escapeHtml(r.equipment)}`:''}</div>`:''}</td>
           <td>${deptBadge(r.dept)}</td>
           <td>${r.location?`<span style="background:#E3F2FD;color:#1565C0;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600">📍 ${escapeHtml(r.location)}</span>`:'<span style="color:#bbb;font-style:italic;font-size:11px">—</span>'} ${gpsBadgeHTML(r)}</td>
           <td><strong style="color:#2E7D32">${fmtHM(r.duration)}</strong></td>
@@ -2661,6 +2708,20 @@ async function saveDaily(){
       if(txt.length < 10) return toast("Resolution description required (min 10 chars)");
       if(!dailyForm.resolutionImages || dailyForm.resolutionImages.length < 1){
         return toast("At least 1 resolution photo is required");
+      }
+    }
+  }
+
+  // Equipment requirement: if admin enabled it for this employee AND the project has sites,
+  // the employee must pick a site and an equipment.
+  if(!isAdmin() && perms.equipmentRequired){
+    const proj = state.projects.find(p=>(p.name||"").trim()===(dailyForm.project||"").trim());
+    const sites = proj?.sites || [];
+    if(sites.length > 0){
+      if(!dailyForm.site) return toast("⚠ Please select a Site (required)");
+      const selSite = sites.find(s=>s.name===dailyForm.site);
+      if((selSite?.equipment||[]).length > 0 && !dailyForm.equipment){
+        return toast("⚠ Please select the Equipment you worked on (required)");
       }
     }
   }
@@ -3679,6 +3740,165 @@ function renderHRReport(){
 // ═══════════════════════════════════════════════════════════════════════
 //  PROJECTS (HR+)
 // ═══════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════
+//  SITES & EQUIPMENT MODULE
+//  Each Project has Sites; each Site has Equipment. Admin manages both here.
+//  Data shape on a project doc:
+//    sites: [ { name:"Site A", equipment:["Switch-1","Server-2"] }, ... ]
+// ═══════════════════════════════════════════════════════════════════════
+let sitesModalProjId = null;   // which project is open in the modal
+let newSiteName = "";          // input buffer for adding a site
+let newEquipInputs = {};       // per-site equipment input buffers {siteIdx: "text"}
+
+window.openSitesModal = function(projId){
+  sitesModalProjId = projId;
+  newSiteName = "";
+  newEquipInputs = {};
+  showSitesModal();
+};
+window.closeSitesModal = function(){
+  sitesModalProjId = null;
+  const ov = document.getElementById('sitesOverlay');
+  if(ov) ov.remove();
+};
+
+// Build and (re)inject the modal overlay into the DOM
+function showSitesModal(){
+  const existing = document.getElementById('sitesOverlay');
+  if(existing) existing.remove();
+  if(!sitesModalProjId) return;
+  const html = renderSitesModal();
+  if(!html) return;
+  const wrap = document.createElement('div');
+  wrap.id = 'sitesOverlay';
+  wrap.innerHTML = html;
+  document.body.appendChild(wrap);
+}
+
+// Render the modal (called from renderApp overlay area)
+function renderSitesModal(){
+  if(!sitesModalProjId) return "";
+  const proj = state.projects.find(p=>p.id===sitesModalProjId);
+  if(!proj) { sitesModalProjId=null; return ""; }
+  const sites = proj.sites || [];
+
+  return `<div onclick="if(event.target===this)closeSitesModal()" style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:flex-start;justify-content:center;padding:20px;overflow-y:auto">
+    <div style="background:white;border-radius:16px;max-width:560px;width:100%;box-shadow:0 24px 64px rgba(0,0,0,0.4);margin-top:20px">
+      <div style="background:#03308B;color:white;padding:16px 20px;border-radius:16px 16px 0 0;display:flex;align-items:center;justify-content:space-between">
+        <div>
+          <div style="font-size:16px;font-weight:800">🏗 Sites & Equipment</div>
+          <div style="font-size:12px;opacity:0.85">${escapeHtml(proj.name)}</div>
+        </div>
+        <button onclick="closeSitesModal()" style="background:rgba(255,255,255,0.2);border:none;color:white;width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:18px;font-weight:700">×</button>
+      </div>
+      <div style="padding:20px;max-height:70vh;overflow-y:auto">
+
+        <!-- Add new site -->
+        <div style="display:flex;gap:6px;margin-bottom:16px">
+          <input id="newSiteInput" value="${escapeHtml(newSiteName)}" oninput="window._setNewSiteName(this.value)" placeholder="New site name (e.g. Tower-A, Data Center)" style="flex:1;padding:9px 12px;border:1px solid var(--line);border-radius:8px;font-size:13px">
+          <button class="btn" style="background:#1565C0;color:white;border:none;font-weight:700" onclick="addSite()">+ Site</button>
+        </div>
+
+        ${sites.length===0
+          ? `<div style="padding:20px;text-align:center;color:#888;background:#F7F7F7;border-radius:10px;font-size:13px">No sites yet. Add the first site above.</div>`
+          : sites.map((s,si)=>`
+            <div style="border:1px solid #CBD5E1;border-radius:12px;padding:14px;margin-bottom:12px;background:#F8FAFC">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px">
+                <div style="font-weight:800;color:#03308B;font-size:14px">📍 ${escapeHtml(s.name)}</div>
+                <button class="btn btn-sm btn-danger" onclick="delSite(${si})">🗑 Site</button>
+              </div>
+              <!-- Equipment list -->
+              <div style="font-size:11px;font-weight:700;color:#64748B;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px">Equipment</div>
+              ${(s.equipment||[]).length===0
+                ? `<div style="font-size:12px;color:#94A3B8;padding:6px 0">No equipment yet.</div>`
+                : `<div style="display:flex;flex-direction:column;gap:5px;margin-bottom:8px">
+                    ${(s.equipment||[]).map((eq,ei)=>`<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;background:white;border:1px solid #E2E8F0;border-radius:7px;padding:7px 10px">
+                      <span style="font-size:12px;color:#1E293B;font-weight:600">🔧 ${escapeHtml(eq)}</span>
+                      <button onclick="delEquip(${si},${ei})" style="background:#FEE2E2;border:none;color:#DC2626;width:22px;height:22px;border-radius:5px;cursor:pointer;font-weight:700">×</button>
+                    </div>`).join("")}
+                  </div>`}
+              <!-- Add equipment -->
+              <div style="display:flex;gap:6px">
+                <input value="${escapeHtml(newEquipInputs[si]||'')}" oninput="window._setNewEquip(${si},this.value)" placeholder="e.g. Switch-Core-1, Server-DB" style="flex:1;padding:7px 10px;border:1px solid var(--line);border-radius:7px;font-size:12px">
+                <button class="btn btn-sm" style="background:#2E7D32;color:white;border:none;font-weight:700" onclick="addEquip(${si})">+ Equip</button>
+              </div>
+            </div>
+          `).join("")}
+
+        <div style="background:#E3F2FD;border-radius:8px;padding:10px 12px;font-size:11px;color:#0D47A1;line-height:1.6;margin-top:8px">
+          ℹ️ When an employee logs work, they pick this project, then a site, then its equipment auto-appears in a dropdown.
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+window._setNewSiteName = function(v){ newSiteName = v; };
+window._setNewEquip = function(si, v){ newEquipInputs[si] = v; };
+
+async function saveSitesToProject(proj, sites){
+  await fbSave("projects", {
+    id: proj.id, name: proj.name, dept: proj.dept,
+    estimatedHours: Number(proj.estimatedHours||0),
+    sites,
+  });
+}
+
+window.addSite = async function(){
+  if(!isAdmin()) return toast("Admin only");
+  const proj = state.projects.find(p=>p.id===sitesModalProjId);
+  if(!proj) return;
+  const name = (newSiteName||"").trim();
+  if(!name) return toast("Enter a site name");
+  const sites = [...(proj.sites||[])];
+  if(sites.some(s=>(s.name||"").toLowerCase()===name.toLowerCase())) return toast("Site already exists");
+  sites.push({name, equipment:[]});
+  await saveSitesToProject(proj, sites);
+  newSiteName = "";
+  showSitesModal();
+  toast("Site added ✓");
+};
+window.delSite = async function(si){
+  if(!isAdmin()) return toast("Admin only");
+  const proj = state.projects.find(p=>p.id===sitesModalProjId);
+  if(!proj) return;
+  const sites = [...(proj.sites||[])];
+  if(!confirm(`Delete site "${sites[si]?.name}" and its equipment?`)) return;
+  sites.splice(si,1);
+  await saveSitesToProject(proj, sites);
+  showSitesModal();
+  toast("Site deleted");
+};
+window.addEquip = async function(si){
+  if(!isAdmin()) return toast("Admin only");
+  const proj = state.projects.find(p=>p.id===sitesModalProjId);
+  if(!proj) return;
+  const val = (newEquipInputs[si]||"").trim();
+  if(!val) return toast("Enter equipment name");
+  const sites = [...(proj.sites||[])];
+  const eq = [...(sites[si].equipment||[])];
+  if(eq.some(e=>e.toLowerCase()===val.toLowerCase())) return toast("Equipment already exists");
+  eq.push(val);
+  sites[si] = {...sites[si], equipment:eq};
+  await saveSitesToProject(proj, sites);
+  newEquipInputs[si] = "";
+  showSitesModal();
+  toast("Equipment added ✓");
+};
+window.delEquip = async function(si, ei){
+  if(!isAdmin()) return toast("Admin only");
+  const proj = state.projects.find(p=>p.id===sitesModalProjId);
+  if(!proj) return;
+  const sites = [...(proj.sites||[])];
+  const eq = [...(sites[si].equipment||[])];
+  eq.splice(ei,1);
+  sites[si] = {...sites[si], equipment:eq};
+  await saveSitesToProject(proj, sites);
+  showSitesModal();
+  toast("Equipment removed");
+};
+
+
 function renderProjects(){
   const allDepts = deptNames();
   if(!projForm) projForm={name:"", dept: allDepts[0] || ""};
@@ -3722,7 +3942,8 @@ function renderProjects(){
     const color = isUncategorized ? "#6B7B8F" : deptColor(d);
     return `<div class="card">
       <div class="card-title">${isUncategorized?`<span style="color:#6B7B8F">${d}</span>`:deptBadgeDyn(d)} · ${g[d].length} projects</div>
-      ${g[d].length===0?`<div class="empty">No projects</div>`:`<div class="proj-chips">${g[d].map(p=>`<span class="proj-chip" style="border-left:3px solid ${color}">${escapeHtml(p.name)}
+      ${g[d].length===0?`<div class="empty">No projects</div>`:`<div class="proj-chips">${g[d].map(p=>`<span class="proj-chip" style="border-left:3px solid ${color}">${escapeHtml(p.name)}${(p.sites&&p.sites.length)?`<span style="font-size:9px;background:#1565C0;color:white;padding:1px 5px;border-radius:8px;margin-left:4px">${p.sites.length} 🏗</span>`:''}
+        <button class="btn btn-sm" style="padding:2px 6px;background:#1565C0;color:white;border:none" onclick="openSitesModal('${p.id}')" title="Manage sites & equipment">🏗</button>
         <button class="btn btn-sm btn-secondary" onclick="editProj('${p.id}')" style="padding:2px 6px">✎</button>
         <button class="btn btn-sm btn-danger" onclick="delProj('${p.id}')" style="padding:2px 6px">🗑</button></span>`).join("")}</div>`}
     </div>`;
@@ -3749,7 +3970,10 @@ async function saveProj(){
     if(affected > 0 && !confirm(`Rename "${oldName}" → "${cleanName}"?\n\nThis will update ${affected} record(s) across Daily Log, Overtime, and Travel, plus client assignments.\n\nThis cannot be undone.`)) return;
   }
 
-  await fbSave("projects",{id,name:cleanName,dept:projForm.dept,estimatedHours:Number(projForm.estimatedHours||0)});
+  // Preserve existing sites (managed separately via the Sites manager)
+  const existingProj = state.projects.find(p=>p.id===id);
+  const sites = (projForm.sites!==undefined) ? projForm.sites : (existingProj?.sites || []);
+  await fbSave("projects",{id,name:cleanName,dept:projForm.dept,estimatedHours:Number(projForm.estimatedHours||0),sites});
 
   if(oldName){
     const synced = await cascadeRenameProject(oldName, cleanName);
@@ -3981,6 +4205,17 @@ function renderUsers(){
             <option value="external" ${(nametagForm||{}).type==="external"?"selected":""}>🔶 External / Outsource</option>
           </select>
         </div>
+        <div class="field"><label>🏙️ Branch / City</label>
+          <select onchange="window.nametagForm.branch=this.value">
+            <option value="">— Select Branch —</option>
+            ${(state.branches||[]).map(b=>{const n=(b.name||"").trim();return `<option value="${escapeHtml(n)}" ${n===((nametagForm||{}).branch||"").trim()?"selected":""}>${escapeHtml(n)}</option>`}).join("")}
+          </select>
+          ${(state.branches||[]).length===0?`<p style="font-size:11px;color:#C62828;margin-top:4px">Add branches in the Branches tab first.</p>`:''}</div>
+        <div class="field"><label>🏢 Department</label>
+          <select onchange="window.nametagForm.dept=this.value">
+            <option value="">— Select Department —</option>
+            ${state.departments.map(d=>{const n=(d.name||"").trim();return `<option value="${escapeHtml(n)}" ${n===((nametagForm||{}).dept||"").trim()?"selected":""}>${escapeHtml(n)}</option>`}).join("")}
+          </select></div>
       </div>
       <div style="font-size:11px;color:#7F6000;margin-bottom:10px">
         ${(nametagForm||{}).type==="external" ? '🔶 This employee will appear with <strong>[EXT]</strong> orange badge across all reports.' : '🏢 This employee will appear as a regular internal team member.'}
@@ -4028,7 +4263,8 @@ function renderUsers(){
     <p style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.6">
       Control what each employee must provide when adding a Daily Log entry.<br>
       <strong>GPS Required:</strong> employee location captured automatically on save (entry still saves if denied, marked "GPS denied").<br>
-      <strong>Resolution Required:</strong> description text + at least 1 photo mandatory.
+      <strong>Resolution Required:</strong> description text + at least 1 photo mandatory.<br>
+      <strong>Equipment Required:</strong> employee must pick a Site + Equipment (only for projects that have sites).
     </p>
     <div style="display:flex;flex-direction:column;gap:6px">
       ${allEmployees().map(emp => {
@@ -4043,6 +4279,10 @@ function renderUsers(){
             <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;user-select:none">
               <input type="checkbox" ${p.resolutionRequired?"checked":""} onchange="toggleEmpPerm('${escapeHtml(emp)}','resolutionRequired')" style="width:16px;height:16px;cursor:pointer">
               <span style="color:${p.resolutionRequired?'#03308B':'#999'};font-weight:600">📸 Resolution Required</span>
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;user-select:none">
+              <input type="checkbox" ${p.equipmentRequired?"checked":""} onchange="toggleEmpPerm('${escapeHtml(emp)}','equipmentRequired')" style="width:16px;height:16px;cursor:pointer">
+              <span style="color:${p.equipmentRequired?'#6A1B9A':'#999'};font-weight:600">🔧 Equipment Required</span>
             </label>
           </div>
         </div>`;
@@ -4201,6 +4441,8 @@ async function saveNametagEmp(){
       id: nametagEditId || undefined,
       name,
       type: nametagForm.type || "internal",
+      branch: nametagForm.branch || "",
+      dept: nametagForm.dept || "",
       addedBy: state.profile.uid,
       addedAt: new Date().toISOString(),
     });
@@ -4228,7 +4470,7 @@ async function saveNametagEmp(){
       toast(nametagEditId ? `Updated: ${name} ✓` : `Added: ${name} ✓`);
     }
 
-    nametagForm = {name:"", type:"internal"};
+    nametagForm = {name:"", type:"internal", branch:"", dept:""};
     nametagEditId = null;
   } catch(e){ console.error(e); toast("Error: "+e.message); }
 }
@@ -4236,7 +4478,7 @@ async function saveNametagEmp(){
 function editNametagEmp(id){
   if(!isAdmin()) return toast("Admin only");
   const e = (state.nametagEmployees||[]).find(x=>x.id===id);
-  if(e){ nametagForm = {name: e.name, type: e.type||"internal"}; nametagEditId=id; render(); window.scrollTo(0,0); }
+  if(e){ nametagForm = {name: e.name, type: e.type||"internal", branch: e.branch||"", dept: e.dept||""}; nametagEditId=id; render(); window.scrollTo(0,0); }
 }
 
 // Migrate hardcoded default employees into editable nametag records
@@ -4283,7 +4525,7 @@ async function delNametagEmp(id){
   } catch(e){ console.error(e); toast("Error: "+e.message); }
 }
 
-function cancelNametagEmp(){ nametagForm={name:"",type:"internal"}; nametagEditId=null; render(); }
+function cancelNametagEmp(){ nametagForm={name:"",type:"internal",branch:"",dept:""}; nametagEditId=null; render(); }
 
 Object.assign(window,{saveNametagEmp, editNametagEmp, delNametagEmp, cancelNametagEmp});
 Object.defineProperty(window,'nametagForm',{get:()=>nametagForm,set:v=>nametagForm=v,configurable:true});
@@ -4336,13 +4578,15 @@ function renderBranches(){
   if(!isHR()) return `<div class="card"><div class="empty">Access denied — HR/Admin only</div></div>`;
   if(!branchForm) branchForm = {name:""};
 
-  // Count employees per branch
+  // Count employees per branch (users + nametags)
   const stats = (state.branches||[]).map(b=>{
-    const empCount = state.users.filter(u=>(u.branch||"")===b.name).length;
-    const dailyCount = state.daily.filter(r=>{
-      const emp = state.users.find(u=>(u.employeeName||u.name)===r.employee);
-      return emp && (emp.branch||"")===b.name;
-    }).length;
+    const empCount = state.users.filter(u=>(u.branch||"")===b.name).length
+                   + (state.nametagEmployees||[]).filter(n=>(n.branch||"")===b.name).length;
+    const branchNames = new Set([
+      ...state.users.filter(u=>(u.branch||"")===b.name).map(u=>u.employeeName||u.name),
+      ...(state.nametagEmployees||[]).filter(n=>(n.branch||"")===b.name).map(n=>n.name),
+    ].filter(Boolean));
+    const dailyCount = state.daily.filter(r=>branchNames.has(r.employee)).length;
     return {...b, empCount, dailyCount};
   });
 
@@ -4383,9 +4627,9 @@ function renderBranches(){
     <p style="font-size:12px;color:#0D47A1;margin:0 0 10px;line-height:1.6">
       <strong>ℹ️ How branches work:</strong> Each branch is a city (Erbil, Baghdad, Basra…). When you add an employee in the Users tab, you assign them to a branch and a department. Reports can then be filtered by branch, so you can generate a separate monthly report for each city.
     </p>
-    ${(state.branches||[]).length>0 && state.users.some(u=>!u.branch && (u.role||'')!=='client')?`
+    ${(state.branches||[]).length>0 && (state.users.some(u=>!u.branch && (u.role||'')!=='client') || (state.nametagEmployees||[]).some(n=>!n.branch))?`
     <div style="border-top:1px solid #90CAF9;padding-top:10px;margin-top:6px">
-      <p style="font-size:12px;color:#0D47A1;margin:0 0 8px"><strong>Quick setup:</strong> ${state.users.filter(u=>!u.branch && (u.role||'')!=='client').length} user(s) have no branch yet. Assign them all to:</p>
+      <p style="font-size:12px;color:#0D47A1;margin:0 0 8px"><strong>Quick setup:</strong> ${state.users.filter(u=>!u.branch && (u.role||'')!=='client').length + (state.nametagEmployees||[]).filter(n=>!n.branch).length} member(s) have no branch yet. Assign them all to:</p>
       <div style="display:flex;gap:6px;flex-wrap:wrap">
         ${(state.branches||[]).map(b=>`<button class="btn btn-sm" style="background:#1565C0;color:white;border:none" onclick="bulkAssignBranch('${escapeHtml(b.name)}')">→ ${escapeHtml(b.name)}</button>`).join("")}
       </div>
@@ -4393,17 +4637,22 @@ function renderBranches(){
   </div>`;
 }
 
-// Bulk-assign all branch-less non-client users to a branch (one-time setup helper)
+// Bulk-assign all branch-less users AND nametag employees to a branch (one-time setup helper)
 window.bulkAssignBranch = async function(branchName){
-  const targets = state.users.filter(u=>!u.branch && (u.role||'')!=='client');
-  if(targets.length===0) return toast("All users already have a branch");
-  if(!confirm(`Assign ${targets.length} user(s) to ${branchName}?`)) return;
+  const userTargets = state.users.filter(u=>!u.branch && (u.role||'')!=='client');
+  const tagTargets = (state.nametagEmployees||[]).filter(n=>!n.branch);
+  const total = userTargets.length + tagTargets.length;
+  if(total===0) return toast("Everyone already has a branch");
+  if(!confirm(`Assign ${total} member(s) to ${branchName}?`)) return;
   const {db, doc, setDoc} = window.__fb;
   let done=0;
-  for(const u of targets){
+  for(const u of userTargets){
     try{ await setDoc(doc(db,"users",u.id), {branch:branchName}, {merge:true}); done++; }catch(e){}
   }
-  toast(`✓ ${done} user(s) assigned to ${branchName}`);
+  for(const n of tagTargets){
+    try{ await setDoc(doc(db,"nametagEmployees",n.id), {branch:branchName}, {merge:true}); done++; }catch(e){}
+  }
+  toast(`✓ ${done} member(s) assigned to ${branchName}`);
 };
 
 async function saveBranch(){
@@ -7819,7 +8068,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v9';"
+      var swCode = "const CACHE='ejaftech-v10';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
