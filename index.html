@@ -338,6 +338,7 @@ const state = {
   globalLocationFilter: "",    // single location filter for reports (empty = all)
   globalBranchFilter: "",      // single branch filter for reports (empty = all)
   globalEmpDeptFilter: "",     // filter by EMPLOYEE's department (who they are, not the task's dept)
+  globalTaskDeptFilter: "",    // filter by TASK's department (the project's dept, not who did it)
   tab: "Dashboard",
   initialized: false,
   unsubs: [],           // active Firestore listeners
@@ -648,6 +649,10 @@ function applyReportFilters(rows, dateField="date"){
     ].filter(Boolean));
     out = out.filter(r => !("employee" in r) || deptEmployees.has(r.employee));
   }
+  const tdf = state.globalTaskDeptFilter || "";
+  if(tdf){                                             // 7. task's department (the record's own dept field)
+    out = out.filter(r => !("dept" in r) || r.dept === tdf);
+  }
   return out;
 }
 // True if ANY global filter (beyond date) is active
@@ -657,6 +662,7 @@ function hasActiveReportFilter(){
          !!state.globalLocationFilter ||
          !!state.globalBranchFilter ||
          !!state.globalEmpDeptFilter ||
+         !!state.globalTaskDeptFilter ||
          !!getPeriodFrom() || !!getPeriodTo();
 }
 
@@ -673,24 +679,26 @@ function renderEmployeeFilterUI(label){
   const locF = state.globalLocationFilter || "";
   const branchF = state.globalBranchFilter || "";
   const empDeptF = state.globalEmpDeptFilter || "";
+  const taskDeptF = state.globalTaskDeptFilter || "";
   const allProjects = [...new Set([...state.daily,...state.overtime,...state.travel].map(r=>r.project).filter(Boolean))].sort();
   const allLocations = [...new Set([...state.daily,...state.overtime,...state.travel].map(r=>r.location).filter(Boolean))].sort();
   const allBranches = (state.branches||[]).map(b=>b.name).filter(Boolean).sort();
   const allEmpDepts = state.departments.map(d=>d.name).filter(Boolean).sort();
+  const allTaskDepts = state.departments.map(d=>d.name).filter(Boolean).sort();
   return `<div style="background:linear-gradient(135deg,#F0F4FA 0%,#E8F0F9 100%);border:1.5px solid #2E5FA3;border-radius:10px;padding:12px 14px;margin-bottom:14px">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:${sel.length>0?'8px':'0'};flex-wrap:wrap">
       <div style="display:flex;align-items:center;gap:8px">
         <span style="font-size:18px">🔎</span>
         <div>
           <div style="font-size:13px;font-weight:700;color:#1B3A6B">${escapeHtml(label||"Filter Report")}</div>
-          <div style="font-size:11px;color:#2E5FA3">${allSelected ? `All ${emps.length} employees` : `${sel.length} of ${emps.length} selected`}${branchF?` · 🏙️ ${escapeHtml(branchF)}`:''}${empDeptF?` · 👥 ${escapeHtml(empDeptF)}`:''}${projF?` · 📁 ${escapeHtml(projF)}`:''}${locF?` · 📍 ${escapeHtml(locF)}`:''}</div>
+          <div style="font-size:11px;color:#2E5FA3">${allSelected ? `All ${emps.length} employees` : `${sel.length} of ${emps.length} selected`}${branchF?` · 🏙️ ${escapeHtml(branchF)}`:''}${empDeptF?` · 👥 ${escapeHtml(empDeptF)}`:''}${taskDeptF?` · 🗂️ ${escapeHtml(taskDeptF)} tasks`:''}${projF?` · 📁 ${escapeHtml(projF)}`:''}${locF?` · 📍 ${escapeHtml(locF)}`:''}</div>
         </div>
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap">
         <button class="btn btn-sm" style="background:white;border:1px solid #2E5FA3;color:#2E5FA3;font-weight:700" onclick="openEmployeeFilterModal()">
           👥 ${allSelected ? 'Employees' : 'Edit'}
         </button>
-        ${(!allSelected||projF||locF||branchF||empDeptF) ? `<button class="btn btn-sm" style="background:white;border:1px solid #C53030;color:#C53030;font-weight:700" onclick="clearAllReportFilters()">✕ Clear All</button>` : ''}
+        ${(!allSelected||projF||locF||branchF||empDeptF||taskDeptF) ? `<button class="btn btn-sm" style="background:white;border:1px solid #C53030;color:#C53030;font-weight:700" onclick="clearAllReportFilters()">✕ Clear All</button>` : ''}
       </div>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
@@ -701,6 +709,10 @@ function renderEmployeeFilterUI(label){
       ${allEmpDepts.length>0?`<select onchange="window.setGlobalEmpDeptFilter(this.value)" style="flex:1;min-width:140px;padding:7px 10px;border:1px solid #6A1B9A;border-radius:6px;font-size:12px;background:white;color:#1B3A6B;font-weight:600">
         <option value="">👥 All Staff Depts</option>
         ${allEmpDepts.map(d=>`<option value="${escapeHtml(d)}" ${d===empDeptF?"selected":""}>${escapeHtml(d)} staff</option>`).join("")}
+      </select>`:''}
+      ${allTaskDepts.length>0?`<select onchange="window.setGlobalTaskDeptFilter(this.value)" style="flex:1;min-width:140px;padding:7px 10px;border:1px solid #00897B;border-radius:6px;font-size:12px;background:white;color:#1B3A6B;font-weight:600">
+        <option value="">🗂️ All Task Depts</option>
+        ${allTaskDepts.map(d=>`<option value="${escapeHtml(d)}" ${d===taskDeptF?"selected":""}>${escapeHtml(d)} tasks</option>`).join("")}
       </select>`:''}
       <select onchange="window.setGlobalProjectFilter(this.value)" style="flex:1;min-width:140px;padding:7px 10px;border:1px solid #2E5FA3;border-radius:6px;font-size:12px;background:white;color:#1B3A6B">
         <option value="">📁 All Projects</option>
@@ -732,12 +744,14 @@ window.setGlobalProjectFilter = function(v){ state.globalProjectFilter = v||""; 
 window.setGlobalLocationFilter = function(v){ state.globalLocationFilter = v||""; renderApp(); };
 window.setGlobalBranchFilter = function(v){ state.globalBranchFilter = v||""; renderApp(); };
 window.setGlobalEmpDeptFilter = function(v){ state.globalEmpDeptFilter = v||""; renderApp(); };
+window.setGlobalTaskDeptFilter = function(v){ state.globalTaskDeptFilter = v||""; renderApp(); };
 window.clearAllReportFilters = function(){
   state.globalEmployeeFilter = [];
   state.globalProjectFilter = "";
   state.globalLocationFilter = "";
   state.globalBranchFilter = "";
   state.globalEmpDeptFilter = "";
+  state.globalTaskDeptFilter = "";
   renderApp();
   toast("All report filters cleared");
 };
@@ -1345,7 +1359,10 @@ function renderApp(){
           <p><span id="periodLabelInline" onclick="editPeriod(event)" style="cursor:pointer;${(getPeriodFrom()||getPeriodTo())?'background:#C9A84C;color:#03308B;padding:2px 10px;border-radius:12px;font-weight:700':'text-decoration:underline dotted;opacity:0.9'}">${(getPeriodFrom()||getPeriodTo())?'📅 ':''}${escapeHtml(getPeriod())}${(getPeriodFrom()||getPeriodTo())?' ✕':''}</span></p>
         </div>
         <div class="user-chip" onclick="confirm('Sign out?')&&doSignOut()">
-          <span class="role-badge">${roleBadge}</span>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:2px">
+            <span class="role-badge">${roleBadge}</span>
+            <span style="font-size:8px;color:rgba(255,255,255,0.65);font-style:italic;letter-spacing:0.3px;white-space:nowrap">Powered by Siwar</span>
+          </div>
           <span>⏻</span>
         </div>
       </div>
@@ -2145,11 +2162,7 @@ async function exportPDF(){
   const period=getPeriod();
   const s=summary();
   const tot=k=>s.reduce((a,b)=>a+b[k],0);
-  const emps=(()=>{
-    const base = isEmployee()?[state.profile.employeeName]:allEmployees();
-    const sel = state.globalEmployeeFilter || [];
-    return (sel.length>0 && !isEmployee()) ? base.filter(e=>sel.includes(e)) : base;
-  })();
+  const emps = visibleEmployees();
   const totalLeaveDays=s.reduce((a,b)=>a+(b.leaveDays||0),0);
   const depts=state.departments;
 
@@ -2262,11 +2275,39 @@ async function exportPDF(){
 window.exportCSV=exportCSV;
 window.exportPDF=exportPDF;
 
-function summary(){
-  const allEmps = isEmployee()?[state.profile.employeeName]:allEmployees();
-  // Apply global filter: if filter is set, only include those employees
+// Returns the employees who should appear after applying the global
+// employee + branch + staff-department filters (hides non-matching ones entirely).
+function visibleEmployees(){
+  let emps = isEmployee() ? [state.profile.employeeName] : allEmployees();
+  if(isEmployee()) return emps.filter(Boolean);
+
+  // Branch filter: keep only employees whose profile branch matches
+  const bf = state.globalBranchFilter || "";
+  if(bf){
+    const inBranch = new Set([
+      ...state.users.filter(u=>(u.branch||"")===bf).map(u=>u.employeeName||u.name),
+      ...(state.nametagEmployees||[]).filter(n=>(n.branch||"")===bf).map(n=>n.name),
+    ].filter(Boolean));
+    emps = emps.filter(e=>inBranch.has(e));
+  }
+  // Staff-department filter: keep only employees whose profile dept matches
+  const edf = state.globalEmpDeptFilter || "";
+  if(edf){
+    const inDept = new Set([
+      ...state.users.filter(u=>(u.userDept||"")===edf).map(u=>u.employeeName||u.name),
+      ...(state.nametagEmployees||[]).filter(n=>(n.dept||"")===edf).map(n=>n.name),
+    ].filter(Boolean));
+    emps = emps.filter(e=>inDept.has(e));
+  }
+  // Explicit employee multi-select
   const sel = state.globalEmployeeFilter || [];
-  const emps = (sel.length > 0 && !isEmployee()) ? allEmps.filter(e => sel.includes(e)) : allEmps;
+  if(sel.length > 0) emps = emps.filter(e=>sel.includes(e));
+
+  return emps.filter(Boolean);
+}
+
+function summary(){
+  const emps = visibleEmployees();
   const depts = deptNames();
   return emps.filter(Boolean).map(emp=>{
     const d=applyReportFilters(state.daily).filter(r=>r.employee===emp);
@@ -3580,11 +3621,7 @@ function renderHRReport(){
   const s=summary();
   const tot=k=>s.reduce((a,b)=>a+b[k],0);
   const td=new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
-  const emps=(()=>{
-    const base = isEmployee()?[state.profile.employeeName]:allEmployees();
-    const sel = state.globalEmployeeFilter || [];
-    return (sel.length>0 && !isEmployee()) ? base.filter(e=>sel.includes(e)) : base;
-  })();
+  const emps = visibleEmployees();
   const totalLeaveDays = s.reduce((a,b)=>a+(b.leaveDays||0),0);
 
   // ═══════ HEADER (Unified Brand Style) ═══════
@@ -3757,6 +3794,140 @@ function renderHRReport(){
 // ═══════════════════════════════════════════════════════════════════════
 //  PROJECTS (HR+)
 // ═══════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════
+//  PROJECTS IMPORT MODULE (CSV / Excel)
+//  Columns expected: Project | Site | Equipment | Specifications
+//  Imports into a chosen department, merging with existing data.
+//  Equipment shape on a site: { name, spec } stored inside project.sites[].equipment
+// ═══════════════════════════════════════════════════════════════════════
+
+// Trigger a hidden file picker for a given department
+window.importProjectsForDept = function(deptName){
+  if(!isAdmin()) return toast("Admin only");
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.csv,.xlsx,.xls';
+  input.onchange = (e)=>{
+    const file = e.target.files[0];
+    if(file) parseImportFile(file, deptName);
+  };
+  input.click();
+};
+
+// Download a sample template so the admin knows the exact columns
+window.downloadImportTemplate = function(){
+  const sample = [
+    ["Project","Site","Equipment","Specifications"],
+    ["Asia Cell","Tower-A","Switch-Core-1","Cisco 48-port"],
+    ["Asia Cell","Tower-A","Server-DB","Dell R740, 64GB RAM"],
+    ["Asia Cell","Tower-B","Router-3","MikroTik CCR"],
+    ["Down Town","Site-X","Switch-5","HP 24-port"],
+  ];
+  const ws = XLSX.utils.aoa_to_sheet(sample);
+  ws['!cols']=[{wch:18},{wch:14},{wch:18},{wch:24}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Template");
+  XLSX.writeFile(wb, "Girek_Import_Template.xlsx");
+  toast("Template downloaded ✓");
+};
+
+async function parseImportFile(file, deptName){
+  toast("Reading file...");
+  try{
+    const data = await file.arrayBuffer();
+    const wb = XLSX.read(data, {type:'array'});
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:""});
+    if(rows.length < 2) return toast("File looks empty");
+
+    // Detect columns from the header row (flexible naming)
+    const header = rows[0].map(h=>String(h||"").trim().toLowerCase());
+    const findCol = (...names)=>{
+      for(const n of names){ const i = header.findIndex(h=>h.includes(n)); if(i>=0) return i; }
+      return -1;
+    };
+    const ci = {
+      project: findCol("project","مشروع"),
+      site:    findCol("site","موقع","location"),
+      equip:   findCol("equipment","equip","device","جهاز"),
+      spec:    findCol("spec","specification","specs","مواصفات","details"),
+    };
+    if(ci.project < 0) return toast("No 'Project' column found in file");
+
+    // Build a structured map: { projectName: { siteName: [ {name, spec}, ... ] } }
+    const map = {};
+    for(let r=1; r<rows.length; r++){
+      const row = rows[r];
+      const pName = String(row[ci.project]||"").trim();
+      if(!pName) continue;
+      const sName = ci.site>=0 ? String(row[ci.site]||"").trim() : "";
+      const eName = ci.equip>=0 ? String(row[ci.equip]||"").trim() : "";
+      const eSpec = ci.spec>=0 ? String(row[ci.spec]||"").trim() : "";
+      if(!map[pName]) map[pName] = {};
+      if(sName){
+        if(!map[pName][sName]) map[pName][sName] = [];
+        if(eName) map[pName][sName].push({name:eName, spec:eSpec});
+      }
+    }
+
+    const projNames = Object.keys(map);
+    if(projNames.length===0) return toast("No valid rows found");
+
+    // Confirm with a summary
+    let totalSites=0, totalEquip=0;
+    projNames.forEach(p=>{ const sites=Object.keys(map[p]); totalSites+=sites.length; sites.forEach(s=>totalEquip+=map[p][s].length); });
+    if(!confirm(`Import into "${deptName}"?\n\n• ${projNames.length} project(s)\n• ${totalSites} site(s)\n• ${totalEquip} equipment\n\nThis ADDS to existing data (merge).`)) return;
+
+    await mergeImport(map, deptName);
+  }catch(err){
+    console.error(err);
+    toast("Import failed: "+(err.message||"bad file"));
+  }
+}
+
+async function mergeImport(map, deptName){
+  toast("Importing...");
+  const {db, doc, setDoc, collection, addDoc} = window.__fb;
+  let created=0, updated=0;
+
+  for(const pName of Object.keys(map)){
+    // Find existing project by name (case-insensitive) in this dept (or any)
+    const existing = state.projects.find(p=>(p.name||"").toLowerCase()===pName.toLowerCase());
+    const incomingSites = map[pName];
+
+    // Merge sites into existing project's sites array
+    let sites = existing ? [...(existing.sites||[])] : [];
+    for(const sName of Object.keys(incomingSites)){
+      let site = sites.find(s=>(s.name||"").toLowerCase()===sName.toLowerCase());
+      if(!site){ site = {name:sName, equipment:[]}; sites.push(site); }
+      // Merge equipment (store as "Name (spec)" string to stay compatible with existing dropdowns)
+      const existingEq = new Set((site.equipment||[]).map(e=>String(typeof e==='object'?e.name:e).toLowerCase()));
+      for(const eq of incomingSites[sName]){
+        const label = eq.spec ? `${eq.name} (${eq.spec})` : eq.name;
+        if(!existingEq.has(eq.name.toLowerCase())){
+          site.equipment = [...(site.equipment||[]), label];
+          existingEq.add(eq.name.toLowerCase());
+        }
+      }
+    }
+
+    if(existing){
+      await setDoc(doc(db,"projects",existing.id), {
+        name: existing.name, dept: existing.dept||deptName,
+        estimatedHours: Number(existing.estimatedHours||0), sites,
+      });
+      updated++;
+    } else {
+      await addDoc(collection(db,"projects"), {
+        name: pName, dept: deptName, estimatedHours: 0, sites,
+      });
+      created++;
+    }
+  }
+  toast(`✓ Import done: ${created} new, ${updated} updated`);
+}
+
+
 // ═══════════════════════════════════════════════════════════════════════
 //  SITES & EQUIPMENT MODULE
 //  Each Project has Sites; each Site has Equipment. Admin manages both here.
@@ -3954,11 +4125,24 @@ function renderProjects(){
       ${projEditId?`<button class="btn btn-ghost" onclick="cancelProj()">Cancel</button>`:""}
     </div>
   </div>
+
+  <div class="card" style="background:#E0F2F1;border:1px solid #80CBC4">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+      <div style="flex:1;min-width:200px">
+        <div style="font-weight:800;color:#00695C;font-size:14px">📥 Bulk Import</div>
+        <p style="font-size:12px;color:#004D40;margin:4px 0 0;line-height:1.5">Use the <strong>📥 Import</strong> button on any department below to upload projects, sites & equipment from a CSV/Excel file. Columns: <strong>Project · Site · Equipment · Specifications</strong>.</p>
+      </div>
+      <button class="btn btn-sm" style="background:#00897B;color:white;border:none;font-weight:700" onclick="downloadImportTemplate()">⬇ Template</button>
+    </div>
+  </div>
   ${Object.keys(g).filter(d=>g[d].length>0 || allDepts.includes(d)).map(d=>{
     const isUncategorized = d === "(uncategorized)";
     const color = isUncategorized ? "#6B7B8F" : deptColor(d);
     return `<div class="card">
-      <div class="card-title">${isUncategorized?`<span style="color:#6B7B8F">${d}</span>`:deptBadgeDyn(d)} · ${g[d].length} projects</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+        <div class="card-title" style="margin:0">${isUncategorized?`<span style="color:#6B7B8F">${d}</span>`:deptBadgeDyn(d)} · ${g[d].length} projects</div>
+        ${!isUncategorized?`<button class="btn btn-sm" style="background:#00897B;color:white;border:none;font-weight:700;font-size:11px" onclick="importProjectsForDept('${escapeHtml(d)}')" title="Import projects/sites/equipment from CSV or Excel">📥 Import</button>`:''}
+      </div>
       ${g[d].length===0?`<div class="empty">No projects</div>`:`<div class="proj-chips">${g[d].map(p=>`<span class="proj-chip" style="border-left:3px solid ${color}">${escapeHtml(p.name)}${(p.sites&&p.sites.length)?`<span style="font-size:9px;background:#1565C0;color:white;padding:1px 5px;border-radius:8px;margin-left:4px">${p.sites.length} 🏗</span>`:''}
         <button class="btn btn-sm" style="padding:2px 6px;background:#1565C0;color:white;border:none" onclick="openSitesModal('${p.id}')" title="Manage sites & equipment">🏗</button>
         <button class="btn btn-sm btn-secondary" onclick="editProj('${p.id}')" style="padding:2px 6px">✎</button>
@@ -8095,7 +8279,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v11';"
+      var swCode = "const CACHE='ejaftech-v12';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
