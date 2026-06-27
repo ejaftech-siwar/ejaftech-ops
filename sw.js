@@ -2,7 +2,7 @@
 // EJAF Technology — Operations Department
 // This file MUST sit next to index.html on the server (same folder).
 
-const CACHE = 'ejaftech-v21';
+const CACHE = 'ejaftech-v22';
 
 self.addEventListener('install', (e) => {
   self.skipWaiting();  // activate new version immediately
