@@ -4665,6 +4665,238 @@ function blankDevice(){
   };
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+//  ASSET IMPORT (Phase 2) — comprehensive hierarchical import
+//  Columns: Project, Project Code, Area Name, Site Status, Site Name,
+//    Device, Device Code, Serial Number, IP Address, Vendor Name, Model,
+//    Installation Date, Warranty Expiration Date, Stack, Device Status
+//  Builds: Projects (+codes +areas +sites)  AND  central devices collection.
+//  Serial Number is the unique key for devices (upsert).
+// ═══════════════════════════════════════════════════════════════════════
+let _assetImportRows = null;  // cached rows for column-mapper fallback
+
+window.importAssets = function(){
+  if(!isHR()) return toast("HR/Admin only");
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.csv,.xlsx,.xls';
+  input.onchange = (e)=>{ const f = e.target.files[0]; if(f) parseAssetFile(f); };
+  input.click();
+};
+
+// Download a template with all 15 columns
+window.downloadAssetTemplate = function(){
+  const sample = [
+    ["Project","Project Code","Area Name","Site Status","Site Name","Device","Device Code","Serial Number","IP Address","Vendor Name","Model","Installation Date","Warranty Expiration Date","Stack","Device Status"],
+    ["Asia Cell","AC-001","Erbil Area","Active","Tower-A","Core Switch","DEV-001","FOC1234X5YZ","192.168.1.1","Cisco","Catalyst 9300","2025-01-15","2028-01-15","Stack-1","Active"],
+    ["Asia Cell","AC-001","Erbil Area","Active","Tower-A","Router","DEV-002","FOC9876Z5XY","192.168.1.2","Cisco","ISR 4451","2025-01-15","2028-01-15","","Active"],
+    ["Asia Cell","AC-002","Duhok Area","Active","Site-North","Firewall","DEV-003","FGT60D1234","10.0.0.1","Fortinet","FortiGate 60F","2025-02-01","2027-02-01","","Active"],
+  ];
+  const ws = XLSX.utils.aoa_to_sheet(sample);
+  ws['!cols']=[{wch:14},{wch:12},{wch:14},{wch:11},{wch:14},{wch:14},{wch:12},{wch:16},{wch:14},{wch:12},{wch:16},{wch:14},{wch:18},{wch:10},{wch:12}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Assets");
+  XLSX.writeFile(wb, "Girek_Assets_Import_Template.xlsx");
+  toast("Template downloaded ✓");
+};
+
+async function parseAssetFile(file){
+  toast("Reading file...");
+  try{
+    const data = await file.arrayBuffer();
+    const wb = XLSX.read(data, {type:'array'});
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:""});
+    if(rows.length < 2) return toast("File looks empty");
+
+    const header = rows[0].map(h=>String(h||"").trim());
+    const headerLow = header.map(h=>h.toLowerCase());
+    const find = (...names)=>{ for(const n of names){ const i=headerLow.findIndex(h=>h.includes(n)); if(i>=0) return i; } return -1; };
+
+    const ci = {
+      project:    find("project name","project"),
+      projectCode:find("project code","code"),
+      area:       find("area"),
+      siteStatus: find("site status"),
+      site:       find("site name","site"),
+      device:     find("device name","device "),
+      deviceCode: find("device code"),
+      serial:     find("serial"),
+      ip:         find("ip"),
+      vendor:     find("vendor"),
+      model:      find("model"),
+      install:    find("install"),
+      warranty:   find("warranty"),
+      stack:      find("stack"),
+      deviceStatus:find("device status"),
+    };
+    // Fallbacks for ambiguous "project" / "site" / "status" matches
+    if(ci.project<0) ci.project = find("project");
+    if(ci.site<0) ci.site = find("site");
+
+    if(ci.project < 0){
+      _assetImportRows = rows;
+      showAssetColumnMapper(rows, header);
+      return;
+    }
+    processAssetImport(rows, ci);
+  }catch(err){
+    console.error(err);
+    toast("Import failed: "+(err.message||"bad file"));
+  }
+}
+
+function statusToActive(val, def){
+  const s=String(val||"").trim().toLowerCase();
+  if(!s) return def;
+  if(["inactive","no","false","0","off","معطل","غير نشط"].includes(s)) return false;
+  return true;
+}
+
+async function processAssetImport(rows, ci){
+  toast("Processing...");
+  const {db, doc, setDoc, collection, addDoc} = window.__fb;
+
+  // Build an in-memory project map from current state (deep-ish copy)
+  const projByName = {}; // lowerName -> {ref, name, dept, codes:Set, areas: Map(name->{active,sites:Map(name->active)})}
+  state.projects.forEach(p=>{
+    const areas = new Map();
+    getProjectAreas(p).forEach(a=>{
+      const sites = new Map();
+      (a.sites||[]).forEach(s=>sites.set(s.name, s.active!==false));
+      areas.set(a.name, {active:a.active!==false, sites});
+    });
+    projByName[(p.name||"").toLowerCase()] = { id:p.id, name:p.name, dept:p.dept||"", codes:new Set(p.codes||[]), areas };
+  });
+
+  // Existing devices by serial (lowercase)
+  const devBySerial = {};
+  (state.devices||[]).forEach(d=>{ if(d.serialNumber) devBySerial[d.serialNumber.toLowerCase()] = d; });
+
+  const deviceWrites = []; // {id?, data}
+  let newProjects=0, newDevices=0, updDevices=0, newSites=0;
+
+  for(let r=1; r<rows.length; r++){
+    const row = rows[r];
+    const get = (k)=> ci[k]>=0 ? String(row[ci[k]]||"").trim() : "";
+    const pName = get("project");
+    if(!pName) continue;
+    const key = pName.toLowerCase();
+    if(!projByName[key]){
+      projByName[key] = { id:null, name:pName, dept:"", codes:new Set(), areas:new Map() };
+      newProjects++;
+    }
+    const proj = projByName[key];
+    const code = get("projectCode");
+    if(code) proj.codes.add(code);
+    const aName = get("area") || "General";
+    if(!proj.areas.has(aName)) proj.areas.set(aName, {active:true, sites:new Map()});
+    const area = proj.areas.get(aName);
+    const sName = get("site");
+    if(sName){
+      if(!area.sites.has(sName)) newSites++;
+      area.sites.set(sName, statusToActive(get("siteStatus"), true));
+    }
+
+    // Device (only if Serial present)
+    const serial = get("serial");
+    if(serial){
+      const dData = {
+        serialNumber: serial,
+        deviceName: get("device"),
+        deviceCode: get("deviceCode"),
+        project: pName, projectCode: code, area: aName, site: sName,
+        ipAddress: get("ip"), vendor: get("vendor"), model: get("model"),
+        installDate: get("install"), warrantyExp: get("warranty"),
+        stack: get("stack"), status: get("deviceStatus") || "Active",
+        updatedAt: new Date().toISOString(),
+      };
+      const ex = devBySerial[serial.toLowerCase()];
+      if(ex){ deviceWrites.push({id:ex.id, data:dData}); updDevices++; }
+      else { deviceWrites.push({id:null, data:dData}); devBySerial[serial.toLowerCase()]={id:null,...dData}; newDevices++; }
+    }
+  }
+
+  if(newProjects===0 && newDevices===0 && updDevices===0 && newSites===0){
+    return toast("Nothing to import (no valid rows)");
+  }
+  if(!confirm(`Import summary:\n\n• ${newProjects} new project(s)\n• ${newSites} new site(s)\n• ${newDevices} new device(s)\n• ${updDevices} device(s) updated\n\nProceed? (merge — nothing deleted)`)) return;
+
+  toast("Importing...");
+  // 1. Write projects (with merged codes + areas)
+  for(const key of Object.keys(projByName)){
+    const p = projByName[key];
+    const areasArr = [];
+    p.areas.forEach((a, name)=>{
+      const sitesArr = [];
+      a.sites.forEach((active, sname)=>sitesArr.push({name:sname, active}));
+      areasArr.push({name, active:a.active, sites:sitesArr});
+    });
+    const payload = { name:p.name, dept:p.dept, estimatedHours:0, areas:areasArr, codes:Array.from(p.codes) };
+    if(p.id){ await setDoc(doc(db,"projects",p.id), payload, {merge:true}); }
+    else { await addDoc(collection(db,"projects"), payload); }
+  }
+  // 2. Write devices
+  for(const w of deviceWrites){
+    if(w.id){ await setDoc(doc(db,"devices",w.id), w.data, {merge:true}); }
+    else { await addDoc(collection(db,"devices"), w.data); }
+  }
+
+  toast(`✓ Import done: ${newDevices} new + ${updDevices} updated devices`);
+}
+
+// ── Column mapper fallback ──
+function showAssetColumnMapper(rows, header){
+  const opts = ()=> header.map((h,i)=>`<option value="${i}">${escapeHtml(h||('Column '+(i+1)))}</option>`).join("");
+  const field = (id,label,req)=>`<div class="field"><label>${label}${req?' <span style="color:#c62828">*</span>':''}</label>
+    <select id="${id}" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:8px">${req?'':'<option value="-1">— None —</option>'}${opts()}</select></div>`;
+  const ex=document.getElementById('assetMapOverlay'); if(ex) ex.remove();
+  const wrap=document.createElement('div'); wrap.id='assetMapOverlay';
+  wrap.innerHTML=`<div onclick="if(event.target===this)document.getElementById('assetMapOverlay').remove()" style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:flex-start;justify-content:center;padding:20px;overflow-y:auto">
+    <div style="background:white;border-radius:16px;max-width:520px;width:100%;box-shadow:0 24px 64px rgba(0,0,0,0.4);margin-top:20px">
+      <div style="background:#00897B;color:white;padding:16px 20px;border-radius:16px 16px 0 0;display:flex;align-items:center;justify-content:space-between">
+        <div style="font-size:16px;font-weight:800">🔗 Match Columns</div>
+        <button onclick="document.getElementById('assetMapOverlay').remove()" style="background:rgba(255,255,255,0.2);border:none;color:white;width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:18px;font-weight:700">×</button>
+      </div>
+      <div style="padding:20px;max-height:70vh;overflow-y:auto">
+        <p style="font-size:12px;color:#555;margin-bottom:14px">Match your file's columns. Only Project is required; leave others as None if not present.</p>
+        ${field('amProject','📁 Project',true)}
+        ${field('amProjectCode','🔖 Project Code')}
+        ${field('amArea','🗺️ Area Name')}
+        ${field('amSiteStatus','🔘 Site Status')}
+        ${field('amSite','📍 Site Name')}
+        ${field('amDevice','📟 Device Name')}
+        ${field('amDeviceCode','🔢 Device Code')}
+        ${field('amSerial','🆔 Serial Number')}
+        ${field('amIp','🌐 IP Address')}
+        ${field('amVendor','🏭 Vendor')}
+        ${field('amModel','📱 Model')}
+        ${field('amInstall','📅 Installation Date')}
+        ${field('amWarranty','🛡️ Warranty Expiration')}
+        ${field('amStack','🔗 Stack')}
+        ${field('amDeviceStatus','⚡ Device Status')}
+        <button class="btn btn-primary" style="width:100%;margin-top:10px" onclick="applyAssetMapping()">Import with these columns</button>
+      </div>
+    </div>
+  </div>`;
+  document.body.appendChild(wrap);
+}
+
+window.applyAssetMapping = function(){
+  const g=(id)=>parseInt(document.getElementById(id).value);
+  const ci = {
+    project:g('amProject'), projectCode:g('amProjectCode'), area:g('amArea'),
+    siteStatus:g('amSiteStatus'), site:g('amSite'), device:g('amDevice'),
+    deviceCode:g('amDeviceCode'), serial:g('amSerial'), ip:g('amIp'),
+    vendor:g('amVendor'), model:g('amModel'), install:g('amInstall'),
+    warranty:g('amWarranty'), stack:g('amStack'), deviceStatus:g('amDeviceStatus'),
+  };
+  const ov=document.getElementById('assetMapOverlay'); if(ov) ov.remove();
+  if(!_assetImportRows) return toast("No file loaded");
+  processAssetImport(_assetImportRows, ci);
+};
+
+
 function renderAssets(){
   if(!isHR()) return `<div class="card"><div class="empty">Access denied — HR/Admin only</div></div>`;
   if(!deviceForm) deviceForm = blankDevice();
@@ -4694,9 +4926,23 @@ function renderAssets(){
   const areaSites = selArea?.sites || [];
 
   return `<div class="card">
-    <div class="card-title">📦 Asset Management</div>
-    <p style="font-size:12px;color:var(--muted);margin:0">Central device registry. Serial Number is the unique key — no duplicates. ${devices.length} device(s) total.</p>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+      <div style="flex:1;min-width:180px">
+        <div class="card-title" style="margin:0">📦 Asset Management</div>
+        <p style="font-size:12px;color:var(--muted);margin:4px 0 0">Central device registry. Serial Number is the unique key — no duplicates. ${devices.length} device(s) total.</p>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn btn-sm" style="background:#00897B;color:white;border:none;font-weight:700" onclick="importAssets()" title="Import projects, sites & devices from CSV/Excel">📥 Import</button>
+        <button class="btn btn-sm" style="background:#0F2347;color:#C9A84C;border:none;font-weight:700" onclick="downloadAssetTemplate()">⬇ Template</button>
+      </div>
+    </div>
   </div>
+
+  <div class="card" style="background:#E0F2F1;border:1px solid #80CBC4">
+    <p style="font-size:12px;color:#004D40;margin:0;line-height:1.6">
+      <strong>📥 Bulk Import:</strong> Upload a file to build the full hierarchy at once — Projects, Project Codes, Areas, Sites, and Devices. Serial Number is the unique key (existing devices are updated, not duplicated). 15 columns: Project · Project Code · Area Name · Site Status · Site Name · Device · Device Code · Serial Number · IP Address · Vendor · Model · Installation Date · Warranty Expiration · Stack · Device Status.
+    </p>
+  </div>`+`
 
   <!-- Add / Edit device form -->
   <div class="card">
@@ -9219,7 +9465,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v20';"
+      var swCode = "const CACHE='ejaftech-v21';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
