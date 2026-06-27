@@ -4768,6 +4768,7 @@ window.toggleSiteStatus = async function(ai, si){
 // ═══════════════════════════════════════════════════════════════════════
 let deviceForm = null, deviceEditId = null;
 let assetSearch = "", assetFilterProject = "", assetFilterStatus = "";
+let selectedDevices = new Set();  // multi-select for bulk delete
 
 // ── Daily Log inline device-edit buffer ──
 window._devEdit = null;  // pending edits to the selected device {status, installDate, ...}
@@ -5279,11 +5280,31 @@ function renderAssets(){
       </div>
     </div>
     ${shown.length===0?`<div class="empty">No devices match. Add your first device above.</div>`:`
+    ${(()=>{
+      // Count how many of the currently shown devices are selected
+      const shownIds = shown.map(d=>d.id);
+      const selShown = shownIds.filter(id=>selectedDevices.has(id));
+      if(selShown.length===0) return "";
+      return `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;background:#FFF3E0;border:1px solid #FFB74D;border-radius:10px;padding:10px 14px;margin-bottom:10px;flex-wrap:wrap">
+        <span style="font-size:13px;font-weight:700;color:#E65100">✓ ${selShown.length} device(s) selected</span>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-sm" style="background:#fff;border:1px solid #FFB74D;color:#E65100;font-weight:700" onclick="clearDeviceSelection()">Clear</button>
+          <button class="btn btn-sm btn-danger" style="font-weight:700" onclick="deleteSelectedDevices()">🗑 Delete Selected (${selShown.length})</button>
+        </div>
+      </div>`;
+    })()}
+    <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
+      <button class="btn btn-sm" style="background:#FFEBEE;border:1px solid #EF9A9A;color:#C62828;font-weight:700;font-size:11px" onclick="deleteAllShownDevices()" title="Delete all devices currently shown by the filters">🗑 Delete All Shown (${shown.length})</button>
+    </div>
     <div style="overflow-x:auto">
-      <table class="data-table" style="min-width:900px">
-        <thead><tr><th>Serial</th><th>Name</th><th>Project</th><th>Site</th><th>IP</th><th>Model</th><th>Status</th><th></th></tr></thead>
+      <table class="data-table" style="min-width:940px">
+        <thead><tr>
+          <th style="width:36px;text-align:center"><input type="checkbox" ${shown.length>0 && shown.every(d=>selectedDevices.has(d.id))?'checked':''} onchange="toggleSelectAllDevices(this.checked)" style="cursor:pointer;width:16px;height:16px" title="Select all shown"></th>
+          <th>Serial</th><th>Name</th><th>Project</th><th>Site</th><th>IP</th><th>Model</th><th>Status</th><th></th>
+        </tr></thead>
         <tbody>
-          ${shown.map(d=>`<tr>
+          ${shown.map(d=>`<tr style="${selectedDevices.has(d.id)?'background:#FFF8E1':''}">
+            <td style="text-align:center"><input type="checkbox" ${selectedDevices.has(d.id)?'checked':''} onchange="toggleDeviceSelect('${d.id}')" style="cursor:pointer;width:16px;height:16px"></td>
             <td style="font-weight:700;color:#03308B;font-size:12px">${escapeHtml(d.serialNumber||"—")}</td>
             <td style="font-size:12px">${escapeHtml(d.deviceName||"—")}</td>
             <td style="font-size:12px">${escapeHtml(d.project||"—")}${d.projectCode?`<br><span style="font-size:9px;color:#888">${escapeHtml(d.projectCode)}</span>`:''}</td>
@@ -5356,6 +5377,63 @@ async function delDevice(id){
   toast("Device deleted");
 }
 function cancelDevice(){ deviceForm = blankDevice(); deviceEditId = null; render(); }
+
+// ── Multi-select + bulk delete ──
+// Recompute the currently filtered/shown devices (mirror of the logic in renderAssets)
+function _shownDevices(){
+  let shown = (state.devices||[]).slice();
+  if(assetFilterProject) shown = shown.filter(d=>d.project===assetFilterProject);
+  if(assetFilterStatus) shown = shown.filter(d=>(d.status||"")===assetFilterStatus);
+  if(assetSearch){
+    const q = assetSearch.toLowerCase();
+    shown = shown.filter(d=>
+      (d.serialNumber||"").toLowerCase().includes(q) ||
+      (d.deviceName||"").toLowerCase().includes(q) ||
+      (d.ipAddress||"").toLowerCase().includes(q) ||
+      (d.model||"").toLowerCase().includes(q) ||
+      (d.site||"").toLowerCase().includes(q)
+    );
+  }
+  return shown;
+}
+window.toggleDeviceSelect = function(id){
+  if(selectedDevices.has(id)) selectedDevices.delete(id); else selectedDevices.add(id);
+  render();
+};
+window.toggleSelectAllDevices = function(checked){
+  const shown = _shownDevices();
+  if(checked){ shown.forEach(d=>selectedDevices.add(d.id)); }
+  else { shown.forEach(d=>selectedDevices.delete(d.id)); }
+  render();
+};
+window.clearDeviceSelection = function(){ selectedDevices.clear(); render(); };
+
+async function _bulkDeleteDevices(ids, label){
+  if(!isHR()) return toast("HR/Admin only");
+  if(ids.length===0) return toast("Nothing selected");
+  // Strong confirmation: must type the exact count to proceed
+  const typed = prompt(`⚠ You are about to permanently delete ${ids.length} device(s) — ${label}.\n\nThis cannot be undone.\n\nType the number ${ids.length} to confirm:`);
+  if(typed === null) return;                       // cancelled
+  if(String(typed).trim() !== String(ids.length)){ return toast("Confirmation did not match — nothing deleted"); }
+  toast(`Deleting ${ids.length} device(s)...`);
+  let done = 0;
+  for(const id of ids){
+    try{ await fbDelete("devices", id); done++; }
+    catch(e){ /* keep going */ }
+  }
+  selectedDevices.clear();
+  toast(`✓ Deleted ${done} device(s)`);
+}
+window.deleteSelectedDevices = function(){
+  const shown = _shownDevices().map(d=>d.id);
+  const ids = shown.filter(id=>selectedDevices.has(id));   // only selected among shown
+  _bulkDeleteDevices(ids, "the selected devices");
+};
+window.deleteAllShownDevices = function(){
+  const ids = _shownDevices().map(d=>d.id);
+  const scope = (assetFilterProject||assetFilterStatus||assetSearch) ? "all devices matching the current filters" : "ALL devices";
+  _bulkDeleteDevices(ids, scope);
+};
 
 Object.assign(window,{saveDevice,editDevice,delDevice,cancelDevice,renderAssets});
 Object.defineProperty(window,'deviceForm',{get:()=>deviceForm,set:v=>deviceForm=v,configurable:true});
@@ -9737,7 +9815,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v23';"
+      var swCode = "const CACHE='ejaftech-v24';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
