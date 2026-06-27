@@ -358,6 +358,7 @@ const state = {
   profile: null,        // {role, name, email, employeeName, ...} from users collection
   daily: [], overtime: [], travel: [], leaves: [], projects: [], locations: [], users: [], departments: [], branches: [],
   techWorkTypes: [], techStatuses: [], techCategories: [],
+  devices: [],  // Asset Management: central devices collection
   techReportCols: null,  // admin's column selection for Technical Report (from settings/techReport)
   workCategories: [], workTasks: [],  // Work Instructions module
   nametagEmployees: [],  // Admin-managed nametag-only employees (no auth account)
@@ -1142,6 +1143,7 @@ async function subscribeData(){
     ["techWorkTypes","techWorkTypes"],
     ["techStatuses","techStatuses"],
     ["techCategories","techCategories"],
+    ["devices","devices"],
     ["workCategories","workCategories"],["workTasks","workTasks"],
     ["nametagEmployees","nametagEmployees"],
     ["employeePermissions","employeePermissions"],
@@ -1184,7 +1186,7 @@ async function subscribeData(){
       }
 
       firstCount++;
-      if(firstCount>=20 && !state.initialized){
+      if(firstCount>=21 && !state.initialized){
         state.initialized=true;
         renderApp();
       } else if(state.initialized){
@@ -1196,7 +1198,7 @@ async function subscribeData(){
       // IMPORTANT: still count this collection so the app doesn't freeze on the
       // loading screen if one collection fails (e.g. missing Firestore rule).
       firstCount++;
-      if(firstCount>=20 && !state.initialized){
+      if(firstCount>=21 && !state.initialized){
         state.initialized=true;
         renderApp();
       }
@@ -1489,7 +1491,7 @@ function getTabs(){
   }
   // Admin / Owner: everything
   const base = ["Dashboard","Daily Log","Overtime","Travel","Leaves","Work Instructions",
-                "HR Report","Technical Report","Reports","Requests","Clients","Projects","Locations","Departments","Branches","Users","WhatsApp","Email","Share","Profile"];
+                "HR Report","Technical Report","Reports","Requests","Clients","Projects","Assets","Locations","Departments","Branches","Users","WhatsApp","Email","Share","Profile"];
   if(!base.includes(state.tab)) state.tab = base[0];
   return base;
 }
@@ -1555,7 +1557,7 @@ function renderTab(){
     if(!["Dashboard","Work Instructions","Profile"].includes(state.tab)) state.tab="Dashboard";
   } else if(role === "employee"){
     // Employee: no HR/admin tabs
-    if(["HR Report","Technical Report","Reports","Requests","Clients","Projects","Locations","Departments","Branches","Users","Share","WhatsApp","Email"].includes(state.tab)) state.tab="Dashboard";
+    if(["HR Report","Technical Report","Reports","Requests","Clients","Projects","Assets","Locations","Departments","Branches","Users","Share","WhatsApp","Email"].includes(state.tab)) state.tab="Dashboard";
   } else if(role === "support" || role === "hr"){
     // Support/HR: no Users, Share, or Clients management
     if(["Users","Share","Clients","WhatsApp","Email"].includes(state.tab)) state.tab="Dashboard";
@@ -1564,7 +1566,7 @@ function renderTab(){
   const fn={
     "Dashboard":renderDashboard,"Daily Log":renderDailyLog,"Overtime":renderOvertime,
     "Travel":renderTravel,"Leaves":renderLeaves,"HR Report":renderHRReport,"Technical Report":renderTechReport,"Reports":renderFlexReports,
-    "Projects":renderProjects,"Locations":renderLocations,"Users":renderUsers,
+    "Projects":renderProjects,"Assets":renderAssets,"Locations":renderLocations,"Users":renderUsers,
     "Departments":renderDepartments,"Branches":renderBranches,"Work Instructions":renderWorkInstructions,
     "Share":renderShare,"Profile":renderProfile,
     "Clients":renderClients,"Requests":renderRequests,"My Project":renderClientPortal,
@@ -4411,6 +4413,7 @@ async function mergeImport(map, deptName){
 let sitesModalProjId = null;   // which project is open in the modal
 let newAreaName = "";          // input buffer for adding an area
 let newSiteInputs = {};        // per-area site input buffers {areaIdx: "text"}
+let newCodeName = "";          // input buffer for adding a project code
 
 window.openSitesModal = function(projId){
   sitesModalProjId = projId;
@@ -4469,6 +4472,24 @@ function renderSitesModal(){
       </div>
       <div style="padding:20px;max-height:70vh;overflow-y:auto">
 
+        <!-- Project Codes -->
+        <div style="background:#FFF8E1;border:1px solid #FFE082;border-radius:10px;padding:12px;margin-bottom:16px">
+          <div style="font-weight:800;color:#F57F17;font-size:13px;margin-bottom:8px">🔖 Project Codes</div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">
+            ${(proj.codes||[]).length===0?`<span style="font-size:12px;color:#999">No codes yet</span>`:(proj.codes||[]).map((c,ci)=>`
+              <span style="display:inline-flex;align-items:center;gap:5px;background:white;border:1px solid #FFE082;color:#F57F17;padding:4px 8px 4px 12px;border-radius:12px;font-size:12px;font-weight:700">
+                ${escapeHtml(c)}
+                <button onclick="delProjectCode(${ci})" style="background:#FFF3E0;border:none;color:#E65100;width:18px;height:18px;border-radius:50%;cursor:pointer;font-weight:700;font-size:11px">×</button>
+              </span>`).join("")}
+          </div>
+          <div style="display:flex;gap:6px">
+            <input value="${escapeHtml(newCodeName||'')}" oninput="window._setNewCode(this.value)" placeholder="Add project code (e.g. AC-001)" style="flex:1;padding:7px 10px;border:1px solid var(--line);border-radius:7px;font-size:12px">
+            <button class="btn btn-sm" style="background:#F57F17;color:white;border:none;font-weight:700" onclick="addProjectCode()">+ Code</button>
+          </div>
+        </div>
+
+        <!-- Add new area -->
+        <div style="font-weight:800;color:#03308B;font-size:13px;margin-bottom:8px">🗺️ Areas</div>
         <!-- Add new area -->
         <div style="display:flex;gap:6px;margin-bottom:16px">
           <input value="${escapeHtml(newAreaName)}" oninput="window._setNewAreaName(this.value)" placeholder="New area name (e.g. Erbil Area, North Zone)" style="flex:1;padding:9px 12px;border:1px solid var(--line);border-radius:8px;font-size:13px">
@@ -4513,12 +4534,39 @@ function renderSitesModal(){
 
 window._setNewAreaName = function(v){ newAreaName = v; };
 window._setNewSite = function(ai, v){ newSiteInputs[ai] = v; };
+window._setNewCode = function(v){ newCodeName = v; };
+
+// Project Codes management
+window.addProjectCode = async function(){
+  if(!isAdmin()) return toast("Admin only");
+  const proj = state.projects.find(p=>p.id===sitesModalProjId);
+  if(!proj) return;
+  const code = (newCodeName||"").trim();
+  if(!code) return toast("Enter a project code");
+  const codes = [...(proj.codes||[])];
+  if(codes.some(c=>c.toLowerCase()===code.toLowerCase())) return toast("Code already exists");
+  codes.push(code);
+  await fbSave("projects",{id:proj.id, name:proj.name, dept:proj.dept, estimatedHours:Number(proj.estimatedHours||0), areas:getProjectAreas(proj), codes});
+  newCodeName = "";
+  showSitesModal();
+  toast("Code added ✓");
+};
+window.delProjectCode = async function(ci){
+  if(!isAdmin()) return toast("Admin only");
+  const proj = state.projects.find(p=>p.id===sitesModalProjId);
+  if(!proj) return;
+  const codes = [...(proj.codes||[])];
+  codes.splice(ci,1);
+  await fbSave("projects",{id:proj.id, name:proj.name, dept:proj.dept, estimatedHours:Number(proj.estimatedHours||0), areas:getProjectAreas(proj), codes});
+  showSitesModal();
+  toast("Code removed");
+};
 
 async function saveAreasToProject(proj, areas){
   await fbSave("projects", {
     id: proj.id, name: proj.name, dept: proj.dept,
     estimatedHours: Number(proj.estimatedHours||0),
-    areas,
+    areas, codes: proj.codes || [],
   });
 }
 
@@ -4596,6 +4644,216 @@ window.toggleSiteStatus = async function(ai, si){
   showSitesModal();
 };
 
+
+
+// ═══════════════════════════════════════════════════════════════════════
+//  ASSET MANAGEMENT MODULE (Phase 1)
+//  Central "devices" collection. Each device has link keys + 9 detail fields.
+//  Serial Number is the unique identifier (prevents duplicates).
+// ═══════════════════════════════════════════════════════════════════════
+let deviceForm = null, deviceEditId = null;
+let assetSearch = "", assetFilterProject = "", assetFilterStatus = "";
+
+const DEVICE_STATUSES = ["Active","Inactive","Faulty","Under Repair","Decommissioned","Spare"];
+
+function blankDevice(){
+  return {
+    serialNumber:"", deviceName:"", deviceCode:"",
+    project:"", projectCode:"", area:"", site:"",
+    ipAddress:"", vendor:"", model:"",
+    installDate:"", warrantyExp:"", stack:"", status:"Active"
+  };
+}
+
+function renderAssets(){
+  if(!isHR()) return `<div class="card"><div class="empty">Access denied — HR/Admin only</div></div>`;
+  if(!deviceForm) deviceForm = blankDevice();
+
+  const devices = state.devices || [];
+  // Filters
+  let shown = devices;
+  if(assetFilterProject) shown = shown.filter(d=>d.project===assetFilterProject);
+  if(assetFilterStatus) shown = shown.filter(d=>(d.status||"")===assetFilterStatus);
+  if(assetSearch){
+    const q = assetSearch.toLowerCase();
+    shown = shown.filter(d=>
+      (d.serialNumber||"").toLowerCase().includes(q) ||
+      (d.deviceName||"").toLowerCase().includes(q) ||
+      (d.ipAddress||"").toLowerCase().includes(q) ||
+      (d.model||"").toLowerCase().includes(q) ||
+      (d.site||"").toLowerCase().includes(q)
+    );
+  }
+
+  const allProjects = state.projects.map(p=>p.name).filter(Boolean).sort();
+  // Project codes/areas/sites for the selected project in the form
+  const selProj = state.projects.find(p=>p.name===deviceForm.project);
+  const projCodes = selProj?.codes || [];
+  const projAreas = selProj ? getProjectAreas(selProj) : [];
+  const selArea = projAreas.find(a=>a.name===deviceForm.area);
+  const areaSites = selArea?.sites || [];
+
+  return `<div class="card">
+    <div class="card-title">📦 Asset Management</div>
+    <p style="font-size:12px;color:var(--muted);margin:0">Central device registry. Serial Number is the unique key — no duplicates. ${devices.length} device(s) total.</p>
+  </div>
+
+  <!-- Add / Edit device form -->
+  <div class="card">
+    <div class="sec-hdr">${deviceEditId?"✎ Edit Device":"➕ Add Device"}</div>
+    <div class="form-grid">
+      <div class="field"><label>Serial Number <span class="req">*</span></label>
+        <input value="${escapeHtml(deviceForm.serialNumber)}" oninput="window.deviceForm.serialNumber=this.value" placeholder="e.g. FOC1234X5YZ" ${deviceEditId?'disabled style="background:#f0f0f0"':''}></div>
+      <div class="field"><label>Device Name</label>
+        <input value="${escapeHtml(deviceForm.deviceName)}" oninput="window.deviceForm.deviceName=this.value" placeholder="e.g. Core Switch"></div>
+      <div class="field"><label>Device Code</label>
+        <input value="${escapeHtml(deviceForm.deviceCode)}" oninput="window.deviceForm.deviceCode=this.value" placeholder="e.g. DEV-001"></div>
+
+      <div class="field"><label>📁 Project</label>
+        <select onchange="window.deviceForm.project=this.value;window.deviceForm.projectCode='';window.deviceForm.area='';window.deviceForm.site='';render()">
+          <option value="">— Select —</option>
+          ${allProjects.map(p=>`<option value="${escapeHtml(p)}" ${p===deviceForm.project?"selected":""}>${escapeHtml(p)}</option>`).join("")}
+        </select></div>
+      <div class="field"><label>🔖 Project Code</label>
+        <select onchange="window.deviceForm.projectCode=this.value" ${projCodes.length===0?'disabled':''}>
+          <option value="">${projCodes.length?'— Select —':'No codes (add in Projects 🗺️)'}</option>
+          ${projCodes.map(c=>`<option value="${escapeHtml(c)}" ${c===deviceForm.projectCode?"selected":""}>${escapeHtml(c)}</option>`).join("")}
+        </select></div>
+      <div class="field"><label>🗺️ Area</label>
+        <select onchange="window.deviceForm.area=this.value;window.deviceForm.site='';render()" ${projAreas.length===0?'disabled':''}>
+          <option value="">${projAreas.length?'— Select —':'No areas'}</option>
+          ${projAreas.map(a=>`<option value="${escapeHtml(a.name)}" ${a.name===deviceForm.area?"selected":""}>${escapeHtml(a.name)}</option>`).join("")}
+        </select></div>
+      <div class="field"><label>📍 Site</label>
+        <select onchange="window.deviceForm.site=this.value" ${areaSites.length===0?'disabled':''}>
+          <option value="">${areaSites.length?'— Select —':'Pick area first'}</option>
+          ${areaSites.map(s=>`<option value="${escapeHtml(s.name)}" ${s.name===deviceForm.site?"selected":""}>${escapeHtml(s.name)}</option>`).join("")}
+        </select></div>
+
+      <div class="field"><label>🌐 IP Address</label>
+        <input value="${escapeHtml(deviceForm.ipAddress)}" oninput="window.deviceForm.ipAddress=this.value" placeholder="e.g. 192.168.1.1"></div>
+      <div class="field"><label>🏭 Vendor</label>
+        <input value="${escapeHtml(deviceForm.vendor)}" oninput="window.deviceForm.vendor=this.value" placeholder="e.g. Cisco"></div>
+      <div class="field"><label>📱 Model</label>
+        <input value="${escapeHtml(deviceForm.model)}" oninput="window.deviceForm.model=this.value" placeholder="e.g. Catalyst 9300"></div>
+      <div class="field"><label>📅 Installation Date</label>
+        <input type="date" value="${escapeHtml(deviceForm.installDate)}" onchange="window.deviceForm.installDate=this.value"></div>
+      <div class="field"><label>🛡️ Warranty Expiration</label>
+        <input type="date" value="${escapeHtml(deviceForm.warrantyExp)}" onchange="window.deviceForm.warrantyExp=this.value"></div>
+      <div class="field"><label>🔗 Stack</label>
+        <input value="${escapeHtml(deviceForm.stack)}" oninput="window.deviceForm.stack=this.value" placeholder="e.g. Stack-1"></div>
+      <div class="field"><label>🔘 Device Status</label>
+        <select onchange="window.deviceForm.status=this.value">
+          ${DEVICE_STATUSES.map(s=>`<option value="${escapeHtml(s)}" ${s===deviceForm.status?"selected":""}>${escapeHtml(s)}</option>`).join("")}
+        </select></div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="saveDevice()">${deviceEditId?"Update Device":"Add Device"}</button>
+      ${deviceEditId?`<button class="btn btn-ghost" onclick="cancelDevice()">Cancel</button>`:""}
+    </div>
+  </div>
+
+  <!-- Device list with filters -->
+  <div class="card">
+    <div class="filter-row">
+      <span class="card-title" style="margin:0">Devices</span>
+      <span class="count-pill">${shown.length}</span>
+      <div style="display:flex;gap:6px;margin-left:auto;flex-wrap:wrap">
+        <input value="${escapeHtml(assetSearch)}" oninput="window.assetSearch=this.value;render()" placeholder="🔍 Serial, name, IP, model..." style="padding:6px 10px;border:1px solid var(--line);border-radius:6px;font-size:12px;min-width:160px">
+        <select onchange="window.assetFilterProject=this.value;render()" style="padding:6px 10px;border:1px solid var(--line);border-radius:6px;font-size:12px">
+          <option value="">All Projects</option>
+          ${allProjects.map(p=>`<option value="${escapeHtml(p)}" ${p===assetFilterProject?"selected":""}>${escapeHtml(p)}</option>`).join("")}
+        </select>
+        <select onchange="window.assetFilterStatus=this.value;render()" style="padding:6px 10px;border:1px solid var(--line);border-radius:6px;font-size:12px">
+          <option value="">All Status</option>
+          ${DEVICE_STATUSES.map(s=>`<option value="${escapeHtml(s)}" ${s===assetFilterStatus?"selected":""}>${escapeHtml(s)}</option>`).join("")}
+        </select>
+      </div>
+    </div>
+    ${shown.length===0?`<div class="empty">No devices match. Add your first device above.</div>`:`
+    <div style="overflow-x:auto">
+      <table class="data-table" style="min-width:900px">
+        <thead><tr><th>Serial</th><th>Name</th><th>Project</th><th>Site</th><th>IP</th><th>Model</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+          ${shown.map(d=>`<tr>
+            <td style="font-weight:700;color:#03308B;font-size:12px">${escapeHtml(d.serialNumber||"—")}</td>
+            <td style="font-size:12px">${escapeHtml(d.deviceName||"—")}</td>
+            <td style="font-size:12px">${escapeHtml(d.project||"—")}${d.projectCode?`<br><span style="font-size:9px;color:#888">${escapeHtml(d.projectCode)}</span>`:''}</td>
+            <td style="font-size:12px">${escapeHtml(d.site||"—")}${d.area?`<br><span style="font-size:9px;color:#888">${escapeHtml(d.area)}</span>`:''}</td>
+            <td style="font-size:11px;font-family:monospace">${escapeHtml(d.ipAddress||"—")}</td>
+            <td style="font-size:12px">${escapeHtml(d.model||"—")}</td>
+            <td>${deviceStatusBadge(d.status)}</td>
+            <td style="white-space:nowrap">
+              <button class="btn btn-sm btn-secondary" onclick="editDevice('${d.id}')">✎</button>
+              <button class="btn btn-sm btn-danger" onclick="delDevice('${d.id}')">🗑</button>
+            </td>
+          </tr>`).join("")}
+        </tbody>
+      </table>
+    </div>`}
+  </div>`;
+}
+
+function deviceStatusBadge(status){
+  const map = {
+    "Active":"#E8F5E9|#2E7D32", "Inactive":"#FFEBEE|#C62828",
+    "Faulty":"#FFF3E0|#E65100", "Under Repair":"#FFF8E1|#F57F17",
+    "Decommissioned":"#ECEFF1|#546E7A", "Spare":"#E3F2FD|#1565C0"
+  };
+  const [bg,fg] = (map[status]||"#F5F5F5|#666").split("|");
+  return `<span style="background:${bg};color:${fg};padding:3px 8px;border-radius:10px;font-size:10px;font-weight:700;white-space:nowrap">${escapeHtml(status||"—")}</span>`;
+}
+
+async function saveDevice(){
+  if(!isHR()) return toast("HR/Admin only");
+  const serial = (deviceForm.serialNumber||"").trim();
+  if(!serial) return toast("Serial Number is required");
+
+  // Uniqueness check: no two devices with the same serial (except self when editing)
+  const dup = (state.devices||[]).find(d=>(d.serialNumber||"").toLowerCase()===serial.toLowerCase() && d.id!==deviceEditId);
+  if(dup) return toast("⚠ A device with this Serial Number already exists");
+
+  const data = {
+    serialNumber: serial,
+    deviceName: deviceForm.deviceName||"",
+    deviceCode: deviceForm.deviceCode||"",
+    project: deviceForm.project||"",
+    projectCode: deviceForm.projectCode||"",
+    area: deviceForm.area||"",
+    site: deviceForm.site||"",
+    ipAddress: deviceForm.ipAddress||"",
+    vendor: deviceForm.vendor||"",
+    model: deviceForm.model||"",
+    installDate: deviceForm.installDate||"",
+    warrantyExp: deviceForm.warrantyExp||"",
+    stack: deviceForm.stack||"",
+    status: deviceForm.status||"Active",
+    updatedAt: new Date().toISOString(),
+  };
+
+  await fbSave("devices", {id: deviceEditId||undefined, ...data});
+  toast(deviceEditId?"Device updated ✓":"Device added ✓");
+  deviceForm = blankDevice();
+  deviceEditId = null;
+}
+function editDevice(id){
+  const d = (state.devices||[]).find(x=>x.id===id);
+  if(d){ deviceForm = {...blankDevice(), ...d}; deviceEditId = id; render(); window.scrollTo(0,0); }
+}
+async function delDevice(id){
+  if(!isHR()) return toast("HR/Admin only");
+  const d = (state.devices||[]).find(x=>x.id===id);
+  if(!confirm(`Delete device "${d?.serialNumber||''}"?`)) return;
+  await fbDelete("devices", id);
+  toast("Device deleted");
+}
+function cancelDevice(){ deviceForm = blankDevice(); deviceEditId = null; render(); }
+
+Object.assign(window,{saveDevice,editDevice,delDevice,cancelDevice,renderAssets});
+Object.defineProperty(window,'deviceForm',{get:()=>deviceForm,set:v=>deviceForm=v,configurable:true});
+Object.defineProperty(window,'assetSearch',{get:()=>assetSearch,set:v=>assetSearch=v,configurable:true});
+Object.defineProperty(window,'assetFilterProject',{get:()=>assetFilterProject,set:v=>assetFilterProject=v,configurable:true});
+Object.defineProperty(window,'assetFilterStatus',{get:()=>assetFilterStatus,set:v=>assetFilterStatus=v,configurable:true});
 
 
 function renderProjects(){
@@ -4684,9 +4942,10 @@ async function saveProj(){
 
   // Preserve existing sites (managed separately via the Sites manager)
   const existingProj = state.projects.find(p=>p.id===id);
-  // Preserve existing areas (managed separately via the Areas/Sites manager)
+  // Preserve existing areas + codes (managed separately via the Areas/Sites manager)
   const areas = (projForm.areas!==undefined) ? projForm.areas : (existingProj?.areas || []);
-  await fbSave("projects",{id,name:cleanName,dept:projForm.dept,estimatedHours:Number(projForm.estimatedHours||0),areas});
+  const codes = existingProj?.codes || [];
+  await fbSave("projects",{id,name:cleanName,dept:projForm.dept,estimatedHours:Number(projForm.estimatedHours||0),areas,codes});
 
   if(oldName){
     const synced = await cascadeRenameProject(oldName, cleanName);
@@ -8960,7 +9219,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v19';"
+      var swCode = "const CACHE='ejaftech-v20';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
