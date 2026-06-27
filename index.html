@@ -358,6 +358,7 @@ const state = {
   profile: null,        // {role, name, email, employeeName, ...} from users collection
   daily: [], overtime: [], travel: [], leaves: [], projects: [], locations: [], users: [], departments: [], branches: [],
   techWorkTypes: [], techStatuses: [], techCategories: [],
+  techReportCols: null,  // admin's column selection for Technical Report (from settings/techReport)
   workCategories: [], workTasks: [],  // Work Instructions module
   nametagEmployees: [],  // Admin-managed nametag-only employees (no auth account)
   employeePermissions: [],  // Per-employee entry permissions (GPS / Resolution requirements)
@@ -1246,6 +1247,13 @@ async function subscribeData(){
     if(state.initialized) renderTab();
   });
   state.unsubs.push(schedUnsub);
+
+  // Technical Report column selection (admin-controlled, shared)
+  const techRepUnsub = onSnapshot(doc(db,"settings","techReport"),(snap)=>{
+    state.techReportCols = snap.exists() ? (snap.data().columns || null) : null;
+    if(state.initialized) renderTab();
+  });
+  state.unsubs.push(techRepUnsub);
 }
 
 async function seedDefaults(){
@@ -1468,20 +1476,20 @@ function getTabs(){
   // HR: full ops but no Users/Share/Clients
   if(role === "hr"){
     const base = ["Dashboard","Daily Log","Overtime","Travel","Leaves","Work Instructions",
-                  "HR Report","Reports","Requests","Projects","Locations","Departments","Profile"];
+                  "HR Report","Technical Report","Reports","Requests","Projects","Locations","Departments","Profile"];
     if(!base.includes(state.tab)) state.tab = base[0];
     return base;
   }
   // Support: full access except Users and Share
   if(role === "support"){
     const base = ["Dashboard","Daily Log","Overtime","Travel","Leaves","Work Instructions",
-                  "HR Report","Reports","Requests","Projects","Locations","Departments","Profile"];
+                  "HR Report","Technical Report","Reports","Requests","Projects","Locations","Departments","Profile"];
     if(!base.includes(state.tab)) state.tab = base[0];
     return base;
   }
   // Admin / Owner: everything
   const base = ["Dashboard","Daily Log","Overtime","Travel","Leaves","Work Instructions",
-                "HR Report","Reports","Requests","Clients","Projects","Locations","Departments","Branches","Users","WhatsApp","Email","Share","Profile"];
+                "HR Report","Technical Report","Reports","Requests","Clients","Projects","Locations","Departments","Branches","Users","WhatsApp","Email","Share","Profile"];
   if(!base.includes(state.tab)) state.tab = base[0];
   return base;
 }
@@ -1547,7 +1555,7 @@ function renderTab(){
     if(!["Dashboard","Work Instructions","Profile"].includes(state.tab)) state.tab="Dashboard";
   } else if(role === "employee"){
     // Employee: no HR/admin tabs
-    if(["HR Report","Reports","Requests","Clients","Projects","Locations","Departments","Branches","Users","Share","WhatsApp","Email"].includes(state.tab)) state.tab="Dashboard";
+    if(["HR Report","Technical Report","Reports","Requests","Clients","Projects","Locations","Departments","Branches","Users","Share","WhatsApp","Email"].includes(state.tab)) state.tab="Dashboard";
   } else if(role === "support" || role === "hr"){
     // Support/HR: no Users, Share, or Clients management
     if(["Users","Share","Clients","WhatsApp","Email"].includes(state.tab)) state.tab="Dashboard";
@@ -1555,7 +1563,7 @@ function renderTab(){
 
   const fn={
     "Dashboard":renderDashboard,"Daily Log":renderDailyLog,"Overtime":renderOvertime,
-    "Travel":renderTravel,"Leaves":renderLeaves,"HR Report":renderHRReport,"Reports":renderFlexReports,
+    "Travel":renderTravel,"Leaves":renderLeaves,"HR Report":renderHRReport,"Technical Report":renderTechReport,"Reports":renderFlexReports,
     "Projects":renderProjects,"Locations":renderLocations,"Users":renderUsers,
     "Departments":renderDepartments,"Branches":renderBranches,"Work Instructions":renderWorkInstructions,
     "Share":renderShare,"Profile":renderProfile,
@@ -3714,6 +3722,284 @@ Object.defineProperty(window, 'leaveForm', {get:()=>leaveForm, set:v=>leaveForm=
 // ═══════════════════════════════════════════════════════════════════════
 //  HR REPORT
 // ═══════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════
+//  TECHNICAL REPORT — EXPORTS (PDF + Excel)
+// ═══════════════════════════════════════════════════════════════════════
+window.exportTechPDF = function(){
+  if(!canSeeReports()) return toast("Access denied");
+  const rows = applyReportFilters(visibleRows(state.daily)).sort((a,b)=>{
+    const d=(a.date||"").localeCompare(b.date||"");
+    return d!==0?d:(a.entryNo||0)-(b.entryNo||0);
+  });
+  const cols = activeTechCols();
+  const colDefs = TECH_COLUMNS.filter(c=>cols.includes(c.key));
+  const period = getPeriod();
+  const totalTasks = rows.length;
+  const totalHours = rows.reduce((s,r)=>s+Number(r.duration||0),0);
+  const workDays = new Set(rows.map(r=>`${r.employee}|${r.date}`)).size;
+  const byCat = {}; rows.forEach(r=>{const c=r.taskCategory||"(none)";byCat[c]=(byCat[c]||0)+1;});
+  const byStatus = {}; rows.forEach(r=>{const s=r.taskStatus||"(none)";byStatus[s]=(byStatus[s]||0)+1;});
+  const lbl = (typeof reportFilterLabel==="function")?reportFilterLabel():"";
+
+  const cellVal = (r,key)=>{
+    if(key==="hours") return fmtHM(r.duration);
+    if(key==="date") return fmtDate(r.date);
+    if(key==="resolutionText") return escapeHtml(r.resolutionText||"");
+    return escapeHtml(String(r[key]||""));
+  };
+
+  const win = window.open("","_blank");
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Technical Report</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:'Segoe UI',Arial,sans-serif;color:#1A1A2E;padding:24px}
+    .hdr{background:linear-gradient(135deg,#03308B,#2E5FA3);color:white;padding:20px 24px;border-radius:10px;margin-bottom:18px}
+    .hdr h1{font-size:22px;font-weight:800}.hdr .gold{color:#C9A84C}
+    .hdr p{font-size:12px;opacity:0.9;margin-top:4px}
+    .kpis{display:flex;gap:12px;margin-bottom:18px}
+    .kpi{flex:1;border:2px solid #03308B;border-radius:10px;padding:14px;text-align:center}
+    .kpi .n{font-size:26px;font-weight:800;color:#03308B}.kpi .l{font-size:11px;color:#666;text-transform:uppercase}
+    .two{display:flex;gap:16px;margin-bottom:18px}
+    .box{flex:1;border:1px solid #ddd;border-radius:8px;padding:12px}
+    .box h3{font-size:13px;margin-bottom:8px;color:#03308B}
+    .box .row{display:flex;justify-content:space-between;font-size:12px;padding:3px 0;border-bottom:1px solid #f0f0f0}
+    table{width:100%;border-collapse:collapse;font-size:10px;margin-top:8px}
+    th{background:#03308B;color:white;padding:6px 5px;text-align:left;font-size:9px}
+    td{padding:5px;border-bottom:1px solid #eee;font-size:9px}
+    tr:nth-child(even){background:#F0F4FF}
+    .ttl{font-size:18px;font-weight:800;color:#03308B;margin:16px 0 8px}
+    @media print{body{padding:0}}
+  </style></head><body>
+  <div class="hdr"><h1>EJAF <span class="gold">Technical Report</span></h1>
+    <p>Period: ${period}${lbl?' · '+lbl:''} · Generated: ${new Date().toLocaleString('en-GB')}</p></div>
+  <div class="kpis">
+    <div class="kpi"><div class="n">${totalTasks}</div><div class="l">Total Tasks</div></div>
+    <div class="kpi"><div class="n">${fmtHM(totalHours)}</div><div class="l">Total Hours</div></div>
+    <div class="kpi"><div class="n">${workDays}</div><div class="l">Work Days</div></div>
+  </div>
+  <div class="two">
+    <div class="box"><h3>By Category</h3>${Object.keys(byCat).sort((a,b)=>byCat[b]-byCat[a]).map(c=>`<div class="row"><span>${escapeHtml(c)}</span><strong>${byCat[c]}</strong></div>`).join("")}</div>
+    <div class="box"><h3>By Status</h3>${Object.keys(byStatus).sort((a,b)=>byStatus[b]-byStatus[a]).map(s=>`<div class="row"><span>${escapeHtml(s)}</span><strong>${byStatus[s]}</strong></div>`).join("")}</div>
+  </div>
+  <div class="ttl">Detailed Tasks (${rows.length})</div>
+  <table><thead><tr>${colDefs.map(c=>`<th>${escapeHtml(c.label)}</th>`).join("")}</tr></thead>
+  <tbody>${rows.map(r=>`<tr>${colDefs.map(c=>`<td>${cellVal(r,c.key)}</td>`).join("")}</tr>`).join("")}</tbody></table>
+  <script>setTimeout(()=>window.print(),400)<\/script>
+  </body></html>`);
+  win.document.close();
+};
+
+window.exportTechExcel = async function(){
+  if(!canSeeReports()) return toast("Access denied");
+  try{
+    const rows = applyReportFilters(visibleRows(state.daily)).sort((a,b)=>{
+      const d=(a.date||"").localeCompare(b.date||"");
+      return d!==0?d:(a.entryNo||0)-(b.entryNo||0);
+    });
+    const cols = activeTechCols();
+    const colDefs = TECH_COLUMNS.filter(c=>cols.includes(c.key));
+    const wb = XLSX.utils.book_new();
+    const NAVY="03308B", GOLD="C9A84C", WHITE="FFFFFF";
+    const hd={font:{bold:true,sz:10,color:{rgb:WHITE}},fill:{fgColor:{rgb:NAVY}}};
+    const setC=(ws,a,v,s)=>{ws[a]={v:v,t:typeof v==='number'?'n':'s'};if(s)ws[a].s=s;};
+
+    // Sheet 1: Tasks
+    const ws={};
+    const colLetter=(n)=>{let s="";n++;while(n>0){let m=(n-1)%26;s=String.fromCharCode(65+m)+s;n=Math.floor((n-1)/26);}return s;};
+    colDefs.forEach((c,i)=>setC(ws,`${colLetter(i)}1`,c.label,hd));
+    rows.forEach((r,ri)=>{
+      colDefs.forEach((c,ci)=>{
+        let v=r[c.key]||"";
+        if(c.key==="hours")v=fmtHM(r.duration);
+        setC(ws,`${colLetter(ci)}${ri+2}`,v,{font:{sz:10},fill:{fgColor:{rgb:ri%2?"F0F4FF":WHITE}}});
+      });
+    });
+    ws['!ref']=`A1:${colLetter(colDefs.length-1)}${rows.length+1}`;
+    ws['!cols']=colDefs.map(()=>({wch:16}));
+    XLSX.utils.book_append_sheet(wb,ws,"Technical Tasks");
+
+    // Sheet 2: Summary
+    const byCat={};rows.forEach(r=>{const c=r.taskCategory||"(none)";byCat[c]=(byCat[c]||0)+1;});
+    const byStatus={};rows.forEach(r=>{const s=r.taskStatus||"(none)";byStatus[s]=(byStatus[s]||0)+1;});
+    const ws2={};
+    setC(ws2,'A1','TECHNICAL SUMMARY',{font:{bold:true,sz:14,color:{rgb:GOLD}},fill:{fgColor:{rgb:NAVY}}});
+    setC(ws2,'A3','Total Tasks',{font:{bold:true}});setC(ws2,'B3',rows.length);
+    setC(ws2,'A4','Total Hours',{font:{bold:true}});setC(ws2,'B4',fmtHM(rows.reduce((s,r)=>s+Number(r.duration||0),0)));
+    setC(ws2,'A5','Work Days',{font:{bold:true}});setC(ws2,'B5',new Set(rows.map(r=>`${r.employee}|${r.date}`)).size);
+    setC(ws2,'A7','BY CATEGORY',hd);setC(ws2,'B7','Count',hd);
+    let rr=8;Object.keys(byCat).sort((a,b)=>byCat[b]-byCat[a]).forEach(c=>{setC(ws2,`A${rr}`,c);setC(ws2,`B${rr}`,byCat[c]);rr++;});
+    rr++;setC(ws2,`A${rr}`,'BY STATUS',hd);setC(ws2,`B${rr}`,'Count',hd);rr++;
+    Object.keys(byStatus).sort((a,b)=>byStatus[b]-byStatus[a]).forEach(s=>{setC(ws2,`A${rr}`,s);setC(ws2,`B${rr}`,byStatus[s]);rr++;});
+    ws2['!ref']=`A1:B${rr}`;ws2['!cols']=[{wch:24},{wch:12}];
+    XLSX.utils.book_append_sheet(wb,ws2,"Summary");
+
+    XLSX.writeFile(wb,`EJAF_Technical_Report_${todayStr()}.xlsx`);
+    toast("Excel exported ✓");
+  }catch(e){ toast("Export failed: "+(e.message||"error")); }
+};
+
+function todayStr(){ return new Date().toISOString().slice(0,10); }
+
+
+// ═══════════════════════════════════════════════════════════════════════
+//  TECHNICAL REPORT  (Daily Log technical view: classifications + hours + days)
+// ═══════════════════════════════════════════════════════════════════════
+
+// All available columns (key → label). Admin chooses which to show.
+const TECH_COLUMNS = [
+  {key:"date",         label:"Date"},
+  {key:"employee",     label:"Employee"},
+  {key:"project",      label:"Project"},
+  {key:"site",         label:"Site"},
+  {key:"equipment",    label:"Equipment"},
+  {key:"workType",     label:"Work Type"},
+  {key:"taskStatus",   label:"Status"},
+  {key:"taskCategory", label:"Category"},
+  {key:"taskSubcategory",label:"Subcategory"},
+  {key:"location",     label:"Location"},
+  {key:"hours",        label:"Hours"},
+  {key:"resolutionText",label:"Resolution Text"},
+];
+const TECH_COLS_DEFAULT = ["date","employee","project","site","equipment","workType","taskStatus","taskCategory","taskSubcategory","hours"];
+
+// Which columns are currently active
+function activeTechCols(){
+  const sel = state.techReportCols;
+  if(Array.isArray(sel) && sel.length) return sel;
+  return TECH_COLS_DEFAULT;
+}
+
+function renderTechReport(){
+  if(isClient()) return `<div class="card"><div class="empty">Access denied</div></div>`;
+
+  // Apply the unified filters to Daily Log only
+  const rows = applyReportFilters(visibleRows(state.daily)).sort((a,b)=>{
+    const d=(a.date||"").localeCompare(b.date||"");
+    return d!==0?d:(a.entryNo||0)-(b.entryNo||0);
+  });
+
+  const cols = activeTechCols();
+  const colDefs = TECH_COLUMNS.filter(c=>cols.includes(c.key));
+
+  // ── Summary stats ──
+  const totalTasks = rows.length;
+  const totalHours = rows.reduce((s,r)=>s+Number(r.duration||0),0);
+  // Work days = distinct (employee + date) pairs
+  const dayPairs = new Set(rows.map(r=>`${r.employee}|${r.date}`));
+  const workDays = dayPairs.size;
+
+  // By category
+  const byCat = {};
+  rows.forEach(r=>{ const c=r.taskCategory||"(none)"; byCat[c]=(byCat[c]||0)+1; });
+  // By status
+  const byStatus = {};
+  rows.forEach(r=>{ const s=r.taskStatus||"(none)"; byStatus[s]=(byStatus[s]||0)+1; });
+
+  const catColors = {Network:"#1565C0",CCTV:"#6A1B9A",System:"#2E7D32",Maintenance:"#E65100","Onsite Survey":"#00838F",Deployment:"#AD1457",General:"#5D4037",CR:"#C62828"};
+
+  let h = `<div class="card">
+    <div class="card-title">🔧 Technical Report</div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:8px">Technical breakdown of Daily Log: classifications, hours, and work days. Uses the filters below.</p>
+  </div>`;
+
+  // Filters (unified)
+  if(!isEmployee()) h += `<div class="card">${renderEmployeeFilterUI("Filter Technical Report")}</div>`;
+
+  // ── Export buttons ──
+  if(canSeeReports()){
+    h += `<div class="card" style="background:#0F2347">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+        <div style="color:#C9A84C;font-weight:800;font-size:14px">📤 Export Technical Report</div>
+        <div style="display:flex;gap:8px">
+          <button class="btn" style="background:#C9A84C;color:#0F2347;border:none;font-weight:700" onclick="exportTechPDF()">📄 PDF</button>
+          <button class="btn" style="background:#2E7D32;color:white;border:none;font-weight:700" onclick="exportTechExcel()">📊 Excel</button>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  // ── Summary cards ──
+  h += `<div class="card">
+    <div class="card-title">📊 Summary</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:16px">
+      <div style="background:linear-gradient(135deg,#1B3A6B,#2E5FA3);color:white;border-radius:10px;padding:12px"><div style="font-size:11px;opacity:0.8">TOTAL TASKS</div><div style="font-size:24px;font-weight:800">${totalTasks}</div></div>
+      <div style="background:linear-gradient(135deg,#2E7D32,#43A047);color:white;border-radius:10px;padding:12px"><div style="font-size:11px;opacity:0.8">TOTAL HOURS</div><div style="font-size:24px;font-weight:800">${fmtHM(totalHours)}</div></div>
+      <div style="background:linear-gradient(135deg,#6A1B9A,#8E24AA);color:white;border-radius:10px;padding:12px"><div style="font-size:11px;opacity:0.8">WORK DAYS</div><div style="font-size:24px;font-weight:800">${workDays}</div></div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+      <div>
+        <div style="font-size:12px;font-weight:800;color:#C2185B;margin-bottom:6px">By Category</div>
+        ${Object.keys(byCat).sort((a,b)=>byCat[b]-byCat[a]).map(c=>`
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid #f0f0f0">
+            <span style="font-size:12px;color:#333"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${catColors[c]||'#999'};margin-right:6px"></span>${escapeHtml(c)}</span>
+            <span style="font-weight:700;color:${catColors[c]||'#333'};font-size:13px">${byCat[c]}</span>
+          </div>`).join("")}
+      </div>
+      <div>
+        <div style="font-size:12px;font-weight:800;color:#00897B;margin-bottom:6px">By Status</div>
+        ${Object.keys(byStatus).sort((a,b)=>byStatus[b]-byStatus[a]).map(s=>`
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid #f0f0f0">
+            <span style="font-size:12px;color:#333">${escapeHtml(s)}</span>
+            <span style="font-weight:700;color:#00897B;font-size:13px">${byStatus[s]}</span>
+          </div>`).join("")}
+      </div>
+    </div>
+  </div>`;
+
+  // ── Column chooser (admin only) ──
+  if(isAdmin()){
+    h += `<div class="card" style="border:1px solid #6A1B9A">
+      <div class="card-title" style="color:#6A1B9A;font-size:14px">⚙️ Choose Columns</div>
+      <p style="font-size:11px;color:var(--muted);margin-bottom:10px">Select which columns appear in the table and exports. Saved for everyone.</p>
+      <div style="display:flex;flex-wrap:wrap;gap:8px">
+        ${TECH_COLUMNS.map(c=>`
+          <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer;background:${cols.includes(c.key)?'#F3E5F5':'#F7F7F7'};border:1px solid ${cols.includes(c.key)?'#CE93D8':'#ddd'};padding:5px 10px;border-radius:14px">
+            <input type="checkbox" ${cols.includes(c.key)?'checked':''} onchange="toggleTechCol('${c.key}')" style="cursor:pointer">
+            ${escapeHtml(c.label)}
+          </label>`).join("")}
+      </div>
+    </div>`;
+  }
+
+  // ── Detailed table ──
+  h += `<div class="card">
+    <div class="filter-row"><span class="card-title" style="margin:0">📋 Detailed Tasks</span><span class="count-pill">${rows.length}</span></div>
+    <div style="overflow-x:auto">
+      <table class="data-table" style="min-width:${colDefs.length*110}px">
+        <thead><tr>${colDefs.map(c=>`<th>${escapeHtml(c.label)}</th>`).join("")}</tr></thead>
+        <tbody>
+          ${rows.length===0?`<tr><td colspan="${colDefs.length}" style="text-align:center;color:#999;padding:20px">No tasks match the filters</td></tr>`:rows.map(r=>`<tr>
+            ${colDefs.map(c=>{
+              let v = r[c.key];
+              if(c.key==="hours") v = fmtHM(r.duration);
+              else if(c.key==="date") v = fmtDate(r.date);
+              else if(c.key==="resolutionText") v = (r.resolutionText||"").slice(0,60)+((r.resolutionText||"").length>60?"…":"");
+              return `<td style="font-size:12px">${escapeHtml(String(v||"—"))}</td>`;
+            }).join("")}
+          </tr>`).join("")}
+        </tbody>
+      </table>
+    </div>
+  </div>`;
+
+  return h;
+}
+
+window.toggleTechCol = async function(key){
+  if(!isAdmin()) return toast("Admin only");
+  let cols = activeTechCols().slice();
+  if(cols.includes(key)) cols = cols.filter(k=>k!==key);
+  else {
+    // keep canonical order
+    cols = TECH_COLUMNS.map(c=>c.key).filter(k=>cols.includes(k)||k===key);
+  }
+  if(cols.length===0) return toast("Keep at least one column");
+  const {db, doc, setDoc} = window.__fb;
+  await setDoc(doc(db,"settings","techReport"), {columns: cols}, {merge:true});
+};
+
+
 function renderHRReport(){
   const s=summary();
   const tot=k=>s.reduce((a,b)=>a+b[k],0);
@@ -8603,7 +8889,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v15';"
+      var swCode = "const CACHE='ejaftech-v16';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
