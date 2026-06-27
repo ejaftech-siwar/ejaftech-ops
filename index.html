@@ -3744,6 +3744,8 @@ window.exportTechPDF = function(){
   const cellVal = (r,key)=>{
     if(key==="hours") return fmtHM(r.duration);
     if(key==="date") return fmtDate(r.date);
+    if(key==="day") return r.day || dayName(r.date);
+    if(key==="time") return (r.start&&r.end)?`${r.start}–${r.end}`:"";
     if(key==="resolutionText") return escapeHtml(r.resolutionText||"");
     return escapeHtml(String(r[key]||""));
   };
@@ -3811,6 +3813,9 @@ window.exportTechExcel = async function(){
       colDefs.forEach((c,ci)=>{
         let v=r[c.key]||"";
         if(c.key==="hours")v=fmtHM(r.duration);
+        else if(c.key==="time")v=(r.start&&r.end)?`${r.start}–${r.end}`:"";
+        else if(c.key==="date")v=fmtDate(r.date);
+        else if(c.key==="day")v=r.day||dayName(r.date);
         setC(ws,`${colLetter(ci)}${ri+2}`,v,{font:{sz:10},fill:{fgColor:{rgb:ri%2?"F0F4FF":WHITE}}});
       });
     });
@@ -3848,6 +3853,8 @@ function todayStr(){ return new Date().toISOString().slice(0,10); }
 // All available columns (key → label). Admin chooses which to show.
 const TECH_COLUMNS = [
   {key:"date",         label:"Date"},
+  {key:"day",          label:"Day"},
+  {key:"time",         label:"Time"},
   {key:"employee",     label:"Employee"},
   {key:"project",      label:"Project"},
   {key:"site",         label:"Site"},
@@ -3860,7 +3867,7 @@ const TECH_COLUMNS = [
   {key:"hours",        label:"Hours"},
   {key:"resolutionText",label:"Resolution Text"},
 ];
-const TECH_COLS_DEFAULT = ["date","employee","project","site","equipment","workType","taskStatus","taskCategory","taskSubcategory","hours"];
+const TECH_COLS_DEFAULT = ["date","day","time","employee","project","site","equipment","workType","taskStatus","taskCategory","taskSubcategory","hours"];
 
 // Which columns are currently active
 function activeTechCols(){
@@ -3974,6 +3981,8 @@ function renderTechReport(){
               let v = r[c.key];
               if(c.key==="hours") v = fmtHM(r.duration);
               else if(c.key==="date") v = fmtDate(r.date);
+              else if(c.key==="day") v = r.day || dayName(r.date);
+              else if(c.key==="time") v = (r.start&&r.end)?`${r.start}–${r.end}`:"";
               else if(c.key==="resolutionText") v = (r.resolutionText||"").slice(0,60)+((r.resolutionText||"").length>60?"…":"");
               return `<td style="font-size:12px">${escapeHtml(String(v||"—"))}</td>`;
             }).join("")}
@@ -8889,7 +8898,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v16';"
+      var swCode = "const CACHE='ejaftech-v18';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
