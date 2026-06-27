@@ -1753,6 +1753,8 @@ function getEmpPermissions(employeeName){
     gpsRequired:        p ? (p.gpsRequired        !== false) : true,
     resolutionRequired: p ? (p.resolutionRequired !== false) : true,
     equipmentRequired:  p ? (p.equipmentRequired  === true)  : false,  // OFF by default
+    deviceTracking:     p ? (p.deviceTracking     === true)  : false,  // OFF: show Device picker in Daily Log
+    fullDeviceEdit:     p ? (p.fullDeviceEdit      === true)  : false,  // OFF: edit ALL device fields (else Status+InstallDate only)
   };
 }
 async function saveEmpPermissions(employeeName, perms){
@@ -1763,6 +1765,8 @@ async function saveEmpPermissions(employeeName, perms){
     gpsRequired:        !!perms.gpsRequired,
     resolutionRequired: !!perms.resolutionRequired,
     equipmentRequired:  !!perms.equipmentRequired,
+    deviceTracking:     !!perms.deviceTracking,
+    fullDeviceEdit:     !!perms.fullDeviceEdit,
     updatedBy: state.profile.uid,
     updatedAt: new Date().toISOString(),
   });
@@ -2552,6 +2556,7 @@ function renderDailyLog(){
       employee:isEmployee()?state.profile.employeeName:"",
       project:"",start:"",end:"",location:"",
       site:"",equipment:"",area:"",  // area + site (from project's areas)
+      deviceSerial:"",  // optional device reference (Asset Management)
       workType:"",taskStatus:"",taskCategory:"",taskSubcategory:"",  // technical classification
       resolutionText:"",  // mandatory text explanation
       resolutionImages:[], // array of base64 compressed images
@@ -2564,6 +2569,7 @@ function renderDailyLog(){
   if(typeof dailyForm.site === 'undefined') dailyForm.site = "";
   if(typeof dailyForm.equipment === 'undefined') dailyForm.equipment = "";
   if(typeof dailyForm.area === 'undefined') dailyForm.area = "";
+  if(typeof dailyForm.deviceSerial === 'undefined') dailyForm.deviceSerial = "";
   if(typeof dailyForm.workType === 'undefined') dailyForm.workType = "";
   if(typeof dailyForm.taskStatus === 'undefined') dailyForm.taskStatus = "";
   if(typeof dailyForm.taskCategory === 'undefined') dailyForm.taskCategory = "";
@@ -2637,6 +2643,57 @@ function renderDailyLog(){
           <option value="">— Select Site —</option>
           ${sites.map(s=>`<option value="${escapeHtml(s.name)}" ${s.name===(dailyForm.site||"")?"selected":""}>${escapeHtml(s.name)}</option>`).join("")}
         </select></div>` : (dailyForm.area ? `<div class="field full"><div style="font-size:11px;color:#888;padding:6px 10px;background:#F7F7F7;border-radius:6px">No active sites in this area.</div></div>` : '')}`;
+      })()}
+      ${(()=>{
+        // ── Device Tracking: only for employees granted the permission (admin always sees it) ──
+        const emp = dailyForm.employee || state.profile.employeeName || "";
+        const perms = getEmpPermissions(emp);
+        if(!isAdmin() && !perms.deviceTracking) return "";  // hidden unless permitted
+        if(!dailyForm.site) return "";  // need a site first to filter devices
+        // Devices that belong to the chosen project + site
+        const siteDevices = (state.devices||[]).filter(d=>
+          (d.project||"")===(dailyForm.project||"") && (d.site||"")===(dailyForm.site||"")
+        );
+        if(siteDevices.length===0) return `<div class="field full"><div style="font-size:11px;color:#888;padding:6px 10px;background:#F7F7F7;border-radius:6px">📟 No devices registered at this site.</div></div>`;
+        const canFull = isAdmin() || perms.fullDeviceEdit;
+        const selDev = siteDevices.find(d=>d.serialNumber===dailyForm.deviceSerial);
+        return `
+      <div class="field full"><label>📟 Device <span style="font-size:10px;color:var(--muted)">(optional — tracked centrally)</span></label>
+        <select onchange="window.dailyForm.deviceSerial=this.value;window._loadDeviceEdit(this.value);render()">
+          <option value="">— Select Device —</option>
+          ${siteDevices.map(d=>`<option value="${escapeHtml(d.serialNumber)}" ${d.serialNumber===(dailyForm.deviceSerial||"")?"selected":""}>${escapeHtml(d.deviceName||d.serialNumber)}${d.ipAddress?' · '+escapeHtml(d.ipAddress):''}</option>`).join("")}
+        </select></div>
+      ${selDev ? `
+      <div class="field full" style="background:#F0F7FF;border:1px solid #B3D4FF;border-radius:10px;padding:12px;margin-top:2px">
+        <div style="font-size:12px;font-weight:800;color:#03308B;margin-bottom:8px">🔧 Update device: ${escapeHtml(selDev.deviceName||selDev.serialNumber)}
+          <span style="font-size:10px;font-weight:600;color:#1565C0;background:#E3F2FD;padding:1px 7px;border-radius:8px;margin-left:4px">syncs centrally</span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div>
+            <label style="font-size:11px;font-weight:700;color:#475569;display:block;margin-bottom:3px">Status</label>
+            <select onchange="window._setDevEdit('status',this.value)" style="width:100%;padding:7px 8px;border:1px solid #B3D4FF;border-radius:6px;font-size:12px;background:white">
+              ${DEVICE_STATUSES.map(s=>`<option value="${escapeHtml(s)}" ${s===(window._devEdit?.status ?? selDev.status)?"selected":""}>${escapeHtml(s)}</option>`).join("")}
+            </select>
+          </div>
+          <div>
+            <label style="font-size:11px;font-weight:700;color:#475569;display:block;margin-bottom:3px">Install Date</label>
+            <input type="date" value="${escapeHtml(window._devEdit?.installDate ?? selDev.installDate ?? '')}" onchange="window._setDevEdit('installDate',this.value)" style="width:100%;padding:6px 8px;border:1px solid #B3D4FF;border-radius:6px;font-size:12px">
+          </div>
+          ${canFull ? `
+          <div><label style="font-size:11px;font-weight:700;color:#475569;display:block;margin-bottom:3px">IP Address</label>
+            <input value="${escapeHtml(window._devEdit?.ipAddress ?? selDev.ipAddress ?? '')}" onchange="window._setDevEdit('ipAddress',this.value)" style="width:100%;padding:6px 8px;border:1px solid #B3D4FF;border-radius:6px;font-size:12px"></div>
+          <div><label style="font-size:11px;font-weight:700;color:#475569;display:block;margin-bottom:3px">Model</label>
+            <input value="${escapeHtml(window._devEdit?.model ?? selDev.model ?? '')}" onchange="window._setDevEdit('model',this.value)" style="width:100%;padding:6px 8px;border:1px solid #B3D4FF;border-radius:6px;font-size:12px"></div>
+          <div><label style="font-size:11px;font-weight:700;color:#475569;display:block;margin-bottom:3px">Vendor</label>
+            <input value="${escapeHtml(window._devEdit?.vendor ?? selDev.vendor ?? '')}" onchange="window._setDevEdit('vendor',this.value)" style="width:100%;padding:6px 8px;border:1px solid #B3D4FF;border-radius:6px;font-size:12px"></div>
+          <div><label style="font-size:11px;font-weight:700;color:#475569;display:block;margin-bottom:3px">Warranty Exp.</label>
+            <input type="date" value="${escapeHtml(window._devEdit?.warrantyExp ?? selDev.warrantyExp ?? '')}" onchange="window._setDevEdit('warrantyExp',this.value)" style="width:100%;padding:6px 8px;border:1px solid #B3D4FF;border-radius:6px;font-size:12px"></div>
+          <div><label style="font-size:11px;font-weight:700;color:#475569;display:block;margin-bottom:3px">Stack</label>
+            <input value="${escapeHtml(window._devEdit?.stack ?? selDev.stack ?? '')}" onchange="window._setDevEdit('stack',this.value)" style="width:100%;padding:6px 8px;border:1px solid #B3D4FF;border-radius:6px;font-size:12px"></div>
+          ` : `<div style="grid-column:1/3;font-size:10px;color:#94A3B8">Only Status & Install Date are editable. Full edit needs admin permission.</div>`}
+        </div>
+        <div style="font-size:10px;color:#64748B;margin-top:6px">Saving this entry will update the device in the central registry.</div>
+      </div>` : ''}`;
       })()}
       <div class="field"><label>Start</label>
         <input type="time" value="${dailyForm.start}" onchange="window.dailyForm.start=this.value;render()"></div>
@@ -2926,6 +2983,38 @@ async function saveDaily(){
     createdBy:state.profile.uid,
     ...gpsData,
   });
+
+  // ── Central device sync: if a device was selected and edited, update the devices collection ──
+  if(dailyForm.deviceSerial && window._devEdit){
+    const dev = (state.devices||[]).find(d=>d.serialNumber===dailyForm.deviceSerial);
+    if(dev){
+      const perms2 = getEmpPermissions(dailyForm.employee||state.profile.employeeName||"");
+      const canFull = isAdmin() || perms2.fullDeviceEdit;
+      // Basic fields everyone with tracking can update
+      const patch = {
+        status: window._devEdit.status ?? dev.status,
+        installDate: window._devEdit.installDate ?? dev.installDate,
+        updatedAt: new Date().toISOString(),
+        updatedFrom: "daily-log",
+        updatedByName: dailyForm.employee||state.profile.employeeName||"",
+      };
+      // Full-edit fields only if permitted
+      if(canFull){
+        if(window._devEdit.ipAddress !== undefined) patch.ipAddress = window._devEdit.ipAddress;
+        if(window._devEdit.model !== undefined) patch.model = window._devEdit.model;
+        if(window._devEdit.vendor !== undefined) patch.vendor = window._devEdit.vendor;
+        if(window._devEdit.warrantyExp !== undefined) patch.warrantyExp = window._devEdit.warrantyExp;
+        if(window._devEdit.stack !== undefined) patch.stack = window._devEdit.stack;
+      }
+      try{
+        const {db, doc, setDoc} = window.__fb;
+        await setDoc(doc(db,"devices",dev.id), patch, {merge:true});
+        toast("📟 Device updated centrally ✓");
+      }catch(e){ /* device sync is best-effort; entry already saved */ }
+    }
+  }
+  window._devEdit = null;
+
   dailyForm=null;dailyEditId=null;
   toast("Saved ✓");
   // WhatsApp stays manual (📲 button per row).
@@ -3189,8 +3278,11 @@ function editDaily(id){
       location:r.location||"",
       resolutionText:r.resolutionText||"",
       resolutionImages:r.resolutionImages||[],
+      deviceSerial:r.deviceSerial||"",
     };
     dailyEditId=id;
+    // Pre-load the device edit buffer if this entry references a device
+    if(r.deviceSerial){ window._loadDeviceEdit(r.deviceSerial); } else { window._devEdit = null; }
     render();
     window.scrollTo(0,0);
   }
@@ -4654,6 +4746,22 @@ window.toggleSiteStatus = async function(ai, si){
 let deviceForm = null, deviceEditId = null;
 let assetSearch = "", assetFilterProject = "", assetFilterStatus = "";
 
+// ── Daily Log inline device-edit buffer ──
+window._devEdit = null;  // pending edits to the selected device {status, installDate, ...}
+window._loadDeviceEdit = function(serial){
+  if(!serial){ window._devEdit = null; return; }
+  const d = (state.devices||[]).find(x=>x.serialNumber===serial);
+  window._devEdit = d ? {
+    status: d.status||"Active", installDate: d.installDate||"",
+    ipAddress: d.ipAddress||"", model: d.model||"", vendor: d.vendor||"",
+    warrantyExp: d.warrantyExp||"", stack: d.stack||""
+  } : null;
+};
+window._setDevEdit = function(field, val){
+  if(!window._devEdit) window._devEdit = {};
+  window._devEdit[field] = val;
+};
+
 const DEVICE_STATUSES = ["Active","Inactive","Faulty","Under Repair","Decommissioned","Spare"];
 
 function blankDevice(){
@@ -5482,7 +5590,9 @@ function renderUsers(){
       Control what each employee must provide when adding a Daily Log entry.<br>
       <strong>GPS Required:</strong> employee location captured automatically on save (entry still saves if denied, marked "GPS denied").<br>
       <strong>Resolution Required:</strong> description text + at least 1 photo mandatory.<br>
-      <strong>Area/Site Required:</strong> employee must pick an Area + Site (only for projects that have areas).
+      <strong>Area/Site Required:</strong> employee must pick an Area + Site (only for projects that have areas).<br>
+      <strong>Device Tracking:</strong> shows a Device picker in Daily Log; employee can update device Status + Install Date (syncs centrally).<br>
+      <strong>Full Device Edit:</strong> employee can edit ALL device fields from Daily Log (IP, model, vendor…). Requires Device Tracking.
     </p>
     <div style="display:flex;flex-direction:column;gap:6px">
       ${allEmployees().map(emp => {
@@ -5501,6 +5611,14 @@ function renderUsers(){
             <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;user-select:none">
               <input type="checkbox" ${p.equipmentRequired?"checked":""} onchange="toggleEmpPerm('${escapeHtml(emp)}','equipmentRequired')" style="width:16px;height:16px;cursor:pointer">
               <span style="color:${p.equipmentRequired?'#6A1B9A':'#999'};font-weight:600">🗺️ Area/Site Required</span>
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;user-select:none">
+              <input type="checkbox" ${p.deviceTracking?"checked":""} onchange="toggleEmpPerm('${escapeHtml(emp)}','deviceTracking')" style="width:16px;height:16px;cursor:pointer">
+              <span style="color:${p.deviceTracking?'#00897B':'#999'};font-weight:600">📟 Device Tracking</span>
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;user-select:none">
+              <input type="checkbox" ${p.fullDeviceEdit?"checked":""} onchange="toggleEmpPerm('${escapeHtml(emp)}','fullDeviceEdit')" style="width:16px;height:16px;cursor:pointer">
+              <span style="color:${p.fullDeviceEdit?'#E65100':'#999'};font-weight:600">🔧 Full Device Edit</span>
             </label>
           </div>
         </div>`;
@@ -9465,7 +9583,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v21';"
+      var swCode = "const CACHE='ejaftech-v22';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
