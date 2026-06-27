@@ -299,6 +299,20 @@ window.dispatchEvent(new Event('fb-ready'));
 //  CONSTANTS & STATE
 // ═══════════════════════════════════════════════════════════════════════
 const EMPLOYEES_DEFAULT = ["Siwar Sheikho","Nawar Raffo","Luay Alrasheed","Elias","Abdullah"];
+
+// ── Technical classification options for Resolution (Phase 1: fixed in code) ──
+const WORK_TYPES = ["Onsite","Remote","In Office","Travel","From Home"];
+const TASK_STATUSES = ["New","Assigned","In Progress","Pending","On Hold","Resolved","Closed","Cancelled"];
+const TASK_CATEGORIES = {
+  "Network": ["Troubleshooting","Configuration","Installation","Cabling / Patch","Connectivity Issue","Optimization"],
+  "CCTV": ["Camera Installation","Camera Troubleshooting","NVR/DVR/IVS Configuration","NVR/DVR/IVS Issue","Recording / Playback Issue","Camera Adjustment","Storage Issue"],
+  "System": ["Server Installation","OS Installation / Configuration","Application Support","System Troubleshooting","Backup / Restore","User Management","Performance Issue"],
+  "Onsite Survey": ["Site Survey","Technical Assessment","Coverage Analysis","Pre-Installation Survey","Documentation"],
+  "Maintenance": ["Preventive Maintenance (PM)","Corrective Maintenance (CM)","Inspection / Health Check","Cleaning","Firmware / Software Update"],
+  "Deployment": ["Device Installation","System Deployment","Network Setup","CCTV Deployment","System Integration"],
+  "General": ["Technical Support","Consultation","Follow-up","Escalation"],
+  "CR": ["Configuration Change","Access / Permission Change","Firewall / Security Change","Network Change","System Upgrade / Patch","Backup Policy Change"],
+};
 const EMP_COLORS = ["#1B5E9B","#C9A84C","#2E7D32","#E65100","#6A1B9A","#3949AB","#00897B","#D81B60"];
 
 const DEFAULT_PROJECTS = [
@@ -1988,7 +2002,7 @@ async function exportDailyPDF(){
     <td>${fmtDate(r.date)}</td>
     <td style="font-size:10px;color:#555;white-space:nowrap">${r.start&&r.end?`${r.start}–${r.end}`:'—'}</td>
     <td><strong style="color:#03308B">${escapeHtml(r.employee||'')}</strong></td>
-    <td>${escapeHtml(r.project||'')}${(r.site||r.equipment)?`<br><span style="font-size:9px;color:#1565C0">${r.site?`🏗 ${escapeHtml(r.site)}`:''}${r.equipment?` · 🔧 ${escapeHtml(r.equipment)}`:''}</span>`:''}</td>
+    <td>${escapeHtml(r.project||'')}${(r.site||r.equipment)?`<br><span style="font-size:9px;color:#1565C0">${r.site?`🏗 ${escapeHtml(r.site)}`:''}${r.equipment?` · 🔧 ${escapeHtml(r.equipment)}`:''}</span>`:''}${(r.taskCategory||r.taskStatus||r.workType)?`<br><span style="font-size:8px;color:#6A1B9A">${r.taskCategory?escapeHtml(r.taskCategory):''}${r.taskSubcategory?'›'+escapeHtml(r.taskSubcategory):''}${r.taskStatus?` · ${escapeHtml(r.taskStatus)}`:''}${r.workType?` · ${escapeHtml(r.workType)}`:''}</span>`:''}</td>
     <td><span style="background:${(state.departments.find(d=>d.name===r.dept)||{color:'#888'}).color}22;color:${(state.departments.find(d=>d.name===r.dept)||{color:'#888'}).color};padding:2px 7px;border-radius:8px;font-size:10px;font-weight:700">${escapeHtml(r.dept||'')}</span></td>
     <td>${r.location?`<span style="background:#E3F2FD;color:#1565C0;padding:2px 7px;border-radius:8px;font-size:10px">📍 ${escapeHtml(r.location)}</span>`:'—'}${r.gpsLat?` <a href="${gpsMapLink(r.gpsLat,r.gpsLng)}" style="font-size:9px;color:#2E7D32;font-weight:700;text-decoration:none">🛰️ Map</a>`:r.gpsDenied?` <span style="font-size:9px;color:#C62828">🚫 GPS</span>`:''}</td>
     <td style="color:#2E7D32;font-weight:700">${fmtHM(r.duration)}</td>
@@ -2060,11 +2074,12 @@ async function exportDailyExcel(){
     setC(ws1,'A1',`EJAF Technology — Daily Work Log  |  Ref: ${refNo}`,titleSt);
     setM(ws1,{s:{r:0,c:0},e:{r:0,c:6}});
     setC(ws1,'A2',`Period: ${period}${reportFilterLabel()?' · '+reportFilterLabel():''}  |  Generated: ${new Date().toLocaleString('en-GB')}`,subSt);
-    setM(ws1,{s:{r:1,c:0},e:{r:1,c:9}});
+    setM(ws1,{s:{r:1,c:0},e:{r:1,c:13}});
     setC(ws1,'A4','#',hdSt); setC(ws1,'B4','Date',hdSt); setC(ws1,'C4','Time',hdSt);
     setC(ws1,'D4','Employee',hdSt); setC(ws1,'E4','Project',hdSt); setC(ws1,'F4','Site',hdSt);
-    setC(ws1,'G4','Equipment',hdSt); setC(ws1,'H4','Department',hdSt);
-    setC(ws1,'I4','Location',hdSt); setC(ws1,'J4','Hours',hdSt); setC(ws1,'K4','GPS',hdSt);
+    setC(ws1,'G4','Equipment',hdSt); setC(ws1,'H4','Work Type',hdSt); setC(ws1,'I4','Status',hdSt);
+    setC(ws1,'J4','Category',hdSt); setC(ws1,'K4','Subcategory',hdSt); setC(ws1,'L4','Department',hdSt);
+    setC(ws1,'M4','Location',hdSt); setC(ws1,'N4','Hours',hdSt); setC(ws1,'O4','GPS',hdSt);
     rows.forEach((r,i)=>{
       const row=5+i; const alt=i%2===1;
       const bg = alt ? COLORS.bgAlt : COLORS.white;
@@ -2076,17 +2091,21 @@ async function exportDailyExcel(){
       setC(ws1,`E${row}`,r.project||'',cellSt);
       setC(ws1,`F${row}`,r.site||'',cellSt);
       setC(ws1,`G${row}`,r.equipment||'',cellSt);
-      setC(ws1,`H${row}`,r.dept||'',cellSt);
-      setC(ws1,`I${row}`,r.location||'',cellSt);
-      setC(ws1,`J${row}`,fmtHM(r.duration),{...cellSt,font:{sz:10,bold:true,color:{rgb:"2E7D32"}}});
-      setC(ws1,`K${row}`, r.gpsLat ? gpsMapLink(r.gpsLat,r.gpsLng) : (r.gpsDenied?'GPS denied':''), {...cellSt,font:{sz:9,color:{rgb:r.gpsLat?"2E7D32":"C62828"}}});
+      setC(ws1,`H${row}`,r.workType||'',cellSt);
+      setC(ws1,`I${row}`,r.taskStatus||'',cellSt);
+      setC(ws1,`J${row}`,r.taskCategory||'',cellSt);
+      setC(ws1,`K${row}`,r.taskSubcategory||'',cellSt);
+      setC(ws1,`L${row}`,r.dept||'',cellSt);
+      setC(ws1,`M${row}`,r.location||'',cellSt);
+      setC(ws1,`N${row}`,fmtHM(r.duration),{...cellSt,font:{sz:10,bold:true,color:{rgb:"2E7D32"}}});
+      setC(ws1,`O${row}`, r.gpsLat ? gpsMapLink(r.gpsLat,r.gpsLng) : (r.gpsDenied?'GPS denied':''), {...cellSt,font:{sz:9,color:{rgb:r.gpsLat?"2E7D32":"C62828"}}});
     });
     const totRow=5+rows.length;
     const totSt={font:{bold:true,sz:11,color:{rgb:COLORS.gold}},fill:{fgColor:{rgb:"0A1628"}}};
-    setC(ws1,`A${totRow}`,'TOTAL',totSt); setM(ws1,{s:{r:totRow-1,c:0},e:{r:totRow-1,c:8}});
-    setC(ws1,`J${totRow}`,fmtHM(rows.reduce((s,r)=>s+Number(r.duration||0),0)),totSt);
-    ws1['!ref']=`A1:K${totRow}`;
-    ws1['!cols']=[{wch:8},{wch:12},{wch:14},{wch:20},{wch:24},{wch:18},{wch:20},{wch:16},{wch:16},{wch:10},{wch:38}];
+    setC(ws1,`A${totRow}`,'TOTAL',totSt); setM(ws1,{s:{r:totRow-1,c:0},e:{r:totRow-1,c:12}});
+    setC(ws1,`N${totRow}`,fmtHM(rows.reduce((s,r)=>s+Number(r.duration||0),0)),totSt);
+    ws1['!ref']=`A1:O${totRow}`;
+    ws1['!cols']=[{wch:8},{wch:12},{wch:14},{wch:20},{wch:22},{wch:16},{wch:18},{wch:13},{wch:13},{wch:14},{wch:20},{wch:14},{wch:14},{wch:10},{wch:34}];
     XLSX.utils.book_append_sheet(wb,ws1,'Daily Log');
 
     // ── SHEET 2: Department Summary ──
@@ -2135,9 +2154,9 @@ function exportCSV(){
   // Daily Log
   const dailyRows=applyReportFilters(isHR()?state.daily:state.daily.filter(r=>r.employee===state.profile.employeeName));
   lines.push("DAILY WORK LOG");
-  lines.push(["Date","Employee","Project","Site","Equipment","Department","Start","End","Duration","Notes"].map(csvEscape).join(","));
+  lines.push(["Date","Employee","Project","Site","Equipment","Work Type","Status","Category","Subcategory","Department","Start","End","Duration","Notes"].map(csvEscape).join(","));
   dailyRows.forEach(r=>{
-    lines.push([r.date,r.employee,r.project,r.site||"",r.equipment||"",r.dept,r.start,r.end,fmtHM(r.duration),r.notes||""].map(csvEscape).join(","));
+    lines.push([r.date,r.employee,r.project,r.site||"",r.equipment||"",r.workType||"",r.taskStatus||"",r.taskCategory||"",r.taskSubcategory||"",r.dept,r.start,r.end,fmtHM(r.duration),r.notes||""].map(csvEscape).join(","));
   });
   lines.push("");
 
@@ -2487,6 +2506,7 @@ function renderDailyLog(){
       employee:isEmployee()?state.profile.employeeName:"",
       project:"",start:"",end:"",location:"",
       site:"",equipment:"",  // site + equipment (from project's sites)
+      workType:"",taskStatus:"",taskCategory:"",taskSubcategory:"",  // technical classification
       resolutionText:"",  // mandatory text explanation
       resolutionImages:[], // array of base64 compressed images
       notes:""
@@ -2497,6 +2517,10 @@ function renderDailyLog(){
   if(typeof dailyForm.resolutionText === 'undefined') dailyForm.resolutionText = "";
   if(typeof dailyForm.site === 'undefined') dailyForm.site = "";
   if(typeof dailyForm.equipment === 'undefined') dailyForm.equipment = "";
+  if(typeof dailyForm.workType === 'undefined') dailyForm.workType = "";
+  if(typeof dailyForm.taskStatus === 'undefined') dailyForm.taskStatus = "";
+  if(typeof dailyForm.taskCategory === 'undefined') dailyForm.taskCategory = "";
+  if(typeof dailyForm.taskSubcategory === 'undefined') dailyForm.taskSubcategory = "";
   const dur=timeToHrs(dailyForm.start,dailyForm.end);
   const dept=projDept(dailyForm.project);
   // Use the UNIFIED global filters (employees/branch/staff-dept/task-dept/projects/locations)
@@ -2598,6 +2622,38 @@ function renderDailyLog(){
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding-bottom:8px;border-bottom:1px dashed #C9A84C">
             <span style="background:#C9A84C;color:#1B3A6B;padding:3px 10px;border-radius:6px;font-size:11px;font-weight:800;letter-spacing:0.5px">RESOLUTION</span>
             <span style="font-size:12px;color:#7F6000;font-weight:600">📋 Required — Document work performed</span>
+          </div>
+
+          <!-- Technical Classification: Work Type, Status, Category, Subcategory -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+            <div>
+              <label style="display:block;font-size:11px;font-weight:700;color:#5C4A12;margin-bottom:3px">🧭 Work Type</label>
+              <select onchange="window.dailyForm.workType=this.value" style="width:100%;padding:7px 8px;border:1px solid #C9A84C;border-radius:6px;font-size:12px;background:white">
+                <option value="">— Select —</option>
+                ${WORK_TYPES.map(w=>`<option value="${escapeHtml(w)}" ${w===(dailyForm.workType||"")?"selected":""}>${escapeHtml(w)}</option>`).join("")}
+              </select>
+            </div>
+            <div>
+              <label style="display:block;font-size:11px;font-weight:700;color:#5C4A12;margin-bottom:3px">📊 Task Status</label>
+              <select onchange="window.dailyForm.taskStatus=this.value" style="width:100%;padding:7px 8px;border:1px solid #C9A84C;border-radius:6px;font-size:12px;background:white">
+                <option value="">— Select —</option>
+                ${TASK_STATUSES.map(s=>`<option value="${escapeHtml(s)}" ${s===(dailyForm.taskStatus||"")?"selected":""}>${escapeHtml(s)}</option>`).join("")}
+              </select>
+            </div>
+            <div>
+              <label style="display:block;font-size:11px;font-weight:700;color:#5C4A12;margin-bottom:3px">🗂️ Category</label>
+              <select onchange="window.dailyForm.taskCategory=this.value;window.dailyForm.taskSubcategory='';render()" style="width:100%;padding:7px 8px;border:1px solid #C9A84C;border-radius:6px;font-size:12px;background:white">
+                <option value="">— Select —</option>
+                ${Object.keys(TASK_CATEGORIES).map(c=>`<option value="${escapeHtml(c)}" ${c===(dailyForm.taskCategory||"")?"selected":""}>${escapeHtml(c)}</option>`).join("")}
+              </select>
+            </div>
+            <div>
+              <label style="display:block;font-size:11px;font-weight:700;color:#5C4A12;margin-bottom:3px">📁 Subcategory</label>
+              <select onchange="window.dailyForm.taskSubcategory=this.value" style="width:100%;padding:7px 8px;border:1px solid #C9A84C;border-radius:6px;font-size:12px;background:white" ${!dailyForm.taskCategory?'disabled':''}>
+                <option value="">${dailyForm.taskCategory?'— Select —':'Pick category first'}</option>
+                ${(TASK_CATEGORIES[dailyForm.taskCategory]||[]).map(sc=>`<option value="${escapeHtml(sc)}" ${sc===(dailyForm.taskSubcategory||"")?"selected":""}>${escapeHtml(sc)}</option>`).join("")}
+              </select>
+            </div>
           </div>
 
           <!-- Resolution Text -->
@@ -2758,6 +2814,11 @@ async function saveDaily(){
       if(!dailyForm.resolutionImages || dailyForm.resolutionImages.length < 1){
         return toast("At least 1 resolution photo is required");
       }
+      // Technical classification also required when resolution is enabled
+      if(!dailyForm.workType) return toast("⚠ Please select a Work Type");
+      if(!dailyForm.taskStatus) return toast("⚠ Please select a Task Status");
+      if(!dailyForm.taskCategory) return toast("⚠ Please select a Category");
+      if(!dailyForm.taskSubcategory) return toast("⚠ Please select a Subcategory");
     }
   }
 
@@ -3001,6 +3062,15 @@ function viewResolution(recordId){
         <button onclick="this.closest('div[style*=\\'position:fixed\\']').remove()" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:white;width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:18px;font-weight:700">×</button>
       </div>
       <div style="padding:20px">
+        ${(r.workType||r.taskStatus||r.taskCategory||r.taskSubcategory||r.site||r.equipment) ? `
+          <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px">
+            ${r.workType?`<span style="background:#E8EAF6;color:#3949AB;padding:4px 10px;border-radius:12px;font-size:11px;font-weight:700">🧭 ${escapeHtml(r.workType)}</span>`:''}
+            ${r.taskStatus?`<span style="background:#E0F2F1;color:#00897B;padding:4px 10px;border-radius:12px;font-size:11px;font-weight:700">📊 ${escapeHtml(r.taskStatus)}</span>`:''}
+            ${r.taskCategory?`<span style="background:#FCE4EC;color:#C2185B;padding:4px 10px;border-radius:12px;font-size:11px;font-weight:700">🗂️ ${escapeHtml(r.taskCategory)}${r.taskSubcategory?' › '+escapeHtml(r.taskSubcategory):''}</span>`:''}
+            ${r.site?`<span style="background:#E3F2FD;color:#1565C0;padding:4px 10px;border-radius:12px;font-size:11px;font-weight:700">🏗 ${escapeHtml(r.site)}</span>`:''}
+            ${r.equipment?`<span style="background:#F3E5F5;color:#6A1B9A;padding:4px 10px;border-radius:12px;font-size:11px;font-weight:700">🔧 ${escapeHtml(r.equipment)}</span>`:''}
+          </div>
+        ` : ''}
         ${txt ? `
           <div style="margin-bottom:16px">
             <div style="font-size:11px;color:#7F6000;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">📋 Description</div>
@@ -8328,7 +8398,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v13';"
+      var swCode = "const CACHE='ejaftech-v14';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
