@@ -7701,16 +7701,42 @@ const EMAIL_FIELDS = [
 //  A manual "Send Now" button sends a text summary email via EmailJS today.
 // ═══════════════════════════════════════════════════════════════════════
 function schedGetSettings(){
-  return state.scheduledReports || {
-    enabled: false, fromDate:"", toDate:"", sendTime:"23:30", sendDay:"1",
-    recipients: [], subject:"EJAF Operations — Periodic Reports",
-    message:"Please find attached the operations reports for the specified period.",
-    reports:["daily","hr","dashboard"], lastSent:"",
+  const s = state.scheduledReports || {};
+  // Defaults + backward compatibility (migrate old single-recipient config to one group)
+  const base = {
+    enabled: s.enabled || false,
+    sendDay: s.sendDay || "1",
+    sendTime: s.sendTime || "23:30",
+    fromDate: s.fromDate || "",
+    toDate: s.toDate || "",
+    lastSent: s.lastSent || "",
+    groups: Array.isArray(s.groups) ? s.groups : null,
   };
+  // If no groups yet but an old recipients list exists, wrap it as the first group
+  if(!base.groups){
+    base.groups = [{
+      id: "g1",
+      name: "Main Recipients",
+      recipients: s.recipients || [],
+      branch: "",      // "" = all branches
+      dept: "",        // "" = all departments
+      reports: s.reports || ["daily","hr","dashboard"],
+      subject: s.subject || "EJAF Operations — Periodic Reports",
+      message: s.message || "Please find attached the operations reports for the specified period.",
+    }];
+  }
+  return base;
+}
+
+// Who can manage scheduled reports: admin always, plus anyone the admin grants
+function canManageScheduledReports(){
+  if(isAdmin()) return true;
+  const allowed = (state.scheduledReports && state.scheduledReports.managers) || [];
+  return allowed.includes(state.profile.employeeName) || allowed.includes(state.profile.uid);
 }
 
 async function schedSave(patch){
-  if(!isAdmin()) return;
+  if(!canManageScheduledReports()) return;
   const {db, doc, setDoc} = window.__fb;
   const next = {...schedGetSettings(), ...patch};
   await setDoc(doc(db,"settings","scheduledReports"), next, {merge:true});
@@ -7722,7 +7748,11 @@ function renderScheduledReportsCard(){
     ["daily","📋 Daily Work Log"],
     ["hr","📊 HR Report"],
     ["dashboard","📈 Dashboard"],
+    ["technical","🔧 Technical Report"],
   ];
+  const branches = (state.branches||[]).map(b=>b.name).filter(Boolean);
+  const depts = deptNames();
+
   return `
   <div class="card" style="border-left:4px solid #1565C0">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:6px">
@@ -7739,62 +7769,114 @@ function renderScheduledReportsCard(){
     </div>
 
     <div style="padding:10px 12px;background:#E3F2FD;border-radius:8px;font-size:11px;color:#0D47A1;line-height:1.7;margin-bottom:12px">
-      ℹ️ <strong>How it works:</strong> Set the report period, the day of the month, the send time, recipients, and message below. Once your app moves to the company server, the reports will be generated as PDF and emailed automatically on your chosen day each month — even when no one has the app open. For now, use <strong>"Send Summary Now"</strong> to email a text summary on demand.
+      ℹ️ <strong>How it works:</strong> Create one or more <strong>recipient groups</strong> below. Each group can target a specific branch and/or department and choose its own reports — so each manager receives only what concerns them. On the chosen day each month, the server generates each group's filtered reports as PDF and emails them automatically.
     </div>
 
+    <!-- Global schedule: period + day + time -->
     <div class="form-grid">
       <div class="field"><label>From Date</label><input type="date" value="${s.fromDate||''}" onchange="setSchedField('fromDate',this.value)"></div>
       <div class="field"><label>To Date</label><input type="date" value="${s.toDate||''}" onchange="setSchedField('toDate',this.value)"></div>
-      <div class="field"><label>Send Day (of month)</label><select onchange="setSchedField('sendDay',this.value)">
-        ${Array.from({length:28},(_, i)=>i+1).map(d=>`<option value="${d}" ${String(s.sendDay||'1')===String(d)?'selected':''}>Day ${d}</option>`).join('')}
+      <div class="field"><label>📆 Send Day of Month</label><select onchange="setSchedField('sendDay',this.value)">
+        ${Array.from({length:31},(_, i)=>i+1).map(d=>`<option value="${d}" ${String(s.sendDay||'1')===String(d)?'selected':''}>Day ${d}</option>`).join('')}
         <option value="last" ${s.sendDay==='last'?'selected':''}>Last day of month</option>
       </select></div>
       <div class="field"><label>Send Time (server)</label><input type="time" value="${s.sendTime||'23:30'}" onchange="setSchedField('sendTime',this.value)"></div>
     </div>
     <div style="padding:9px 12px;background:#FFF8E1;border-radius:8px;font-size:11px;color:#7F6000;line-height:1.6;margin-top:8px">
-      📅 <strong>Schedule:</strong> Reports for the period <strong>${s.fromDate||'(set From)'} → ${s.toDate||'(set To)'}</strong> will be emailed automatically on <strong>${s.sendDay==='last'?'the last day':'day '+(s.sendDay||'1')}</strong> of each month at <strong>${s.sendTime||'23:30'}</strong> (server time), as PDF attachments.
+      📅 <strong>Schedule:</strong> Reports for <strong>${s.fromDate||'(set From)'} → ${s.toDate||'(set To)'}</strong> are emailed on <strong>${s.sendDay==='last'?'the last day':'day '+(s.sendDay||'1')}</strong> of each month at <strong>${s.sendTime||'23:30'}</strong> (server time), as PDF attachments — one tailored email per group below.
     </div>
 
-    <div style="margin-top:12px">
-      <label style="font-size:12px;font-weight:700;color:#1B3A6B;display:block;margin-bottom:6px">Reports to include:</label>
-      <div style="display:flex;flex-direction:column;gap:6px">
-        ${REPORT_OPTS.map(([id,lbl])=>{
-          const on = (s.reports||[]).includes(id);
-          return `<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;padding:7px 10px;background:${on?'#E3F2FD':'#F7F7F7'};border-radius:6px">
-            <input type="checkbox" ${on?"checked":""} onchange="toggleSchedReport('${id}')" style="width:16px;height:16px;cursor:pointer">
-            <span style="font-weight:600;color:${on?'#1565C0':'#666'}">${lbl}</span>
-          </label>`;
-        }).join("")}
-      </div>
+    <!-- Recipient Groups -->
+    <div style="margin-top:16px;display:flex;align-items:center;justify-content:space-between">
+      <div style="font-size:13px;font-weight:800;color:#1B3A6B">📬 Recipient Groups (${(s.groups||[]).length})</div>
+      <button class="btn btn-sm" style="background:#2E7D32;color:white;border:none;font-weight:700" onclick="addSchedGroup()">+ Add Group</button>
     </div>
 
-    <div class="field" style="margin-top:12px"><label>Email Subject</label>
-      <input value="${escapeHtml(s.subject||'')}" onchange="setSchedField('subject',this.value)" placeholder="EJAF Operations — Periodic Reports"></div>
-
-    <div class="field"><label>Custom Message (admin)</label>
-      <textarea onchange="setSchedField('message',this.value)" rows="3" style="width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:8px;font-family:inherit;font-size:13px;resize:vertical" placeholder="Write the message that goes with the reports...">${escapeHtml(s.message||'')}</textarea></div>
-
-    <div style="margin-top:10px">
-      <label style="font-size:12px;font-weight:700;color:#1B3A6B;display:block;margin-bottom:6px">Report Recipients:</label>
-      <div class="field" style="margin-bottom:8px">
-        <div style="display:flex;gap:6px">
-          <input id="schedEmailInput" type="email" placeholder="director@ejaftech.iq" style="flex:1">
-          <button class="btn btn-sm" style="background:#1565C0;color:white;border:none;font-weight:700" onclick="addSchedRecipient()">Add</button>
+    ${(s.groups||[]).map((g,gi)=>`
+      <div style="border:1px solid #B3D4FF;border-radius:12px;padding:14px;margin-top:10px;background:#F7FAFF">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px">
+          <input value="${escapeHtml(g.name||'')}" onchange="setSchedGroupField(${gi},'name',this.value)" placeholder="Group name (e.g. Erbil Branch Manager)" style="flex:1;font-weight:700;color:#03308B;padding:7px 10px;border:1px solid #B3D4FF;border-radius:7px;font-size:13px">
+          <button class="btn btn-sm btn-danger" onclick="delSchedGroup(${gi})" title="Remove group">🗑</button>
         </div>
+
+        <!-- Filters for this group -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+          <div>
+            <label style="font-size:11px;font-weight:700;color:#475569;display:block;margin-bottom:3px">🏙️ Branch filter</label>
+            <select onchange="setSchedGroupField(${gi},'branch',this.value)" style="width:100%;padding:7px 8px;border:1px solid #B3D4FF;border-radius:6px;font-size:12px;background:white">
+              <option value="">All Branches</option>
+              ${branches.map(b=>`<option value="${escapeHtml(b)}" ${b===(g.branch||'')?'selected':''}>${escapeHtml(b)}</option>`).join('')}
+            </select>
+          </div>
+          <div>
+            <label style="font-size:11px;font-weight:700;color:#475569;display:block;margin-bottom:3px">🗂️ Department filter</label>
+            <select onchange="setSchedGroupField(${gi},'dept',this.value)" style="width:100%;padding:7px 8px;border:1px solid #B3D4FF;border-radius:6px;font-size:12px;background:white">
+              <option value="">All Departments</option>
+              ${depts.map(d=>`<option value="${escapeHtml(d)}" ${d===(g.dept||'')?'selected':''}>${escapeHtml(d)}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+
+        <!-- Reports for this group -->
+        <label style="font-size:11px;font-weight:700;color:#475569;display:block;margin-bottom:5px">Reports for this group:</label>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">
+          ${REPORT_OPTS.map(([id,lbl])=>{
+            const on = (g.reports||[]).includes(id);
+            return `<label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:11.5px;padding:5px 9px;background:${on?'#E3F2FD':'#fff'};border:1px solid ${on?'#90CAF9':'#ddd'};border-radius:12px">
+              <input type="checkbox" ${on?"checked":""} onchange="toggleSchedGroupReport(${gi},'${id}')" style="width:14px;height:14px;cursor:pointer">
+              <span style="font-weight:600;color:${on?'#1565C0':'#777'}">${lbl}</span>
+            </label>`;
+          }).join("")}
+        </div>
+
+        <!-- Subject + message for this group -->
+        <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px">
+          <input value="${escapeHtml(g.subject||'')}" onchange="setSchedGroupField(${gi},'subject',this.value)" placeholder="Email subject" style="padding:7px 10px;border:1px solid #B3D4FF;border-radius:6px;font-size:12px">
+          <textarea onchange="setSchedGroupField(${gi},'message',this.value)" rows="2" placeholder="Message for this group..." style="padding:7px 10px;border:1px solid #B3D4FF;border-radius:6px;font-family:inherit;font-size:12px;resize:vertical">${escapeHtml(g.message||'')}</textarea>
+        </div>
+
+        <!-- Recipients for this group -->
+        <label style="font-size:11px;font-weight:700;color:#475569;display:block;margin-bottom:5px">Recipients (${(g.recipients||[]).length}):</label>
+        <div style="display:flex;gap:6px;margin-bottom:6px">
+          <input id="schedGroupEmail_${gi}" type="email" placeholder="director@ejaftech.iq" style="flex:1;padding:7px 10px;border:1px solid #B3D4FF;border-radius:6px;font-size:12px">
+          <button class="btn btn-sm" style="background:#1565C0;color:white;border:none;font-weight:700" onclick="addSchedGroupRecipient(${gi})">Add</button>
+        </div>
+        ${(g.recipients||[]).length===0
+          ? `<div style="padding:7px 10px;background:#FFF3E0;border-radius:6px;font-size:11px;color:#E65100">No recipients yet — add at least one.</div>`
+          : `<div style="display:flex;flex-wrap:wrap;gap:5px">
+              ${(g.recipients||[]).map((em,ri)=>`<span style="display:inline-flex;align-items:center;gap:5px;background:#E3F2FD;border:1px solid #90CAF9;color:#0D47A1;padding:4px 8px 4px 10px;border-radius:12px;font-size:11px;font-weight:600">
+                ✉️ ${escapeHtml(em)}
+                <button onclick="removeSchedGroupRecipient(${gi},${ri})" style="background:#BBDEFB;border:none;color:#0D47A1;width:16px;height:16px;border-radius:50%;cursor:pointer;font-weight:700;font-size:10px">×</button>
+              </span>`).join("")}
+            </div>`}
       </div>
-      ${(s.recipients||[]).length===0
-        ? `<div style="padding:9px 12px;background:#E3F2FD;border-radius:7px;font-size:11px;color:#0D47A1">No recipients yet — add at least one.</div>`
-        : `<div style="display:flex;flex-direction:column;gap:6px">
-            ${(s.recipients||[]).map((em,idx)=>`<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 12px;background:#E3F2FD;border:1px solid #90CAF9;border-radius:8px">
-              <div style="display:flex;align-items:center;gap:8px;min-width:0"><span style="font-size:16px">✉️</span><span style="font-size:12px;color:#0D47A1;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(em)}</span></div>
-              <button class="btn btn-sm btn-danger" onclick="removeSchedRecipient(${idx})">🗑</button>
-            </div>`).join("")}
-          </div>`}
-    </div>
+    `).join("")}
+
+    ${isAdmin()?renderSchedManagersBlock():''}
 
     <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn" style="background:#1565C0;color:white;border:none;font-weight:700" onclick="sendScheduledReportsNow()">📨 Send Summary Now</button>
       ${s.lastSent?`<span style="font-size:11px;color:var(--muted);align-self:center">Last sent: ${escapeHtml(s.lastSent)}</span>`:''}
+    </div>
+  </div>`;
+}
+
+// Admin-only block: grant other employees the right to manage scheduled reports
+function renderSchedManagersBlock(){
+  const managers = (state.scheduledReports && state.scheduledReports.managers) || [];
+  const emps = allEmployees();
+  return `
+  <div style="margin-top:16px;border:1px solid #CE93D8;border-radius:12px;padding:14px;background:#FBF5FC">
+    <div style="font-size:13px;font-weight:800;color:#6A1B9A;margin-bottom:4px">🔑 Who can manage scheduled reports</div>
+    <p style="font-size:11px;color:#777;margin-bottom:10px">By default only Admin can edit this. Grant access to specific people (e.g. HR) so they can manage groups and recipients too.</p>
+    <div style="display:flex;flex-wrap:wrap;gap:6px">
+      ${emps.map(emp=>{
+        const on = managers.includes(emp);
+        return `<label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:11.5px;padding:5px 9px;background:${on?'#F3E5F5':'#fff'};border:1px solid ${on?'#CE93D8':'#ddd'};border-radius:12px">
+          <input type="checkbox" ${on?"checked":""} onchange="toggleSchedManager('${escapeHtml(emp)}')" style="width:14px;height:14px;cursor:pointer">
+          <span style="font-weight:600;color:${on?'#6A1B9A':'#777'}">${escapeHtml(emp)}</span>
+        </label>`;
+      }).join("")}
     </div>
   </div>`;
 }
@@ -7806,33 +7888,95 @@ window.toggleSchedEnabled = async function(){
   toast(!s.enabled ? "Automatic sending ENABLED — activates on server ✓" : "Automatic sending OFF — manual button still works");
 };
 window.setSchedField = async function(field, val){ await schedSave({[field]: val}); toast("Saved ✓"); };
-window.toggleSchedReport = async function(id){
-  const s = schedGetSettings(); const arr=[...(s.reports||[])];
-  const i=arr.indexOf(id); if(i>=0)arr.splice(i,1);else arr.push(id);
-  await schedSave({reports:arr});
+
+// ── Group management ──
+window.addSchedGroup = async function(){
+  const s = schedGetSettings();
+  const groups = [...(s.groups||[])];
+  groups.push({
+    id: "g" + Date.now(),
+    name: "New Group",
+    recipients: [], branch: "", dept: "",
+    reports: ["daily","hr"],
+    subject: "EJAF Operations — Periodic Reports",
+    message: "Please find attached the operations reports for the specified period.",
+  });
+  await schedSave({groups});
+  toast("Group added ✓");
 };
-window.addSchedRecipient = async function(){
-  const inp = document.getElementById("schedEmailInput");
+window.delSchedGroup = async function(gi){
+  const s = schedGetSettings();
+  const groups = [...(s.groups||[])];
+  if(!confirm(`Remove group "${groups[gi]?.name||''}"?`)) return;
+  groups.splice(gi,1);
+  await schedSave({groups});
+  toast("Group removed");
+};
+window.setSchedGroupField = async function(gi, field, val){
+  const s = schedGetSettings();
+  const groups = [...(s.groups||[])];
+  if(!groups[gi]) return;
+  groups[gi] = {...groups[gi], [field]: val};
+  await schedSave({groups});
+  toast("Saved ✓");
+};
+window.toggleSchedGroupReport = async function(gi, id){
+  const s = schedGetSettings();
+  const groups = [...(s.groups||[])];
+  if(!groups[gi]) return;
+  const arr = [...(groups[gi].reports||[])];
+  const i = arr.indexOf(id); if(i>=0) arr.splice(i,1); else arr.push(id);
+  groups[gi] = {...groups[gi], reports: arr};
+  await schedSave({groups});
+};
+window.addSchedGroupRecipient = async function(gi){
+  const inp = document.getElementById("schedGroupEmail_"+gi);
   const email = (inp?.value||"").trim();
   if(!email || !email.includes("@") || !email.includes(".")) return toast("Enter a valid email");
   const s = schedGetSettings();
-  const list = [...(s.recipients||[])];
+  const groups = [...(s.groups||[])];
+  if(!groups[gi]) return;
+  const list = [...(groups[gi].recipients||[])];
   if(list.map(e=>e.toLowerCase()).includes(email.toLowerCase())) return toast("Already added");
   list.push(email);
-  await schedSave({recipients:list});
+  groups[gi] = {...groups[gi], recipients: list};
+  await schedSave({groups});
   toast("Recipient added ✓");
 };
-window.removeSchedRecipient = async function(idx){
+window.removeSchedGroupRecipient = async function(gi, ri){
   const s = schedGetSettings();
-  const list = [...(s.recipients||[])];
-  list.splice(idx,1);
-  await schedSave({recipients:list});
+  const groups = [...(s.groups||[])];
+  if(!groups[gi]) return;
+  const list = [...(groups[gi].recipients||[])];
+  list.splice(ri,1);
+  groups[gi] = {...groups[gi], recipients: list};
+  await schedSave({groups});
   toast("Removed");
 };
 
-// ── Build a text summary of the reports for the chosen period ──
-function buildScheduledSummary(){
+// ── Manager permission (admin grants who can edit scheduled reports) ──
+window.toggleSchedManager = async function(emp){
+  if(!isAdmin()) return toast("Admin only");
+  const {db, doc, setDoc} = window.__fb;
+  const cur = (state.scheduledReports && state.scheduledReports.managers) || [];
+  const arr = [...cur];
+  const i = arr.indexOf(emp); if(i>=0) arr.splice(i,1); else arr.push(emp);
+  await setDoc(doc(db,"settings","scheduledReports"), {managers: arr}, {merge:true});
+  toast("Updated ✓");
+};
+
+// Resolve an employee's branch from users/nametag records
+function _employeeBranch(empName){
+  const u = (state.users||[]).find(x=>x.employeeName===empName || x.name===empName);
+  if(u && u.branch) return u.branch;
+  const n = (state.nametagEmployees||[]).find(x=>x.name===empName);
+  return (n && n.branch) || "";
+}
+
+// ── Build a text summary of the reports for the chosen period, filtered for a group ──
+function buildScheduledSummary(group){
   const s = schedGetSettings();
+  const g = group || (s.groups && s.groups[0]) || {};
   const from = s.fromDate, to = s.toDate;
   const inRange = (d) => {
     if(!d) return false;
@@ -7840,31 +7984,39 @@ function buildScheduledSummary(){
     if(to && d > to) return false;
     return true;
   };
-  const daily = (state.daily||[]).filter(r=>inRange(r.date));
-  const ot = (state.overtime||[]).filter(r=>inRange(r.date));
-  const travel = (state.travel||[]).filter(r=>inRange(r.date));
-  const leaves = (state.leaves||[]).filter(r=>inRange(r.fromDate||r.date));
+  // Apply group filters: branch (by employee's branch) + dept (by record's dept)
+  const branchOK = (r) => !g.branch || _employeeBranch(r.employee)===g.branch;
+  const deptOK   = (r) => !g.dept   || (r.dept||"")===g.dept;
+  const keep = (r) => branchOK(r) && deptOK(r);
+
+  const daily  = (state.daily||[]).filter(r=>inRange(r.date) && keep(r));
+  const ot     = (state.overtime||[]).filter(r=>inRange(r.date) && keep(r));
+  const travel = (state.travel||[]).filter(r=>inRange(r.date) && keep(r));
+  const leaves = (state.leaves||[]).filter(r=>inRange(r.fromDate||r.date) && branchOK(r));
 
   const totDailyHrs = daily.reduce((a,r)=>a+Number(r.duration||0),0);
   const totOtHrs = ot.reduce((a,r)=>a+Number(r.hours||0),0);
   const totTravelDays = travel.reduce((a,r)=>a+Number(r.days||0),0);
   const totPerDiem = travel.reduce((a,r)=>a+Number(r.perDiem||0),0);
+  const reports = g.reports || [];
 
   const lines = [];
-  lines.push(s.message||"");
+  lines.push(g.message||"");
   lines.push("");
   lines.push("════════════════════════");
   lines.push(`PERIOD: ${from||'—'} to ${to||'—'}`);
+  const scope = [g.branch && `Branch: ${g.branch}`, g.dept && `Dept: ${g.dept}`].filter(Boolean).join("  |  ");
+  if(scope) lines.push(scope);
   lines.push("════════════════════════");
   lines.push("");
 
-  if((s.reports||[]).includes("daily")){
+  if(reports.includes("daily")){
     lines.push("📋 DAILY WORK LOG");
     lines.push(`   Entries: ${daily.length}`);
     lines.push(`   Total hours: ${fmtHM(totDailyHrs)}`);
     lines.push("");
   }
-  if((s.reports||[]).includes("hr")){
+  if(reports.includes("hr")){
     lines.push("📊 HR REPORT");
     lines.push(`   Overtime entries: ${ot.length} (${fmtHM(totOtHrs)})`);
     lines.push(`   Travel trips: ${travel.length} (${totTravelDays} days)`);
@@ -7872,7 +8024,17 @@ function buildScheduledSummary(){
     lines.push(`   Leave records: ${leaves.length}`);
     lines.push("");
   }
-  if((s.reports||[]).includes("dashboard")){
+  if(reports.includes("technical")){
+    const cats = {}; daily.forEach(r=>{ if(r.taskCategory){ cats[r.taskCategory]=(cats[r.taskCategory]||0)+1; } });
+    const workDays = new Set(daily.map(r=>`${r.employee}|${r.date}`)).size;
+    lines.push("🔧 TECHNICAL REPORT");
+    lines.push(`   Tasks: ${daily.length}`);
+    lines.push(`   Work days: ${workDays}`);
+    const topCats = Object.keys(cats).sort((a,b)=>cats[b]-cats[a]).slice(0,5);
+    if(topCats.length) lines.push(`   By category: ${topCats.map(c=>`${c} (${cats[c]})`).join(", ")}`);
+    lines.push("");
+  }
+  if(reports.includes("dashboard")){
     const emps = new Set(daily.map(r=>r.employee).filter(Boolean));
     lines.push("📈 DASHBOARD SUMMARY");
     lines.push(`   Active employees: ${emps.size}`);
@@ -7881,7 +8043,7 @@ function buildScheduledSummary(){
     lines.push("");
   }
   lines.push("────────────────────────");
-  lines.push("Note: Full PDF reports will be attached automatically once the system runs on the company server.");
+  lines.push("Note: Full PDF reports are attached automatically when the system runs on the company server.");
   lines.push("");
   lines.push("EJAF Technology — Operations Department");
   lines.push("Powered by Siwar");
@@ -7894,25 +8056,28 @@ window.sendScheduledReportsNow = async function(){
   if(!es.serviceId || !es.templateId || !es.publicKey) return toast("Configure EmailJS keys first (above)");
   if(!es.enabled) return toast("Turn ON the main email service first");
   if(!s.fromDate || !s.toDate) return toast("Set From and To dates");
-  if((s.recipients||[]).length===0) return toast("Add at least one report recipient");
+  const groups = (s.groups||[]).filter(g=>(g.recipients||[]).length>0);
+  if(groups.length===0) return toast("Add at least one group with a recipient");
   if(typeof emailjs==="undefined") return toast("EmailJS not loaded");
 
-  const body = buildScheduledSummary();
-  toast(`Sending to ${s.recipients.length}...`);
+  toast(`Sending ${groups.length} group email(s)...`);
   try{
     emailjs.init({publicKey:es.publicKey});
     let sent = 0;
-    for(const email of s.recipients){
-      await emailjs.send(es.serviceId, es.templateId, {
-        subject: s.subject || "EJAF Operations — Periodic Reports",
-        message: body,
-        to_email: email,
-      });
-      sent++;
+    for(const g of groups){
+      const body = buildScheduledSummary(g);   // filtered to this group's branch/dept/reports
+      for(const email of (g.recipients||[])){
+        await emailjs.send(es.serviceId, es.templateId, {
+          subject: g.subject || "EJAF Operations — Periodic Reports",
+          message: body,
+          to_email: email,
+        });
+        sent++;
+      }
     }
     const stamp = new Date().toLocaleString('en-GB');
     await schedSave({lastSent: stamp});
-    toast(`📧 Report summary sent to ${sent} recipient${sent>1?'s':''}`);
+    toast(`📧 Sent ${sent} email(s) across ${groups.length} group(s)`);
   }catch(e){
     toast("Send failed: " + (e.text||e.message||"check setup"));
   }
@@ -9815,7 +9980,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v24';"
+      var swCode = "const CACHE='ejaftech-v25';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
