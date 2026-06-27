@@ -313,6 +313,26 @@ const TASK_CATEGORIES = {
   "General": ["Technical Support","Consultation","Follow-up","Escalation"],
   "CR": ["Configuration Change","Access / Permission Change","Firewall / Security Change","Network Change","System Upgrade / Patch","Backup Policy Change"],
 };
+
+// ── Dynamic getters: read from Firestore if seeded, else fall back to constants ──
+function getWorkTypes(){
+  const fromDb = (state.techWorkTypes||[]).slice().sort((a,b)=>(a.order||0)-(b.order||0)).map(x=>x.name).filter(Boolean);
+  return fromDb.length ? fromDb : WORK_TYPES;
+}
+function getTaskStatuses(){
+  const fromDb = (state.techStatuses||[]).slice().sort((a,b)=>(a.order||0)-(b.order||0)).map(x=>x.name).filter(Boolean);
+  return fromDb.length ? fromDb : TASK_STATUSES;
+}
+function getTaskCategories(){
+  // Returns { categoryName: [subcategories...] }
+  const fromDb = (state.techCategories||[]).slice().sort((a,b)=>(a.order||0)-(b.order||0));
+  if(fromDb.length){
+    const obj = {};
+    fromDb.forEach(c=>{ if(c.name) obj[c.name] = c.subcategories || []; });
+    return obj;
+  }
+  return TASK_CATEGORIES;
+}
 const EMP_COLORS = ["#1B5E9B","#C9A84C","#2E7D32","#E65100","#6A1B9A","#3949AB","#00897B","#D81B60"];
 
 const DEFAULT_PROJECTS = [
@@ -337,6 +357,7 @@ const state = {
   user: null,           // Firebase auth user
   profile: null,        // {role, name, email, employeeName, ...} from users collection
   daily: [], overtime: [], travel: [], leaves: [], projects: [], locations: [], users: [], departments: [], branches: [],
+  techWorkTypes: [], techStatuses: [], techCategories: [],
   workCategories: [], workTasks: [],  // Work Instructions module
   nametagEmployees: [],  // Admin-managed nametag-only employees (no auth account)
   employeePermissions: [],  // Per-employee entry permissions (GPS / Resolution requirements)
@@ -1117,6 +1138,9 @@ async function subscribeData(){
     ["projects","projects"],["locations","locations"],["users","users"],
     ["departments","departments"],
     ["branches","branches"],
+    ["techWorkTypes","techWorkTypes"],
+    ["techStatuses","techStatuses"],
+    ["techCategories","techCategories"],
     ["workCategories","workCategories"],["workTasks","workTasks"],
     ["nametagEmployees","nametagEmployees"],
     ["employeePermissions","employeePermissions"],
@@ -1159,7 +1183,7 @@ async function subscribeData(){
       }
 
       firstCount++;
-      if(firstCount>=17 && !state.initialized){
+      if(firstCount>=20 && !state.initialized){
         state.initialized=true;
         renderApp();
       } else if(state.initialized){
@@ -1171,7 +1195,7 @@ async function subscribeData(){
       // IMPORTANT: still count this collection so the app doesn't freeze on the
       // loading screen if one collection fails (e.g. missing Firestore rule).
       firstCount++;
-      if(firstCount>=17 && !state.initialized){
+      if(firstCount>=20 && !state.initialized){
         state.initialized=true;
         renderApp();
       }
@@ -1238,6 +1262,18 @@ async function seedDefaults(){
     }
     // Seed default branch (Erbil)
     await setDoc(doc(db,"branches","erbil"),{name:"Erbil"});
+    // Seed technical classification defaults (Work Types, Statuses, Categories)
+    for(let i=0;i<WORK_TYPES.length;i++){
+      await setDoc(doc(db,"techWorkTypes","wt_"+i),{name:WORK_TYPES[i], order:i});
+    }
+    for(let i=0;i<TASK_STATUSES.length;i++){
+      await setDoc(doc(db,"techStatuses","ts_"+i),{name:TASK_STATUSES[i], order:i});
+    }
+    let ci=0;
+    for(const cat of Object.keys(TASK_CATEGORIES)){
+      await setDoc(doc(db,"techCategories","tc_"+ci),{name:cat, subcategories:TASK_CATEGORIES[cat], order:ci});
+      ci++;
+    }
     for(const p of DEFAULT_PROJECTS){
       await setDoc(doc(db,"projects",p.id),{name:p.name,dept:p.dept});
     }
@@ -2630,28 +2666,28 @@ function renderDailyLog(){
               <label style="display:block;font-size:11px;font-weight:700;color:#5C4A12;margin-bottom:3px">🧭 Work Type</label>
               <select onchange="window.dailyForm.workType=this.value" style="width:100%;padding:7px 8px;border:1px solid #C9A84C;border-radius:6px;font-size:12px;background:white">
                 <option value="">— Select —</option>
-                ${WORK_TYPES.map(w=>`<option value="${escapeHtml(w)}" ${w===(dailyForm.workType||"")?"selected":""}>${escapeHtml(w)}</option>`).join("")}
+                ${getWorkTypes().map(w=>`<option value="${escapeHtml(w)}" ${w===(dailyForm.workType||"")?"selected":""}>${escapeHtml(w)}</option>`).join("")}
               </select>
             </div>
             <div>
               <label style="display:block;font-size:11px;font-weight:700;color:#5C4A12;margin-bottom:3px">📊 Task Status</label>
               <select onchange="window.dailyForm.taskStatus=this.value" style="width:100%;padding:7px 8px;border:1px solid #C9A84C;border-radius:6px;font-size:12px;background:white">
                 <option value="">— Select —</option>
-                ${TASK_STATUSES.map(s=>`<option value="${escapeHtml(s)}" ${s===(dailyForm.taskStatus||"")?"selected":""}>${escapeHtml(s)}</option>`).join("")}
+                ${getTaskStatuses().map(s=>`<option value="${escapeHtml(s)}" ${s===(dailyForm.taskStatus||"")?"selected":""}>${escapeHtml(s)}</option>`).join("")}
               </select>
             </div>
             <div>
               <label style="display:block;font-size:11px;font-weight:700;color:#5C4A12;margin-bottom:3px">🗂️ Category</label>
               <select onchange="window.dailyForm.taskCategory=this.value;window.dailyForm.taskSubcategory='';render()" style="width:100%;padding:7px 8px;border:1px solid #C9A84C;border-radius:6px;font-size:12px;background:white">
                 <option value="">— Select —</option>
-                ${Object.keys(TASK_CATEGORIES).map(c=>`<option value="${escapeHtml(c)}" ${c===(dailyForm.taskCategory||"")?"selected":""}>${escapeHtml(c)}</option>`).join("")}
+                ${Object.keys(getTaskCategories()).map(c=>`<option value="${escapeHtml(c)}" ${c===(dailyForm.taskCategory||"")?"selected":""}>${escapeHtml(c)}</option>`).join("")}
               </select>
             </div>
             <div>
               <label style="display:block;font-size:11px;font-weight:700;color:#5C4A12;margin-bottom:3px">📁 Subcategory</label>
               <select onchange="window.dailyForm.taskSubcategory=this.value" style="width:100%;padding:7px 8px;border:1px solid #C9A84C;border-radius:6px;font-size:12px;background:white" ${!dailyForm.taskCategory?'disabled':''}>
                 <option value="">${dailyForm.taskCategory?'— Select —':'Pick category first'}</option>
-                ${(TASK_CATEGORIES[dailyForm.taskCategory]||[]).map(sc=>`<option value="${escapeHtml(sc)}" ${sc===(dailyForm.taskSubcategory||"")?"selected":""}>${escapeHtml(sc)}</option>`).join("")}
+                ${(getTaskCategories()[dailyForm.taskCategory]||[]).map(sc=>`<option value="${escapeHtml(sc)}" ${sc===(dailyForm.taskSubcategory||"")?"selected":""}>${escapeHtml(sc)}</option>`).join("")}
               </select>
             </div>
           </div>
@@ -4968,6 +5004,92 @@ function renderBranches(){
 }
 
 // Bulk-assign all branch-less users AND nametag employees to a branch (one-time setup helper)
+// ═══════════════════════════════════════════════════════════════════════
+//  TECHNICAL CLASSIFICATIONS — ACTIONS (Admin only)
+// ═══════════════════════════════════════════════════════════════════════
+// One-time loader for existing databases (seed only runs on brand-new DBs)
+window.seedTechDefaults = async function(){
+  if(!isAdmin()) return toast("Admin only");
+  if(!confirm("Load the default Work Types, Statuses, and Categories?")) return;
+  const {db, doc, setDoc} = window.__fb;
+  try{
+    for(let i=0;i<WORK_TYPES.length;i++){
+      await setDoc(doc(db,"techWorkTypes","wt_"+i),{name:WORK_TYPES[i], order:i});
+    }
+    for(let i=0;i<TASK_STATUSES.length;i++){
+      await setDoc(doc(db,"techStatuses","ts_"+i),{name:TASK_STATUSES[i], order:i});
+    }
+    let ci=0;
+    for(const cat of Object.keys(TASK_CATEGORIES)){
+      await setDoc(doc(db,"techCategories","tc_"+ci),{name:cat, subcategories:TASK_CATEGORIES[cat], order:ci});
+      ci++;
+    }
+    toast("✓ Default classifications loaded");
+  }catch(e){
+    toast("Error: "+(e.message||"failed"));
+  }
+};
+
+window.addTechItem = async function(col, inputId, count){
+  if(!isAdmin()) return toast("Admin only");
+  const el = document.getElementById(inputId);
+  const name = (el?.value||"").trim();
+  if(!name) return toast("Enter a value");
+  // Prevent duplicates
+  const exists = (state[col]||[]).some(x=>(x.name||"").toLowerCase()===name.toLowerCase());
+  if(exists) return toast("Already exists");
+  const {db, collection, addDoc} = window.__fb;
+  await addDoc(collection(db, col), {name, order: count});
+  toast("Added ✓");
+};
+
+window.delTechItem = async function(col, id){
+  if(!isAdmin()) return toast("Admin only");
+  if(!confirm("Delete this item?")) return;
+  const {db, doc, deleteDoc} = window.__fb;
+  await deleteDoc(doc(db, col, id));
+  toast("Deleted");
+};
+
+window.addTechCategory = async function(count){
+  if(!isAdmin()) return toast("Admin only");
+  const el = document.getElementById('newCategory');
+  const name = (el?.value||"").trim();
+  if(!name) return toast("Enter a category name");
+  const exists = (state.techCategories||[]).some(c=>(c.name||"").toLowerCase()===name.toLowerCase());
+  if(exists) return toast("Category already exists");
+  const {db, collection, addDoc} = window.__fb;
+  await addDoc(collection(db, "techCategories"), {name, subcategories: [], order: count});
+  toast("Category added ✓");
+};
+
+window.addSubcategory = async function(catId){
+  if(!isAdmin()) return toast("Admin only");
+  const el = document.getElementById('newSub_'+catId);
+  const sub = (el?.value||"").trim();
+  if(!sub) return toast("Enter a subcategory");
+  const cat = (state.techCategories||[]).find(c=>c.id===catId);
+  if(!cat) return toast("Category not found");
+  const subs = [...(cat.subcategories||[])];
+  if(subs.some(s=>s.toLowerCase()===sub.toLowerCase())) return toast("Subcategory already exists");
+  subs.push(sub);
+  const {db, doc, setDoc} = window.__fb;
+  await setDoc(doc(db, "techCategories", catId), {name: cat.name, subcategories: subs, order: cat.order||0});
+  toast("Subcategory added ✓");
+};
+
+window.delSubcategory = async function(catId, subIndex){
+  if(!isAdmin()) return toast("Admin only");
+  const cat = (state.techCategories||[]).find(c=>c.id===catId);
+  if(!cat) return;
+  const subs = [...(cat.subcategories||[])];
+  subs.splice(subIndex, 1);
+  const {db, doc, setDoc} = window.__fb;
+  await setDoc(doc(db, "techCategories", catId), {name: cat.name, subcategories: subs, order: cat.order||0});
+  toast("Subcategory removed");
+};
+
+
 window.bulkAssignBranch = async function(branchName){
   const userTargets = state.users.filter(u=>!u.branch && (u.role||'')!=='client');
   const tagTargets = (state.nametagEmployees||[]).filter(n=>!n.branch);
@@ -5285,6 +5407,89 @@ function renderWorkInstructions(){
           `).join("")}
         </div>
       `}
+    </div>`;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  //  TECHNICAL CLASSIFICATIONS MANAGER (Admin only)
+  //  Manage Work Types, Task Statuses, Categories + Subcategories
+  // ═══════════════════════════════════════════════════════════════════
+  if(isAdmin()){
+    const workTypes = (state.techWorkTypes||[]).slice().sort((a,b)=>(a.order||0)-(b.order||0));
+    const statuses  = (state.techStatuses||[]).slice().sort((a,b)=>(a.order||0)-(b.order||0));
+    const cats2     = (state.techCategories||[]).slice().sort((a,b)=>(a.order||0)-(b.order||0));
+
+    h += `
+    <div class="card" style="margin-top:16px;border:2px solid #6A1B9A">
+      <div class="card-title" style="color:#6A1B9A">⚙️ Technical Classifications (Resolution)</div>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.6">
+        These options appear in the <strong>Resolution</strong> section of Daily Log. Changes apply immediately to all employees.
+      </p>
+      ${(workTypes.length===0 && statuses.length===0 && cats2.length===0)?`
+      <div style="background:#FFF3E0;border:1px solid #FFB74D;border-radius:8px;padding:12px;margin-bottom:14px">
+        <p style="font-size:12px;color:#E65100;margin:0 0 8px;line-height:1.5"><strong>First time setup:</strong> Load the default classifications (Work Types, Statuses, Categories) to get started. You can edit them afterwards.</p>
+        <button class="btn btn-sm" style="background:#E65100;color:white;border:none;font-weight:700" onclick="seedTechDefaults()">⬇ Load Default Classifications</button>
+      </div>`:''}
+
+      <!-- WORK TYPES -->
+      <div style="margin-bottom:18px">
+        <div style="font-weight:800;color:#3949AB;font-size:13px;margin-bottom:8px">🧭 Work Types</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">
+          ${workTypes.length===0?`<span style="font-size:12px;color:#999">None yet</span>`:workTypes.map(w=>`
+            <span style="display:inline-flex;align-items:center;gap:5px;background:#E8EAF6;color:#3949AB;padding:5px 8px 5px 12px;border-radius:14px;font-size:12px;font-weight:600">
+              ${escapeHtml(w.name)}
+              <button onclick="delTechItem('techWorkTypes','${w.id}')" style="background:#C5CAE9;border:none;color:#3949AB;width:18px;height:18px;border-radius:50%;cursor:pointer;font-weight:700;font-size:11px">×</button>
+            </span>`).join("")}
+        </div>
+        <div style="display:flex;gap:6px">
+          <input id="newWorkType" placeholder="Add work type (e.g. Standby)" style="flex:1;padding:7px 10px;border:1px solid var(--line);border-radius:7px;font-size:12px">
+          <button class="btn btn-sm" style="background:#3949AB;color:white;border:none;font-weight:700" onclick="addTechItem('techWorkTypes','newWorkType',${workTypes.length})">+ Add</button>
+        </div>
+      </div>
+
+      <!-- TASK STATUSES -->
+      <div style="margin-bottom:18px">
+        <div style="font-weight:800;color:#00897B;font-size:13px;margin-bottom:8px">📊 Task Statuses</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">
+          ${statuses.length===0?`<span style="font-size:12px;color:#999">None yet</span>`:statuses.map(s=>`
+            <span style="display:inline-flex;align-items:center;gap:5px;background:#E0F2F1;color:#00897B;padding:5px 8px 5px 12px;border-radius:14px;font-size:12px;font-weight:600">
+              ${escapeHtml(s.name)}
+              <button onclick="delTechItem('techStatuses','${s.id}')" style="background:#B2DFDB;border:none;color:#00897B;width:18px;height:18px;border-radius:50%;cursor:pointer;font-weight:700;font-size:11px">×</button>
+            </span>`).join("")}
+        </div>
+        <div style="display:flex;gap:6px">
+          <input id="newStatus" placeholder="Add status (e.g. Waiting Parts)" style="flex:1;padding:7px 10px;border:1px solid var(--line);border-radius:7px;font-size:12px">
+          <button class="btn btn-sm" style="background:#00897B;color:white;border:none;font-weight:700" onclick="addTechItem('techStatuses','newStatus',${statuses.length})">+ Add</button>
+        </div>
+      </div>
+
+      <!-- CATEGORIES + SUBCATEGORIES -->
+      <div>
+        <div style="font-weight:800;color:#C2185B;font-size:13px;margin-bottom:8px">🗂️ Categories & Subcategories</div>
+        <div style="display:flex;gap:6px;margin-bottom:10px">
+          <input id="newCategory" placeholder="Add category (e.g. Wireless)" style="flex:1;padding:7px 10px;border:1px solid var(--line);border-radius:7px;font-size:12px">
+          <button class="btn btn-sm" style="background:#C2185B;color:white;border:none;font-weight:700" onclick="addTechCategory(${cats2.length})">+ Category</button>
+        </div>
+        ${cats2.map(c=>`
+          <div style="border:1px solid #F8BBD0;border-radius:10px;padding:10px 12px;margin-bottom:8px;background:#FFF5F8">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px">
+              <div style="font-weight:800;color:#C2185B;font-size:13px">🗂️ ${escapeHtml(c.name)}</div>
+              <button class="btn btn-sm btn-danger" onclick="delTechItem('techCategories','${c.id}')">🗑 Category</button>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px">
+              ${(c.subcategories||[]).length===0?`<span style="font-size:11px;color:#aaa">No subcategories</span>`:(c.subcategories||[]).map((sc,si)=>`
+                <span style="display:inline-flex;align-items:center;gap:4px;background:white;border:1px solid #F8BBD0;color:#880E4F;padding:4px 7px 4px 10px;border-radius:12px;font-size:11px;font-weight:600">
+                  ${escapeHtml(sc)}
+                  <button onclick="delSubcategory('${c.id}',${si})" style="background:#FCE4EC;border:none;color:#C2185B;width:16px;height:16px;border-radius:50%;cursor:pointer;font-weight:700;font-size:10px">×</button>
+                </span>`).join("")}
+            </div>
+            <div style="display:flex;gap:5px">
+              <input id="newSub_${c.id}" placeholder="Add subcategory" style="flex:1;padding:6px 9px;border:1px solid var(--line);border-radius:6px;font-size:11px">
+              <button class="btn btn-sm" style="background:#AD1457;color:white;border:none;font-weight:700;font-size:11px" onclick="addSubcategory('${c.id}')">+ Sub</button>
+            </div>
+          </div>
+        `).join("")}
+      </div>
     </div>`;
   }
 
@@ -8398,7 +8603,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v14';"
+      var swCode = "const CACHE='ejaftech-v15';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
