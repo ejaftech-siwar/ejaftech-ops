@@ -2046,7 +2046,7 @@ async function exportDailyPDF(){
     <td>${fmtDate(r.date)}</td>
     <td style="font-size:10px;color:#555;white-space:nowrap">${r.start&&r.end?`${r.start}–${r.end}`:'—'}</td>
     <td><strong style="color:#03308B">${escapeHtml(r.employee||'')}</strong></td>
-    <td>${escapeHtml(r.project||'')}${(r.site||r.equipment)?`<br><span style="font-size:9px;color:#1565C0">${r.site?`🏗 ${escapeHtml(r.site)}`:''}${r.equipment?` · 🔧 ${escapeHtml(r.equipment)}`:''}</span>`:''}${(r.taskCategory||r.taskStatus||r.workType)?`<br><span style="font-size:8px;color:#6A1B9A">${r.taskCategory?escapeHtml(r.taskCategory):''}${r.taskSubcategory?'›'+escapeHtml(r.taskSubcategory):''}${r.taskStatus?` · ${escapeHtml(r.taskStatus)}`:''}${r.workType?` · ${escapeHtml(r.workType)}`:''}</span>`:''}</td>
+    <td>${escapeHtml(r.project||'')}${(r.area||r.site)?`<br><span style="font-size:9px;color:#1565C0">${r.area?`🗺️ ${escapeHtml(r.area)}`:''}${r.site?` · 📍 ${escapeHtml(r.site)}`:''}</span>`:''}${(r.taskCategory||r.taskStatus||r.workType)?`<br><span style="font-size:8px;color:#6A1B9A">${r.taskCategory?escapeHtml(r.taskCategory):''}${r.taskSubcategory?'›'+escapeHtml(r.taskSubcategory):''}${r.taskStatus?` · ${escapeHtml(r.taskStatus)}`:''}${r.workType?` · ${escapeHtml(r.workType)}`:''}</span>`:''}</td>
     <td><span style="background:${(state.departments.find(d=>d.name===r.dept)||{color:'#888'}).color}22;color:${(state.departments.find(d=>d.name===r.dept)||{color:'#888'}).color};padding:2px 7px;border-radius:8px;font-size:10px;font-weight:700">${escapeHtml(r.dept||'')}</span></td>
     <td>${r.location?`<span style="background:#E3F2FD;color:#1565C0;padding:2px 7px;border-radius:8px;font-size:10px">📍 ${escapeHtml(r.location)}</span>`:'—'}${r.gpsLat?` <a href="${gpsMapLink(r.gpsLat,r.gpsLng)}" style="font-size:9px;color:#2E7D32;font-weight:700;text-decoration:none">🛰️ Map</a>`:r.gpsDenied?` <span style="font-size:9px;color:#C62828">🚫 GPS</span>`:''}</td>
     <td style="color:#2E7D32;font-weight:700">${fmtHM(r.duration)}</td>
@@ -2120,8 +2120,8 @@ async function exportDailyExcel(){
     setC(ws1,'A2',`Period: ${period}${reportFilterLabel()?' · '+reportFilterLabel():''}  |  Generated: ${new Date().toLocaleString('en-GB')}`,subSt);
     setM(ws1,{s:{r:1,c:0},e:{r:1,c:13}});
     setC(ws1,'A4','#',hdSt); setC(ws1,'B4','Date',hdSt); setC(ws1,'C4','Time',hdSt);
-    setC(ws1,'D4','Employee',hdSt); setC(ws1,'E4','Project',hdSt); setC(ws1,'F4','Site',hdSt);
-    setC(ws1,'G4','Equipment',hdSt); setC(ws1,'H4','Work Type',hdSt); setC(ws1,'I4','Status',hdSt);
+    setC(ws1,'D4','Employee',hdSt); setC(ws1,'E4','Project',hdSt); setC(ws1,'F4','Area',hdSt);
+    setC(ws1,'G4','Site',hdSt); setC(ws1,'H4','Work Type',hdSt); setC(ws1,'I4','Status',hdSt);
     setC(ws1,'J4','Category',hdSt); setC(ws1,'K4','Subcategory',hdSt); setC(ws1,'L4','Department',hdSt);
     setC(ws1,'M4','Location',hdSt); setC(ws1,'N4','Hours',hdSt); setC(ws1,'O4','GPS',hdSt);
     rows.forEach((r,i)=>{
@@ -2133,8 +2133,8 @@ async function exportDailyExcel(){
       setC(ws1,`C${row}`,(r.start&&r.end)?`${r.start}–${r.end}`:'',{...cellSt,font:{sz:9,color:{rgb:COLORS.textDark}}});
       setC(ws1,`D${row}`,r.employee||'',cellSt);
       setC(ws1,`E${row}`,r.project||'',cellSt);
-      setC(ws1,`F${row}`,r.site||'',cellSt);
-      setC(ws1,`G${row}`,r.equipment||'',cellSt);
+      setC(ws1,`F${row}`,r.area||'',cellSt);
+      setC(ws1,`G${row}`,r.site||'',cellSt);
       setC(ws1,`H${row}`,r.workType||'',cellSt);
       setC(ws1,`I${row}`,r.taskStatus||'',cellSt);
       setC(ws1,`J${row}`,r.taskCategory||'',cellSt);
@@ -2198,9 +2198,9 @@ function exportCSV(){
   // Daily Log
   const dailyRows=applyReportFilters(isHR()?state.daily:state.daily.filter(r=>r.employee===state.profile.employeeName));
   lines.push("DAILY WORK LOG");
-  lines.push(["Date","Employee","Project","Site","Equipment","Work Type","Status","Category","Subcategory","Department","Start","End","Duration","Notes"].map(csvEscape).join(","));
+  lines.push(["Date","Employee","Project","Area","Site","Work Type","Status","Category","Subcategory","Department","Start","End","Duration","Notes"].map(csvEscape).join(","));
   dailyRows.forEach(r=>{
-    lines.push([r.date,r.employee,r.project,r.site||"",r.equipment||"",r.workType||"",r.taskStatus||"",r.taskCategory||"",r.taskSubcategory||"",r.dept,r.start,r.end,fmtHM(r.duration),r.notes||""].map(csvEscape).join(","));
+    lines.push([r.date,r.employee,r.project,r.area||"",r.site||"",r.workType||"",r.taskStatus||"",r.taskCategory||"",r.taskSubcategory||"",r.dept,r.start,r.end,fmtHM(r.duration),r.notes||""].map(csvEscape).join(","));
   });
   lines.push("");
 
@@ -2549,7 +2549,7 @@ function renderDailyLog(){
       date:today(),
       employee:isEmployee()?state.profile.employeeName:"",
       project:"",start:"",end:"",location:"",
-      site:"",equipment:"",  // site + equipment (from project's sites)
+      site:"",equipment:"",area:"",  // area + site (from project's areas)
       workType:"",taskStatus:"",taskCategory:"",taskSubcategory:"",  // technical classification
       resolutionText:"",  // mandatory text explanation
       resolutionImages:[], // array of base64 compressed images
@@ -2561,6 +2561,7 @@ function renderDailyLog(){
   if(typeof dailyForm.resolutionText === 'undefined') dailyForm.resolutionText = "";
   if(typeof dailyForm.site === 'undefined') dailyForm.site = "";
   if(typeof dailyForm.equipment === 'undefined') dailyForm.equipment = "";
+  if(typeof dailyForm.area === 'undefined') dailyForm.area = "";
   if(typeof dailyForm.workType === 'undefined') dailyForm.workType = "";
   if(typeof dailyForm.taskStatus === 'undefined') dailyForm.taskStatus = "";
   if(typeof dailyForm.taskCategory === 'undefined') dailyForm.taskCategory = "";
@@ -2610,29 +2611,30 @@ function renderDailyLog(){
           ${isSupervisor()&&!isHR()?`<p style="font-size:11px;color:#6A1B9A;margin-top:4px">👔 You can log for your team members.</p>`:''}`}
       </div>
       <div class="field full"><label>Project <span class="req">*</span></label>
-        <select onchange="window.dailyForm.project=this.value;window.dailyForm.site='';window.dailyForm.equipment='';render()">
+        <select onchange="window.dailyForm.project=this.value;window.dailyForm.area='';window.dailyForm.site='';render()">
           <option value="">— Select —</option>
           ${state.projects.map(p=>{const n=(p.name||"").trim();return `<option value="${escapeHtml(n)}" ${n===(dailyForm.project||"").trim()?"selected":""}>${escapeHtml(n)}</option>`}).join("")}
         </select></div>
       ${(()=>{
         const proj = state.projects.find(p=>(p.name||"").trim()===(dailyForm.project||"").trim());
-        const sites = proj?.sites || [];
-        if(sites.length===0) return "";  // project has no sites → skip
-        const selSite = sites.find(s=>s.name===dailyForm.site);
-        const equip = selSite?.equipment || [];
-        const equipReq = !isAdmin() && getEmpPermissions(dailyForm.employee||state.profile.employeeName||"").equipmentRequired;
+        const areas = proj ? getProjectAreas(proj) : [];
+        const activeAreas = areas.filter(a=>a.active!==false);  // only active areas
+        if(activeAreas.length===0) return "";  // project has no areas → skip
+        const selArea = activeAreas.find(a=>a.name===dailyForm.area);
+        const sites = (selArea?.sites||[]).filter(s=>s.active!==false);  // only active sites
+        const siteReq = !isAdmin() && getEmpPermissions(dailyForm.employee||state.profile.employeeName||"").equipmentRequired;
         return `
-      <div class="field full"><label>🏗 Site ${equipReq?'<span class="req">*</span>':'<span style="font-size:10px;color:var(--muted)">(optional)</span>'}</label>
-        <select onchange="window.dailyForm.site=this.value;window.dailyForm.equipment='';render()">
+      <div class="field full"><label>🗺️ Area ${siteReq?'<span class="req">*</span>':'<span style="font-size:10px;color:var(--muted)">(optional)</span>'}</label>
+        <select onchange="window.dailyForm.area=this.value;window.dailyForm.site='';render()">
+          <option value="">— Select Area —</option>
+          ${activeAreas.map(a=>`<option value="${escapeHtml(a.name)}" ${a.name===(dailyForm.area||"")?"selected":""}>${escapeHtml(a.name)}</option>`).join("")}
+        </select></div>
+      ${dailyForm.area && sites.length>0 ? `
+      <div class="field full"><label>📍 Site ${siteReq?'<span class="req">*</span>':'<span style="font-size:10px;color:var(--muted)">(optional)</span>'}</label>
+        <select onchange="window.dailyForm.site=this.value;render()">
           <option value="">— Select Site —</option>
           ${sites.map(s=>`<option value="${escapeHtml(s.name)}" ${s.name===(dailyForm.site||"")?"selected":""}>${escapeHtml(s.name)}</option>`).join("")}
-        </select></div>
-      ${dailyForm.site && equip.length>0 ? `
-      <div class="field full"><label>🔧 Equipment ${equipReq?'<span class="req">*</span>':'<span style="font-size:10px;color:var(--muted)">(optional)</span>'}</label>
-        <select onchange="window.dailyForm.equipment=this.value;render()">
-          <option value="">— Select Equipment —</option>
-          ${equip.map(eq=>`<option value="${escapeHtml(eq)}" ${eq===(dailyForm.equipment||"")?"selected":""}>${escapeHtml(eq)}</option>`).join("")}
-        </select></div>` : (dailyForm.site ? `<div class="field full"><div style="font-size:11px;color:#888;padding:6px 10px;background:#F7F7F7;border-radius:6px">No equipment registered for this site.</div></div>` : '')}`;
+        </select></div>` : (dailyForm.area ? `<div class="field full"><div style="font-size:11px;color:#888;padding:6px 10px;background:#F7F7F7;border-radius:6px">No active sites in this area.</div></div>` : '')}`;
       })()}
       <div class="field"><label>Start</label>
         <input type="time" value="${dailyForm.start}" onchange="window.dailyForm.start=this.value;render()"></div>
@@ -2797,7 +2799,7 @@ function renderDailyLog(){
           <td style="text-align:center;font-size:11px;font-weight:700;color:#03308B;background:#f0f4ff;white-space:nowrap">${r.entryNo ? formatEntryNo(r.entryNo) : '<span style="color:#bbb">—</span>'}</td>
           <td>${fmtDate(r.date)}</td>
           ${!isEmployee()?`<td>${employeeBadge(r.employee)}</td>`:""}
-          <td>${escapeHtml(r.project||"")}${(r.site||r.equipment)?`<div style="font-size:10px;color:#1565C0;margin-top:2px">${r.site?`🏗 ${escapeHtml(r.site)}`:''}${r.equipment?` · 🔧 ${escapeHtml(r.equipment)}`:''}</div>`:''}</td>
+          <td>${escapeHtml(r.project||"")}${(r.area||r.site)?`<div style="font-size:10px;color:#1565C0;margin-top:2px">${r.area?`🗺️ ${escapeHtml(r.area)}`:''}${r.site?` · 📍 ${escapeHtml(r.site)}`:''}</div>`:''}</td>
           <td>${deptBadge(r.dept)}</td>
           <td>${r.location?`<span style="background:#E3F2FD;color:#1565C0;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600">📍 ${escapeHtml(r.location)}</span>`:'<span style="color:#bbb;font-style:italic;font-size:11px">—</span>'} ${gpsBadgeHTML(r)}</td>
           <td><strong style="color:#2E7D32">${fmtHM(r.duration)}</strong></td>
@@ -2866,16 +2868,17 @@ async function saveDaily(){
     }
   }
 
-  // Equipment requirement: if admin enabled it for this employee AND the project has sites,
-  // the employee must pick a site and an equipment.
+  // Area/Site requirement: if admin enabled it for this employee AND the project has areas,
+  // the employee must pick an area and a site.
   if(!isAdmin() && perms.equipmentRequired){
     const proj = state.projects.find(p=>(p.name||"").trim()===(dailyForm.project||"").trim());
-    const sites = proj?.sites || [];
-    if(sites.length > 0){
-      if(!dailyForm.site) return toast("⚠ Please select a Site (required)");
-      const selSite = sites.find(s=>s.name===dailyForm.site);
-      if((selSite?.equipment||[]).length > 0 && !dailyForm.equipment){
-        return toast("⚠ Please select the Equipment you worked on (required)");
+    const areas = proj ? getProjectAreas(proj).filter(a=>a.active!==false) : [];
+    if(areas.length > 0){
+      if(!dailyForm.area) return toast("⚠ Please select an Area (required)");
+      const selArea = areas.find(a=>a.name===dailyForm.area);
+      const sites = (selArea?.sites||[]).filter(s=>s.active!==false);
+      if(sites.length > 0 && !dailyForm.site){
+        return toast("⚠ Please select a Site (required)");
       }
     }
   }
@@ -3106,13 +3109,13 @@ function viewResolution(recordId){
         <button onclick="this.closest('div[style*=\\'position:fixed\\']').remove()" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);color:white;width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:18px;font-weight:700">×</button>
       </div>
       <div style="padding:20px">
-        ${(r.workType||r.taskStatus||r.taskCategory||r.taskSubcategory||r.site||r.equipment) ? `
+        ${(r.workType||r.taskStatus||r.taskCategory||r.taskSubcategory||r.area||r.site) ? `
           <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px">
             ${r.workType?`<span style="background:#E8EAF6;color:#3949AB;padding:4px 10px;border-radius:12px;font-size:11px;font-weight:700">🧭 ${escapeHtml(r.workType)}</span>`:''}
             ${r.taskStatus?`<span style="background:#E0F2F1;color:#00897B;padding:4px 10px;border-radius:12px;font-size:11px;font-weight:700">📊 ${escapeHtml(r.taskStatus)}</span>`:''}
             ${r.taskCategory?`<span style="background:#FCE4EC;color:#C2185B;padding:4px 10px;border-radius:12px;font-size:11px;font-weight:700">🗂️ ${escapeHtml(r.taskCategory)}${r.taskSubcategory?' › '+escapeHtml(r.taskSubcategory):''}</span>`:''}
-            ${r.site?`<span style="background:#E3F2FD;color:#1565C0;padding:4px 10px;border-radius:12px;font-size:11px;font-weight:700">🏗 ${escapeHtml(r.site)}</span>`:''}
-            ${r.equipment?`<span style="background:#F3E5F5;color:#6A1B9A;padding:4px 10px;border-radius:12px;font-size:11px;font-weight:700">🔧 ${escapeHtml(r.equipment)}</span>`:''}
+            ${r.area?`<span style="background:#E8F5E9;color:#2E7D32;padding:4px 10px;border-radius:12px;font-size:11px;font-weight:700">🗺️ ${escapeHtml(r.area)}</span>`:''}
+            ${r.site?`<span style="background:#E3F2FD;color:#1565C0;padding:4px 10px;border-radius:12px;font-size:11px;font-weight:700">📍 ${escapeHtml(r.site)}</span>`:''}
           </div>
         ` : ''}
         ${txt ? `
@@ -3857,8 +3860,8 @@ const TECH_COLUMNS = [
   {key:"time",         label:"Time"},
   {key:"employee",     label:"Employee"},
   {key:"project",      label:"Project"},
+  {key:"area",         label:"Area"},
   {key:"site",         label:"Site"},
-  {key:"equipment",    label:"Equipment"},
   {key:"workType",     label:"Work Type"},
   {key:"taskStatus",   label:"Status"},
   {key:"taskCategory", label:"Category"},
@@ -3867,7 +3870,7 @@ const TECH_COLUMNS = [
   {key:"hours",        label:"Hours"},
   {key:"resolutionText",label:"Resolution Text"},
 ];
-const TECH_COLS_DEFAULT = ["date","day","time","employee","project","site","equipment","workType","taskStatus","taskCategory","taskSubcategory","hours"];
+const TECH_COLS_DEFAULT = ["date","day","time","employee","project","area","site","workType","taskStatus","taskCategory","taskSubcategory","hours"];
 
 // Which columns are currently active
 function activeTechCols(){
@@ -4209,14 +4212,14 @@ window.importProjectsForDept = function(deptName){
 // Download a sample template so the admin knows the exact columns
 window.downloadImportTemplate = function(){
   const sample = [
-    ["Project","Site","Equipment","Specifications"],
-    ["Asia Cell","Tower-A","Switch-Core-1","Cisco 48-port"],
-    ["Asia Cell","Tower-A","Server-DB","Dell R740, 64GB RAM"],
-    ["Asia Cell","Tower-B","Router-3","MikroTik CCR"],
-    ["Down Town","Site-X","Switch-5","HP 24-port"],
+    ["Project","Area Name","Site Name","Status"],
+    ["Asia Cell","Erbil Area","Tower-A","Active"],
+    ["Asia Cell","Erbil Area","Tower-B","Inactive"],
+    ["Asia Cell","Duhok Area","Site-North","Active"],
+    ["Down Town","Central Zone","Site-X","Active"],
   ];
   const ws = XLSX.utils.aoa_to_sheet(sample);
-  ws['!cols']=[{wch:18},{wch:14},{wch:18},{wch:24}];
+  ws['!cols']=[{wch:18},{wch:16},{wch:16},{wch:12}];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Template");
   XLSX.writeFile(wb, "Girek_Import_Template.xlsx");
@@ -4241,9 +4244,9 @@ async function parseImportFile(file, deptName){
     };
     const ci = {
       project: findCol("project","مشروع","proj"),
+      area:    findCol("area","منطقة","zone","region"),
       site:    findCol("site","موقع","location","loc"),
-      equip:   findCol("equipment","equip","device","جهاز","معدة","hardware"),
-      spec:    findCol("spec","specification","specs","مواصفات","details","تفاصيل","model","نوع"),
+      status:  findCol("status","حالة","state","active"),
     };
 
     // If the Project column wasn't auto-detected, ask the user to map columns.
@@ -4260,20 +4263,32 @@ async function parseImportFile(file, deptName){
   }
 }
 
+// Parse a status cell into a boolean (active). Accepts yes/no, active/inactive, true/false, 1/0.
+function parseStatusActive(val){
+  const s = String(val||"").trim().toLowerCase();
+  if(["inactive","no","false","0","off","disabled","معطل","غير نشط","لا"].includes(s)) return false;
+  return true; // default active
+}
+
 // Build the structured map from rows + column indices
+// Shape: { project: { areas: { areaName: { active, sites: { siteName: active } } } } }
 function buildImportMap(rows, ci){
   const map = {};
   for(let r=1; r<rows.length; r++){
     const row = rows[r];
     const pName = String(row[ci.project]||"").trim();
     if(!pName) continue;
+    const aName = ci.area>=0 ? String(row[ci.area]||"").trim() : "General";
     const sName = ci.site>=0 ? String(row[ci.site]||"").trim() : "";
-    const eName = ci.equip>=0 ? String(row[ci.equip]||"").trim() : "";
-    const eSpec = ci.spec>=0 ? String(row[ci.spec]||"").trim() : "";
+    const active = ci.status>=0 ? parseStatusActive(row[ci.status]) : true;
+    const areaKey = aName || "General";
     if(!map[pName]) map[pName] = {};
+    if(!map[pName][areaKey]) map[pName][areaKey] = {active:true, sites:{}};
     if(sName){
-      if(!map[pName][sName]) map[pName][sName] = [];
-      if(eName) map[pName][sName].push({name:eName, spec:eSpec});
+      map[pName][areaKey].sites[sName] = active;
+    } else {
+      // row defines just an area (its status applies to the area)
+      map[pName][areaKey].active = active;
     }
   }
   return map;
@@ -4283,9 +4298,9 @@ function buildImportMap(rows, ci){
 function finishImport(map, deptName){
   const projNames = Object.keys(map);
   if(projNames.length===0) return toast("No valid rows found");
-  let totalSites=0, totalEquip=0;
-  projNames.forEach(p=>{ const sites=Object.keys(map[p]); totalSites+=sites.length; sites.forEach(s=>totalEquip+=map[p][s].length); });
-  if(!confirm(`Import into "${deptName}"?\n\n• ${projNames.length} project(s)\n• ${totalSites} site(s)\n• ${totalEquip} equipment\n\nThis ADDS to existing data (merge).`)) return;
+  let totalAreas=0, totalSites=0;
+  projNames.forEach(p=>{ const areas=Object.keys(map[p]); totalAreas+=areas.length; areas.forEach(a=>totalSites+=Object.keys(map[p][a].sites).length); });
+  if(!confirm(`Import into "${deptName}"?\n\n• ${projNames.length} project(s)\n• ${totalAreas} area(s)\n• ${totalSites} site(s)\n\nThis ADDS to existing data (merge).`)) return;
   mergeImport(map, deptName);
 }
 
@@ -4309,12 +4324,12 @@ function showColumnMapper(rows, header, deptName){
         <p style="font-size:12px;color:#555;margin-bottom:16px;line-height:1.6">We could not detect the columns automatically. Tell us which column is which (importing into <strong>${escapeHtml(deptName)}</strong>):</p>
         <div class="field"><label>📁 Project column <span style="color:#c62828">*</span></label>
           <select id="mapProject" style="width:100%;padding:9px;border:1px solid var(--line);border-radius:8px">${opts()}</select></div>
-        <div class="field"><label>🏗 Site column (optional)</label>
+        <div class="field"><label>🗺️ Area column (optional)</label>
+          <select id="mapArea" style="width:100%;padding:9px;border:1px solid var(--line);border-radius:8px"><option value="-1">— None —</option>${opts()}</select></div>
+        <div class="field"><label>📍 Site column (optional)</label>
           <select id="mapSite" style="width:100%;padding:9px;border:1px solid var(--line);border-radius:8px"><option value="-1">— None —</option>${opts()}</select></div>
-        <div class="field"><label>🔧 Equipment column (optional)</label>
-          <select id="mapEquip" style="width:100%;padding:9px;border:1px solid var(--line);border-radius:8px"><option value="-1">— None —</option>${opts()}</select></div>
-        <div class="field"><label>📋 Specifications column (optional)</label>
-          <select id="mapSpec" style="width:100%;padding:9px;border:1px solid var(--line);border-radius:8px"><option value="-1">— None —</option>${opts()}</select></div>
+        <div class="field"><label>🔘 Status column (optional)</label>
+          <select id="mapStatus" style="width:100%;padding:9px;border:1px solid var(--line);border-radius:8px"><option value="-1">— None —</option>${opts()}</select></div>
         <button class="btn btn-primary" style="width:100%;margin-top:10px" onclick="applyColumnMapping()">Import with these columns</button>
       </div>
     </div>
@@ -4325,9 +4340,9 @@ function showColumnMapper(rows, header, deptName){
 window.applyColumnMapping = function(){
   const ci = {
     project: parseInt(document.getElementById('mapProject').value),
+    area:    parseInt(document.getElementById('mapArea').value),
     site:    parseInt(document.getElementById('mapSite').value),
-    equip:   parseInt(document.getElementById('mapEquip').value),
-    spec:    parseInt(document.getElementById('mapSpec').value),
+    status:  parseInt(document.getElementById('mapStatus').value),
   };
   const ov = document.getElementById('colMapOverlay'); if(ov) ov.remove();
   if(!_importRows) return toast("No file loaded");
@@ -4338,60 +4353,69 @@ window.applyColumnMapping = function(){
 async function mergeImport(map, deptName){
   toast("Importing...");
   const {db, doc, setDoc, collection, addDoc} = window.__fb;
-  let created=0, updated=0;
+  let created=0, updated=0, lastProjId=null;
 
   for(const pName of Object.keys(map)){
-    // Find existing project by name (case-insensitive) in this dept (or any)
+    // Find existing project by name (case-insensitive)
     const existing = state.projects.find(p=>(p.name||"").toLowerCase()===pName.toLowerCase());
-    const incomingSites = map[pName];
+    const incomingAreas = map[pName];  // { areaName: {active, sites:{siteName:active}} }
 
-    // Merge sites into existing project's sites array
-    let sites = existing ? [...(existing.sites||[])] : [];
-    for(const sName of Object.keys(incomingSites)){
-      let site = sites.find(s=>(s.name||"").toLowerCase()===sName.toLowerCase());
-      if(!site){ site = {name:sName, equipment:[]}; sites.push(site); }
-      // Merge equipment (store as "Name (spec)" string to stay compatible with existing dropdowns)
-      const existingEq = new Set((site.equipment||[]).map(e=>String(typeof e==='object'?e.name:e).toLowerCase()));
-      for(const eq of incomingSites[sName]){
-        const label = eq.spec ? `${eq.name} (${eq.spec})` : eq.name;
-        if(!existingEq.has(eq.name.toLowerCase())){
-          site.equipment = [...(site.equipment||[]), label];
-          existingEq.add(eq.name.toLowerCase());
-        }
+    // Start from existing areas (merge, never overwrite)
+    let areas = existing ? getProjectAreas(existing).map(a=>({...a, sites:[...(a.sites||[])]})) : [];
+
+    for(const aName of Object.keys(incomingAreas)){
+      const incoming = incomingAreas[aName];
+      let area = areas.find(a=>(a.name||"").toLowerCase()===aName.toLowerCase());
+      if(!area){ area = {name:aName, active:incoming.active!==false, sites:[]}; areas.push(area); }
+      else if(incoming.active===false){ area.active = false; }  // status update from file
+      // Merge sites
+      for(const sName of Object.keys(incoming.sites)){
+        const sActive = incoming.sites[sName];
+        let site = area.sites.find(s=>(s.name||"").toLowerCase()===sName.toLowerCase());
+        if(!site){ area.sites.push({name:sName, active:sActive}); }
+        else { site.active = sActive; }  // status update
       }
     }
 
     if(existing){
       await setDoc(doc(db,"projects",existing.id), {
         name: existing.name, dept: existing.dept||deptName,
-        estimatedHours: Number(existing.estimatedHours||0), sites,
+        estimatedHours: Number(existing.estimatedHours||0), areas,
       });
+      lastProjId = existing.id;
       updated++;
     } else {
-      await addDoc(collection(db,"projects"), {
-        name: pName, dept: deptName, estimatedHours: 0, sites,
+      const ref = await addDoc(collection(db,"projects"), {
+        name: pName, dept: deptName, estimatedHours: 0, areas,
       });
+      lastProjId = ref.id;
       created++;
     }
   }
   toast(`✓ Import done: ${created} new, ${updated} updated`);
+
+  // Auto-open the Areas/Sites editor for review (if a single project was imported)
+  if(lastProjId && Object.keys(map).length===1){
+    setTimeout(()=>{ openSitesModal(lastProjId); }, 600);
+  }
 }
 
 
 // ═══════════════════════════════════════════════════════════════════════
-//  SITES & EQUIPMENT MODULE
-//  Each Project has Sites; each Site has Equipment. Admin manages both here.
+//  AREAS & SITES MODULE  (replaces old Sites/Equipment)
+//  Hierarchy: Project → Area → Site. Each Area and Site has active (Yes/No).
 //  Data shape on a project doc:
-//    sites: [ { name:"Site A", equipment:["Switch-1","Server-2"] }, ... ]
+//    areas: [ { name:"Erbil Area", active:true,
+//               sites:[ { name:"Tower-A", active:true }, ... ] }, ... ]
 // ═══════════════════════════════════════════════════════════════════════
 let sitesModalProjId = null;   // which project is open in the modal
-let newSiteName = "";          // input buffer for adding a site
-let newEquipInputs = {};       // per-site equipment input buffers {siteIdx: "text"}
+let newAreaName = "";          // input buffer for adding an area
+let newSiteInputs = {};        // per-area site input buffers {areaIdx: "text"}
 
 window.openSitesModal = function(projId){
   sitesModalProjId = projId;
-  newSiteName = "";
-  newEquipInputs = {};
+  newAreaName = "";
+  newSiteInputs = {};
   showSitesModal();
 };
 window.closeSitesModal = function(){
@@ -4413,128 +4437,165 @@ function showSitesModal(){
   document.body.appendChild(wrap);
 }
 
-// Render the modal (called from renderApp overlay area)
+// Migrate a project's old structure (sites[] with equipment) to new areas[] if needed
+function getProjectAreas(proj){
+  if(Array.isArray(proj.areas)) return proj.areas;
+  // Backward-compat: if old sites[] exists, wrap them under a default area
+  if(Array.isArray(proj.sites) && proj.sites.length){
+    return [{ name:"General", active:true, sites: proj.sites.map(s=>({name:s.name, active:true})) }];
+  }
+  return [];
+}
+
 function renderSitesModal(){
   if(!sitesModalProjId) return "";
   const proj = state.projects.find(p=>p.id===sitesModalProjId);
   if(!proj) { sitesModalProjId=null; return ""; }
-  const sites = proj.sites || [];
+  const areas = getProjectAreas(proj);
+
+  const statusPill = (active, onToggle)=>`
+    <button onclick="${onToggle}" style="background:${active?'#E0F2F1':'#FFEBEE'};border:1px solid ${active?'#26A69A':'#EF9A9A'};color:${active?'#00897B':'#C62828'};padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">
+      ${active?'● Active':'○ Inactive'}
+    </button>`;
 
   return `<div onclick="if(event.target===this)closeSitesModal()" style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:flex-start;justify-content:center;padding:20px;overflow-y:auto">
-    <div style="background:white;border-radius:16px;max-width:560px;width:100%;box-shadow:0 24px 64px rgba(0,0,0,0.4);margin-top:20px">
+    <div style="background:white;border-radius:16px;max-width:580px;width:100%;box-shadow:0 24px 64px rgba(0,0,0,0.4);margin-top:20px">
       <div style="background:#03308B;color:white;padding:16px 20px;border-radius:16px 16px 0 0;display:flex;align-items:center;justify-content:space-between">
         <div>
-          <div style="font-size:16px;font-weight:800">🏗 Sites & Equipment</div>
+          <div style="font-size:16px;font-weight:800">🗺️ Areas & Sites</div>
           <div style="font-size:12px;opacity:0.85">${escapeHtml(proj.name)}</div>
         </div>
         <button onclick="closeSitesModal()" style="background:rgba(255,255,255,0.2);border:none;color:white;width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:18px;font-weight:700">×</button>
       </div>
       <div style="padding:20px;max-height:70vh;overflow-y:auto">
 
-        <!-- Add new site -->
+        <!-- Add new area -->
         <div style="display:flex;gap:6px;margin-bottom:16px">
-          <input id="newSiteInput" value="${escapeHtml(newSiteName)}" oninput="window._setNewSiteName(this.value)" placeholder="New site name (e.g. Tower-A, Data Center)" style="flex:1;padding:9px 12px;border:1px solid var(--line);border-radius:8px;font-size:13px">
-          <button class="btn" style="background:#1565C0;color:white;border:none;font-weight:700" onclick="addSite()">+ Site</button>
+          <input value="${escapeHtml(newAreaName)}" oninput="window._setNewAreaName(this.value)" placeholder="New area name (e.g. Erbil Area, North Zone)" style="flex:1;padding:9px 12px;border:1px solid var(--line);border-radius:8px;font-size:13px">
+          <button class="btn" style="background:#1565C0;color:white;border:none;font-weight:700" onclick="addArea()">+ Area</button>
         </div>
 
-        ${sites.length===0
-          ? `<div style="padding:20px;text-align:center;color:#888;background:#F7F7F7;border-radius:10px;font-size:13px">No sites yet. Add the first site above.</div>`
-          : sites.map((s,si)=>`
+        ${areas.length===0
+          ? `<div style="padding:20px;text-align:center;color:#888;background:#F7F7F7;border-radius:10px;font-size:13px">No areas yet. Add the first area above.</div>`
+          : areas.map((a,ai)=>`
             <div style="border:1px solid #CBD5E1;border-radius:12px;padding:14px;margin-bottom:12px;background:#F8FAFC">
-              <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px">
-                <div style="font-weight:800;color:#03308B;font-size:14px">📍 ${escapeHtml(s.name)}</div>
-                <button class="btn btn-sm btn-danger" onclick="delSite(${si})">🗑 Site</button>
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+                <div style="font-weight:800;color:#03308B;font-size:14px;flex:1;min-width:120px">🗺️ ${escapeHtml(a.name)}</div>
+                ${statusPill(a.active!==false, `toggleAreaStatus(${ai})`)}
+                <button class="btn btn-sm btn-danger" onclick="delArea(${ai})">🗑</button>
               </div>
-              <!-- Equipment list -->
-              <div style="font-size:11px;font-weight:700;color:#64748B;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px">Equipment</div>
-              ${(s.equipment||[]).length===0
-                ? `<div style="font-size:12px;color:#94A3B8;padding:6px 0">No equipment yet.</div>`
+              <!-- Sites list -->
+              <div style="font-size:11px;font-weight:700;color:#64748B;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px">Sites</div>
+              ${(a.sites||[]).length===0
+                ? `<div style="font-size:12px;color:#94A3B8;padding:6px 0">No sites yet.</div>`
                 : `<div style="display:flex;flex-direction:column;gap:5px;margin-bottom:8px">
-                    ${(s.equipment||[]).map((eq,ei)=>`<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;background:white;border:1px solid #E2E8F0;border-radius:7px;padding:7px 10px">
-                      <span style="font-size:12px;color:#1E293B;font-weight:600">🔧 ${escapeHtml(eq)}</span>
-                      <button onclick="delEquip(${si},${ei})" style="background:#FEE2E2;border:none;color:#DC2626;width:22px;height:22px;border-radius:5px;cursor:pointer;font-weight:700">×</button>
+                    ${(a.sites||[]).map((s,si)=>`<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;background:white;border:1px solid #E2E8F0;border-radius:7px;padding:7px 10px">
+                      <span style="font-size:12px;color:#1E293B;font-weight:600;flex:1">📍 ${escapeHtml(s.name)}</span>
+                      ${statusPill(s.active!==false, `toggleSiteStatus(${ai},${si})`)}
+                      <button onclick="delSite(${ai},${si})" style="background:#FEE2E2;border:none;color:#DC2626;width:22px;height:22px;border-radius:5px;cursor:pointer;font-weight:700">×</button>
                     </div>`).join("")}
                   </div>`}
-              <!-- Add equipment -->
+              <!-- Add site -->
               <div style="display:flex;gap:6px">
-                <input value="${escapeHtml(newEquipInputs[si]||'')}" oninput="window._setNewEquip(${si},this.value)" placeholder="e.g. Switch-Core-1, Server-DB" style="flex:1;padding:7px 10px;border:1px solid var(--line);border-radius:7px;font-size:12px">
-                <button class="btn btn-sm" style="background:#2E7D32;color:white;border:none;font-weight:700" onclick="addEquip(${si})">+ Equip</button>
+                <input value="${escapeHtml(newSiteInputs[ai]||'')}" oninput="window._setNewSite(${ai},this.value)" placeholder="e.g. Tower-A, Site-1" style="flex:1;padding:7px 10px;border:1px solid var(--line);border-radius:7px;font-size:12px">
+                <button class="btn btn-sm" style="background:#2E7D32;color:white;border:none;font-weight:700" onclick="addSite(${ai})">+ Site</button>
               </div>
             </div>
           `).join("")}
 
         <div style="background:#E3F2FD;border-radius:8px;padding:10px 12px;font-size:11px;color:#0D47A1;line-height:1.6;margin-top:8px">
-          ℹ️ When an employee logs work, they pick this project, then a site, then its equipment auto-appears in a dropdown.
+          ℹ️ When an employee logs work, they pick this project, then an area, then a site. Inactive areas/sites are hidden from their dropdowns.
         </div>
       </div>
     </div>
   </div>`;
 }
 
-window._setNewSiteName = function(v){ newSiteName = v; };
-window._setNewEquip = function(si, v){ newEquipInputs[si] = v; };
+window._setNewAreaName = function(v){ newAreaName = v; };
+window._setNewSite = function(ai, v){ newSiteInputs[ai] = v; };
 
-async function saveSitesToProject(proj, sites){
+async function saveAreasToProject(proj, areas){
   await fbSave("projects", {
     id: proj.id, name: proj.name, dept: proj.dept,
     estimatedHours: Number(proj.estimatedHours||0),
-    sites,
+    areas,
   });
 }
 
-window.addSite = async function(){
+window.addArea = async function(){
   if(!isAdmin()) return toast("Admin only");
   const proj = state.projects.find(p=>p.id===sitesModalProjId);
   if(!proj) return;
-  const name = (newSiteName||"").trim();
-  if(!name) return toast("Enter a site name");
-  const sites = [...(proj.sites||[])];
-  if(sites.some(s=>(s.name||"").toLowerCase()===name.toLowerCase())) return toast("Site already exists");
-  sites.push({name, equipment:[]});
-  await saveSitesToProject(proj, sites);
-  newSiteName = "";
+  const name = (newAreaName||"").trim();
+  if(!name) return toast("Enter an area name");
+  const areas = getProjectAreas(proj).map(a=>({...a}));
+  if(areas.some(a=>(a.name||"").toLowerCase()===name.toLowerCase())) return toast("Area already exists");
+  areas.push({name, active:true, sites:[]});
+  await saveAreasToProject(proj, areas);
+  newAreaName = "";
+  showSitesModal();
+  toast("Area added ✓");
+};
+window.delArea = async function(ai){
+  if(!isAdmin()) return toast("Admin only");
+  const proj = state.projects.find(p=>p.id===sitesModalProjId);
+  if(!proj) return;
+  const areas = getProjectAreas(proj).map(a=>({...a}));
+  if(!confirm(`Delete area "${areas[ai]?.name}" and its sites?`)) return;
+  areas.splice(ai,1);
+  await saveAreasToProject(proj, areas);
+  showSitesModal();
+  toast("Area deleted");
+};
+window.toggleAreaStatus = async function(ai){
+  if(!isAdmin()) return toast("Admin only");
+  const proj = state.projects.find(p=>p.id===sitesModalProjId);
+  if(!proj) return;
+  const areas = getProjectAreas(proj).map(a=>({...a}));
+  areas[ai] = {...areas[ai], active: areas[ai].active===false ? true : false};
+  await saveAreasToProject(proj, areas);
+  showSitesModal();
+};
+window.addSite = async function(ai){
+  if(!isAdmin()) return toast("Admin only");
+  const proj = state.projects.find(p=>p.id===sitesModalProjId);
+  if(!proj) return;
+  const val = (newSiteInputs[ai]||"").trim();
+  if(!val) return toast("Enter a site name");
+  const areas = getProjectAreas(proj).map(a=>({...a}));
+  const sites = [...(areas[ai].sites||[])];
+  if(sites.some(s=>(s.name||"").toLowerCase()===val.toLowerCase())) return toast("Site already exists");
+  sites.push({name:val, active:true});
+  areas[ai] = {...areas[ai], sites};
+  await saveAreasToProject(proj, areas);
+  newSiteInputs[ai] = "";
   showSitesModal();
   toast("Site added ✓");
 };
-window.delSite = async function(si){
+window.delSite = async function(ai, si){
   if(!isAdmin()) return toast("Admin only");
   const proj = state.projects.find(p=>p.id===sitesModalProjId);
   if(!proj) return;
-  const sites = [...(proj.sites||[])];
-  if(!confirm(`Delete site "${sites[si]?.name}" and its equipment?`)) return;
+  const areas = getProjectAreas(proj).map(a=>({...a}));
+  const sites = [...(areas[ai].sites||[])];
   sites.splice(si,1);
-  await saveSitesToProject(proj, sites);
+  areas[ai] = {...areas[ai], sites};
+  await saveAreasToProject(proj, areas);
   showSitesModal();
-  toast("Site deleted");
+  toast("Site removed");
 };
-window.addEquip = async function(si){
+window.toggleSiteStatus = async function(ai, si){
   if(!isAdmin()) return toast("Admin only");
   const proj = state.projects.find(p=>p.id===sitesModalProjId);
   if(!proj) return;
-  const val = (newEquipInputs[si]||"").trim();
-  if(!val) return toast("Enter equipment name");
-  const sites = [...(proj.sites||[])];
-  const eq = [...(sites[si].equipment||[])];
-  if(eq.some(e=>e.toLowerCase()===val.toLowerCase())) return toast("Equipment already exists");
-  eq.push(val);
-  sites[si] = {...sites[si], equipment:eq};
-  await saveSitesToProject(proj, sites);
-  newEquipInputs[si] = "";
+  const areas = getProjectAreas(proj).map(a=>({...a}));
+  const sites = [...(areas[ai].sites||[])];
+  sites[si] = {...sites[si], active: sites[si].active===false ? true : false};
+  areas[ai] = {...areas[ai], sites};
+  await saveAreasToProject(proj, areas);
   showSitesModal();
-  toast("Equipment added ✓");
 };
-window.delEquip = async function(si, ei){
-  if(!isAdmin()) return toast("Admin only");
-  const proj = state.projects.find(p=>p.id===sitesModalProjId);
-  if(!proj) return;
-  const sites = [...(proj.sites||[])];
-  const eq = [...(sites[si].equipment||[])];
-  eq.splice(ei,1);
-  sites[si] = {...sites[si], equipment:eq};
-  await saveSitesToProject(proj, sites);
-  showSitesModal();
-  toast("Equipment removed");
-};
+
 
 
 function renderProjects(){
@@ -4580,7 +4641,7 @@ function renderProjects(){
     <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
       <div style="flex:1;min-width:200px">
         <div style="font-weight:800;color:#00695C;font-size:14px">📥 Bulk Import</div>
-        <p style="font-size:12px;color:#004D40;margin:4px 0 0;line-height:1.5">Use the <strong>📥 Import</strong> button on any department below to upload projects, sites & equipment from a CSV/Excel file. Columns: <strong>Project · Site · Equipment · Specifications</strong>.</p>
+        <p style="font-size:12px;color:#004D40;margin:4px 0 0;line-height:1.5">Use the <strong>📥 Import</strong> button on any department below to upload projects, areas & sites from a CSV/Excel file. Columns: <strong>Project · Area Name · Site Name · Status</strong>.</p>
       </div>
       <button class="btn btn-sm" style="background:#00897B;color:white;border:none;font-weight:700" onclick="downloadImportTemplate()">⬇ Template</button>
     </div>
@@ -4593,10 +4654,10 @@ function renderProjects(){
         <div class="card-title" style="margin:0">${isUncategorized?`<span style="color:#6B7B8F">${d}</span>`:deptBadgeDyn(d)} · ${g[d].length} projects</div>
         ${!isUncategorized?`<button class="btn btn-sm" style="background:#00897B;color:white;border:none;font-weight:700;font-size:11px" onclick="importProjectsForDept('${escapeHtml(d)}')" title="Import projects/sites/equipment from CSV or Excel">📥 Import</button>`:''}
       </div>
-      ${g[d].length===0?`<div class="empty">No projects</div>`:`<div class="proj-chips">${g[d].map(p=>`<span class="proj-chip" style="border-left:3px solid ${color}">${escapeHtml(p.name)}${(p.sites&&p.sites.length)?`<span style="font-size:9px;background:#1565C0;color:white;padding:1px 5px;border-radius:8px;margin-left:4px">${p.sites.length} 🏗</span>`:''}
-        <button class="btn btn-sm" style="padding:2px 6px;background:#1565C0;color:white;border:none" onclick="openSitesModal('${p.id}')" title="Manage sites & equipment">🏗</button>
+      ${g[d].length===0?`<div class="empty">No projects</div>`:`<div class="proj-chips">${g[d].map(p=>{const areaCount=(p.areas&&p.areas.length)?p.areas.length:((p.sites&&p.sites.length)?1:0);return `<span class="proj-chip" style="border-left:3px solid ${color}">${escapeHtml(p.name)}${areaCount>0?`<span style="font-size:9px;background:#1565C0;color:white;padding:1px 5px;border-radius:8px;margin-left:4px">${areaCount} 🗺️</span>`:''}
+        <button class="btn btn-sm" style="padding:2px 6px;background:#1565C0;color:white;border:none" onclick="openSitesModal('${p.id}')" title="Manage areas & sites">🗺️</button>
         <button class="btn btn-sm btn-secondary" onclick="editProj('${p.id}')" style="padding:2px 6px">✎</button>
-        <button class="btn btn-sm btn-danger" onclick="delProj('${p.id}')" style="padding:2px 6px">🗑</button></span>`).join("")}</div>`}
+        <button class="btn btn-sm btn-danger" onclick="delProj('${p.id}')" style="padding:2px 6px">🗑</button></span>`}).join("")}</div>`}
     </div>`;
   }).join("")}`;
 }
@@ -4623,8 +4684,9 @@ async function saveProj(){
 
   // Preserve existing sites (managed separately via the Sites manager)
   const existingProj = state.projects.find(p=>p.id===id);
-  const sites = (projForm.sites!==undefined) ? projForm.sites : (existingProj?.sites || []);
-  await fbSave("projects",{id,name:cleanName,dept:projForm.dept,estimatedHours:Number(projForm.estimatedHours||0),sites});
+  // Preserve existing areas (managed separately via the Areas/Sites manager)
+  const areas = (projForm.areas!==undefined) ? projForm.areas : (existingProj?.areas || []);
+  await fbSave("projects",{id,name:cleanName,dept:projForm.dept,estimatedHours:Number(projForm.estimatedHours||0),areas});
 
   if(oldName){
     const synced = await cascadeRenameProject(oldName, cleanName);
@@ -4915,7 +4977,7 @@ function renderUsers(){
       Control what each employee must provide when adding a Daily Log entry.<br>
       <strong>GPS Required:</strong> employee location captured automatically on save (entry still saves if denied, marked "GPS denied").<br>
       <strong>Resolution Required:</strong> description text + at least 1 photo mandatory.<br>
-      <strong>Equipment Required:</strong> employee must pick a Site + Equipment (only for projects that have sites).
+      <strong>Area/Site Required:</strong> employee must pick an Area + Site (only for projects that have areas).
     </p>
     <div style="display:flex;flex-direction:column;gap:6px">
       ${allEmployees().map(emp => {
@@ -4933,7 +4995,7 @@ function renderUsers(){
             </label>
             <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;user-select:none">
               <input type="checkbox" ${p.equipmentRequired?"checked":""} onchange="toggleEmpPerm('${escapeHtml(emp)}','equipmentRequired')" style="width:16px;height:16px;cursor:pointer">
-              <span style="color:${p.equipmentRequired?'#6A1B9A':'#999'};font-weight:600">🔧 Equipment Required</span>
+              <span style="color:${p.equipmentRequired?'#6A1B9A':'#999'};font-weight:600">🗺️ Area/Site Required</span>
             </label>
           </div>
         </div>`;
@@ -8898,7 +8960,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v18';"
+      var swCode = "const CACHE='ejaftech-v19';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
