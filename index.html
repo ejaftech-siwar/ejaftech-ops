@@ -410,6 +410,18 @@ const timeToHrs=(s,e)=>{
   return Math.max(0,(eh*60+em-sh*60-sm)/60);
 };
 const dayName=(d)=>d?["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][new Date(d).getDay()]:"";
+
+// Format a timestamp as a readable "last seen" date + time (e.g. "28 Jun 2026, 14:30")
+function fmtLastSeen(iso){
+  if(!iso) return "";
+  try{
+    const d = new Date(iso);
+    if(isNaN(d.getTime())) return "";
+    const date = d.toLocaleDateString('en-GB', {day:'2-digit', month:'short', year:'numeric'});
+    const time = d.toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'});
+    return `${date}, ${time}`;
+  }catch(e){ return ""; }
+}
 const projDept=(p)=>{const tp=(p||"").trim();return state.projects.find(x=>(x.name||"").trim()===tp)?.dept||"";};
 const deptBadge=(d)=>{if(!d)return "";const c=d==="Enterprise"?"ent":d==="Security"?"sec":"eja";return `<span class="badge badge-${c}">${d}</span>`;};
 const escapeHtml=(s)=>String(s||"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[c]);
@@ -5710,6 +5722,7 @@ function renderUsers(){
           <div class="name">${escapeHtml(u.name||"(no name)")} <span class="badge badge-${roleCls}">${(u.role||"").toUpperCase()}</span></div>
           <div class="email">${escapeHtml(u.email||"")} ${u.employeeName?`· ${escapeHtml(u.employeeName)}`:""}</div>
           ${hasActiveSession?`<div style="font-size:10px;color:#2E7D32;margin-top:3px">🟢 Active on: ${escapeHtml(u.activeSessionLabel||"a device")}</div>`:`<div style="font-size:10px;color:#999;margin-top:3px">⚪ Not signed in</div>`}
+          ${(u.showLastSeen!==false && u.activeSessionAt)?`<div style="font-size:10px;color:#1565C0;margin-top:2px">🕐 Last seen: ${escapeHtml(fmtLastSeen(u.activeSessionAt))}</div>`:''}
         </div>
         ${u.id!==state.profile.uid?`<button class="btn btn-sm btn-secondary" onclick="editUser('${u.id}')">✎</button>
         <button class="btn btn-sm btn-danger" onclick="delUser('${u.id}')">🗑</button>`:`<button class="btn btn-sm btn-secondary" onclick="editUser('${u.id}')">✎</button><span style="font-size:10px;color:var(--muted);margin-left:4px">YOU</span>`}
@@ -5720,6 +5733,10 @@ function renderUsers(){
                 <input type="checkbox" ${multiOn?"checked":""} onchange="toggleMultiDevice('${u.id}')" style="width:16px;height:16px;cursor:pointer">
                 <span style="color:${multiOn?'#2E7D32':'#666'};font-weight:600">📱💻 Allow Multiple Devices</span>
               </label>`}
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;user-select:none">
+            <input type="checkbox" ${u.showLastSeen!==false?"checked":""} onchange="toggleShowLastSeen('${u.id}')" style="width:16px;height:16px;cursor:pointer">
+            <span style="color:${u.showLastSeen!==false?'#1565C0':'#666'};font-weight:600">🕐 Show Last Seen</span>
+          </label>
           ${hasActiveSession && !isAdminUser ? `<button class="btn btn-sm" style="background:#FFF3E0;border:1px solid #FB8C00;color:#E65100;font-size:11px;padding:4px 10px" onclick="resetUserSession('${u.id}')">🔓 Reset Session</button>` : ''}
         </div>
       </div>`;
@@ -5956,6 +5973,18 @@ window.toggleMultiDevice = async function(userId){
     const {db, doc, updateDoc} = window.__fb;
     await updateDoc(doc(db,"users",userId),{ allowMultiDevice: newVal });
     toast(newVal ? `${u.name||"User"}: multiple devices allowed ✓` : `${u.name||"User"}: single device only ✓`);
+  }catch(e){ toast("Error: "+e.message); }
+};
+
+window.toggleShowLastSeen = async function(userId){
+  if(!isAdmin()) return toast("Admin only");
+  const u = state.users.find(x=>x.id===userId);
+  if(!u) return;
+  const newVal = !(u.showLastSeen !== false);   // default true → toggling first time turns it off
+  try{
+    const {db, doc, updateDoc} = window.__fb;
+    await updateDoc(doc(db,"users",userId),{ showLastSeen: newVal });
+    toast(newVal ? `${u.name||"User"}: last seen shown ✓` : `${u.name||"User"}: last seen hidden`);
   }catch(e){ toast("Error: "+e.message); }
 };
 
@@ -9980,7 +10009,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v25';"
+      var swCode = "const CACHE='ejaftech-v26';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
