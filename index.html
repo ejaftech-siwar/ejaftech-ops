@@ -376,6 +376,10 @@ const state = {
   globalBranchFilter: "",      // single branch filter for reports (empty = all)
   globalEmpDeptFilter: "",     // filter by EMPLOYEE's department (who they are, not the task's dept)
   globalTaskDeptFilter: "",    // filter by TASK's department (the project's dept, not who did it)
+  globalWorkTypeFilter: "",    // technical: Work Type (Onsite, Remote...)
+  globalTaskStatusFilter: "",  // technical: Task Status (New, Pending...)
+  globalCategoryFilter: "",    // technical: Category (Network, CCTV...)
+  globalSubcategoryFilter: "", // technical: Subcategory (cascades from Category)
   tab: "Dashboard",
   initialized: false,
   unsubs: [],           // active Firestore listeners
@@ -702,6 +706,16 @@ function applyReportFilters(rows, dateField="date"){
   if(tdf){                                             // 7. task's department (the record's own dept field)
     out = out.filter(r => !("dept" in r) || r.dept === tdf);
   }
+  // 8-11. Technical classification filters (Resolution fields live only on daily records).
+  //       Skip records that don't carry the field so non-daily rows don't vanish.
+  const wtf = state.globalWorkTypeFilter || "";
+  if(wtf) out = out.filter(r => !("workType" in r) || r.workType === wtf);
+  const tsf = state.globalTaskStatusFilter || "";
+  if(tsf) out = out.filter(r => !("taskStatus" in r) || r.taskStatus === tsf);
+  const cf = state.globalCategoryFilter || "";
+  if(cf) out = out.filter(r => !("taskCategory" in r) || r.taskCategory === cf);
+  const scf = state.globalSubcategoryFilter || "";
+  if(scf) out = out.filter(r => !("taskSubcategory" in r) || r.taskSubcategory === scf);
   return out;
 }
 // True if ANY global filter (beyond date) is active
@@ -716,6 +730,10 @@ function reportFilterLabel(){
   if(state.globalTaskDeptFilter) parts.push(`${state.globalTaskDeptFilter} tasks`);
   if(state.globalProjectFilter) parts.push(state.globalProjectFilter);
   if(state.globalLocationFilter) parts.push(state.globalLocationFilter);
+  if(state.globalWorkTypeFilter) parts.push(`🔧 ${state.globalWorkTypeFilter}`);
+  if(state.globalTaskStatusFilter) parts.push(`📊 ${state.globalTaskStatusFilter}`);
+  if(state.globalCategoryFilter) parts.push(`📁 ${state.globalCategoryFilter}`);
+  if(state.globalSubcategoryFilter) parts.push(`↳ ${state.globalSubcategoryFilter}`);
   return parts.join(" · ");
 }
 
@@ -726,6 +744,10 @@ function hasActiveReportFilter(){
          !!state.globalBranchFilter ||
          !!state.globalEmpDeptFilter ||
          !!state.globalTaskDeptFilter ||
+         !!state.globalWorkTypeFilter ||
+         !!state.globalTaskStatusFilter ||
+         !!state.globalCategoryFilter ||
+         !!state.globalSubcategoryFilter ||
          !!getPeriodFrom() || !!getPeriodTo();
 }
 
@@ -743,25 +765,38 @@ function renderEmployeeFilterUI(label){
   const branchF = state.globalBranchFilter || "";
   const empDeptF = state.globalEmpDeptFilter || "";
   const taskDeptF = state.globalTaskDeptFilter || "";
+  const workTypeF = state.globalWorkTypeFilter || "";
+  const statusF = state.globalTaskStatusFilter || "";
+  const categoryF = state.globalCategoryFilter || "";
+  const subcatF = state.globalSubcategoryFilter || "";
   const allProjects = [...new Set([...state.daily,...state.overtime,...state.travel].map(r=>r.project).filter(Boolean))].sort();
   const allLocations = [...new Set([...state.daily,...state.overtime,...state.travel].map(r=>r.location).filter(Boolean))].sort();
   const allBranches = (state.branches||[]).map(b=>b.name).filter(Boolean).sort();
   const allEmpDepts = state.departments.map(d=>d.name).filter(Boolean).sort();
   const allTaskDepts = state.departments.map(d=>d.name).filter(Boolean).sort();
+  // Technical classification options (from editable lists, falling back to defaults)
+  const allWorkTypes = getWorkTypes();
+  const allStatuses = getTaskStatuses();
+  const catsObj = getTaskCategories();                 // { category: [subs] }
+  const allCategories = Object.keys(catsObj).sort();
+  // Subcategories: those of the selected category, else all subs across categories
+  const allSubcats = categoryF
+    ? (catsObj[categoryF] || []).slice().sort()
+    : [...new Set(Object.values(catsObj).flat())].sort();
   return `<div style="background:linear-gradient(135deg,#F0F4FA 0%,#E8F0F9 100%);border:1.5px solid #2E5FA3;border-radius:10px;padding:12px 14px;margin-bottom:14px">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:${sel.length>0?'8px':'0'};flex-wrap:wrap">
       <div style="display:flex;align-items:center;gap:8px">
         <span style="font-size:18px">🔎</span>
         <div>
           <div style="font-size:13px;font-weight:700;color:#1B3A6B">${escapeHtml(label||"Filter Report")}</div>
-          <div style="font-size:11px;color:#2E5FA3">${allSelected ? `All ${emps.length} employees` : `${sel.length} of ${emps.length} selected`}${branchF?` · 🏙️ ${escapeHtml(branchF)}`:''}${empDeptF?` · 👥 ${escapeHtml(empDeptF)}`:''}${taskDeptF?` · 🗂️ ${escapeHtml(taskDeptF)} tasks`:''}${projF?` · 📁 ${escapeHtml(projF)}`:''}${locF?` · 📍 ${escapeHtml(locF)}`:''}</div>
+          <div style="font-size:11px;color:#2E5FA3">${allSelected ? `All ${emps.length} employees` : `${sel.length} of ${emps.length} selected`}${branchF?` · 🏙️ ${escapeHtml(branchF)}`:''}${empDeptF?` · 👥 ${escapeHtml(empDeptF)}`:''}${taskDeptF?` · 🗂️ ${escapeHtml(taskDeptF)} tasks`:''}${projF?` · 📁 ${escapeHtml(projF)}`:''}${locF?` · 📍 ${escapeHtml(locF)}`:''}${workTypeF?` · 🔧 ${escapeHtml(workTypeF)}`:''}${statusF?` · 📊 ${escapeHtml(statusF)}`:''}${categoryF?` · 📁 ${escapeHtml(categoryF)}`:''}${subcatF?` · ↳ ${escapeHtml(subcatF)}`:''}</div>
         </div>
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap">
         <button class="btn btn-sm" style="background:white;border:1px solid #2E5FA3;color:#2E5FA3;font-weight:700" onclick="openEmployeeFilterModal()">
           👥 ${allSelected ? 'Employees' : 'Edit'}
         </button>
-        ${(!allSelected||projF||locF||branchF||empDeptF||taskDeptF) ? `<button class="btn btn-sm" style="background:white;border:1px solid #C53030;color:#C53030;font-weight:700" onclick="clearAllReportFilters()">✕ Clear All</button>` : ''}
+        ${(!allSelected||projF||locF||branchF||empDeptF||taskDeptF||workTypeF||statusF||categoryF||subcatF) ? `<button class="btn btn-sm" style="background:white;border:1px solid #C53030;color:#C53030;font-weight:700" onclick="clearAllReportFilters()">✕ Clear All</button>` : ''}
       </div>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
@@ -785,6 +820,22 @@ function renderEmployeeFilterUI(label){
         <option value="">📍 All Locations</option>
         ${allLocations.map(l=>`<option value="${escapeHtml(l)}" ${l===locF?"selected":""}>${escapeHtml(l)}</option>`).join("")}
       </select>
+      ${allWorkTypes.length>0?`<select onchange="window.setGlobalWorkTypeFilter(this.value)" style="flex:1;min-width:140px;padding:7px 10px;border:1px solid #E65100;border-radius:6px;font-size:12px;background:white;color:#1B3A6B;font-weight:600">
+        <option value="">🔧 All Work Types</option>
+        ${allWorkTypes.map(w=>`<option value="${escapeHtml(w)}" ${w===workTypeF?"selected":""}>${escapeHtml(w)}</option>`).join("")}
+      </select>`:''}
+      ${allStatuses.length>0?`<select onchange="window.setGlobalTaskStatusFilter(this.value)" style="flex:1;min-width:140px;padding:7px 10px;border:1px solid #C2185B;border-radius:6px;font-size:12px;background:white;color:#1B3A6B;font-weight:600">
+        <option value="">📊 All Statuses</option>
+        ${allStatuses.map(s2=>`<option value="${escapeHtml(s2)}" ${s2===statusF?"selected":""}>${escapeHtml(s2)}</option>`).join("")}
+      </select>`:''}
+      ${allCategories.length>0?`<select onchange="window.setGlobalCategoryFilter(this.value)" style="flex:1;min-width:140px;padding:7px 10px;border:1px solid #00695C;border-radius:6px;font-size:12px;background:white;color:#1B3A6B;font-weight:600">
+        <option value="">📁 All Categories</option>
+        ${allCategories.map(c=>`<option value="${escapeHtml(c)}" ${c===categoryF?"selected":""}>${escapeHtml(c)}</option>`).join("")}
+      </select>`:''}
+      ${allSubcats.length>0?`<select onchange="window.setGlobalSubcategoryFilter(this.value)" style="flex:1;min-width:140px;padding:7px 10px;border:1px solid #4527A0;border-radius:6px;font-size:12px;background:white;color:#1B3A6B;font-weight:600">
+        <option value="">↳ All Subcategories</option>
+        ${allSubcats.map(sc=>`<option value="${escapeHtml(sc)}" ${sc===subcatF?"selected":""}>${escapeHtml(sc)}</option>`).join("")}
+      </select>`:''}
     </div>
     ${sel.length > 0 ? `
       <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px">
@@ -808,6 +859,10 @@ window.setGlobalLocationFilter = function(v){ state.globalLocationFilter = v||""
 window.setGlobalBranchFilter = function(v){ state.globalBranchFilter = v||""; renderApp(); };
 window.setGlobalEmpDeptFilter = function(v){ state.globalEmpDeptFilter = v||""; renderApp(); };
 window.setGlobalTaskDeptFilter = function(v){ state.globalTaskDeptFilter = v||""; renderApp(); };
+window.setGlobalWorkTypeFilter = function(v){ state.globalWorkTypeFilter = v||""; renderApp(); };
+window.setGlobalTaskStatusFilter = function(v){ state.globalTaskStatusFilter = v||""; renderApp(); };
+window.setGlobalCategoryFilter = function(v){ state.globalCategoryFilter = v||""; state.globalSubcategoryFilter = ""; renderApp(); };  // reset subcat when category changes
+window.setGlobalSubcategoryFilter = function(v){ state.globalSubcategoryFilter = v||""; renderApp(); };
 window.clearAllReportFilters = function(){
   state.globalEmployeeFilter = [];
   state.globalProjectFilter = "";
@@ -815,6 +870,10 @@ window.clearAllReportFilters = function(){
   state.globalBranchFilter = "";
   state.globalEmpDeptFilter = "";
   state.globalTaskDeptFilter = "";
+  state.globalWorkTypeFilter = "";
+  state.globalTaskStatusFilter = "";
+  state.globalCategoryFilter = "";
+  state.globalSubcategoryFilter = "";
   renderApp();
   toast("All report filters cleared");
 };
@@ -10067,7 +10126,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v27';"
+      var swCode = "const CACHE='ejaftech-v28';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
