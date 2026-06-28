@@ -7736,6 +7736,7 @@ function schedGetSettings(){
     enabled: s.enabled || false,
     sendDay: s.sendDay || "1",
     sendTime: s.sendTime || "23:30",
+    periodType: s.periodType || "auto",   // "auto" = 25th prev month → 24th current; "manual" = fixed dates
     fromDate: s.fromDate || "",
     toDate: s.toDate || "",
     lastSent: s.lastSent || "",
@@ -7755,6 +7756,28 @@ function schedGetSettings(){
     }];
   }
   return base;
+}
+
+// Compute the active reporting period.
+// "auto" → 25th of previous month  to  24th of current month (relative to refDate).
+//   e.g. refDate in July → 25 Jun … 24 Jul.  refDate in August → 25 Jul … 24 Aug.
+// "manual" → the fixed fromDate/toDate the admin typed.
+function computeSchedPeriod(refDate){
+  const s = schedGetSettings();
+  if((s.periodType||"auto") === "manual"){
+    return { from: s.fromDate || "", to: s.toDate || "" };
+  }
+  const ref = refDate ? new Date(refDate) : new Date();
+  const y = ref.getFullYear(), m = ref.getMonth();   // m = 0..11 (current month)
+  const to = new Date(y, m, 24);        // 24th of current month
+  const from = new Date(y, m - 1, 25);  // 25th of previous month
+  const iso = (d) => {
+    const yy = d.getFullYear();
+    const mm = String(d.getMonth()+1).padStart(2,'0');
+    const dd = String(d.getDate()).padStart(2,'0');
+    return `${yy}-${mm}-${dd}`;
+  };
+  return { from: iso(from), to: iso(to) };
 }
 
 // Who can manage scheduled reports: admin always, plus anyone the admin grants
@@ -7801,19 +7824,50 @@ function renderScheduledReportsCard(){
       ℹ️ <strong>How it works:</strong> Create one or more <strong>recipient groups</strong> below. Each group can target a specific branch and/or department and choose its own reports — so each manager receives only what concerns them. On the chosen day each month, the server generates each group's filtered reports as PDF and emails them automatically.
     </div>
 
-    <!-- Global schedule: period + day + time -->
-    <div class="form-grid">
-      <div class="field"><label>From Date</label><input type="date" value="${s.fromDate||''}" onchange="setSchedField('fromDate',this.value)"></div>
-      <div class="field"><label>To Date</label><input type="date" value="${s.toDate||''}" onchange="setSchedField('toDate',this.value)"></div>
+    <!-- Period type selector -->
+    ${(()=>{
+      const isAuto = (s.periodType||"auto")==="auto";
+      const p = computeSchedPeriod();   // current computed period for preview
+      return `
+      <div style="margin-bottom:12px">
+        <label style="font-size:12px;font-weight:700;color:#1B3A6B;display:block;margin-bottom:6px">Reporting Period</label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+          <label style="flex:1;min-width:160px;display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12.5px;padding:9px 12px;background:${isAuto?'#E8F5E9':'#F7F7F7'};border:2px solid ${isAuto?'#66BB6A':'#ddd'};border-radius:9px">
+            <input type="radio" name="periodType" ${isAuto?'checked':''} onchange="setSchedField('periodType','auto')" style="width:16px;height:16px;cursor:pointer">
+            <div><div style="font-weight:700;color:${isAuto?'#2E7D32':'#666'}">🔄 Automatic (monthly cycle)</div><div style="font-size:10px;color:#777;margin-top:1px">25th of prev month → 24th of current</div></div>
+          </label>
+          <label style="flex:1;min-width:160px;display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12.5px;padding:9px 12px;background:${!isAuto?'#E3F2FD':'#F7F7F7'};border:2px solid ${!isAuto?'#42A5F5':'#ddd'};border-radius:9px">
+            <input type="radio" name="periodType" ${!isAuto?'checked':''} onchange="setSchedField('periodType','manual')" style="width:16px;height:16px;cursor:pointer">
+            <div><div style="font-weight:700;color:${!isAuto?'#1565C0':'#666'}">📅 Manual (fixed dates)</div><div style="font-size:10px;color:#777;margin-top:1px">You set From / To yourself</div></div>
+          </label>
+        </div>
+        ${isAuto
+          ? `<div style="padding:10px 12px;background:#E8F5E9;border:1px solid #A5D6A7;border-radius:8px;font-size:12px;color:#1B5E20">
+              📆 <strong>This month's period:</strong> ${p.from} → ${p.to}
+              <div style="font-size:10.5px;color:#388E3C;margin-top:3px">Recomputed automatically every month — next month it shifts to the following cycle.</div>
+            </div>`
+          : `<div class="form-grid" style="grid-template-columns:1fr 1fr">
+              <div class="field"><label>From Date</label><input type="date" value="${s.fromDate||''}" onchange="setSchedField('fromDate',this.value)"></div>
+              <div class="field"><label>To Date</label><input type="date" value="${s.toDate||''}" onchange="setSchedField('toDate',this.value)"></div>
+            </div>`}
+      </div>`;
+    })()}
+
+    <!-- Send day + time -->
+    <div class="form-grid" style="grid-template-columns:1fr 1fr">
       <div class="field"><label>📆 Send Day of Month</label><select onchange="setSchedField('sendDay',this.value)">
         ${Array.from({length:31},(_, i)=>i+1).map(d=>`<option value="${d}" ${String(s.sendDay||'1')===String(d)?'selected':''}>Day ${d}</option>`).join('')}
         <option value="last" ${s.sendDay==='last'?'selected':''}>Last day of month</option>
       </select></div>
       <div class="field"><label>Send Time (server)</label><input type="time" value="${s.sendTime||'23:30'}" onchange="setSchedField('sendTime',this.value)"></div>
     </div>
-    <div style="padding:9px 12px;background:#FFF8E1;border-radius:8px;font-size:11px;color:#7F6000;line-height:1.6;margin-top:8px">
-      📅 <strong>Schedule:</strong> Reports for <strong>${s.fromDate||'(set From)'} → ${s.toDate||'(set To)'}</strong> are emailed on <strong>${s.sendDay==='last'?'the last day':'day '+(s.sendDay||'1')}</strong> of each month at <strong>${s.sendTime||'23:30'}</strong> (server time), as PDF attachments — one tailored email per group below.
-    </div>
+    ${(()=>{
+      const isAuto = (s.periodType||"auto")==="auto";
+      const periodTxt = isAuto ? "the automatic cycle (25th → 24th)" : `<strong>${s.fromDate||'(set From)'} → ${s.toDate||'(set To)'}</strong>`;
+      return `<div style="padding:9px 12px;background:#FFF8E1;border-radius:8px;font-size:11px;color:#7F6000;line-height:1.6;margin-top:8px">
+        📅 <strong>Schedule:</strong> Reports for ${periodTxt} are emailed on <strong>${s.sendDay==='last'?'the last day':'day '+(s.sendDay||'1')}</strong> of each month at <strong>${s.sendTime||'23:30'}</strong> (server time), as PDF attachments — one tailored email per group below.
+      </div>`;
+    })()}
 
     <!-- Recipient Groups -->
     <div style="margin-top:16px;display:flex;align-items:center;justify-content:space-between">
@@ -8006,7 +8060,8 @@ function _employeeBranch(empName){
 function buildScheduledSummary(group){
   const s = schedGetSettings();
   const g = group || (s.groups && s.groups[0]) || {};
-  const from = s.fromDate, to = s.toDate;
+  const period = computeSchedPeriod();    // auto (25→24) or manual, as configured
+  const from = period.from, to = period.to;
   const inRange = (d) => {
     if(!d) return false;
     if(from && d < from) return false;
@@ -8084,12 +8139,15 @@ window.sendScheduledReportsNow = async function(){
   const es = emailGetSettings();
   if(!es.serviceId || !es.templateId || !es.publicKey) return toast("Configure EmailJS keys first (above)");
   if(!es.enabled) return toast("Turn ON the main email service first");
-  if(!s.fromDate || !s.toDate) return toast("Set From and To dates");
+  const period = computeSchedPeriod();
+  if(!period.from || !period.to){
+    return toast((s.periodType||"auto")==="manual" ? "Set From and To dates" : "Period could not be computed");
+  }
   const groups = (s.groups||[]).filter(g=>(g.recipients||[]).length>0);
   if(groups.length===0) return toast("Add at least one group with a recipient");
   if(typeof emailjs==="undefined") return toast("EmailJS not loaded");
 
-  toast(`Sending ${groups.length} group email(s)...`);
+  toast(`Sending ${groups.length} group email(s) for ${period.from} → ${period.to}...`);
   try{
     emailjs.init({publicKey:es.publicKey});
     let sent = 0;
@@ -10009,7 +10067,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v26';"
+      var swCode = "const CACHE='ejaftech-v27';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
