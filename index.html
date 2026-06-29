@@ -1592,11 +1592,11 @@ window.switchTab=function(t){
   window.scrollTo(0,0);
   // Slide the gold indicator to the new active tab
   positionTabIndicator();
-  // Make sure the active tab is scrolled into view in the tab bar
+  // Make sure the active tab is scrolled into view in the tab bar (instant, not animated)
   if(bar){
     const activeBtn = bar.querySelector(".tab.active");
     if(activeBtn && activeBtn.scrollIntoView){
-      try{ activeBtn.scrollIntoView({behavior:'smooth', inline:'center', block:'nearest'}); }catch(e){}
+      try{ activeBtn.scrollIntoView({inline:'center', block:'nearest'}); }catch(e){}
     }
   }
 };
@@ -1675,20 +1675,6 @@ function _startsOnHorizontalScroller(el){
   return false;
 }
 
-function _showSwipeHint(text){
-  let hint = document.getElementById("swipeHint");
-  if(!hint){
-    hint = document.createElement("div");
-    hint.id = "swipeHint";
-    hint.style.cssText = "position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(3,48,139,0.92);color:#fff;padding:10px 20px;border-radius:24px;font-size:14px;font-weight:700;z-index:9999;pointer-events:none;opacity:0;transition:opacity 0.15s;box-shadow:0 4px 16px rgba(0,0,0,0.3)";
-    document.body.appendChild(hint);
-  }
-  hint.textContent = text;
-  hint.style.opacity = "1";
-  clearTimeout(hint._t);
-  hint._t = setTimeout(()=>{ hint.style.opacity = "0"; }, 500);
-}
-
 function setupSwipeNavigation(){
   const content = document.getElementById("content");
   if(!content || content._swipeBound) return;
@@ -1722,12 +1708,11 @@ function setupSwipeNavigation(){
     const tabs = getTabs();
     const i = tabs.indexOf(state.tab);
     if(i < 0) return;
-    // Swipe LEFT (dx<0) → next tab; swipe RIGHT (dx>0) → previous tab
+    // Swipe LEFT (dx<0) → next tab; swipe RIGHT (dx>0) → previous tab.
+    // No visual hint — switch instantly for the fastest possible response.
     if(dx < 0 && i < tabs.length - 1){
-      _showSwipeHint("→ " + tabs[i+1]);
       switchTabByDirection(+1);
     } else if(dx > 0 && i > 0){
-      _showSwipeHint("← " + tabs[i-1]);
       switchTabByDirection(-1);
     }
   }, {passive:true});
@@ -10281,7 +10266,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v32';"
+      var swCode = "const CACHE='ejaftech-v33';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
