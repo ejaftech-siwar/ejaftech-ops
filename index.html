@@ -57,7 +57,7 @@ body{padding-bottom:env(safe-area-inset-bottom,0px)}
 .tab.active{color:var(--gold);background:rgba(201,168,76,0.08);border-bottom-color:var(--gold)}
 .tab-indicator{position:absolute;bottom:0;height:3px;background:var(--gold);border-radius:2px 2px 0 0;transition:left 0.35s cubic-bezier(0.4,0,0.2,1),width 0.35s cubic-bezier(0.4,0,0.2,1);pointer-events:none;box-shadow:0 0 8px rgba(201,168,76,0.5);left:0;width:0}
 
-.content{padding:14px 12px 80px;max-width:760px;margin:0 auto}
+.content{padding:14px 12px 80px;max-width:760px;margin:0 auto;-webkit-overflow-scrolling:touch}
 .card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);border:1px solid var(--line);padding:16px;margin-bottom:14px}
 .card-title{font-size:13px;font-weight:700;color:var(--navy);margin:0 0 12px;text-transform:uppercase;letter-spacing:0.5px;display:flex;align-items:center;gap:8px}
 .card-title::before{content:'';width:3px;height:14px;background:var(--gold);border-radius:2px}
@@ -1647,20 +1647,30 @@ const SWIPE_MAX_VERT = 60;    // if vertical travel exceeds this, treat as scrol
 
 // Does the touch start inside something that scrolls horizontally itself?
 function _startsOnHorizontalScroller(el){
-  let node = el;
-  while(node && node !== document.body){
+  // Lightweight check — NO getComputedStyle (it forces layout and makes
+  // touch scrolling sluggish). We only walk a few levels up and use cheap
+  // property checks: tag names, a marker class, and scrollWidth overflow.
+  let node = el, depth = 0;
+  while(node && node !== document.body && depth < 12){
     if(node.nodeType === 1){
-      const style = window.getComputedStyle(node);
-      const ox = style.overflowX;
-      const scrollable = (ox === "auto" || ox === "scroll");
-      if(scrollable && node.scrollWidth > node.clientWidth + 4) return true;
-      // also skip selects / inputs / the tab bar
       const tag = node.tagName;
-      if(tag === "SELECT" || tag === "INPUT" || tag === "TEXTAREA") return true;
+      if(tag === "SELECT" || tag === "INPUT" || tag === "TEXTAREA" || tag === "BUTTON") return true;
       if(node.id === "tabBar") return true;
-      if(node.classList && node.classList.contains("data-table")) return true;
+      const cl = node.classList;
+      if(cl){
+        if(cl.contains("data-table")) return true;
+        if(cl.contains("no-swipe")) return true;
+        if(cl.contains("table-scroll")) return true;
+      }
+      // Cheap overflow check: only when the element is actually wider than its box.
+      // (scrollWidth/clientWidth are fast reads; we skip the costly style lookup.)
+      if(node.scrollWidth > node.clientWidth + 8 && node.clientWidth > 0){
+        // Treat as a horizontal scroller only if it's a TABLE or a wrapping DIV
+        if(tag === "TABLE" || tag === "DIV") return true;
+      }
     }
     node = node.parentNode;
+    depth++;
   }
   return false;
 }
@@ -1685,10 +1695,11 @@ function setupSwipeNavigation(){
   content._swipeBound = true;
 
   content.addEventListener("touchstart", (e)=>{
+    // Ultra-light: just record the start point. NO DOM walking here so that
+    // normal vertical scrolling stays perfectly smooth.
     if(e.touches.length !== 1) { _swipeActive = false; return; }
     const t = e.touches[0];
     _swipeEl = e.target;
-    if(_startsOnHorizontalScroller(_swipeEl)){ _swipeActive = false; return; }
     _swipeStartX = t.clientX;
     _swipeStartY = t.clientY;
     _swipeActive = true;
@@ -1700,10 +1711,13 @@ function setupSwipeNavigation(){
     const t = e.changedTouches[0];
     const dx = t.clientX - _swipeStartX;
     const dy = t.clientY - _swipeStartY;
-    // Must be a clear, mostly-horizontal swipe
+    // Must be a clear, mostly-horizontal swipe — cheap math checks FIRST.
     if(Math.abs(dx) < SWIPE_THRESHOLD) return;
     if(Math.abs(dy) > SWIPE_MAX_VERT) return;
     if(Math.abs(dx) < Math.abs(dy) * 1.5) return;   // horizontal must dominate
+    // Only NOW (confirmed horizontal swipe) do the heavier element check,
+    // so it never runs during ordinary scrolling.
+    if(_startsOnHorizontalScroller(_swipeEl)) return;
 
     const tabs = getTabs();
     const i = tabs.indexOf(state.tab);
@@ -10265,7 +10279,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v30';"
+      var swCode = "const CACHE='ejaftech-v31';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
