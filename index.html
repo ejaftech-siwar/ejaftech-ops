@@ -2447,7 +2447,7 @@ async function exportPDF(){
     <td>GRAND TOTAL</td>
     ${depts.map(d=>`<td>${fmtHM(s.reduce((acc,r)=>acc+(r.byDept[d.name]||0),0))}</td>`).join('')}
     <td>${fmtHM(tot("total"))}</td><td>${fmtHM(tot("ot"))}</td>
-    <td>${tot("tDays")}</td><td>${fmtMoney(tot("pd"))}</td><td>${totalLeaveDays}</td>
+    <td>${tot("tDays")}</td><td>${fmtMoney(tot("pd"))}</td><td>${fmtDays(totalLeaveDays)}</td>
   </tr>`:'';
 
   // Leave type summary cards
@@ -9385,7 +9385,7 @@ function renderFlexReports(){
       </div>
       <div style="border:1px solid var(--line);border-left:4px solid #2E7D32;border-radius:8px;padding:12px;background:white">
         <div style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:1px">Travel Days</div>
-        <div style="font-family:'DM Serif Display',serif;font-size:22px;color:#2E7D32;margin-top:2px">${totTr}</div>
+        <div style="font-family:'DM Serif Display',serif;font-size:22px;color:#2E7D32;margin-top:2px">${fmtDays(totTr)}</div>
         <div style="font-size:10px;color:var(--muted)">${trFiltered.length} trips</div>
       </div>
       <div style="border:1px solid var(--line);border-left:4px solid #6A1B9A;border-radius:8px;padding:12px;background:white">
@@ -9395,7 +9395,7 @@ function renderFlexReports(){
       </div>
       <div style="border:1px solid var(--line);border-left:4px solid #C62828;border-radius:8px;padding:12px;background:white">
         <div style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:1px">Leave Days</div>
-        <div style="font-family:'DM Serif Display',serif;font-size:22px;color:#C62828;margin-top:2px">${totLv}</div>
+        <div style="font-family:'DM Serif Display',serif;font-size:22px;color:#C62828;margin-top:2px">${fmtDays(totLv)}</div>
         <div style="font-size:10px;color:var(--muted)">${lvFiltered.length} entries</div>
       </div>
     </div>
@@ -9439,7 +9439,7 @@ function renderFlexReports(){
           <td><strong style="color:#2E5FA3">${fmtHM(e.hours)}</strong></td>
           <td style="color:var(--muted)">${e.sessions}</td>
           <td style="color:#E65100;font-weight:600">${fmtHM(e.ot)}</td>
-          <td style="color:#2E7D32;font-weight:600">${e.travelDays}d</td>
+          <td style="color:#2E7D32;font-weight:600">${fmtDays(e.travelDays)}d</td>
           <td style="color:#6A1B9A;font-weight:600">${fmtMoney(e.perDiem)}</td>
           <td style="color:#C62828;font-weight:600">${(Number(e.leaveDays)||0).toFixed(2)}</td>
         </tr>`).join("")}</tbody>
@@ -9746,9 +9746,9 @@ async function exportFilteredPDF(){
     const kpiCards = `<div class="kpi-grid">
       <div class="kpi" style="border-left-color:#2E5FA3"><div class="kpi-label">Total Hours</div><div class="kpi-val" style="color:#2E5FA3">${fmtHM(totH)}</div><div class="kpi-sub">${dr.length} sessions</div></div>
       <div class="kpi" style="border-left-color:#E65100"><div class="kpi-label">Overtime</div><div class="kpi-val" style="color:#E65100">${fmtHM(totOT)}</div><div class="kpi-sub">${or.length} entries</div></div>
-      <div class="kpi" style="border-left-color:#2E7D32"><div class="kpi-label">Travel Days</div><div class="kpi-val" style="color:#2E7D32">${totTr}</div><div class="kpi-sub">${tr.length} trips</div></div>
+      <div class="kpi" style="border-left-color:#2E7D32"><div class="kpi-label">Travel Days</div><div class="kpi-val" style="color:#2E7D32">${fmtDays(totTr)}</div><div class="kpi-sub">${tr.length} trips</div></div>
       <div class="kpi" style="border-left-color:#6A1B9A"><div class="kpi-label">Per Diem</div><div class="kpi-val" style="color:#6A1B9A">${fmtMoney(totPD)}</div><div class="kpi-sub">IQD total</div></div>
-      <div class="kpi" style="border-left-color:#C62828"><div class="kpi-label">Leave Days</div><div class="kpi-val" style="color:#C62828">${totLv}</div><div class="kpi-sub">${lv.length} entries</div></div>
+      <div class="kpi" style="border-left-color:#C62828"><div class="kpi-label">Leave Days</div><div class="kpi-val" style="color:#C62828">${fmtDays(totLv)}</div><div class="kpi-sub">${lv.length} entries</div></div>
     </div>`;
 
     // Department cards
@@ -9769,23 +9769,23 @@ async function exportFilteredPDF(){
       ${state.departments.map(d=>`<td style="color:${d.color};font-weight:700">${fmtHM(r.byDept[d.name]||0)}</td>`).join('')}
       <td><strong style="color:#1B3A6B">${fmtHM(r.hours)}</strong></td>
       <td style="color:#E65100;font-weight:600">${fmtHM(r.ot)}</td>
-      <td style="color:#2E7D32;font-weight:600">${r.travelDays}</td>
+      <td style="color:#2E7D32;font-weight:600">${fmtDays(r.travelDays)}</td>
       <td style="color:#6A1B9A;font-weight:600">${fmtMoney(r.perDiem)}</td>
       <td style="color:#C62828;font-weight:600">${fmtDays(r.leaveDays)}</td>
     </tr>`).join("");
     const grandRow = !isEmployee()?`<tr class="grand">
       <td>GRAND TOTAL</td>
       ${state.departments.map(d=>`<td>${fmtHM(empStats.reduce((s,e)=>s+(e.byDept[d.name]||0),0))}</td>`).join('')}
-      <td>${fmtHM(totH)}</td><td>${fmtHM(totOT)}</td><td>${totTr}</td><td>${fmtMoney(totPD)}</td><td>${totLv}</td>
+      <td>${fmtHM(totH)}</td><td>${fmtHM(totOT)}</td><td>${fmtDays(totTr)}</td><td>${fmtMoney(totPD)}</td><td>${fmtDays(totLv)}</td>
     </tr>`:'';
 
     const rangeLabel=`${f.from||'Start'} → ${f.to||'Today'}${f.project?' · Project: '+f.project:''}`;
     const kpiCardsU=`<div class="kr">
       <div class="kc kb"><div class="kl">Total Hours</div><div class="kv">${fmtHM(totH)}</div><div class="ks">${dr.length} sessions</div></div>
       <div class="kc ko"><div class="kl">Overtime</div><div class="kv">${fmtHM(totOT)}</div><div class="ks">${or.length} entries</div></div>
-      <div class="kc kg"><div class="kl">Travel Days</div><div class="kv">${totTr}</div><div class="ks">${tr.length} trips</div></div>
+      <div class="kc kg"><div class="kl">Travel Days</div><div class="kv">${fmtDays(totTr)}</div><div class="ks">${tr.length} trips</div></div>
       <div class="kc kp"><div class="kl">Per Diem</div><div class="kv">${fmtMoney(totPD)}</div><div class="ks">IQD total</div></div>
-      <div class="kc krd"><div class="kl">Leave Days</div><div class="kv">${totLv}</div><div class="ks">${lv.length} entries</div></div>
+      <div class="kc krd"><div class="kl">Leave Days</div><div class="kv">${fmtDays(totLv)}</div><div class="ks">${lv.length} entries</div></div>
     </div>`;
     const bodyHTMLF=`
       <div class="actions no-print" style="padding:10px;background:#FFF8E1;border:1px solid #FFE082;border-radius:8px;margin-bottom:14px;text-align:center;font-size:13px;color:#7F6000">
@@ -10273,7 +10273,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v34';"
+      var swCode = "const CACHE='ejaftech-v35';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
