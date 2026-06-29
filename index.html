@@ -43,7 +43,7 @@ body{padding-bottom:env(safe-area-inset-bottom,0px)}
 .setup-needed code{background:rgba(0,0,0,0.3);color:var(--gold);padding:2px 6px;border-radius:4px;font-size:12px}
 
 /* Main app */
-.app-header{position:sticky;top:0;z-index:50;background:linear-gradient(135deg,#1B3A6B 0%,#2E5FA3 100%);color:white;padding:env(safe-area-inset-top,0px) 0 0 0;box-shadow:var(--shadow-lg)}
+.app-header{position:sticky;top:0;z-index:50;background:linear-gradient(135deg,#1B3A6B 0%,#2E5FA3 100%);color:white;padding:env(safe-area-inset-top,0px) 0 0 0;box-shadow:var(--shadow-lg);transform:translateZ(0);will-change:transform;contain:layout paint}
 .header-row{display:flex;align-items:center;gap:12px;padding:12px 16px}
 .logo-mark{width:42px;height:42px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden}
 .app-title{flex:1;min-width:0}
@@ -58,7 +58,7 @@ body{padding-bottom:env(safe-area-inset-bottom,0px)}
 .tab-indicator{position:absolute;bottom:0;height:3px;background:var(--gold);border-radius:2px 2px 0 0;transition:left 0.35s cubic-bezier(0.4,0,0.2,1),width 0.35s cubic-bezier(0.4,0,0.2,1);pointer-events:none;box-shadow:0 0 8px rgba(201,168,76,0.5);left:0;width:0}
 
 .content{padding:14px 12px 80px;max-width:760px;margin:0 auto;-webkit-overflow-scrolling:touch}
-.card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);border:1px solid var(--line);padding:16px;margin-bottom:14px}
+.card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);border:1px solid var(--line);padding:16px;margin-bottom:14px;contain:layout style;content-visibility:auto;contain-intrinsic-size:auto 200px}
 .card-title{font-size:13px;font-weight:700;color:var(--navy);margin:0 0 12px;text-transform:uppercase;letter-spacing:0.5px;display:flex;align-items:center;gap:8px}
 .card-title::before{content:'';width:3px;height:14px;background:var(--gold);border-radius:2px}
 .sec-hdr{background:linear-gradient(90deg,var(--navy-2),var(--navy));color:white;margin:-16px -16px 14px;padding:10px 16px;border-radius:var(--radius) var(--radius) 0 0;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px}
@@ -3041,7 +3041,7 @@ function renderDailyLog(){
     ${!isEmployee()?renderEmployeeFilterUI("Filter Work Log"):""}
     <div class="tbl-wrap"><table class="tbl">
       <thead><tr><th style="width:48px;text-align:center">#</th><th>Date</th>${!isEmployee()?"<th>Employee</th>":""}<th>Project</th><th>Dept</th><th>Location</th><th>Hrs</th><th>Resolution</th><th></th></tr></thead>
-      <tbody>${rows.length===0?`<tr><td colspan="8" class="empty">No entries yet</td></tr>`:rows.map(r=>{
+      <tbody>${rows.length===0?`<tr><td colspan="8" class="empty">No entries yet</td></tr>`:(window._dailyShowAll?rows:rows.slice(0,50)).map(r=>{
         const canEdit=isHR()||r.employee===state.profile.employeeName;
         const imgs = (r.resolutionImages||[]);
         const hasRes = imgs.length > 0 || (r.resolutionText||"").length > 0;
@@ -3058,6 +3058,8 @@ function renderDailyLog(){
               <button class="btn btn-sm btn-danger" onclick="delDaily('${r.id}')">🗑</button>`:""}${canUseWhatsApp() && (waGetSettings().triggers||[]).includes("daily")?`<button class="btn btn-sm" style="background:#25D366;color:white;border:none;font-weight:700;margin-left:4px" onclick="openWaShareById('${r.id}')" title="Share to WhatsApp">📲</button>`:""}${canUseEmail() && (emailGetSettings().triggers||[]).includes("daily")?`<button class="btn btn-sm" style="background:#03308B;color:white;border:none;font-weight:700;margin-left:4px" onclick="openEmailShareById('${r.id}')" title="Send Email">📧</button>`:""}</td>
         </tr>`;}).join("")}</tbody>
     </table></div>
+    ${rows.length>50 && !window._dailyShowAll?`<div style="text-align:center;margin-top:10px"><button class="btn btn-ghost" style="background:#E3F2FD;border:1px solid #90CAF9;color:#1565C0;font-weight:700" onclick="window._dailyShowAll=true;render()">▼ Show all ${rows.length} entries (showing 50)</button></div>`:''}
+    ${window._dailyShowAll && rows.length>50?`<div style="text-align:center;margin-top:10px"><button class="btn btn-ghost" style="background:#F5F5F5;border:1px solid #ccc;color:#666;font-weight:600" onclick="window._dailyShowAll=false;render()">▲ Show less (recent 50)</button></div>`:''}
     ${isAdmin() && rows.some(r => (r.resolutionImages||[]).length > 0) ? `
       <div style="margin-top:14px;padding:12px 14px;background:#FEF3C7;border:1px dashed #C9A84C;border-radius:8px;font-size:12px">
         <strong style="color:#7F6000">🧹 Storage Cleanup (Admin)</strong>
@@ -10279,7 +10281,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v31';"
+      var swCode = "const CACHE='ejaftech-v32';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
