@@ -1524,6 +1524,8 @@ function renderApp(){
   // Double rAF + timeout fallback ensures layout is fully measured first.
   requestAnimationFrame(()=>requestAnimationFrame(positionTabIndicator));
   setTimeout(positionTabIndicator, 100);
+  // Enable swipe navigation between tabs (mobile)
+  setupSwipeNavigation();
 }
 
 function getTabs(){
@@ -1590,6 +1592,23 @@ window.switchTab=function(t){
   window.scrollTo(0,0);
   // Slide the gold indicator to the new active tab
   positionTabIndicator();
+  // Make sure the active tab is scrolled into view in the tab bar
+  if(bar){
+    const activeBtn = bar.querySelector(".tab.active");
+    if(activeBtn && activeBtn.scrollIntoView){
+      try{ activeBtn.scrollIntoView({behavior:'smooth', inline:'center', block:'nearest'}); }catch(e){}
+    }
+  }
+};
+
+// Navigate to the previous/next tab (used by swipe). dir = -1 (prev) or +1 (next).
+window.switchTabByDirection = function(dir){
+  const tabs = getTabs();
+  const i = tabs.indexOf(state.tab);
+  if(i < 0) return;
+  const next = i + dir;
+  if(next < 0 || next >= tabs.length) return;   // stop at first/last (no wrap)
+  switchTab(tabs[next]);
 };
 
 // Move the gold underline to sit under the active tab
@@ -1613,6 +1632,92 @@ window.positionTabIndicator = positionTabIndicator;
 
 // Keep the gold indicator aligned on screen resize / rotation and after scroll
 window.addEventListener("resize", ()=>{ positionTabIndicator(); });
+
+// ─────────────────────────────────────────────────────────────────────
+// SWIPE NAVIGATION between tabs (mobile)
+//   - Works only inside the content area (below the tab bar)
+//   - Ignores horizontal swipes that start on a horizontally-scrollable
+//     element (wide tables, Assets list, dropdowns) so they keep working
+//   - Requires a clear horizontal swipe (> threshold, and mostly horizontal)
+//   - Shows a brief hint with the next tab's name
+// ─────────────────────────────────────────────────────────────────────
+let _swipeStartX = 0, _swipeStartY = 0, _swipeActive = false, _swipeEl = null;
+const SWIPE_THRESHOLD = 80;   // px of horizontal travel required (clear swipe)
+const SWIPE_MAX_VERT = 60;    // if vertical travel exceeds this, treat as scroll (ignore)
+
+// Does the touch start inside something that scrolls horizontally itself?
+function _startsOnHorizontalScroller(el){
+  let node = el;
+  while(node && node !== document.body){
+    if(node.nodeType === 1){
+      const style = window.getComputedStyle(node);
+      const ox = style.overflowX;
+      const scrollable = (ox === "auto" || ox === "scroll");
+      if(scrollable && node.scrollWidth > node.clientWidth + 4) return true;
+      // also skip selects / inputs / the tab bar
+      const tag = node.tagName;
+      if(tag === "SELECT" || tag === "INPUT" || tag === "TEXTAREA") return true;
+      if(node.id === "tabBar") return true;
+      if(node.classList && node.classList.contains("data-table")) return true;
+    }
+    node = node.parentNode;
+  }
+  return false;
+}
+
+function _showSwipeHint(text){
+  let hint = document.getElementById("swipeHint");
+  if(!hint){
+    hint = document.createElement("div");
+    hint.id = "swipeHint";
+    hint.style.cssText = "position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(3,48,139,0.92);color:#fff;padding:10px 20px;border-radius:24px;font-size:14px;font-weight:700;z-index:9999;pointer-events:none;opacity:0;transition:opacity 0.15s;box-shadow:0 4px 16px rgba(0,0,0,0.3)";
+    document.body.appendChild(hint);
+  }
+  hint.textContent = text;
+  hint.style.opacity = "1";
+  clearTimeout(hint._t);
+  hint._t = setTimeout(()=>{ hint.style.opacity = "0"; }, 500);
+}
+
+function setupSwipeNavigation(){
+  const content = document.getElementById("content");
+  if(!content || content._swipeBound) return;
+  content._swipeBound = true;
+
+  content.addEventListener("touchstart", (e)=>{
+    if(e.touches.length !== 1) { _swipeActive = false; return; }
+    const t = e.touches[0];
+    _swipeEl = e.target;
+    if(_startsOnHorizontalScroller(_swipeEl)){ _swipeActive = false; return; }
+    _swipeStartX = t.clientX;
+    _swipeStartY = t.clientY;
+    _swipeActive = true;
+  }, {passive:true});
+
+  content.addEventListener("touchend", (e)=>{
+    if(!_swipeActive) return;
+    _swipeActive = false;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - _swipeStartX;
+    const dy = t.clientY - _swipeStartY;
+    // Must be a clear, mostly-horizontal swipe
+    if(Math.abs(dx) < SWIPE_THRESHOLD) return;
+    if(Math.abs(dy) > SWIPE_MAX_VERT) return;
+    if(Math.abs(dx) < Math.abs(dy) * 1.5) return;   // horizontal must dominate
+
+    const tabs = getTabs();
+    const i = tabs.indexOf(state.tab);
+    if(i < 0) return;
+    // Swipe LEFT (dx<0) → next tab; swipe RIGHT (dx>0) → previous tab
+    if(dx < 0 && i < tabs.length - 1){
+      _showSwipeHint("→ " + tabs[i+1]);
+      switchTabByDirection(+1);
+    } else if(dx > 0 && i > 0){
+      _showSwipeHint("← " + tabs[i-1]);
+      switchTabByDirection(-1);
+    }
+  }, {passive:true});
+}
 
 function renderTab(){
   const c=$("content");
@@ -2887,6 +2992,7 @@ function renderDailyLog(){
     <div class="btn-row">
       <button class="btn btn-primary" onclick="saveDaily()">${dailyEditId?"Update":"Add Entry"}</button>
       ${dailyEditId?`<button class="btn btn-ghost" onclick="cancelDaily()">Cancel</button>`:!isEmployee()?`<button class="btn btn-ghost" style="background:#FFF8E1;border:1px solid #C9A84C;color:#7F6000" onclick="saveDailyAndNext()" title="Save and keep date/time/project to add same task for another employee">💾 Save & Add for Another Employee</button>`:""}
+      ${!dailyEditId?`<button class="btn btn-ghost" style="background:#E8F5E9;border:1px solid #66BB6A;color:#2E7D32" onclick="startNewDailyEntry()" title="Clear everything and start a fresh blank entry">➕ Start New Entry</button>`:""}
     </div>
   </div>
 
@@ -3131,12 +3237,45 @@ async function saveDailyAndNext(){
   if((emailGetSettings().triggers||[]).includes("daily")){
     bufferTaskEmail(recordForEmail);
   }
-  // Keep form data — only clear employee and resolution for next entry
+  // Keep only the fields meant to carry over (date/time/project/location/dept),
+  // and rebuild a GUARANTEED-CLEAN form object so no stale state lingers.
   const savedEmp = dailyForm.employee;
-  dailyForm = {...dailyForm, employee:"", resolutionText:"", resolutionImages:[]};
+  const carry = {
+    date: dailyForm.date,
+    project: dailyForm.project,
+    start: dailyForm.start,
+    end: dailyForm.end,
+    location: dailyForm.location,
+    area: dailyForm.area,
+    site: dailyForm.site,
+  };
+  window._devEdit = null;        // clear any device-edit buffer
+  dailyForm = {
+    ...carry,
+    employee: "",                // next employee
+    equipment: "",
+    deviceSerial: "",
+    workType: "", taskStatus: "", taskCategory: "", taskSubcategory: "",
+    resolutionText: "",
+    resolutionImages: [],
+    notes: "",
+  };
   render();
-  toast(`Saved for ${savedEmp} ✓ — Add new resolution for next employee`);
+  // Scroll back to the top of the form so the user clearly sees the fresh entry
+  window.scrollTo({top:0, behavior:'smooth'});
+  toast(`Saved for ${savedEmp} ✓ — ready for next employee`);
 }
+
+// Fully clear the Daily Log form and start a brand-new blank entry.
+// Fixes the case where, after several "Save & Add", the form needs a clean reset.
+window.startNewDailyEntry = function(){
+  window._devEdit = null;
+  dailyForm = null;       // renderDailyLog rebuilds a fresh blank form when null
+  dailyEditId = null;
+  render();
+  window.scrollTo({top:0, behavior:'smooth'});
+  toast("New blank entry ✓");
+};
 
 // ── Combined email buffer for "Save & Add for Another Employee" ──
 // Collects entries, then sends ONE email listing all employees after a pause.
@@ -10126,7 +10265,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v28';"
+      var swCode = "const CACHE='ejaftech-v30';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
