@@ -1,0 +1,2 @@
+/* Girêk — design tokens: colors, fonts, radius, shadows */
+:root{--navy:#1B3A6B;--navy-2:#2E5FA3;--gold:#C9A84C;--gold-2:#B58E2E;--bg:#F5F8FC;--card:#FFFFFF;--line:#D6E4F0;--text:#1A1A2E;--muted:#6B7B8F;--green:#2E7D32;--green-bg:#E8F2E8;--orange:#E65100;--orange-bg:#FCEAE0;--purple:#6A1B9A;--purple-bg:#F0E8F7;--yellow:#FFF2CC;--yellow-text:#7F6000;--red:#C0392B;--shadow:0 2px 12px rgba(27,58,107,0.08);--shadow-lg:0 8px 28px rgba(27,58,107,0.15);--radius:14px;--radius-sm:8px}
