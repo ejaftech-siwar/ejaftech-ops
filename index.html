@@ -55,11 +55,11 @@ body{padding-bottom:env(safe-area-inset-bottom,0px)}
 .tab-bar::-webkit-scrollbar{display:none}
 .tab{flex:0 0 auto;padding:12px 14px;font-size:12px;font-weight:600;color:#9FB6D2;background:transparent;border:none;border-bottom:3px solid transparent;cursor:pointer;white-space:nowrap;font-family:inherit;transition:color 0.25s ease,background 0.25s ease,border-color 0.25s ease}
 .tab.active{color:var(--gold);background:transparent;border-bottom-color:var(--gold)}
-.tab-indicator{position:absolute;bottom:0;height:3px;background:var(--gold);border-radius:2px 2px 0 0;transition:left 0.35s cubic-bezier(0.4,0,0.2,1),width 0.35s cubic-bezier(0.4,0,0.2,1);pointer-events:none;box-shadow:0 0 8px rgba(201,168,76,0.5);left:0;width:0}
+.tab-indicator{position:absolute;bottom:0;height:3px;background:linear-gradient(90deg,#C9A84C,#E4C97A,#C9A84C);border-radius:2px 2px 0 0;transition:left 0.32s cubic-bezier(0.4,0,0.2,1),width 0.32s cubic-bezier(0.4,0,0.2,1);pointer-events:none;box-shadow:0 0 7px rgba(201,168,76,0.45);left:0;width:0}
 /* Two-tier grouped navigation */
 .group-bar{background:rgba(0,0,0,0.20)}
 .gtab{font-size:12.5px;font-weight:600;padding:12px 16px}
-.gtab.active{color:#FFFFFF;background:transparent;border-bottom-color:var(--gold)}
+.gtab.active{color:#FFFFFF;background:transparent;border-bottom-color:transparent}
 .sub-bar{background:rgba(11,24,48,0.42);border-top:1px solid rgba(201,168,76,0.30)}
 .subtab{font-size:11.5px;padding:10px 16px;color:#9FB6D2}
 .subtab.active{color:#E4C97A;font-weight:600;background:transparent;border-bottom-color:transparent}
@@ -1544,7 +1544,7 @@ function renderApp(){
           const n = groupReqCount(g);
           const on = g.id===activeGroup;
           return `<button class="tab gtab ${on?"active":""}" data-group="${g.id}" onclick="switchGroup('${g.id}')" style="position:relative">${g.icon} ${g.label}${n?`<span style="position:absolute;top:2px;right:2px;background:#C62828;color:white;font-size:9px;font-weight:800;min-width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 4px">${n}</span>`:""}</button>`;
-        }).join("")}</nav>
+        }).join("")}<span class="tab-indicator" id="groupIndicator"></span></nav>
         ${curGroup.children.length>1?`<nav class="tab-bar sub-bar" id="tabBar">${curGroup.children.map(t=>{
           const nReq = t==="Requests" ? pendingRequestCount() : 0;
           return `<button class="tab subtab ${t===state.tab?"active":""}" data-tab="${t}" onclick="switchTab('${t}')" style="position:relative">${t}${nReq?`<span style="position:absolute;top:2px;right:2px;background:#C62828;color:white;font-size:9px;font-weight:800;min-width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 4px">${nReq}</span>`:""}</button>`;
@@ -1554,10 +1554,10 @@ function renderApp(){
     <main class="content" id="content"></main>
   `);
   renderTab();
-  // Position the sliding gold indicator on initial render.
+  // Position the sliding gold indicators on initial render.
   // Double rAF + timeout fallback ensures layout is fully measured first.
-  requestAnimationFrame(()=>requestAnimationFrame(positionTabIndicator));
-  setTimeout(positionTabIndicator, 100);
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{ positionTabIndicator(); positionGroupIndicator(); }));
+  setTimeout(()=>{ positionTabIndicator(); positionGroupIndicator(); }, 100);
   // Enable swipe navigation between tabs (mobile)
   setupSwipeNavigation();
 }
@@ -1718,8 +1718,39 @@ function positionTabIndicator(){
 }
 window.positionTabIndicator = positionTabIndicator;
 
+// Sliding gold indicator for the MAIN group bar.
+// Remembers its last position so it animates smoothly even though
+// switching groups rebuilds the header (renderApp).
+let _lastGroupInd = null;
+function positionGroupIndicator(){
+  const bar = document.getElementById("groupBar");
+  const ind = document.getElementById("groupIndicator");
+  if(!bar || !ind) return;
+  const active = bar.querySelector(".gtab.active");
+  if(!active){ ind.style.width="0"; _lastGroupInd=null; return; }
+  const left = active.offsetLeft, width = active.offsetWidth;
+  if(_lastGroupInd){
+    // Seed the freshly-rebuilt indicator at the previous spot (no animation),
+    // then let the transition carry it to the new spot.
+    ind.style.transition = "none";
+    ind.style.left  = _lastGroupInd.left + "px";
+    ind.style.width = _lastGroupInd.width + "px";
+    void ind.offsetWidth; // force reflow so the next change animates
+    ind.style.transition = "";
+  }
+  ind.style.left  = left + "px";
+  ind.style.width = width + "px";
+  _lastGroupInd = { left, width };
+  const barRect = bar.getBoundingClientRect();
+  const tabRect = active.getBoundingClientRect();
+  if(tabRect.right > barRect.right || tabRect.left < barRect.left){
+    active.scrollIntoView({behavior:"smooth", inline:"center", block:"nearest"});
+  }
+}
+window.positionGroupIndicator = positionGroupIndicator;
+
 // Keep the gold indicator aligned on screen resize / rotation and after scroll
-window.addEventListener("resize", ()=>{ positionTabIndicator(); });
+window.addEventListener("resize", ()=>{ positionTabIndicator(); positionGroupIndicator(); });
 
 // ─────────────────────────────────────────────────────────────────────
 // SWIPE NAVIGATION between tabs (mobile)
@@ -10357,7 +10388,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v37';"
+      var swCode = "const CACHE='ejaftech-v38';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
