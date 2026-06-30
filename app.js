@@ -1266,11 +1266,10 @@ const TAB_GROUPS = [
   { id:"Dashboard", label:"Dashboard", icon:"📊", children:["Dashboard"] },
   { id:"Logs",      label:"Logs",      icon:"📝", children:["Daily Log","Overtime","Travel","Leaves"] },
   { id:"Reports",   label:"Reports",   icon:"📈", children:["HR Report","Reports","Technical Report"] },
-  { id:"Database",  label:"Database",  icon:"🗄️", children:["Branches","Departments","Locations","Projects"] },
+  { id:"Database",  label:"Database",  icon:"🗄️", children:["Branches","Departments","Locations","Projects","Assets"] },
   { id:"Clients",   label:"Clients",   icon:"🤝", children:["Clients","Requests"] },
-  { id:"Assets",    label:"Assets",    icon:"📦", children:["Assets"] },
+  { id:"Settings",  label:"Settings",  icon:"⚙️", children:["Profile","Technical Classifications","Users","Email","WhatsApp","Share","Entry Manage"] },
   { id:"Help",      label:"Help",      icon:"❓", children:["Work Instructions"] },
-  { id:"Settings",  label:"Settings",  icon:"⚙️", children:["Profile","Technical Classifications","Users","Email","WhatsApp","Share"] },
 ];
 function getVisibleGroups(){
   const allowedSet = new Set(getTabs());
@@ -1324,7 +1323,7 @@ function getTabs(){
   }
   // Admin / Owner: everything
   const base = ["Dashboard","Daily Log","Overtime","Travel","Leaves","Work Instructions",
-                "HR Report","Technical Report","Reports","Requests","Clients","Projects","Assets","Locations","Departments","Branches","Users","WhatsApp","Email","Share","Profile","Technical Classifications"];
+                "HR Report","Technical Report","Reports","Requests","Clients","Projects","Assets","Locations","Departments","Branches","Users","WhatsApp","Email","Share","Profile","Technical Classifications","Entry Manage"];
   if(!base.includes(state.tab)) state.tab = base[0];
   return base;
 }
@@ -1548,10 +1547,10 @@ function renderTab(){
     if(!["Dashboard","Work Instructions","Profile"].includes(state.tab)) state.tab="Dashboard";
   } else if(role === "employee"){
     // Employee: no HR/admin tabs
-    if(["HR Report","Technical Report","Reports","Requests","Clients","Projects","Assets","Locations","Departments","Branches","Users","Share","WhatsApp","Email"].includes(state.tab)) state.tab="Dashboard";
+    if(["HR Report","Technical Report","Reports","Requests","Clients","Projects","Assets","Locations","Departments","Branches","Users","Share","WhatsApp","Email","Entry Manage"].includes(state.tab)) state.tab="Dashboard";
   } else if(role === "support" || role === "hr"){
     // Support/HR: no Users, Share, or Clients management
-    if(["Users","Share","Clients","WhatsApp","Email"].includes(state.tab)) state.tab="Dashboard";
+    if(["Users","Share","Clients","WhatsApp","Email","Entry Manage"].includes(state.tab)) state.tab="Dashboard";
   }
 
   const fn={
@@ -1564,6 +1563,7 @@ function renderTab(){
     "WhatsApp":renderWhatsApp,
     "Email":renderEmailTab,
     "Technical Classifications":renderTechClassifications,
+    "Entry Manage":renderEntryManage,
   }[state.tab]||(isClient()?renderClientPortal:renderDashboard);
   c.innerHTML=fn();
 }
@@ -2862,30 +2862,6 @@ function renderDailyLog(){
     </table></div>
     ${rows.length>50 && !window._dailyShowAll?`<div style="text-align:center;margin-top:10px"><button class="btn btn-ghost" style="background:#E3F2FD;border:1px solid #90CAF9;color:#1565C0;font-weight:700" onclick="window._dailyShowAll=true;render()">▼ Show all ${rows.length} entries (showing 50)</button></div>`:''}
     ${window._dailyShowAll && rows.length>50?`<div style="text-align:center;margin-top:10px"><button class="btn btn-ghost" style="background:#F5F5F5;border:1px solid #ccc;color:#666;font-weight:600" onclick="window._dailyShowAll=false;render()">▲ Show less (recent 50)</button></div>`:''}
-    ${isAdmin() && rows.some(r => (r.resolutionImages||[]).length > 0) ? `
-      <div style="margin-top:14px;padding:12px 14px;background:#FEF3C7;border:1px dashed #C9A84C;border-radius:8px;font-size:12px">
-        <strong style="color:#7F6000">🧹 Storage Cleanup (Admin)</strong>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-top:10px">
-          <div>
-            <label style="font-size:10px;color:#7F6000;display:block;margin-bottom:2px">From Date</label>
-            <input type="date" id="purgeFrom" style="padding:5px 8px;border:1px solid #C9A84C;border-radius:6px;font-size:11px">
-          </div>
-          <div>
-            <label style="font-size:10px;color:#7F6000;display:block;margin-bottom:2px">To Date</label>
-            <input type="date" id="purgeTo" style="padding:5px 8px;border:1px solid #C9A84C;border-radius:6px;font-size:11px">
-          </div>
-          <div>
-            <label style="font-size:10px;color:#7F6000;display:block;margin-bottom:2px">Project</label>
-            <select id="purgeProject" style="padding:5px 8px;border:1px solid #C9A84C;border-radius:6px;font-size:11px;max-width:150px">
-              <option value="">All Projects</option>
-              ${[...new Set(state.daily.map(r=>r.project).filter(Boolean))].sort().map(p=>`<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join("")}
-            </select>
-          </div>
-          <button class="btn btn-sm" style="background:#C62828;border:none;color:white;font-weight:700;padding:6px 14px;border-radius:6px" onclick="purgeResolutionImagesCustom()">🗑️ Purge Images</button>
-        </div>
-        <div style="font-size:11px;color:#7F6000;margin-top:6px;font-style:italic">Deletes photos only from entries matching BOTH the date range AND project. Text descriptions are preserved.</div>
-      </div>
-    ` : ''}
   </div>`;
 }
 
@@ -8809,8 +8785,14 @@ function renderProfile(){
       <strong style="color:#1B3A6B">EjafTech Girêk</strong><br>
       Account managed via Firebase Authentication · Your data is encrypted and secure
     </div>
+  </div>`;
+}
 
-  ${isAdmin() ? `<div class="card" style="border-left:4px solid #C9A84C">
+function renderEntryManage(){
+  if(!isAdmin()) return `<div class="card"><p style="text-align:center;color:var(--muted);padding:20px">Admin only.</p></div>`;
+  const projects = [...new Set(state.daily.map(r=>r.project).filter(Boolean))].sort();
+  return `
+  <div class="card" style="border-left:4px solid #C9A84C">
     <div class="sec-hdr" style="display:flex;align-items:center;gap:8px">
       <span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">⚙</span>
       Report Counter Management
@@ -8833,7 +8815,7 @@ function renderProfile(){
     </div>
     <p style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.6">
       Each Daily Log entry gets a unique sequential number (001, 002, 003...).<br>
-      Use <strong>Assign Numbers</strong> to number your existing 47+ entries by date order.<br>
+      Use <strong>Assign Numbers</strong> to number your existing entries by date order.<br>
       New entries will auto-number from that point forward.
     </p>
     <div style="background:#f0fff4;border:1px solid #a5d6a7;border-radius:8px;padding:10px;margin-bottom:12px;font-size:12px;color:#2E7D32">
@@ -8849,7 +8831,34 @@ function renderProfile(){
         🔄 Reset All Numbers
       </button>
     </div>
-  </div>` : ''}
+  </div>
+
+  <div class="card" style="border-left:4px solid #C9A84C;background:#FEF3C7">
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px;color:#7F6000">
+      <span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">🧹</span>
+      Storage Cleanup
+    </div>
+    <p style="font-size:12px;color:#7F6000;margin-bottom:12px;line-height:1.6">
+      Deletes photos only from Daily Log entries matching BOTH the date range AND project. Text descriptions are preserved.
+    </p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+      <div>
+        <label style="font-size:10px;color:#7F6000;display:block;margin-bottom:2px">From Date</label>
+        <input type="date" id="purgeFrom" style="padding:6px 10px;border:1px solid #C9A84C;border-radius:6px;font-size:12px">
+      </div>
+      <div>
+        <label style="font-size:10px;color:#7F6000;display:block;margin-bottom:2px">To Date</label>
+        <input type="date" id="purgeTo" style="padding:6px 10px;border:1px solid #C9A84C;border-radius:6px;font-size:12px">
+      </div>
+      <div>
+        <label style="font-size:10px;color:#7F6000;display:block;margin-bottom:2px">Project</label>
+        <select id="purgeProject" style="padding:6px 10px;border:1px solid #C9A84C;border-radius:6px;font-size:12px;max-width:170px">
+          <option value="">All Projects</option>
+          ${projects.map(p=>`<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join("")}
+        </select>
+      </div>
+      <button class="btn btn-sm" style="background:#C62828;border:none;color:white;font-weight:700;padding:8px 16px;border-radius:6px" onclick="purgeResolutionImagesCustom()">🗑️ Purge Images</button>
+    </div>
   </div>`;
 }
 
@@ -10148,7 +10157,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v41';"
+      var swCode = "const CACHE='ejaftech-v42';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
