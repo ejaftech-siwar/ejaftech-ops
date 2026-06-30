@@ -56,6 +56,13 @@ body{padding-bottom:env(safe-area-inset-bottom,0px)}
 .tab{flex:0 0 auto;padding:12px 14px;font-size:12px;font-weight:600;color:#94B0CC;background:transparent;border:none;border-bottom:3px solid transparent;cursor:pointer;white-space:nowrap;font-family:inherit;transition:color 0.25s ease,background 0.25s ease,border-color 0.25s ease}
 .tab.active{color:var(--gold);background:rgba(201,168,76,0.08);border-bottom-color:var(--gold)}
 .tab-indicator{position:absolute;bottom:0;height:3px;background:var(--gold);border-radius:2px 2px 0 0;transition:left 0.35s cubic-bezier(0.4,0,0.2,1),width 0.35s cubic-bezier(0.4,0,0.2,1);pointer-events:none;box-shadow:0 0 8px rgba(201,168,76,0.5);left:0;width:0}
+/* Two-tier grouped navigation */
+.group-bar{background:rgba(0,0,0,0.22)}
+.gtab{font-size:12.5px;font-weight:700;padding:11px 14px}
+.gtab.active{color:var(--gold);background:rgba(201,168,76,0.14);border-bottom-color:var(--gold)}
+.sub-bar{background:rgba(255,255,255,0.06);border-top:1px solid rgba(201,168,76,0.25)}
+.subtab{font-size:11.5px;padding:9px 14px;color:#B8CCE0}
+.subtab.active{color:var(--gold);background:rgba(201,168,76,0.10);border-bottom-color:var(--gold)}
 
 .content{padding:14px 12px 80px;max-width:760px;margin:0 auto;-webkit-overflow-scrolling:touch}
 .card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);border:1px solid var(--line);padding:16px;margin-bottom:14px;contain:layout style;content-visibility:auto;contain-intrinsic-size:auto 200px}
@@ -1518,11 +1525,31 @@ function renderApp(){
           <span>⏻</span>
         </div>
       </div>
-      <nav class="tab-bar" id="tabBar">${tabs.map(t=>{
-        const isReq = t==="Requests";
-        const nReq = isReq ? pendingRequestCount() : 0;
-        return `<button class="tab ${t===state.tab?"active":""}" data-tab="${t}" onclick="switchTab('${t}')" style="position:relative">${t}${nReq?`<span style="position:absolute;top:2px;right:2px;background:#C62828;color:white;font-size:9px;font-weight:800;min-width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 4px">${nReq}</span>`:""}</button>`;
-      }).join("")}<span class="tab-indicator" id="tabIndicator"></span></nav>
+      ${(()=>{
+        const groups = getVisibleGroups();
+        if(!groups){
+          // Client portal: keep the simple flat bar
+          return `<nav class="tab-bar" id="tabBar">${tabs.map(t=>{
+            const nReq = t==="Requests" ? pendingRequestCount() : 0;
+            return `<button class="tab ${t===state.tab?"active":""}" data-tab="${t}" onclick="switchTab('${t}')" style="position:relative">${t}${nReq?`<span style="position:absolute;top:2px;right:2px;background:#C62828;color:white;font-size:9px;font-weight:800;min-width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 4px">${nReq}</span>`:""}</button>`;
+          }).join("")}<span class="tab-indicator" id="tabIndicator"></span></nav>`;
+        }
+        const activeGroup = groupOfTab(state.tab);
+        const curGroup = groups.find(g=>g.id===activeGroup) || groups[0];
+        // Pending-request badge shows on the group that contains Requests
+        const groupReqCount = (g)=> g.children.includes("Requests") ? pendingRequestCount() : 0;
+        // MAIN bar (groups) + SUB bar (children of active group)
+        return `
+        <nav class="tab-bar group-bar" id="groupBar">${groups.map(g=>{
+          const n = groupReqCount(g);
+          const on = g.id===activeGroup;
+          return `<button class="tab gtab ${on?"active":""}" data-group="${g.id}" onclick="switchGroup('${g.id}')" style="position:relative">${g.icon} ${g.label}${n?`<span style="position:absolute;top:2px;right:2px;background:#C62828;color:white;font-size:9px;font-weight:800;min-width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 4px">${n}</span>`:""}</button>`;
+        }).join("")}</nav>
+        ${curGroup.children.length>1?`<nav class="tab-bar sub-bar" id="tabBar">${curGroup.children.map(t=>{
+          const nReq = t==="Requests" ? pendingRequestCount() : 0;
+          return `<button class="tab subtab ${t===state.tab?"active":""}" data-tab="${t}" onclick="switchTab('${t}')" style="position:relative">${t}${nReq?`<span style="position:absolute;top:2px;right:2px;background:#C62828;color:white;font-size:9px;font-weight:800;min-width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 4px">${nReq}</span>`:""}</button>`;
+        }).join("")}<span class="tab-indicator" id="tabIndicator"></span></nav>`:`<span class="tab-indicator" id="tabIndicator" style="display:none"></span>`}`;
+      })()}
     </header>
     <main class="content" id="content"></main>
   `);
@@ -1533,6 +1560,35 @@ function renderApp(){
   setTimeout(positionTabIndicator, 100);
   // Enable swipe navigation between tabs (mobile)
   setupSwipeNavigation();
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  GROUPED NAVIGATION — main groups (top bar) each contain sub-tabs (2nd bar)
+// ═══════════════════════════════════════════════════════════════════════
+const TAB_GROUPS = [
+  { id:"Dashboard", label:"Dashboard", icon:"📊", children:["Dashboard"] },
+  { id:"Logs",      label:"Logs",      icon:"📝", children:["Daily Log","Overtime","Travel","Leaves"] },
+  { id:"Reports",   label:"Reports",   icon:"📈", children:["HR Report","Reports","Technical Report"] },
+  { id:"Database",  label:"Database",  icon:"🗄️", children:["Branches","Departments","Locations","Projects"] },
+  { id:"Clients",   label:"Clients",   icon:"🤝", children:["Clients","Requests"] },
+  { id:"Assets",    label:"Assets",    icon:"📦", children:["Assets"] },
+  { id:"Help",      label:"Help",      icon:"❓", children:["Work Instructions"] },
+  { id:"Settings",  label:"Settings",  icon:"⚙️", children:["Profile","Technical Classifications","Users","Email","WhatsApp","Share"] },
+];
+function getVisibleGroups(){
+  const allowedSet = new Set(getTabs());
+  if(getUserRole() === "client") return null;
+  const groups = [];
+  for(const g of TAB_GROUPS){
+    const kids = g.children.filter(c => allowedSet.has(c));
+    if(kids.length > 0) groups.push({ ...g, children: kids });
+  }
+  return groups;
+}
+function groupOfTab(tabName){
+  const groups = getVisibleGroups() || [];
+  for(const g of groups){ if(g.children.includes(tabName)) return g.id; }
+  return groups[0] ? groups[0].id : null;
 }
 
 function getTabs(){
@@ -1571,7 +1627,7 @@ function getTabs(){
   }
   // Admin / Owner: everything
   const base = ["Dashboard","Daily Log","Overtime","Travel","Leaves","Work Instructions",
-                "HR Report","Technical Report","Reports","Requests","Clients","Projects","Assets","Locations","Departments","Branches","Users","WhatsApp","Email","Share","Profile"];
+                "HR Report","Technical Report","Reports","Requests","Clients","Projects","Assets","Locations","Departments","Branches","Users","WhatsApp","Email","Share","Profile","Technical Classifications"];
   if(!base.includes(state.tab)) state.tab = base[0];
   return base;
 }
@@ -1586,9 +1642,16 @@ function pendingRequestCount(){
 }
 
 window.switchTab=function(t){
+  const prevGroup = groupOfTab(state.tab);
   state.tab=t;
-  // Update the active class on the tab buttons WITHOUT rebuilding the header
-  // (renderTab only swaps #content, so we must toggle classes here ourselves)
+  const newGroup = groupOfTab(t);
+  // If the group changed (sub-bar must change), rebuild the whole shell.
+  // Otherwise just swap content + update active classes (fast path).
+  if(prevGroup !== newGroup){
+    renderApp();
+    window.scrollTo(0,0);
+    return;
+  }
   const bar = document.getElementById("tabBar");
   if(bar){
     bar.querySelectorAll(".tab").forEach(btn=>{
@@ -1597,9 +1660,7 @@ window.switchTab=function(t){
   }
   renderTab();
   window.scrollTo(0,0);
-  // Slide the gold indicator to the new active tab
   positionTabIndicator();
-  // Make sure the active tab is scrolled into view in the tab bar (instant, not animated)
   if(bar){
     const activeBtn = bar.querySelector(".tab.active");
     if(activeBtn && activeBtn.scrollIntoView){
@@ -1608,14 +1669,34 @@ window.switchTab=function(t){
   }
 };
 
-// Navigate to the previous/next tab (used by swipe). dir = -1 (prev) or +1 (next).
+// Switch to a main group → opens its FIRST child sub-tab.
+window.switchGroup = function(groupId){
+  const groups = getVisibleGroups() || [];
+  const g = groups.find(x=>x.id===groupId);
+  if(!g || g.children.length===0) return;
+  state.tab = g.children[0];      // first sub-tab of the group
+  renderApp();                    // rebuild shell so the sub-bar reflects the new group
+  window.scrollTo(0,0);
+};
+
+// Navigate prev/next (swipe) — ONLY within the current group's sub-tabs.
 window.switchTabByDirection = function(dir){
-  const tabs = getTabs();
-  const i = tabs.indexOf(state.tab);
-  if(i < 0) return;
+  const groups = getVisibleGroups();
+  if(!groups){   // client flat mode
+    const tabs = getTabs();
+    const i = tabs.indexOf(state.tab);
+    const next = i + dir;
+    if(i<0 || next<0 || next>=tabs.length) return;
+    switchTab(tabs[next]);
+    return;
+  }
+  const g = groups.find(x=>x.id===groupOfTab(state.tab));
+  if(!g) return;
+  const kids = g.children;
+  const i = kids.indexOf(state.tab);
   const next = i + dir;
-  if(next < 0 || next >= tabs.length) return;   // stop at first/last (no wrap)
-  switchTab(tabs[next]);
+  if(i < 0 || next < 0 || next >= kids.length) return;   // stop at group edges (no cross-group swipe)
+  switchTab(kids[next]);
 };
 
 // Move the gold underline to sit under the active tab
@@ -1754,6 +1835,7 @@ function renderTab(){
     "Clients":renderClients,"Requests":renderRequests,"My Project":renderClientPortal,
     "WhatsApp":renderWhatsApp,
     "Email":renderEmailTab,
+    "Technical Classifications":renderTechClassifications,
   }[state.tab]||(isClient()?renderClientPortal:renderDashboard);
   c.innerHTML=fn();
 }
@@ -6857,11 +6939,14 @@ function renderWorkInstructions(){
     </div>`;
   }
 
-  // ═══════════════════════════════════════════════════════════════════
-  //  TECHNICAL CLASSIFICATIONS MANAGER (Admin only)
-  //  Manage Work Types, Task Statuses, Categories + Subcategories
-  // ═══════════════════════════════════════════════════════════════════
-  if(isAdmin()){
+  return h;
+}
+
+// Technical Classifications — its own tab (under Settings). Same admin manager
+// UI that previously lived inside Work Instructions.
+function renderTechClassifications(){
+  if(!isAdmin()) return `<div class="card"><div class="empty">Admin only.</div></div>`;
+  let h = "";
     const workTypes = (state.techWorkTypes||[]).slice().sort((a,b)=>(a.order||0)-(b.order||0));
     const statuses  = (state.techStatuses||[]).slice().sort((a,b)=>(a.order||0)-(b.order||0));
     const cats2     = (state.techCategories||[]).slice().sort((a,b)=>(a.order||0)-(b.order||0));
@@ -6938,10 +7023,9 @@ function renderWorkInstructions(){
         `).join("")}
       </div>
     </div>`;
-  }
-
   return h;
 }
+
 
 async function saveWICategory(){
   if(!isAdmin()) return toast("Only Admin can manage Work Instructions");
@@ -10273,7 +10357,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v35';"
+      var swCode = "const CACHE='ejaftech-v36';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
