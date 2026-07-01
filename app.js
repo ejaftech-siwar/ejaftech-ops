@@ -3989,7 +3989,9 @@ function techDeviceValue(row, key){
   const d = (state.devices||[]).find(x=>x.serialNumber===row.deviceSerial);
   if(!d) return "";
   const field = key.replace("dev_","");
-  return d[field] || "";
+  const val = d[field] || "";
+  if(field === "installDate" || field === "warrantyExp") return toDateStr(val);
+  return val;
 }
 
 // Which columns are currently active
@@ -5136,8 +5138,8 @@ window.exportAssetPDF = function(){
       <td>${escapeHtml(d.ipAddress||'')}</td>
       <td>${escapeHtml(d.vendor||'')}</td>
       <td>${escapeHtml(d.model||'')}</td>
-      <td>${escapeHtml(d.installDate||'')}</td>
-      <td>${escapeHtml(d.warrantyExp||'')}</td>
+      <td>${escapeHtml(toDateStr(d.installDate))}</td>
+      <td>${escapeHtml(toDateStr(d.warrantyExp))}</td>
       <td>${escapeHtml(d.stack||'')}</td>
       <td>${escapeHtml(d.status||'')}</td>
     </tr>`).join("")}
@@ -5161,7 +5163,7 @@ window.exportAssetExcel = async function(){
     const ws={};
     cols.forEach((c,i)=>setC(ws,`${colL(i)}1`,c,hd));
     devices.forEach((d,ri)=>{
-      keys.forEach((k,ci)=>setC(ws,`${colL(ci)}${ri+2}`,d[k]||"",{font:{sz:10},fill:{fgColor:{rgb:ri%2?"F0F4FF":WHITE}}}));
+      keys.forEach((k,ci)=>{ const cv=(k==="installDate"||k==="warrantyExp")?toDateStr(d[k]):(d[k]||""); setC(ws,`${colL(ci)}${ri+2}`,cv,{font:{sz:10},fill:{fgColor:{rgb:ri%2?"F0F4FF":WHITE}}}); });
     });
     ws['!ref']=`A1:${colL(cols.length-1)}${devices.length+1}`;
     ws['!cols']=cols.map(()=>({wch:15}));
@@ -5229,8 +5231,8 @@ function renderAssets(){
     const byVendor = {}; devices.forEach(d=>{const v=d.vendor||"(none)";byVendor[v]=(byVendor[v]||0)+1;});
     // Warranty expiring within 90 days
     const now = new Date(); const soon = new Date(now.getTime()+90*864e5);
-    const expiring = devices.filter(d=>{ if(!d.warrantyExp) return false; const w=new Date(d.warrantyExp); return w>=now && w<=soon; });
-    const expired = devices.filter(d=>{ if(!d.warrantyExp) return false; return new Date(d.warrantyExp) < now; });
+    const expiring = devices.filter(d=>{ if(!d.warrantyExp) return false; const w=new Date(toDateStr(d.warrantyExp)); return !isNaN(w) && w>=now && w<=soon; });
+    const expired = devices.filter(d=>{ if(!d.warrantyExp) return false; const w=new Date(toDateStr(d.warrantyExp)); return !isNaN(w) && w < now; });
     const topVendors = Object.keys(byVendor).sort((a,b)=>byVendor[b]-byVendor[a]).slice(0,6);
     return `<div class="card">
       <div class="card-title">📊 Inventory Summary</div>
@@ -5409,7 +5411,7 @@ async function saveDevice(){
 }
 function editDevice(id){
   const d = (state.devices||[]).find(x=>x.id===id);
-  if(d){ deviceForm = {...blankDevice(), ...d}; deviceEditId = id; render(); window.scrollTo(0,0); }
+  if(d){ deviceForm = {...blankDevice(), ...d, installDate: toDateStr(d.installDate), warrantyExp: toDateStr(d.warrantyExp)}; deviceEditId = id; render(); window.scrollTo(0,0); }
 }
 async function delDevice(id){
   if(!isHR()) return toast("HR/Admin only");
@@ -10195,7 +10197,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v44';"
+      var swCode = "const CACHE='ejaftech-v45';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
