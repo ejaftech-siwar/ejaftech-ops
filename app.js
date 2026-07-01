@@ -4889,6 +4889,25 @@ function statusToActive(val, def){
   return true;
 }
 
+// Converts a spreadsheet date cell to a "YYYY-MM-DD" string.
+// Handles Excel serial numbers (e.g. 46387), JS Date objects, and existing
+// date strings. Leaves non-date text untouched.
+function toDateStr(v){
+  if(v === "" || v === null || v === undefined) return "";
+  if(v instanceof Date && !isNaN(v)){
+    return `${v.getFullYear()}-${String(v.getMonth()+1).padStart(2,"0")}-${String(v.getDate()).padStart(2,"0")}`;
+  }
+  const s = String(v).trim();
+  if(/^\d+(\.\d+)?$/.test(s)){                 // pure number → Excel serial date
+    const n = Number(s);
+    if(n > 0 && n < 100000){
+      const d = new Date(Math.round((n - 25569) * 86400000));  // 25569 = 1899-12-30 → 1970-01-01
+      if(!isNaN(d)) return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,"0")}-${String(d.getUTCDate()).padStart(2,"0")}`;
+    }
+  }
+  return s;                                     // already a date string / other text
+}
+
 async function processAssetImport(rows, ci){
   toast("Processing...");
   const {db, doc, setDoc, collection, addDoc} = window.__fb;
@@ -4952,7 +4971,7 @@ async function processAssetImport(rows, ci){
       deviceCode: get("deviceCode"),
       project: pName, projectCode: code, area: aName, site: sName,
       ipAddress: get("ip"), vendor: get("vendor"), model: get("model"),
-      installDate: get("install"), warrantyExp: get("warranty"),
+      installDate: toDateStr(get("install")), warrantyExp: toDateStr(get("warranty")),
       stack: get("stack"), status: get("deviceStatus") || "Active",
       updatedAt: new Date().toISOString(),
     };
@@ -10176,7 +10195,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v43';"
+      var swCode = "const CACHE='ejaftech-v44';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
