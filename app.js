@@ -4905,9 +4905,17 @@ async function processAssetImport(rows, ci){
     projByName[(p.name||"").toLowerCase()] = { id:p.id, name:p.name, dept:p.dept||"", codes:new Set(p.codes||[]), areas };
   });
 
-  // Existing devices by serial (lowercase)
+  // Existing devices — indexed by serial (primary key) and by a composite
+  // fallback key for devices that have NO serial, so re-imports update them
+  // instead of creating duplicates.
   const devBySerial = {};
-  (state.devices||[]).forEach(d=>{ if(d.serialNumber) devBySerial[d.serialNumber.toLowerCase()] = d; });
+  const devByComposite = {};
+  const compositeKey = (proj, site, name, code, model) =>
+    [proj, site, name, code, model].map(x=>String(x||"").trim().toLowerCase()).join("|");
+  (state.devices||[]).forEach(d=>{
+    if(d.serialNumber) devBySerial[d.serialNumber.toLowerCase()] = d;
+    else devByComposite[compositeKey(d.project, d.site, d.deviceName, d.deviceCode, d.model)] = d;
+  });
 
   const deviceWrites = []; // {id?, data}
   let newProjects=0, newDevices=0, updDevices=0, newSites=0;
@@ -4934,22 +4942,33 @@ async function processAssetImport(rows, ci){
       area.sites.set(sName, statusToActive(get("siteStatus"), true));
     }
 
-    // Device (only if Serial present)
+    // Device — created when Serial is present OR any device attribute is filled.
+    // Devices WITHOUT a serial are matched by a composite key (Project | Site |
+    // Device Name | Device Code | Model) so re-imports update them, not duplicate.
     const serial = get("serial");
-    if(serial){
-      const dData = {
-        serialNumber: serial,
-        deviceName: get("device"),
-        deviceCode: get("deviceCode"),
-        project: pName, projectCode: code, area: aName, site: sName,
-        ipAddress: get("ip"), vendor: get("vendor"), model: get("model"),
-        installDate: get("install"), warrantyExp: get("warranty"),
-        stack: get("stack"), status: get("deviceStatus") || "Active",
-        updatedAt: new Date().toISOString(),
-      };
-      const ex = devBySerial[serial.toLowerCase()];
-      if(ex){ deviceWrites.push({id:ex.id, data:dData}); updDevices++; }
-      else { deviceWrites.push({id:null, data:dData}); devBySerial[serial.toLowerCase()]={id:null,...dData}; newDevices++; }
+    const dData = {
+      serialNumber: serial,
+      deviceName: get("device"),
+      deviceCode: get("deviceCode"),
+      project: pName, projectCode: code, area: aName, site: sName,
+      ipAddress: get("ip"), vendor: get("vendor"), model: get("model"),
+      installDate: get("install"), warrantyExp: get("warranty"),
+      stack: get("stack"), status: get("deviceStatus") || "Active",
+      updatedAt: new Date().toISOString(),
+    };
+    const hasDeviceData = serial || dData.deviceName || dData.deviceCode ||
+                          dData.model || dData.vendor || dData.ipAddress;
+    if(hasDeviceData){
+      if(serial){
+        const ex = devBySerial[serial.toLowerCase()];
+        if(ex){ deviceWrites.push({id:ex.id, data:dData}); updDevices++; }
+        else { deviceWrites.push({id:null, data:dData}); devBySerial[serial.toLowerCase()]={id:null,...dData}; newDevices++; }
+      } else {
+        const ck = compositeKey(pName, sName, dData.deviceName, dData.deviceCode, dData.model);
+        const ex = devByComposite[ck];
+        if(ex){ deviceWrites.push({id:ex.id, data:dData}); updDevices++; }
+        else { deviceWrites.push({id:null, data:dData}); devByComposite[ck]={id:null,...dData}; newDevices++; }
+      }
     }
   }
 
@@ -10157,7 +10176,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v42';"
+      var swCode = "const CACHE='ejaftech-v43';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
