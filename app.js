@@ -61,11 +61,14 @@ const state = {
   profile: null,        // {role, name, email, employeeName, ...} from users collection
   daily: [], overtime: [], travel: [], leaves: [], projects: [], locations: [], users: [], departments: [], branches: [],
   techWorkTypes: [], techStatuses: [], techCategories: [],
+  requestStatuses: [], projectStatuses: [],   // Client Request Entry options (admin-editable)
   devices: [],  // Asset Management: central devices collection
   techReportCols: null,  // admin's column selection for Technical Report (from settings/techReport)
   workCategories: [], workTasks: [],  // Work Instructions module
   nametagEmployees: [],  // Admin-managed nametag-only employees (no auth account)
   employeePermissions: [],  // Per-employee entry permissions (GPS / Resolution requirements)
+  clientPermissions: [],    // Per-client portal permissions (project details, filters, reports, edit-suggest)
+  deviceEditSuggestions: [], // Client-proposed device edits awaiting admin approval
   clients: [],          // Client companies with linked users + projects
   clientRequests: [],   // Task requests submitted by clients
   waContacts: [],       // WhatsApp contacts/groups (Firestore)
@@ -268,6 +271,15 @@ function canUseWhatsApp(){
   return allowed.includes(getUserRole());
 }
 // Get the client record linked to the logged-in user
+// Human label for a client's linked login: email → user name → "linked"
+function linkedClientLabel(c){
+  if(c.linkedUserEmail) return c.linkedUserEmail;
+  if(c.linkedUserUid){
+    const u=(state.users||[]).find(x=>x.id===c.linkedUserUid);
+    return (u&&(u.name||u.email))||"linked";
+  }
+  return "";
+}
 function getMyClientRecord(){
   if(!isClient()) return null;
   return (state.clients||[]).find(c => 
@@ -923,12 +935,16 @@ async function subscribeData(){
     ["departments","departments"],
     ["branches","branches"],
     ["techWorkTypes","techWorkTypes"],
+    ["requestStatuses","requestStatuses"],
+    ["projectStatuses","projectStatuses"],
     ["techStatuses","techStatuses"],
     ["techCategories","techCategories"],
     ["devices","devices"],
     ["workCategories","workCategories"],["workTasks","workTasks"],
     ["nametagEmployees","nametagEmployees"],
     ["employeePermissions","employeePermissions"],
+    ["clientPermissions","clientPermissions"],
+    ["deviceEditSuggestions","deviceEditSuggestions"],
     ["clients","clients"],
     ["clientRequests","clientRequests"],
     ["waContacts","waContacts"],
@@ -1770,6 +1786,51 @@ window.toggleEmpPerm = async function(employeeName, field){
   await saveEmpPermissions(employeeName, cur);
 };
 
+// ── Per-CLIENT entry permissions (managed by Admin in Users tab) ──
+// Stored in Firestore: collection "clientPermissions", doc id = client record id
+// All OFF by default — the admin opts each client in.
+function getClientPermissions(clientId){
+  const p = (state.clientPermissions||[]).find(x=>x.id===clientId || x.clientId===clientId);
+  return {
+    projectDetails: p ? (p.projectDetails === true) : false,  // see Project/Code/Areas/Sites/Devices in Requests
+    deviceEditSuggest: p ? (p.deviceEditSuggest === true) : false,  // suggest device edits (admin approves)
+    portalFilters: p ? (p.portalFilters === true) : false,  // filter bar in client portal
+    reportsExport: p ? (p.reportsExport === true) : false,  // PDF/Excel report buttons
+    repSummary: p ? (p.repSummary !== false) : true,   // report content toggles (default on)
+    repWorkLog: p ? (p.repWorkLog !== false) : true,
+    repDevices: p ? (p.repDevices !== false) : true,
+    repRequests: p ? (p.repRequests !== false) : true,
+  };
+}
+async function saveClientPermissions(clientId, perms){
+  if(!isAdmin()) return toast("Admin only");
+  const {db, doc, setDoc} = window.__fb;
+  await setDoc(doc(db, "clientPermissions", clientId), {
+    clientId: clientId,
+    projectDetails:    !!perms.projectDetails,
+    deviceEditSuggest: !!perms.deviceEditSuggest,
+    portalFilters:     !!perms.portalFilters,
+    reportsExport:     !!perms.reportsExport,
+    repSummary:  perms.repSummary  !== false,
+    repWorkLog:  perms.repWorkLog  !== false,
+    repDevices:  perms.repDevices  !== false,
+    repRequests: perms.repRequests !== false,
+    updatedBy: state.profile.uid,
+    updatedAt: new Date().toISOString(),
+  });
+  toast("Client permissions updated ✓");
+}
+window.toggleClientPerm = async function(clientId, field){
+  const cur = getClientPermissions(clientId);
+  cur[field] = !cur[field];
+  await saveClientPermissions(clientId, cur);
+};
+// Permissions of the currently signed-in client (empty perms if not linked)
+function myClientPermissions(){
+  const c = getMyClientRecord();
+  return c ? getClientPermissions(c.id) : getClientPermissions("__none__");
+}
+
 // ═══════════════════════════════════════════════════════════════════════
 //  DAILY LOG ENTRY AUTO-NUMBERING
 // ═══════════════════════════════════════════════════════════════════════
@@ -1861,7 +1922,7 @@ async function generateRefNo(reportType="GENERAL"){
 
   } catch(e) {
     console.error("generateRefNo failed:", e.message);
-    return `RPT-${new Date().getFullYear()}-ERR (check Firestore rules)`;
+    return `RPT-${new Date().getFullYear()}-T${Date.now().toString().slice(-5)}`;
   }
 }
 
@@ -3826,7 +3887,7 @@ Object.defineProperty(window, 'leaveForm', {get:()=>leaveForm, set:v=>leaveForm=
 // ═══════════════════════════════════════════════════════════════════════
 //  TECHNICAL REPORT — EXPORTS (PDF + Excel)
 // ═══════════════════════════════════════════════════════════════════════
-window.exportTechPDF = function(){
+window.exportTechPDF = async function(){
   if(!canSeeReports()) return toast("Access denied");
   const rows = applyReportFilters(visibleRows(state.daily)).sort((a,b)=>{
     const d=(a.date||"").localeCompare(b.date||"");
@@ -3852,45 +3913,31 @@ window.exportTechPDF = function(){
     return escapeHtml(String(r[key]||""));
   };
 
-  const win = window.open("","_blank");
-  win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Technical Report</title>
-  <style>
-    *{margin:0;padding:0;box-sizing:border-box}
-    body{font-family:'Segoe UI',Arial,sans-serif;color:#1A1A2E;padding:24px}
-    .hdr{background:linear-gradient(135deg,#03308B,#2E5FA3);color:white;padding:20px 24px;border-radius:10px;margin-bottom:18px}
-    .hdr h1{font-size:22px;font-weight:800}.hdr .gold{color:#C9A84C}
-    .hdr p{font-size:12px;opacity:0.9;margin-top:4px}
-    .kpis{display:flex;gap:12px;margin-bottom:18px}
-    .kpi{flex:1;border:2px solid #03308B;border-radius:10px;padding:14px;text-align:center}
-    .kpi .n{font-size:26px;font-weight:800;color:#03308B}.kpi .l{font-size:11px;color:#666;text-transform:uppercase}
-    .two{display:flex;gap:16px;margin-bottom:18px}
-    .box{flex:1;border:1px solid #ddd;border-radius:8px;padding:12px}
-    .box h3{font-size:13px;margin-bottom:8px;color:#03308B}
-    .box .row{display:flex;justify-content:space-between;font-size:12px;padding:3px 0;border-bottom:1px solid #f0f0f0}
-    table{width:100%;border-collapse:collapse;font-size:10px;margin-top:8px}
-    th{background:#03308B;color:white;padding:6px 5px;text-align:left;font-size:9px}
-    td{padding:5px;border-bottom:1px solid #eee;font-size:9px}
-    tr:nth-child(even){background:#F0F4FF}
-    .ttl{font-size:18px;font-weight:800;color:#03308B;margin:16px 0 8px}
-    @media print{body{padding:0}}
-  </style></head><body>
-  <div class="hdr"><h1>EJAF <span class="gold">Technical Report</span></h1>
-    <p>Period: ${period}${lbl?' · '+lbl:''} · Generated: ${new Date().toLocaleString('en-GB')}</p></div>
-  <div class="kpis">
-    <div class="kpi"><div class="n">${totalTasks}</div><div class="l">Total Tasks</div></div>
-    <div class="kpi"><div class="n">${fmtHM(totalHours)}</div><div class="l">Total Hours</div></div>
-    <div class="kpi"><div class="n">${workDays}</div><div class="l">Work Days</div></div>
-  </div>
-  <div class="two">
-    <div class="box"><h3>By Category</h3>${Object.keys(byCat).sort((a,b)=>byCat[b]-byCat[a]).map(c=>`<div class="row"><span>${escapeHtml(c)}</span><strong>${byCat[c]}</strong></div>`).join("")}</div>
-    <div class="box"><h3>By Status</h3>${Object.keys(byStatus).sort((a,b)=>byStatus[b]-byStatus[a]).map(s=>`<div class="row"><span>${escapeHtml(s)}</span><strong>${byStatus[s]}</strong></div>`).join("")}</div>
-  </div>
-  <div class="ttl">Detailed Tasks (${rows.length})</div>
-  <table><thead><tr>${colDefs.map(c=>`<th>${escapeHtml(c.label)}</th>`).join("")}</tr></thead>
-  <tbody>${rows.map(r=>`<tr>${colDefs.map(c=>`<td>${cellVal(r,c.key)}</td>`).join("")}</tr>`).join("")}</tbody></table>
-  <script>setTimeout(()=>window.print(),400)<\/script>
-  </body></html>`);
-  win.document.close();
+  const bodyHTML = `
+    <div class="actions no-print" style="padding:10px;background:#FFF8E1;border:1px solid #FFE082;border-radius:8px;margin-bottom:14px;text-align:center;font-size:13px;color:#7F6000">
+      📄 In the print dialog, choose <strong>"Save as PDF"</strong>
+      <br><br><button onclick="window.print()">🖨️ Print / Save as PDF</button>
+      <button onclick="window.close()" style="background:#888">Close</button>
+    </div>
+    ${lbl?`<div style="font-size:11px;color:#03308B;background:#f0f4ff;border-radius:6px;padding:7px 12px;margin-bottom:12px"><strong>Filter:</strong> ${escapeHtml(lbl)}</div>`:''}
+    <div class="ksec"><span class="kbad">01</span><h3>Executive Summary</h3></div>
+    <div class="kr">
+      <div class="kc kb"><div class="kl">Total Tasks</div><div class="kv">${totalTasks}</div><div class="ks">tasks</div></div>
+      <div class="kc ko"><div class="kl">Total Hours</div><div class="kv">${fmtHM(totalHours)}</div><div class="ks">logged</div></div>
+      <div class="kc kg"><div class="kl">Work Days</div><div class="kv">${workDays}</div><div class="ks">employee-days</div></div>
+    </div>
+    <div class="ksec"><span class="kbad">02</span><h3>Breakdown</h3></div>
+    <table><thead><tr><th>Category</th><th style="text-align:right">Tasks</th></tr></thead>
+      <tbody>${Object.keys(byCat).sort((a,b)=>byCat[b]-byCat[a]).map(c=>`<tr><td>${escapeHtml(c)}</td><td style="text-align:right;font-weight:700">${byCat[c]}</td></tr>`).join("")}</tbody></table>
+    <table><thead><tr><th>Status</th><th style="text-align:right">Tasks</th></tr></thead>
+      <tbody>${Object.keys(byStatus).sort((a,b)=>byStatus[b]-byStatus[a]).map(s=>`<tr><td>${escapeHtml(s)}</td><td style="text-align:right;font-weight:700">${byStatus[s]}</td></tr>`).join("")}</tbody></table>
+    <div class="ksec"><span class="kbad">03</span><h3>Detailed Tasks (${rows.length})</h3></div>
+    <table><thead><tr>${colDefs.map(c=>`<th>${escapeHtml(c.label)}</th>`).join("")}</tr></thead>
+    <tbody>${rows.map(r=>`<tr>${colDefs.map(c=>`<td>${cellVal(r,c.key)}</td>`).join("")}</tr>`).join("")}</tbody></table>
+    <script>setTimeout(()=>window.print(),500)<\/script>`;
+
+  await openReportPDF("TECHNICAL_REPORT", period, bodyHTML);
+  toast("PDF export ready!");
 };
 
 window.exportTechExcel = async function(){
@@ -3910,7 +3957,11 @@ window.exportTechExcel = async function(){
     // Sheet 1: Tasks
     const ws={};
     const colLetter=(n)=>{let s="";n++;while(n>0){let m=(n-1)%26;s=String.fromCharCode(65+m)+s;n=Math.floor((n-1)/26);}return s;};
-    colDefs.forEach((c,i)=>setC(ws,`${colLetter(i)}1`,c.label,hd));
+    const lastCol=colLetter(colDefs.length-1);
+    // Branded title banner (navy background, gold text) — matches HR report
+    setC(ws,'A1',`EJAF  •  TECHNICAL REPORT  —  ${getPeriod()}`,{font:{bold:true,sz:16,color:{rgb:GOLD}},fill:{fgColor:{rgb:NAVY}},alignment:{horizontal:"center",vertical:"center"}});
+    ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:colDefs.length-1}}];
+    colDefs.forEach((c,i)=>setC(ws,`${colLetter(i)}2`,c.label,hd));
     rows.forEach((r,ri)=>{
       colDefs.forEach((c,ci)=>{
         let v=r[c.key]||"";
@@ -3919,11 +3970,12 @@ window.exportTechExcel = async function(){
         else if(c.key==="date")v=fmtDate(r.date);
         else if(c.key==="day")v=r.day||dayName(r.date);
         else if(c.key&&c.key.startsWith("dev_"))v=techDeviceValue(r, c.key);
-        setC(ws,`${colLetter(ci)}${ri+2}`,v,{font:{sz:10},fill:{fgColor:{rgb:ri%2?"F0F4FF":WHITE}}});
+        setC(ws,`${colLetter(ci)}${ri+3}`,v,{font:{sz:10},fill:{fgColor:{rgb:ri%2?"F0F4FF":WHITE}}});
       });
     });
-    ws['!ref']=`A1:${colLetter(colDefs.length-1)}${rows.length+1}`;
+    ws['!ref']=`A1:${lastCol}${rows.length+2}`;
     ws['!cols']=colDefs.map(()=>({wch:16}));
+    ws['!rows']=[{hpt:26}];
     XLSX.utils.book_append_sheet(wb,ws,"Technical Tasks");
 
     // Sheet 2: Summary
@@ -5094,59 +5146,49 @@ function _filteredDevices(){
   return shown.sort((a,b)=>(a.project||"").localeCompare(b.project||"") || (a.site||"").localeCompare(b.site||""));
 }
 
-window.exportAssetPDF = function(){
+window.exportAssetPDF = async function(){
   if(!isHR()) return toast("HR/Admin only");
   const devices = _filteredDevices();
   if(devices.length===0) return toast("No devices to export");
   const byStatus = {}; devices.forEach(d=>{const s=d.status||"(none)";byStatus[s]=(byStatus[s]||0)+1;});
   const filterLbl = [assetFilterProject&&`Project: ${assetFilterProject}`, assetFilterStatus&&`Status: ${assetFilterStatus}`, assetSearch&&`Search: ${assetSearch}`].filter(Boolean).join(" · ");
 
-  const win = window.open("","_blank");
-  win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Asset Report</title>
-  <style>
-    *{margin:0;padding:0;box-sizing:border-box}
-    body{font-family:'Segoe UI',Arial,sans-serif;color:#1A1A2E;padding:20px}
-    .hdr{background:linear-gradient(135deg,#03308B,#2E5FA3);color:white;padding:18px 22px;border-radius:10px;margin-bottom:16px}
-    .hdr h1{font-size:20px;font-weight:800}.hdr .gold{color:#C9A84C}
-    .hdr p{font-size:11px;opacity:0.9;margin-top:4px}
-    .kpis{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap}
-    .kpi{border:2px solid #03308B;border-radius:8px;padding:10px 14px;text-align:center;min-width:90px}
-    .kpi .n{font-size:20px;font-weight:800;color:#03308B}.kpi .l{font-size:10px;color:#666}
-    table{width:100%;border-collapse:collapse;font-size:9px;margin-top:8px}
-    th{background:#03308B;color:white;padding:6px 4px;text-align:left;font-size:8px}
-    td{padding:4px;border-bottom:1px solid #eee;font-size:8px}
-    tr:nth-child(even){background:#F0F4FF}
-    @media print{body{padding:0}}
-  </style></head><body>
-  <div class="hdr"><h1>EJAF <span class="gold">Asset Report</span></h1>
-    <p>${filterLbl?filterLbl+' · ':''}Generated: ${new Date().toLocaleString('en-GB')} · ${devices.length} devices</p></div>
-  <div class="kpis">
-    <div class="kpi"><div class="n">${devices.length}</div><div class="l">Total</div></div>
-    ${Object.keys(byStatus).sort((a,b)=>byStatus[b]-byStatus[a]).map(s=>`<div class="kpi"><div class="n">${byStatus[s]}</div><div class="l">${escapeHtml(s)}</div></div>`).join("")}
-  </div>
-  <table><thead><tr>
-    <th>Serial</th><th>Device</th><th>Code</th><th>Project</th><th>Code</th><th>Area</th><th>Site</th><th>IP</th><th>Vendor</th><th>Model</th><th>Install</th><th>Warranty</th><th>Stack</th><th>Status</th>
-  </tr></thead><tbody>
-    ${devices.map(d=>`<tr>
-      <td><strong>${escapeHtml(d.serialNumber||'')}</strong></td>
-      <td>${escapeHtml(d.deviceName||'')}</td>
-      <td>${escapeHtml(d.deviceCode||'')}</td>
-      <td>${escapeHtml(d.project||'')}</td>
-      <td>${escapeHtml(d.projectCode||'')}</td>
-      <td>${escapeHtml(d.area||'')}</td>
-      <td>${escapeHtml(d.site||'')}</td>
-      <td>${escapeHtml(d.ipAddress||'')}</td>
-      <td>${escapeHtml(d.vendor||'')}</td>
-      <td>${escapeHtml(d.model||'')}</td>
-      <td>${escapeHtml(toDateStr(d.installDate))}</td>
-      <td>${escapeHtml(toDateStr(d.warrantyExp))}</td>
-      <td>${escapeHtml(d.stack||'')}</td>
-      <td>${escapeHtml(d.status||'')}</td>
-    </tr>`).join("")}
-  </tbody></table>
-  <script>setTimeout(()=>window.print(),400)<\/script>
-  </body></html>`);
-  win.document.close();
+  const bodyHTML = `
+    <div class="actions no-print" style="padding:10px;background:#FFF8E1;border:1px solid #FFE082;border-radius:8px;margin-bottom:14px;text-align:center;font-size:13px;color:#7F6000">
+      📄 In the print dialog, choose <strong>"Save as PDF"</strong>
+      <br><br><button onclick="window.print()">🖨️ Print / Save as PDF</button>
+      <button onclick="window.close()" style="background:#888">Close</button>
+    </div>
+    <div class="ksec"><span class="kbad">01</span><h3>Asset Summary</h3></div>
+    <div class="kr" style="flex-wrap:wrap">
+      <div class="kc kb"><div class="kl">Total Devices</div><div class="kv">${devices.length}</div><div class="ks">assets</div></div>
+      ${Object.keys(byStatus).sort((a,b)=>byStatus[b]-byStatus[a]).map((s,i)=>{const cls=["ko","kg","kp","krd"][i%4];return `<div class="kc ${cls}"><div class="kl">${escapeHtml(s)}</div><div class="kv">${byStatus[s]}</div><div class="ks">devices</div></div>`;}).join("")}
+    </div>
+    <div class="ksec"><span class="kbad">02</span><h3>Device Inventory (${devices.length})</h3></div>
+    <table><thead><tr>
+      <th>Serial</th><th>Device</th><th>Code</th><th>Project</th><th>Code</th><th>Area</th><th>Site</th><th>IP</th><th>Vendor</th><th>Model</th><th>Install</th><th>Warranty</th><th>Stack</th><th>Status</th>
+    </tr></thead><tbody>
+      ${devices.map(d=>`<tr>
+        <td><strong>${escapeHtml(d.serialNumber||'')}</strong></td>
+        <td>${escapeHtml(d.deviceName||'')}</td>
+        <td>${escapeHtml(d.deviceCode||'')}</td>
+        <td>${escapeHtml(d.project||'')}</td>
+        <td>${escapeHtml(d.projectCode||'')}</td>
+        <td>${escapeHtml(d.area||'')}</td>
+        <td>${escapeHtml(d.site||'')}</td>
+        <td>${escapeHtml(d.ipAddress||'')}</td>
+        <td>${escapeHtml(d.vendor||'')}</td>
+        <td>${escapeHtml(d.model||'')}</td>
+        <td>${escapeHtml(toDateStr(d.installDate))}</td>
+        <td>${escapeHtml(toDateStr(d.warrantyExp))}</td>
+        <td>${escapeHtml(d.stack||'')}</td>
+        <td>${escapeHtml(d.status||'')}</td>
+      </tr>`).join("")}
+    </tbody></table>
+    <script>setTimeout(()=>window.print(),500)<\/script>`;
+
+  await openReportPDF("ASSET_REPORT", filterLbl||"All devices", bodyHTML);
+  toast("PDF export ready!");
 };
 
 window.exportAssetExcel = async function(){
@@ -5161,12 +5203,17 @@ window.exportAssetExcel = async function(){
     const keys = ["serialNumber","deviceName","deviceCode","project","projectCode","area","site","ipAddress","vendor","model","installDate","warrantyExp","stack","status"];
     const colL=(n)=>{let s="";n++;while(n>0){let m=(n-1)%26;s=String.fromCharCode(65+m)+s;n=Math.floor((n-1)/26);}return s;};
     const ws={};
-    cols.forEach((c,i)=>setC(ws,`${colL(i)}1`,c,hd));
+    const lastCol=colL(cols.length-1);
+    // Branded title banner (navy background, gold text) — matches HR report
+    setC(ws,'A1',`EJAF  •  ASSET REPORT  —  ${devices.length} devices`,{font:{bold:true,sz:16,color:{rgb:"C9A84C"}},fill:{fgColor:{rgb:NAVY}},alignment:{horizontal:"center",vertical:"center"}});
+    ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:cols.length-1}}];
+    cols.forEach((c,i)=>setC(ws,`${colL(i)}2`,c,hd));
     devices.forEach((d,ri)=>{
-      keys.forEach((k,ci)=>{ const cv=(k==="installDate"||k==="warrantyExp")?toDateStr(d[k]):(d[k]||""); setC(ws,`${colL(ci)}${ri+2}`,cv,{font:{sz:10},fill:{fgColor:{rgb:ri%2?"F0F4FF":WHITE}}}); });
+      keys.forEach((k,ci)=>{ const cv=(k==="installDate"||k==="warrantyExp")?toDateStr(d[k]):(d[k]||""); setC(ws,`${colL(ci)}${ri+3}`,cv,{font:{sz:10},fill:{fgColor:{rgb:ri%2?"F0F4FF":WHITE}}}); });
     });
-    ws['!ref']=`A1:${colL(cols.length-1)}${devices.length+1}`;
+    ws['!ref']=`A1:${lastCol}${devices.length+2}`;
     ws['!cols']=cols.map(()=>({wch:15}));
+    ws['!rows']=[{hpt:26}];
     const wb=XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb,ws,"Assets");
     XLSX.writeFile(wb,`EJAF_Asset_Report_${new Date().toISOString().slice(0,10)}.xlsx`);
@@ -5518,6 +5565,10 @@ function renderProjects(){
       <div class="field"><label>Department</label><select onchange="window.projForm.dept=this.value;render()">
         ${allDepts.map(d=>`<option ${projForm.dept===d?"selected":""}>${escapeHtml(d)}</option>`).join("")}
       </select></div>
+      <div class="field"><label>Status</label><select onchange="window.projForm.status=this.value">
+        <option value="">—</option>
+        ${getProjStatusList().map(s=>`<option ${projForm.status===s?"selected":""}>${escapeHtml(s)}</option>`).join("")}
+      </select></div>
     </div>
     <div class="btn-row">
       <button class="btn btn-primary" onclick="saveProj()">${projEditId?"Update":"Add"}</button>
@@ -5575,7 +5626,7 @@ async function saveProj(){
   // Preserve existing areas + codes (managed separately via the Areas/Sites manager)
   const areas = (projForm.areas!==undefined) ? projForm.areas : (existingProj?.areas || []);
   const codes = existingProj?.codes || [];
-  await fbSave("projects",{id,name:cleanName,dept:projForm.dept,estimatedHours:Number(projForm.estimatedHours||0),areas,codes});
+  await fbSave("projects",{id,name:cleanName,dept:projForm.dept,status:projForm.status||"",estimatedHours:Number(projForm.estimatedHours||0),areas,codes});
 
   if(oldName){
     const synced = await cascadeRenameProject(oldName, cleanName);
@@ -5669,7 +5720,7 @@ function renderUsers(){
       <div class="field full"><label>Display Name <span class="req">*</span></label>
         <input value="${escapeHtml(userForm.name)}" oninput="window.userForm.name=this.value" placeholder="Full name"></div>
       <div class="field full"><label>Email <span class="req">*</span></label>
-        <input type="email" value="${escapeHtml(userForm.email)}" oninput="window.userForm.email=this.value" placeholder="user@ejaftech.com" ${userEditId?"disabled":""}></div>
+        <input type="email" value="${escapeHtml(userForm.email)}" oninput="window.userForm.email=this.value" placeholder="user@ejaftech.com">${userEditId?`<div style="font-size:10px;color:#888;margin-top:3px">ℹ️ Updates the profile email (used for display &amp; linking). The sign-in email stays unchanged.</div>`:""}</div>
       ${!userEditId?`<div class="field full"><label>Temp Password <span class="req">*</span></label>
         <input type="text" value="${escapeHtml(userForm.password)}" oninput="window.userForm.password=this.value" placeholder="Min 6 chars"></div>
       <div class="field full" style="background:#FFF8E1;padding:10px;border-radius:8px;border:1px solid #FFE082"><label style="color:#7F6000">🔒 YOUR Admin Password <span class="req">*</span></label>
@@ -5905,6 +5956,60 @@ function renderUsers(){
         </div>`;
       }).join("")}
     </div>
+  </div>
+
+  <!-- ═══ ENTRY PERMISSION PER CLIENT (Admin) ═══ -->
+  <div class="card" style="border-left:4px solid #C9A84C">
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px">
+      <span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">🤝</span>
+      Entry Permission per Client
+    </div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.6">
+      Control what each client can see and do in their portal.<br>
+      <strong>Project Details:</strong> client can pick Project → Project Code → Area → Site → Device when submitting a Request (pinpoints exactly what they need).<br>
+      <strong>Suggest Device Edits:</strong> client can propose changes to device details — saved as suggestions for your approval, never written directly.<br>
+      <strong>Portal Filters:</strong> filter bar in the client portal (Project · Code · Area · Site · Device · Serial · Model).<br>
+      <strong>Reports Export:</strong> client can generate branded PDF / Excel reports of their own projects.
+    </p>
+    ${(state.clients||[]).length===0?`<div class="empty" style="padding:14px">No clients yet — add them in the Clients tab.</div>`:`
+    <div style="display:flex;flex-direction:column;gap:6px">
+      ${(state.clients||[]).map(c => {
+        const p = getClientPermissions(c.id);
+        const linked = !!(c.linkedUserEmail || c.linkedUserUid);
+        return `<div style="display:flex;align-items:center;justify-content:space-between;padding:9px 14px;background:#FFFDF5;border:1px solid #EADFC0;border-radius:8px;gap:10px;flex-wrap:wrap">
+          <div style="min-width:150px">
+            <div style="font-weight:700;color:#1A202C;font-size:13px">🤝 ${escapeHtml(c.name)}</div>
+            <div style="font-size:10px;color:${linked?'#2E7D32':'#C62828'}">${linked?`👤 ${escapeHtml(linkedClientLabel(c)||'linked')}`:'No login linked'}</div>
+          </div>
+          <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;user-select:none">
+              <input type="checkbox" ${p.projectDetails?"checked":""} onchange="toggleClientPerm('${escapeHtml(c.id)}','projectDetails')" style="width:16px;height:16px;cursor:pointer">
+              <span style="color:${p.projectDetails?'#03308B':'#999'};font-weight:600">🗂️ Project Details</span>
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;user-select:none">
+              <input type="checkbox" ${p.deviceEditSuggest?"checked":""} onchange="toggleClientPerm('${escapeHtml(c.id)}','deviceEditSuggest')" style="width:16px;height:16px;cursor:pointer">
+              <span style="color:${p.deviceEditSuggest?'#E65100':'#999'};font-weight:600">✏️ Suggest Device Edits</span>
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;user-select:none">
+              <input type="checkbox" ${p.portalFilters?"checked":""} onchange="toggleClientPerm('${escapeHtml(c.id)}','portalFilters')" style="width:16px;height:16px;cursor:pointer">
+              <span style="color:${p.portalFilters?'#6A1B9A':'#999'};font-weight:600">🔎 Portal Filters</span>
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;user-select:none">
+              <input type="checkbox" ${p.reportsExport?"checked":""} onchange="toggleClientPerm('${escapeHtml(c.id)}','reportsExport')" style="width:16px;height:16px;cursor:pointer">
+              <span style="color:${p.reportsExport?'#00897B':'#999'};font-weight:600">📊 Reports Export</span>
+            </label>
+          </div>
+          ${p.reportsExport?`<div style="width:100%;display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:6px 0 0 8px;border-top:1px dashed #EADFC0;margin-top:4px">
+            <span style="font-size:10px;color:#7F6000;font-weight:700">Report includes:</span>
+            ${[["repSummary","Summary"],["repWorkLog","Work Log"],["repDevices","Devices"],["repRequests","Requests"]].map(([k,l])=>`
+            <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:11px;user-select:none">
+              <input type="checkbox" ${p[k]?"checked":""} onchange="toggleClientPerm('${escapeHtml(c.id)}','${k}')" style="width:13px;height:13px;cursor:pointer">
+              <span style="color:${p[k]?'#00897B':'#999'}">${l}</span>
+            </label>`).join("")}
+          </div>`:""}
+        </div>`;
+      }).join("")}
+    </div>`}
   </div>`;
 }
 
@@ -6749,6 +6854,51 @@ function renderWorkInstructions(){
 function renderTechClassifications(){
   if(!isAdmin()) return `<div class="card"><div class="empty">Admin only.</div></div>`;
   let h = "";
+
+  // ═══ CLIENT REQUEST ENTRY — editable status options ═══
+  {
+    const rss=(state.requestStatuses||[]).slice().sort((a,b)=>(a.order||0)-(b.order||0));
+    const pss=(state.projectStatuses||[]).slice().sort((a,b)=>(a.order||0)-(b.order||0));
+    h += `
+    <div class="card" style="border:2px solid #C9A84C">
+      <div class="card-title" style="color:#7F6000">📨 Client Request Entry</div>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.6">
+        Options used in the client <strong>Requests</strong> workflow. Leave a list empty to keep the built-in defaults.<br>
+        Deleting an option never touches existing requests — they keep their status; the option just disappears from pickers.
+      </p>
+      <div style="margin-bottom:18px">
+        <div style="font-weight:800;color:#B8860B;font-size:13px;margin-bottom:8px">🔖 Request Statuses <span style="font-weight:400;color:#999;font-size:11px">(defaults: New · In Progress · Completed)</span></div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">
+          ${rss.length===0?`<span style="font-size:12px;color:#999">Using built-in defaults</span>`:rss.map(w=>`
+            <span style="display:inline-flex;align-items:center;gap:5px;background:#FFF8E1;color:#7F6000;padding:5px 8px 5px 12px;border-radius:14px;font-size:12px;font-weight:600">
+              ${escapeHtml(w.name)}
+              <button onclick="delTechItem('requestStatuses','${w.id}')" style="background:#F5E3B0;border:none;color:#7F6000;width:18px;height:18px;border-radius:50%;cursor:pointer;font-weight:700;font-size:11px">×</button>
+            </span>`).join("")}
+        </div>
+        <div style="display:flex;gap:6px">
+          <input id="newReqStatus" placeholder="Add request status (e.g. Waiting Parts)" style="flex:1;padding:7px 10px;border:1px solid var(--line);border-radius:7px;font-size:12px">
+          <button class="btn btn-sm" style="background:#B8860B;color:white;border:none;font-weight:700" onclick="addTechItem('requestStatuses','newReqStatus',${rss.length})">+ Add</button>
+        </div>
+        <div style="font-size:10px;color:#999;margin-top:5px">💡 The <strong>first</strong> status in this list is what new client requests start as.</div>
+      </div>
+      <div>
+        <div style="font-weight:800;color:#00695C;font-size:13px;margin-bottom:8px">🏗️ Project Statuses <span style="font-weight:400;color:#999;font-size:11px">(defaults: Active · On Hold · Completed)</span></div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">
+          ${pss.length===0?`<span style="font-size:12px;color:#999">Using built-in defaults</span>`:pss.map(w=>`
+            <span style="display:inline-flex;align-items:center;gap:5px;background:#E0F2F1;color:#00695C;padding:5px 8px 5px 12px;border-radius:14px;font-size:12px;font-weight:600">
+              ${escapeHtml(w.name)}
+              <button onclick="delTechItem('projectStatuses','${w.id}')" style="background:#B2DFDB;border:none;color:#00695C;width:18px;height:18px;border-radius:50%;cursor:pointer;font-weight:700;font-size:11px">×</button>
+            </span>`).join("")}
+        </div>
+        <div style="display:flex;gap:6px">
+          <input id="newProjStatus" placeholder="Add project status (e.g. Handover)" style="flex:1;padding:7px 10px;border:1px solid var(--line);border-radius:7px;font-size:12px">
+          <button class="btn btn-sm" style="background:#00695C;color:white;border:none;font-weight:700" onclick="addTechItem('projectStatuses','newProjStatus',${pss.length})">+ Add</button>
+        </div>
+        <div style="font-size:10px;color:#999;margin-top:5px">Set each project's status in <strong>Database → Projects</strong>; clients see it on their portal.</div>
+      </div>
+    </div>`;
+  }
+
     const workTypes = (state.techWorkTypes||[]).slice().sort((a,b)=>(a.order||0)-(b.order||0));
     const statuses  = (state.techStatuses||[]).slice().sort((a,b)=>(a.order||0)-(b.order||0));
     const cats2     = (state.techCategories||[]).slice().sort((a,b)=>(a.order||0)-(b.order||0));
@@ -7043,7 +7193,7 @@ let clientForm=null, clientEditId=null;
 
 function renderClients(){
   if(!isAdmin()) return `<div class="card"><div class="empty">Access denied — Admin only</div></div>`;
-  if(!clientForm) clientForm={name:"", linkedUserEmail:"", projects:[], notes:""};
+  if(!clientForm) clientForm={name:"", linkedUserEmail:"", linkedUserUid:"", projects:[], notes:""};
 
   const allProjects = state.projects.map(p=>(p.name||"").trim()).filter(Boolean);
   const clientUsers = state.users.filter(u=>(u.role||"").toLowerCase()==="client");
@@ -7053,10 +7203,10 @@ function renderClients(){
     <div class="form-grid">
       <div class="field"><label>Client / Company Name <span class="req">*</span></label>
         <input value="${escapeHtml(clientForm.name||"")}" oninput="window.clientForm.name=this.value" placeholder="e.g., National Security Co."></div>
-      <div class="field"><label>Linked User Account (email)</label>
-        <select onchange="window.clientForm.linkedUserEmail=this.value">
+      <div class="field"><label>Linked User Account</label>
+        <select onchange="window.clientForm.linkedUserUid=this.value">
           <option value="">— No login account —</option>
-          ${clientUsers.map(u=>`<option value="${escapeHtml(u.email)}" ${u.email===clientForm.linkedUserEmail?"selected":""}>${escapeHtml(u.name||u.email)} (${escapeHtml(u.email)})</option>`).join("")}
+          ${clientUsers.map(u=>{const sel=(u.id===clientForm.linkedUserUid)||(!clientForm.linkedUserUid&&u.email&&u.email===clientForm.linkedUserEmail);return `<option value="${escapeHtml(u.id)}" ${sel?"selected":""}>${escapeHtml(u.name||u.email||"Unnamed")}${u.email?` (${escapeHtml(u.email)})`:" (no email)"}</option>`;}).join("")}
         </select>
         <div style="font-size:10px;color:var(--muted);margin-top:3px">Create the user first in Users tab with role "Client"</div>
       </div>
@@ -7101,7 +7251,7 @@ function renderClients(){
               <div style="flex:1;min-width:200px">
                 <div style="font-weight:800;font-size:15px;color:#03308B">🏢 ${escapeHtml(c.name)}</div>
                 <div style="font-size:11px;color:var(--muted);margin-top:2px">
-                  ${c.linkedUserEmail?`👤 ${escapeHtml(c.linkedUserEmail)}`:'<span style="color:#C62828">No login linked</span>'}
+                  ${linkedClientLabel(c)?`👤 ${escapeHtml(linkedClientLabel(c))}`:'<span style="color:#C62828">No login linked</span>'}
                   ${c.notes?` · ${escapeHtml(c.notes)}`:''}
                 </div>
                 <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:8px">
@@ -7143,16 +7293,20 @@ async function saveClient(){
   const name = (clientForm.name||"").trim();
   if(!name) return toast("Client name is required");
   if(!(clientForm.projects||[]).length) return toast("Assign at least 1 project");
-  // Resolve linked user uid
-  let linkedUid = "";
-  if(clientForm.linkedUserEmail){
+  // Resolve linked user (UID-based; legacy email links still honored)
+  let linkedUid = clientForm.linkedUserUid || "";
+  let linkedEmail = "";
+  if(linkedUid){
+    const u = state.users.find(x=>x.id===linkedUid);
+    if(!u){ linkedUid=""; } else { linkedEmail = u.email||""; }
+  } else if(clientForm.linkedUserEmail){
     const u = state.users.find(x=>(x.email||"").toLowerCase()===clientForm.linkedUserEmail.toLowerCase());
-    linkedUid = u ? u.id : "";
+    if(u){ linkedUid = u.id; linkedEmail = u.email||""; }
   }
   await fbSave("clients", {
     id: clientEditId||undefined,
     name,
-    linkedUserEmail: clientForm.linkedUserEmail||"",
+    linkedUserEmail: linkedEmail,
     linkedUserUid: linkedUid,
     projects: clientForm.projects||[],
     notes: clientForm.notes||"",
@@ -7163,7 +7317,7 @@ async function saveClient(){
 }
 function editClient(id){
   const c=(state.clients||[]).find(x=>x.id===id);
-  if(c){ clientForm={name:c.name,linkedUserEmail:c.linkedUserEmail||"",projects:[...(c.projects||[])],notes:c.notes||""}; clientEditId=id; render(); window.scrollTo(0,0); }
+  if(c){ clientForm={name:c.name,linkedUserEmail:c.linkedUserEmail||"",linkedUserUid:c.linkedUserUid||"",projects:[...(c.projects||[])],notes:c.notes||""}; clientEditId=id; render(); window.scrollTo(0,0); }
 }
 async function delClient(id){
   if(!confirm("Delete this client? Their requests will remain."))return;
@@ -7180,10 +7334,33 @@ Object.defineProperty(window,'clientForm',{get:()=>clientForm,set:v=>clientForm=
 function renderClientPortal(){
   const c = getMyClientRecord();
   if(!c) return `<div class="card"><div class="empty">⚠ Your account is not linked to any client yet.<br>Please contact the administrator.</div></div>`;
+  const perms = getClientPermissions(c.id);
+  if(!window._cpf) window._cpf = {project:"",area:"",site:"",device:"",serial:"",model:""};
+  const F = window._cpf;
 
   const myProjects = c.projects||[];
+  // Devices belonging to the client's projects
+  const myDevicesAll = (state.devices||[]).filter(d=>myProjects.includes(d.project));
+  // Apply portal filters (only when the admin enabled them)
+  const fActive = perms.portalFilters && (F.project||F.area||F.site||F.device||F.serial||F.model);
+  const devMatch = d =>
+    (!F.project || d.project===F.project) &&
+    (!F.area    || d.area===F.area) &&
+    (!F.site    || d.site===F.site) &&
+    (!F.device  || (d.deviceName||"")===F.device) &&
+    (!F.serial  || (d.serialNumber||"").toLowerCase().includes(F.serial.toLowerCase())) &&
+    (!F.model   || (d.model||"").toLowerCase().includes(F.model.toLowerCase()));
+  const myDevices = fActive ? myDevicesAll.filter(devMatch) : myDevicesAll;
+
   const myDaily = state.daily
     .filter(r=>myProjects.includes(r.project))
+    .filter(r=>inActivePeriod(r.date))
+    .filter(r=>!fActive || (
+      (!F.project || r.project===F.project) &&
+      (!F.area    || (r.area||"")===F.area) &&
+      (!F.site    || (r.site||"")===F.site) &&
+      (!F.serial  || (r.deviceSerial||"").toLowerCase().includes(F.serial.toLowerCase()))
+    ))
     .sort((a,b)=>{
       const an=Number(a.entryNo||0), bn=Number(b.entryNo||0);
       if(an&&bn)return an-bn;
@@ -7199,12 +7376,12 @@ function renderClientPortal(){
 
   // Per-project breakdown
   const perProject = myProjects.map(pn=>{
-    const rows = state.daily.filter(r=>r.project===pn);
+    const rows = state.daily.filter(r=>r.project===pn && inActivePeriod(r.date));
     const hrs = rows.reduce((s,r)=>s+Number(r.duration||0),0);
     const p = state.projects.find(x=>(x.name||"").trim()===pn);
     const est = Number(p?.estimatedHours||0);
     const ppct = est>0?Math.min(100,Math.round(hrs/est*100)):null;
-    return {name:pn, hrs, est, pct:ppct, count:rows.length};
+    return {name:pn, hrs, est, pct:ppct, count:rows.length, status:p?.status||""};
   });
 
   return `<div class="card" style="background:linear-gradient(135deg,#03308B,#1a4db5);border:none;color:white">
@@ -7213,6 +7390,10 @@ function renderClientPortal(){
         <div style="font-size:11px;opacity:0.6;text-transform:uppercase;letter-spacing:1px">Client Portal</div>
         <div style="font-size:20px;font-weight:800;color:#C9A84C;margin-top:2px">🏢 ${escapeHtml(c.name)}</div>
         <div style="font-size:12px;opacity:0.7;margin-top:2px">${myProjects.length} project(s) · ${myDaily.length} work entries</div>
+        ${perms.reportsExport?`<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+          <button onclick="exportClientPDF()" style="background:#C9A84C;color:#03308B;border:none;padding:7px 14px;border-radius:7px;font-size:12px;font-weight:800;cursor:pointer">📄 PDF Report</button>
+          <button onclick="exportClientExcel()" style="background:rgba(255,255,255,0.15);color:white;border:1px solid rgba(201,168,76,0.6);padding:7px 14px;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer">📊 Excel Report</button>
+        </div>`:""}
       </div>
       <div style="text-align:right">
         <div style="font-size:11px;opacity:0.6">Total Hours Delivered</div>
@@ -7229,6 +7410,7 @@ function renderClientPortal(){
     <div class="card-title">📊 Project Progress</div>
     <div style="display:flex;flex-direction:column;gap:10px">
       ${perProject.map(p=>`<div style="border:1px solid var(--line);border-radius:8px;padding:12px">
+        ${p.status?`<span style="float:right;background:#F0F4FF;color:#03308B;border:1px solid #C9A84C;padding:2px 10px;border-radius:12px;font-size:10px;font-weight:800">${escapeHtml(p.status)}</span>`:""}
         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
           <div style="font-weight:700;color:#03308B;font-size:14px">${escapeHtml(p.name)}</div>
           <div style="font-size:12px;color:var(--muted)">${fmtHM(p.hrs)}${p.est?` / ${p.est}h est.`:""} · ${p.count} entries</div>
@@ -7242,6 +7424,33 @@ function renderClientPortal(){
       </div>`).join("")}
     </div>
   </div>
+
+  ${perms.portalFilters?`
+  <div class="card" style="border-left:4px solid #6A1B9A">
+    <div class="card-title" style="margin-bottom:8px">🔎 Filters</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <select onchange="window._cpf.project=this.value;window._cpf.area='';window._cpf.site='';render()" style="flex:1;min-width:130px;padding:7px 10px;border:1px solid #6A1B9A;border-radius:6px;font-size:12px">
+        <option value="">📁 All Projects</option>
+        ${myProjects.map(p=>`<option value="${escapeHtml(p)}" ${p===F.project?"selected":""}>${escapeHtml(p)}</option>`).join("")}
+      </select>
+      <input value="${escapeHtml((state.projects||[]).find(p=>p.name===F.project)?.code||"")}" disabled placeholder="🔌 Project Code" style="flex:1;min-width:110px;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:12px;background:#F5F7FA">
+      <select onchange="window._cpf.area=this.value;window._cpf.site='';render()" ${!F.project?"disabled":""} style="flex:1;min-width:110px;padding:7px 10px;border:1px solid #6A1B9A;border-radius:6px;font-size:12px">
+        <option value="">🗺️ All Areas</option>
+        ${(((state.projects||[]).find(p=>p.name===F.project)||{}).areas||[]).map(a=>`<option value="${escapeHtml(a.name)}" ${a.name===F.area?"selected":""}>${escapeHtml(a.name)}</option>`).join("")}
+      </select>
+      <select onchange="window._cpf.site=this.value;render()" ${!F.area?"disabled":""} style="flex:1;min-width:110px;padding:7px 10px;border:1px solid #6A1B9A;border-radius:6px;font-size:12px">
+        <option value="">📍 All Sites</option>
+        ${(((((state.projects||[]).find(p=>p.name===F.project)||{}).areas||[]).find(a=>a.name===F.area)||{}).sites||[]).map(s=>`<option value="${escapeHtml(s.name)}" ${s.name===F.site?"selected":""}>${escapeHtml(s.name)}</option>`).join("")}
+      </select>
+      <select onchange="window._cpf.device=this.value;render()" style="flex:1;min-width:120px;padding:7px 10px;border:1px solid #6A1B9A;border-radius:6px;font-size:12px">
+        <option value="">📟 All Devices</option>
+        ${[...new Set(myDevicesAll.map(d=>d.deviceName).filter(Boolean))].sort().map(n=>`<option value="${escapeHtml(n)}" ${n===F.device?"selected":""}>${escapeHtml(n)}</option>`).join("")}
+      </select>
+      <input value="${escapeHtml(F.serial)}" oninput="window._cpf.serial=this.value" onchange="render()" placeholder="🔢 Serial Number" style="flex:1;min-width:120px;padding:7px 10px;border:1px solid #6A1B9A;border-radius:6px;font-size:12px">
+      <input value="${escapeHtml(F.model)}" oninput="window._cpf.model=this.value" onchange="render()" placeholder="📱 Model" style="flex:1;min-width:110px;padding:7px 10px;border:1px solid #6A1B9A;border-radius:6px;font-size:12px">
+      ${fActive?`<button onclick="window._cpf={project:'',area:'',site:'',device:'',serial:'',model:''};render()" style="background:#C62828;color:white;border:none;padding:7px 14px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer">✕ Clear</button>`:""}
+    </div>
+  </div>`:""}
 
   <div class="card">
     <div class="filter-row">
@@ -7264,8 +7473,246 @@ function renderClientPortal(){
         </td>
       </tr>`).join("")}</tbody>
     </table></div>`}
+  </div>
+
+  ${(perms.projectDetails||perms.deviceEditSuggest)?`
+  <div class="card">
+    <div class="filter-row">
+      <span class="card-title" style="margin:0">📟 My Devices</span>
+      <span class="count-pill">${myDevices.length}</span>
+    </div>
+    ${myDevices.length===0?`<div class="empty">No devices${fActive?" match your filters":" registered for your projects yet"}</div>`:
+    `<div class="tbl-wrap"><table class="tbl">
+      <thead><tr><th>Device</th><th>Serial</th><th>Model</th><th>Site</th><th>Status</th>${perms.deviceEditSuggest?`<th></th>`:""}</tr></thead>
+      <tbody>${myDevices.map(d=>{
+        const pending=(state.deviceEditSuggestions||[]).some(s=>s.deviceId===d.id && s.status==="pending" && s.clientId===c.id);
+        return `<tr>
+        <td><strong>${escapeHtml(d.deviceName||"—")}</strong><div style="font-size:10px;color:#888">${escapeHtml(d.project||"")}${d.area?" · "+escapeHtml(d.area):""}</div></td>
+        <td>${escapeHtml(d.serialNumber||"—")}</td>
+        <td>${escapeHtml(d.model||"—")}</td>
+        <td>${escapeHtml(d.site||"—")}</td>
+        <td><span style="font-size:11px;font-weight:700;color:${(d.status||"")==="Active"?"#2E7D32":"#888"}">${escapeHtml(d.status||"—")}</span></td>
+        ${perms.deviceEditSuggest?`<td style="text-align:right">${pending
+          ?`<span style="font-size:10px;color:#E65100;font-weight:700">⏳ Pending review</span>`
+          :`<button onclick="openDeviceSuggest('${d.id}')" style="background:#03308B;color:#C9A84C;border:none;padding:5px 10px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer">✏️ Suggest edit</button>`}</td>`:""}
+      </tr>`;}).join("")}</tbody>
+    </table></div>`}
+  </div>
+
+  ${window._devSuggestFor?renderDeviceSuggestForm(c):""}
+  `:""}`;
+}
+
+// ── Client device-edit suggestion form (inline card) ──
+window.openDeviceSuggest = function(deviceId){
+  const d=(state.devices||[]).find(x=>x.id===deviceId);
+  if(!d) return;
+  window._devSuggestFor = {deviceId, deviceName:d.deviceName||"", ipAddress:d.ipAddress||"", model:d.model||"", vendor:d.vendor||"", status:d.status||"Active", note:""};
+  render(); setTimeout(()=>{const el=document.getElementById("devSuggestCard");if(el)el.scrollIntoView({behavior:"smooth"});},50);
+};
+function renderDeviceSuggestForm(c){
+  const s = window._devSuggestFor;
+  const d = (state.devices||[]).find(x=>x.id===s.deviceId);
+  if(!d) return "";
+  return `<div class="card" id="devSuggestCard" style="border-left:4px solid #E65100">
+    <div class="card-title">✏️ Suggest Edit — ${escapeHtml(d.deviceName||d.serialNumber||"Device")}</div>
+    <p style="font-size:11px;color:var(--muted);margin-bottom:10px">Your changes are sent as a <strong>suggestion</strong> for the EJAF team to review — nothing is changed until they approve it.</p>
+    <div class="form-grid">
+      <div class="field"><label>Device Name</label><input value="${escapeHtml(s.deviceName)}" oninput="window._devSuggestFor.deviceName=this.value"></div>
+      <div class="field"><label>IP Address</label><input value="${escapeHtml(s.ipAddress)}" oninput="window._devSuggestFor.ipAddress=this.value"></div>
+      <div class="field"><label>Model</label><input value="${escapeHtml(s.model)}" oninput="window._devSuggestFor.model=this.value"></div>
+      <div class="field"><label>Vendor</label><input value="${escapeHtml(s.vendor)}" oninput="window._devSuggestFor.vendor=this.value"></div>
+      <div class="field"><label>Status</label>
+        <select onchange="window._devSuggestFor.status=this.value">
+          ${["Active","Inactive","Maintenance","Faulty","Spare","Retired"].map(st=>`<option ${st===s.status?"selected":""}>${st}</option>`).join("")}
+        </select></div>
+      <div class="field full"><label>Reason / Note</label><textarea rows="2" oninput="window._devSuggestFor.note=this.value" placeholder="Why this change?">${escapeHtml(s.note)}</textarea></div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:10px">
+      <button class="btn btn-primary" onclick="submitDeviceSuggestion()">📨 Send suggestion</button>
+      <button class="btn" style="background:#888;color:white" onclick="window._devSuggestFor=null;render()">Cancel</button>
+    </div>
   </div>`;
 }
+window.submitDeviceSuggestion = async function(){
+  const c=getMyClientRecord(); if(!c) return;
+  const s=window._devSuggestFor; if(!s) return;
+  const d=(state.devices||[]).find(x=>x.id===s.deviceId); if(!d) return;
+  // Only keep fields that actually changed
+  const changes={};
+  [["deviceName","Device Name"],["ipAddress","IP Address"],["model","Model"],["vendor","Vendor"],["status","Status"]].forEach(([k])=>{
+    if((s[k]||"")!==(d[k]||"")) changes[k]={from:d[k]||"", to:s[k]||""};
+  });
+  if(Object.keys(changes).length===0) return toast("No changes made");
+  await fbSave("deviceEditSuggestions",{
+    id: undefined,
+    deviceId: d.id,
+    deviceSerial: d.serialNumber||"",
+    deviceLabel: d.deviceName||d.model||d.serialNumber||"Device",
+    project: d.project||"",
+    clientId: c.id,
+    clientName: c.name,
+    changes,
+    note: s.note||"",
+    status: "pending",
+    createdAt: new Date().toISOString(),
+    createdBy: state.profile.uid,
+  });
+  window._devSuggestFor=null;
+  toast("Suggestion sent ✓ — the team will review it");
+  render();
+};
+
+// ── ADMIN: review client device-edit suggestions ──
+function renderDeviceSuggestionsAdmin(){
+  const pending=(state.deviceEditSuggestions||[]).filter(s=>s.status==="pending")
+    .sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||""));
+  if(pending.length===0) return "";
+  return `<div class="card" style="border-left:4px solid #E65100">
+    <div class="filter-row">
+      <span class="card-title" style="margin:0">✏️ Device Edit Suggestions</span>
+      <span style="background:#E65100;color:white;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700">${pending.length} PENDING</span>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      ${pending.map(s=>`<div style="border:1px solid #FFE0B2;background:#FFFDF7;border-radius:8px;padding:12px">
+        <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:flex-start">
+          <div style="flex:1;min-width:200px">
+            <div style="font-weight:700;font-size:13px;color:#1A202C">📟 ${escapeHtml(s.deviceLabel||"Device")} <span style="font-weight:400;color:#888;font-size:11px">${s.deviceSerial?("SN: "+escapeHtml(s.deviceSerial)):""}</span></div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px">🏢 ${escapeHtml(s.clientName||"")} · 📁 ${escapeHtml(s.project||"")} · ${fmtDate((s.createdAt||"").slice(0,10))}</div>
+            <table style="font-size:11px;margin-top:8px;border-collapse:collapse">
+              ${Object.entries(s.changes||{}).map(([k,ch])=>`<tr>
+                <td style="padding:3px 10px 3px 0;color:#555;font-weight:600">${escapeHtml(prettyStatus(k))}</td>
+                <td style="padding:3px 8px;color:#C62828;text-decoration:line-through">${escapeHtml(ch.from||"—")}</td>
+                <td style="padding:3px 4px;color:#888">→</td>
+                <td style="padding:3px 8px;color:#2E7D32;font-weight:700">${escapeHtml(ch.to||"—")}</td>
+              </tr>`).join("")}
+            </table>
+            ${s.note?`<div style="font-size:11px;color:#7F6000;margin-top:6px;font-style:italic">💬 ${escapeHtml(s.note)}</div>`:""}
+          </div>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <button class="btn btn-sm" style="background:#2E7D32;color:white;border:none;font-weight:700" onclick="approveDeviceSuggestion('${s.id}')">✓ Approve</button>
+            <button class="btn btn-sm" style="background:#C62828;color:white;border:none;font-weight:700" onclick="rejectDeviceSuggestion('${s.id}')">✕ Reject</button>
+          </div>
+        </div>
+      </div>`).join("")}
+    </div>
+  </div>`;
+}
+window.approveDeviceSuggestion = async function(id){
+  if(!isAdmin()) return toast("Admin only");
+  const s=(state.deviceEditSuggestions||[]).find(x=>x.id===id); if(!s) return;
+  const d=(state.devices||[]).find(x=>x.id===s.deviceId);
+  if(!d){ toast("Device no longer exists"); return; }
+  const applied={}; Object.entries(s.changes||{}).forEach(([k,ch])=>{applied[k]=ch.to||"";});
+  await fbSave("devices",{...d, ...applied, updatedAt:new Date().toISOString()});
+  await fbSave("deviceEditSuggestions",{...s, id, status:"approved", reviewedAt:new Date().toISOString(), reviewedBy:state.profile.uid});
+  toast("Suggestion approved — device updated ✓");
+};
+window.rejectDeviceSuggestion = async function(id){
+  if(!isAdmin()) return toast("Admin only");
+  const s=(state.deviceEditSuggestions||[]).find(x=>x.id===id); if(!s) return;
+  await fbSave("deviceEditSuggestions",{...s, id, status:"rejected", reviewedAt:new Date().toISOString(), reviewedBy:state.profile.uid});
+  toast("Suggestion rejected");
+};
+
+// ── CLIENT REPORTS (PDF / Excel) — content controlled by the admin ──
+function clientReportData(){
+  const c=getMyClientRecord(); if(!c) return null;
+  const perms=getClientPermissions(c.id);
+  const myProjects=c.projects||[];
+  const F=window._cpf||{project:"",area:"",site:"",device:"",serial:"",model:""};
+  const fActive=perms.portalFilters&&(F.project||F.area||F.site||F.device||F.serial||F.model);
+  const daily=state.daily
+    .filter(r=>myProjects.includes(r.project))
+    .filter(r=>inActivePeriod(r.date))
+    .filter(r=>!fActive||((!F.project||r.project===F.project)&&(!F.area||(r.area||"")===F.area)&&(!F.site||(r.site||"")===F.site)&&(!F.serial||(r.deviceSerial||"").toLowerCase().includes(F.serial.toLowerCase()))))
+    .sort((a,b)=>(a.date||"").localeCompare(b.date||""));
+  const devices=(state.devices||[]).filter(d=>myProjects.includes(d.project))
+    .filter(d=>!fActive||((!F.project||d.project===F.project)&&(!F.area||d.area===F.area)&&(!F.site||d.site===F.site)&&(!F.device||(d.deviceName||"")===F.device)&&(!F.serial||(d.serialNumber||"").toLowerCase().includes(F.serial.toLowerCase()))&&(!F.model||(d.model||"").toLowerCase().includes(F.model.toLowerCase()))));
+  const requests=(state.clientRequests||[]).filter(r=>r.clientId===c.id)
+    .sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||""));
+  const totalHrs=daily.reduce((s,r)=>s+Number(r.duration||0),0);
+  return {c,perms,myProjects,daily,devices,requests,totalHrs};
+}
+window.exportClientPDF = async function(){
+  const D=clientReportData(); if(!D) return toast("Not linked to a client");
+  const {c,perms,myProjects,daily,devices,requests,totalHrs}=D;
+  if(!perms.reportsExport) return toast("Reports not enabled for your account");
+  let n=1, body=`
+    <div class="actions no-print" style="padding:10px;background:#FFF8E1;border:1px solid #FFE082;border-radius:8px;margin-bottom:14px;text-align:center;font-size:13px;color:#7F6000">
+      📄 In the print dialog, choose <strong>"Save as PDF"</strong>
+      <br><br><button onclick="window.print()">🖨️ Print / Save as PDF</button>
+      <button onclick="window.close()" style="background:#888">Close</button>
+    </div>`;
+  if(perms.repSummary){
+    body+=`<div class="ksec"><span class="kbad">0${n++}</span><h3>Summary — ${escapeHtml(c.name)}</h3></div>
+    <div class="kr">
+      <div class="kc kb"><div class="kl">Projects</div><div class="kv">${myProjects.length}</div><div class="ks">assigned</div></div>
+      <div class="kc ko"><div class="kl">Hours Delivered</div><div class="kv">${fmtHM(totalHrs)}</div><div class="ks">in period</div></div>
+      <div class="kc kg"><div class="kl">Work Entries</div><div class="kv">${daily.length}</div><div class="ks">entries</div></div>
+    </div>`;
+  }
+  if(perms.repWorkLog){
+    body+=`<div class="ksec"><span class="kbad">0${n++}</span><h3>Work Log (${daily.length})</h3></div>
+    <table><thead><tr><th>#</th><th>Date</th><th>Project</th><th>Hours</th><th>Resolution</th></tr></thead>
+    <tbody>${daily.map(r=>`<tr><td>${r.entryNo?formatEntryNo(r.entryNo):"—"}</td><td>${fmtDate(r.date)}</td><td>${escapeHtml(r.project||"")}</td><td>${fmtHM(r.duration)}</td><td>${escapeHtml((r.resolutionText||"").slice(0,140))}</td></tr>`).join("")}</tbody></table>`;
+  }
+  if(perms.repDevices){
+    body+=`<div class="ksec"><span class="kbad">0${n++}</span><h3>Devices (${devices.length})</h3></div>
+    <table><thead><tr><th>Device</th><th>Serial</th><th>Model</th><th>Site</th><th>Status</th></tr></thead>
+    <tbody>${devices.map(d=>`<tr><td>${escapeHtml(d.deviceName||"—")}</td><td>${escapeHtml(d.serialNumber||"—")}</td><td>${escapeHtml(d.model||"—")}</td><td>${escapeHtml(d.site||"—")}</td><td>${escapeHtml(d.status||"—")}</td></tr>`).join("")}</tbody></table>`;
+  }
+  if(perms.repRequests){
+    body+=`<div class="ksec"><span class="kbad">0${n++}</span><h3>Requests (${requests.length})</h3></div>
+    <table><thead><tr><th>Date</th><th>Title</th><th>Project</th><th>Status</th></tr></thead>
+    <tbody>${requests.map(r=>`<tr><td>${fmtDate((r.createdAt||"").slice(0,10))}</td><td>${escapeHtml(r.title||"")}</td><td>${escapeHtml(r.project||"")}</td><td>${escapeHtml(prettyStatus(r.status))}</td></tr>`).join("")}</tbody></table>`;
+  }
+  body+=`<script>setTimeout(()=>window.print(),500)<\/script>`;
+  await openReportPDF("CLIENT_REPORT", getPeriod(), body);
+  toast("PDF report ready!");
+};
+window.exportClientExcel = function(){
+  const D=clientReportData(); if(!D) return toast("Not linked to a client");
+  const {c,perms,myProjects,daily,devices,requests,totalHrs}=D;
+  if(!perms.reportsExport) return toast("Reports not enabled for your account");
+  const NAVY="03308B", GOLD="C9A84C", WHITE="FFFFFF";
+  const hd={font:{bold:true,sz:10,color:{rgb:WHITE}},fill:{fgColor:{rgb:NAVY}}};
+  const setC=(ws,a,v,s)=>{ws[a]={v:v,t:typeof v==='number'?'n':'s'};if(s)ws[a].s=s;};
+  const colL=(x)=>String.fromCharCode(65+x);
+  const wb=XLSX.utils.book_new();
+  if(perms.repSummary){
+    const ws={};
+    setC(ws,'A1',`EJAF  •  CLIENT REPORT  —  ${c.name}  —  ${getPeriod()}`,{font:{bold:true,sz:14,color:{rgb:GOLD}},fill:{fgColor:{rgb:NAVY}}});
+    ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:3}}];
+    [["Projects",myProjects.length],["Hours Delivered",fmtHM(totalHrs)],["Work Entries",daily.length],["Devices",devices.length]].forEach((p,i)=>{setC(ws,`A${i+3}`,p[0],hd);setC(ws,`B${i+3}`,p[1]);});
+    ws['!ref']='A1:D7'; ws['!cols']=[{wch:20},{wch:18},{wch:14},{wch:14}]; ws['!rows']=[{hpt:24}];
+    XLSX.utils.book_append_sheet(wb,ws,"Summary");
+  }
+  if(perms.repWorkLog){
+    const ws={}; const cols=["#","Date","Project","Hours","Resolution"];
+    cols.forEach((cl,i)=>setC(ws,`${colL(i)}1`,cl,hd));
+    daily.forEach((r,ri)=>{[r.entryNo?formatEntryNo(r.entryNo):"—",fmtDate(r.date),r.project||"",fmtHM(r.duration),(r.resolutionText||"").slice(0,180)].forEach((v,ci)=>setC(ws,`${colL(ci)}${ri+2}`,v));});
+    ws['!ref']=`A1:E${daily.length+1}`; ws['!cols']=[{wch:8},{wch:12},{wch:22},{wch:9},{wch:50}];
+    XLSX.utils.book_append_sheet(wb,ws,"Work Log");
+  }
+  if(perms.repDevices){
+    const ws={}; const cols=["Device","Serial","Model","Site","Status"];
+    cols.forEach((cl,i)=>setC(ws,`${colL(i)}1`,cl,hd));
+    devices.forEach((d,ri)=>{[d.deviceName||"",d.serialNumber||"",d.model||"",d.site||"",d.status||""].forEach((v,ci)=>setC(ws,`${colL(ci)}${ri+2}`,v));});
+    ws['!ref']=`A1:E${devices.length+1}`; ws['!cols']=[{wch:20},{wch:16},{wch:16},{wch:16},{wch:12}];
+    XLSX.utils.book_append_sheet(wb,ws,"Devices");
+  }
+  if(perms.repRequests){
+    const ws={}; const cols=["Date","Title","Project","Status"];
+    cols.forEach((cl,i)=>setC(ws,`${colL(i)}1`,cl,hd));
+    requests.forEach((r,ri)=>{[fmtDate((r.createdAt||"").slice(0,10)),r.title||"",r.project||"",prettyStatus(r.status)].forEach((v,ci)=>setC(ws,`${colL(ci)}${ri+2}`,v));});
+    ws['!ref']=`A1:D${requests.length+1}`; ws['!cols']=[{wch:12},{wch:34},{wch:20},{wch:14}];
+    XLSX.utils.book_append_sheet(wb,ws,"Requests");
+  }
+  if(wb.SheetNames.length===0) return toast("Nothing enabled for your report — ask the admin");
+  XLSX.writeFile(wb,`Client_Report_${c.name.replace(/[^a-z0-9]/gi,"_")}_${new Date().toISOString().slice(0,10)}.xlsx`);
+  toast("Excel report downloaded ✓");
+};
 
 // ═══════════════════════════════════════════════════════════════════════
 //  REQUESTS MODULE — Client task requests with status workflow
@@ -7277,20 +7724,55 @@ function renderRequests(){
   if(isClient()){
     const c = getMyClientRecord();
     if(!c) return `<div class="card"><div class="empty">Account not linked to a client</div></div>`;
-    if(!requestForm) requestForm={title:"",description:"",project:(c.projects||[])[0]||""};
+    if(!requestForm) requestForm={title:"",description:"",project:(c.projects||[])[0]||"",area:"",site:"",deviceSerial:""};
+    const perms = getClientPermissions(c.id);
     const myReqs = (state.clientRequests||[])
       .filter(r=>r.clientId===c.id)
       .sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||""));
+
+    // Cascading detail pickers (only when admin enabled Project Details)
+    let detailFields = "";
+    if(perms.projectDetails){
+      const proj = (state.projects||[]).find(p=>p.name===requestForm.project);
+      const pCode = proj ? (proj.code||"") : "";
+      const areas = proj ? (proj.areas||[]) : [];
+      const areaObj = areas.find(a=>a.name===requestForm.area);
+      const sites = areaObj ? (areaObj.sites||[]).filter(s=>s.active!==false) : [];
+      const devices = (state.devices||[]).filter(d=>
+        d.project===requestForm.project &&
+        (!requestForm.area || d.area===requestForm.area) &&
+        (!requestForm.site || d.site===requestForm.site)
+      );
+      detailFields = `
+        <div class="field"><label>🔌 Project Code</label>
+          <input value="${escapeHtml(pCode)}" disabled style="background:#F5F7FA;color:#555"></div>
+        <div class="field"><label>🗺️ Area</label>
+          <select onchange="window.requestForm.area=this.value;window.requestForm.site='';window.requestForm.deviceSerial='';render()">
+            <option value="">— Optional —</option>
+            ${areas.map(a=>`<option value="${escapeHtml(a.name)}" ${a.name===requestForm.area?"selected":""}>${escapeHtml(a.name)}</option>`).join("")}
+          </select></div>
+        <div class="field"><label>📍 Site</label>
+          <select onchange="window.requestForm.site=this.value;window.requestForm.deviceSerial='';render()" ${!requestForm.area?"disabled":""}>
+            <option value="">${requestForm.area?"— Optional —":"Pick area first"}</option>
+            ${sites.map(s=>`<option value="${escapeHtml(s.name)}" ${s.name===requestForm.site?"selected":""}>${escapeHtml(s.name)}</option>`).join("")}
+          </select></div>
+        <div class="field"><label>📟 Device</label>
+          <select onchange="window.requestForm.deviceSerial=this.value">
+            <option value="">— Optional —</option>
+            ${devices.map(d=>{const lbl=[d.deviceName||d.model||"Device",d.serialNumber?`SN:${d.serialNumber}`:"",d.site||""].filter(Boolean).join(" · ");const val=d.serialNumber||("id:"+d.id);return `<option value="${escapeHtml(val)}" ${val===requestForm.deviceSerial?"selected":""}>${escapeHtml(lbl)}</option>`;}).join("")}
+          </select></div>`;
+    }
 
     return `<div class="card" style="border-left:4px solid #C9A84C">
       <div class="card-title">📨 Request New Task</div>
       <div class="form-grid">
         <div class="field full"><label>Task Title <span class="req">*</span></label>
           <input value="${escapeHtml(requestForm.title||"")}" oninput="window.requestForm.title=this.value" placeholder="e.g., Install additional camera at gate 3"></div>
-        <div class="field full"><label>Project</label>
-          <select onchange="window.requestForm.project=this.value">
+        <div class="field ${perms.projectDetails?"":"full"}"><label>Project</label>
+          <select onchange="window.requestForm.project=this.value;window.requestForm.area='';window.requestForm.site='';window.requestForm.deviceSerial='';${perms.projectDetails?"render()":""}">
             ${(c.projects||[]).map(p=>`<option value="${escapeHtml(p)}" ${p===requestForm.project?"selected":""}>${escapeHtml(p)}</option>`).join("")}
           </select></div>
+        ${detailFields}
         <div class="field full"><label>Description <span class="req">*</span></label>
           <textarea rows="3" oninput="window.requestForm.description=this.value" placeholder="Describe what you need...">${escapeHtml(requestForm.description||"")}</textarea></div>
       </div>
@@ -7306,6 +7788,7 @@ function renderRequests(){
             <div style="flex:1;min-width:180px">
               <div style="font-weight:700;font-size:14px;color:#1A202C">${escapeHtml(r.title)}</div>
               <div style="font-size:11px;color:var(--muted);margin-top:2px">${escapeHtml(r.project||"")} · ${fmtDate((r.createdAt||"").slice(0,10))}</div>
+              ${(r.area||r.site||r.deviceSerial)?`<div style="font-size:11px;color:#03308B;margin-top:3px">${[r.area&&`🗺️ ${escapeHtml(r.area)}`,r.site&&`📍 ${escapeHtml(r.site)}`,r.deviceSerial&&`📟 ${escapeHtml(r.deviceSerial)}`].filter(Boolean).join(" · ")}</div>`:""}
               <div style="font-size:12px;color:#555;margin-top:6px;line-height:1.5">${escapeHtml(r.description||"")}</div>
             </div>
             ${reqStatusBadge(r.status)}
@@ -7318,9 +7801,9 @@ function renderRequests(){
   // ADMIN/HR/SUPPORT VIEW: manage all requests
   if(!canSeeReports()) return `<div class="card"><div class="empty">Access denied</div></div>`;
   const reqs = (state.clientRequests||[]).sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||""));
-  const newCount = reqs.filter(r=>r.status==="new").length;
+  const newCount = reqs.filter(r=>r.status==="new"||r.status===reqInitialStatus()).length;
 
-  return `<div class="card">
+  return `${renderDeviceSuggestionsAdmin()}<div class="card">
     <div class="filter-row">
       <span class="card-title" style="margin:0">📨 Client Task Requests</span>
       <span class="count-pill">${reqs.length}</span>
@@ -7337,14 +7820,13 @@ function renderRequests(){
               <div style="font-size:11px;color:var(--muted);margin-top:3px">
                 🏢 ${escapeHtml(client?.name||"Unknown client")} · 📁 ${escapeHtml(r.project||"—")} · ${fmtDate((r.createdAt||"").slice(0,10))}
               </div>
+              ${(r.area||r.site||r.deviceSerial)?`<div style="font-size:11px;color:#03308B;margin-top:3px;font-weight:600">${[r.area&&`🗺️ ${escapeHtml(r.area)}`,r.site&&`📍 ${escapeHtml(r.site)}`,r.deviceSerial&&`📟 ${escapeHtml(r.deviceSerial)}`].filter(Boolean).join(" · ")}</div>`:""}
               <div style="font-size:13px;color:#444;margin-top:8px;line-height:1.6">${escapeHtml(r.description||"")}</div>
             </div>
             <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">
               ${reqStatusBadge(r.status)}
               ${isAdmin()||isHR()?`<select onchange="updateRequestStatus('${r.id}',this.value)" style="padding:5px 10px;border:1px solid var(--line);border-radius:6px;font-size:12px;font-weight:600">
-                <option value="new" ${r.status==="new"?"selected":""}>🆕 New</option>
-                <option value="in_progress" ${r.status==="in_progress"?"selected":""}>⚙️ In Progress</option>
-                <option value="completed" ${r.status==="completed"?"selected":""}>✅ Completed</option>
+                ${(()=>{const opts=getReqStatusList();const has=opts.some(o=>o.value===r.status);const all=has?opts:[{value:r.status,label:prettyStatus(r.status)},...opts];return all.map(o=>`<option value="${escapeHtml(o.value)}" ${r.status===o.value?"selected":""}>${o.label}</option>`).join("");})()}
               </select>`:""}
               ${isAdmin()?`<button class="btn btn-sm btn-danger" onclick="delRequest('${r.id}')">🗑</button>`:""}
               ${canUseWhatsApp() && (waGetSettings().triggers||[]).includes("clientRequests")?`<button class="btn btn-sm" style="background:#25D366;color:white;border:none;font-weight:700" onclick='openWaShare(${JSON.stringify({employee:r.clientName,project:r.project,date:(r.createdAt||"").slice(0,10),resolutionText:r.title+" — "+r.description,description:r.title+" — "+r.description}).replace(/'/g,"&#39;")})'>📲</button>`:""}${canUseEmail() && (emailGetSettings().triggers||[]).includes("clientRequests")?`<button class="btn btn-sm" style="background:#03308B;color:white;border:none;font-weight:700" onclick='openEmailShare(${JSON.stringify({employee:r.clientName,project:r.project,date:(r.createdAt||"").slice(0,10),resolutionText:r.title+" — "+r.description,description:r.title+" — "+r.description}).replace(/'/g,"&#39;")})'>📧</button>`:""}
@@ -7357,7 +7839,23 @@ function renderRequests(){
 }
 
 function reqStatusColor(s){
-  return s==="completed"?"#2E7D32":s==="in_progress"?"#E65100":"#C62828";
+  if(s==="completed") return "#2E7D32";
+  if(s==="in_progress") return "#E65100";
+  if(s==="new") return "#C62828";
+  return "#03308B";   // custom admin-defined status
+}
+function prettyStatus(s){ return String(s||"").replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase()); }
+// Custom request-status options (Technical Classifications → Client Request Entry).
+// Empty list → the built-in trio. Old requests keep their status even if removed (Choice 1).
+function getReqStatusList(){
+  const custom=(state.requestStatuses||[]).slice().sort((a,b)=>(a.order||0)-(b.order||0)).map(x=>x.name).filter(Boolean);
+  if(custom.length) return custom.map(n=>({value:n,label:n}));
+  return [{value:"new",label:"🆕 New"},{value:"in_progress",label:"⚙️ In Progress"},{value:"completed",label:"✅ Completed"}];
+}
+function reqInitialStatus(){ return getReqStatusList()[0].value; }
+function getProjStatusList(){
+  const custom=(state.projectStatuses||[]).slice().sort((a,b)=>(a.order||0)-(b.order||0)).map(x=>x.name).filter(Boolean);
+  return custom.length?custom:["Active","On Hold","Completed"];
 }
 function reqStatusBadge(s){
   const map={
@@ -7365,7 +7863,7 @@ function reqStatusBadge(s){
     in_progress:`<span style="background:#FFF3E0;color:#E65100;padding:4px 12px;border-radius:12px;font-size:11px;font-weight:800;white-space:nowrap">⚙️ IN PROGRESS</span>`,
     completed:`<span style="background:#E8F5E9;color:#2E7D32;padding:4px 12px;border-radius:12px;font-size:11px;font-weight:800;white-space:nowrap">✅ COMPLETED</span>`,
   };
-  return map[s]||map.new;
+  return map[s]||`<span style="background:#F0F4FF;color:#03308B;padding:4px 12px;border-radius:12px;font-size:11px;font-weight:800;white-space:nowrap">📌 ${escapeHtml(prettyStatus(s)).toUpperCase()}</span>`;
 }
 
 async function submitClientRequest(){
@@ -7379,8 +7877,11 @@ async function submitClientRequest(){
     clientId: c.id,
     clientName: c.name,
     project: requestForm.project||"",
+    area: requestForm.area||"",
+    site: requestForm.site||"",
+    deviceSerial: requestForm.deviceSerial||"",
     title, description: desc,
-    status: "new",
+    status: reqInitialStatus(),
     createdAt: new Date().toISOString(),
   };
   await fbSave("clientRequests",{
@@ -7411,10 +7912,12 @@ async function autoSendRequestEmail(req){
     recipients = resolveEmailRecipients();
   }
   if(recipients.length === 0) return;
+  const detailLine = [req.area&&`Area: ${req.area}`, req.site&&`Site: ${req.site}`, req.deviceSerial&&`Device: ${req.deviceSerial}`].filter(Boolean).join("\n");
   const body =
     `🔔 New Client Request\n\n` +
     `Client: ${req.clientName||"—"}\n` +
     `Project: ${req.project||"—"}\n` +
+    (detailLine?detailLine+"\n":"") +
     `Title: ${req.title||"—"}\n` +
     `Description: ${req.description||"—"}\n` +
     `Submitted: ${fmtDate((req.createdAt||"").slice(0,10))}`;
@@ -10197,7 +10700,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v45';"
+      var swCode = "const CACHE='ejaftech-v49';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
