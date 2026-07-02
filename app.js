@@ -7814,7 +7814,7 @@ window.openNotifPanel=function(){
     <div onclick="markNotifRead('${n.id}')" style="padding:10px 12px;border-bottom:1px solid #eee;cursor:pointer;background:${n.read?'#fff':'#EEF4FF'}">
       <div style="display:flex;justify-content:space-between;gap:8px">
         <strong style="font-size:12.5px;color:#03308B">${n.read?'':'🔵 '}${escapeHtml(n.title||'')}</strong>
-        <span style="font-size:10px;color:#999;white-space:nowrap">${escapeHtml(fmtLastSeen(n.createdAt)||'')}</span>
+        <span style="display:flex;align-items:center;gap:6px;white-space:nowrap"><span style="font-size:10px;color:#999">${escapeHtml(fmtLastSeen(n.createdAt)||'')}</span><button onclick="event.stopPropagation();deleteNotif('${n.id}')" title="Delete" style="background:#FFEBEE;color:#C62828;border:none;width:18px;height:18px;border-radius:9px;font-size:10px;font-weight:800;cursor:pointer;line-height:1">✕</button></span>
       </div>
       <div style="font-size:11.5px;color:#444;margin-top:3px;line-height:1.5">${escapeHtml(n.body||'')}</div>
       ${(n.type==="task_assigned"||n.type==="task_confirmed")?`<div style="margin-top:5px"><button onclick="event.stopPropagation();markNotifRead('${n.id}');closeNotifPanel();switchTab('My Tasks')" style="background:#03308B;color:#C9A84C;border:none;padding:5px 12px;border-radius:6px;font-weight:700;font-size:10px;cursor:pointer">📋 Open My Tasks</button></div>`:''}
@@ -7824,6 +7824,7 @@ window.openNotifPanel=function(){
       <strong style="font-size:14px">🔔 Notifications${unreadNotifCount()?` <span style="background:#C62828;padding:1px 8px;border-radius:10px;font-size:11px">${unreadNotifCount()}</span>`:''}</strong>
       <div style="display:flex;gap:6px">
         ${unreadNotifCount()?`<button onclick="markAllNotifsRead()" style="background:rgba(255,255,255,0.15);color:#fff;border:none;padding:4px 10px;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer">Mark all read</button>`:''}
+        ${list.length?`<button onclick="clearAllNotifs()" style="background:rgba(198,40,40,0.9);color:#fff;border:none;padding:4px 10px;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer">🗑 Clear all</button>`:''}
         <button onclick="closeNotifPanel()" style="background:rgba(255,255,255,0.15);color:#fff;border:none;width:26px;height:26px;border-radius:6px;font-weight:700;cursor:pointer">✕</button>
       </div>
     </div>
@@ -7848,6 +7849,22 @@ window.markAllNotifsRead=async function(){
     const{db,doc,updateDoc}=window.__fb;
     for(const n of un){ n.read=true; await updateDoc(doc(db,"notifications",n.id),{read:true}); }
   }catch(e){ console.error(e); }
+  updateNotifBell(); openNotifPanel();
+};
+window.deleteNotif=async function(id){
+  const n=(state.notifications||[]).find(x=>x.id===id);
+  if(!n) return;
+  state.notifications=(state.notifications||[]).filter(x=>x.id!==id);   // optimistic
+  try{ await fbDelete("notifications", id); }catch(e){ console.error(e); }
+  updateNotifBell(); openNotifPanel();
+};
+window.clearAllNotifs=async function(){
+  const mine=myNotifications();
+  if(!mine.length) return;
+  if(!confirm(`Delete all ${mine.length} notification(s)?`)) return;
+  const ids=mine.map(n=>n.id);
+  state.notifications=(state.notifications||[]).filter(x=>!ids.includes(x.id));  // optimistic
+  try{ for(const id of ids){ await fbDelete("notifications", id); } }catch(e){ console.error(e); }
   updateNotifBell(); openNotifPanel();
 };
 
@@ -7996,6 +8013,23 @@ window.confirmTask=async function(id){
   render();
 };
 
+// ── Delete a task: only its assigner or an admin. Assigned employee is told. ──
+window.deleteTask=async function(id){
+  const t=(state.tasks||[]).find(x=>x.id===id);
+  if(!t) return;
+  const uid=state.profile&&state.profile.uid;
+  if(!(isAdmin()||t.assignedByUid===uid)) return toast("Only the assigner or an admin can delete this task");
+  if(!confirm(`Delete task "${t.title}"?`)) return;
+  await fbDelete("tasks", id);
+  const myName=(state.profile&&(state.profile.name||state.profile.employeeName))||"";
+  if(t.assignedToUid && t.assignedToUid!==uid){
+    await pushNotification(t.assignedToUid,"task_cancelled","🗑 Task Cancelled",
+      `The task "${t.title}" was cancelled by ${myName}`, "");
+  }
+  toast("✓ Task deleted");
+  render();
+};
+
 // ── Assignment info block shown on each client-request card (staff view) ──
 function taskStatusChip(t){
   return t.status==="confirmed"
@@ -8006,7 +8040,7 @@ function taskAssignBlockHTML(r){
   const t=(state.tasks||[]).find(x=>x.requestId===r.id);
   if(t){
     return `<div style="margin-top:8px;background:#F0F7F0;border:1px solid #C8E6C9;border-radius:8px;padding:7px 10px;font-size:11px;display:flex;justify-content:space-between;align-items:center;gap:6px;flex-wrap:wrap">
-      <span>👤 Assigned to <strong>${escapeHtml(t.assignedTo||"")}</strong> · by ${escapeHtml(t.assignedBy||"")}</span>${taskStatusChip(t)}</div>`;
+      <span>👤 Assigned to <strong>${escapeHtml(t.assignedTo||"")}</strong> · by ${escapeHtml(t.assignedBy||"")}</span><span style="display:flex;gap:5px;align-items:center">${taskStatusChip(t)}${(isAdmin()||t.assignedByUid===(state.profile&&state.profile.uid))?`<button onclick="deleteTask('${t.id}')" title="Delete task" style="background:#FFEBEE;color:#C62828;border:none;width:22px;height:22px;border-radius:11px;font-weight:800;cursor:pointer;font-size:11px">🗑</button>`:""}</span></div>`;
   }
   if(canAssignTasks()){
     return `<div style="margin-top:8px"><button onclick="openAssignTask('${r.id}')" style="background:#03308B;color:#C9A84C;border:none;padding:7px 14px;border-radius:8px;font-weight:800;font-size:11px;cursor:pointer">👤 Assign Task</button></div>`;
@@ -8041,7 +8075,10 @@ function _taskCard(t, mineView){
       <span style="font-size:10.5px;color:#666">${mineView
         ? `👤 By: <strong>${escapeHtml(t.assignedBy||"")}</strong>`
         : `👤 To: <strong>${escapeHtml(t.assignedTo||"")}</strong>`} · 📅 ${escapeHtml(fmtDate((t.createdAt||"").slice(0,10)))}${(t.status==="confirmed"&&t.confirmedAt)?` · ✅ ${escapeHtml(fmtLastSeen(t.confirmedAt)||"")}`:""}</span>
-      ${(mineView&&t.status==="pending")?`<button onclick="confirmTask('${t.id}')" style="background:#2E7D32;color:#fff;border:none;padding:8px 18px;border-radius:8px;font-weight:800;font-size:12px;cursor:pointer">✅ Confirm</button>`:""}
+      <div style="display:flex;gap:6px;align-items:center">
+        ${(mineView&&t.status==="pending")?`<button onclick="confirmTask('${t.id}')" style="background:#2E7D32;color:#fff;border:none;padding:8px 18px;border-radius:8px;font-weight:800;font-size:12px;cursor:pointer">✅ Confirm</button>`:""}
+        ${(isAdmin()||t.assignedByUid===(state.profile&&state.profile.uid))?`<button onclick="deleteTask('${t.id}')" title="Delete task" style="background:#FFEBEE;color:#C62828;border:1px solid #EF9A9A;padding:8px 12px;border-radius:8px;font-weight:800;font-size:12px;cursor:pointer">🗑</button>`:""}
+      </div>
     </div>
   </div>`;
 }
@@ -11054,7 +11091,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v53';"
+      var swCode = "const CACHE='ejaftech-v54';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
