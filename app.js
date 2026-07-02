@@ -916,6 +916,12 @@ async function loadProfile(){
     console.error("Load profile error:",e);
     state.profile=null;
   }
+  // One-time cleanup: remove the OLD shared (non-per-user) date-range keys so a
+  // previously-set global filter can't leak between accounts on this device.
+  try{
+    localStorage.removeItem("opt_period_from");
+    localStorage.removeItem("opt_period_to");
+  }catch(e){}
 }
 
 function cleanupSubs(){
@@ -1589,16 +1595,22 @@ window.render=renderTab;
 //  SUMMARY & DASHBOARD
 // ═══════════════════════════════════════════════════════════════════════
 // ═══════════════════════════════════════════════════════════════════════
-//  PERIOD MANAGEMENT (editable label, persisted per-user in localStorage)
+//  PERIOD MANAGEMENT (editable label, persisted PER-USER in localStorage)
 // ═══════════════════════════════════════════════════════════════════════
 // ═══ PERIOD / DATE-RANGE SYSTEM ═══
-// Stored as two real dates (ISO yyyy-mm-dd) in localStorage.
-// Empty = no filter (show all). The label is derived from the dates.
-function getPeriodFrom(){ return localStorage.getItem("opt_period_from") || ""; }
-function getPeriodTo(){   return localStorage.getItem("opt_period_to")   || ""; }
+// Stored as two real dates (ISO yyyy-mm-dd) in localStorage, keyed per-user
+// so one account's date filter never leaks into another account signed in
+// on the same device/browser. Empty = no filter (show all).
+function _periodKey(which){
+  // Include the signed-in user's UID so each account has its own date range.
+  const uid = (state.profile && state.profile.uid) ? state.profile.uid : "anon";
+  return `opt_period_${which}_${uid}`;
+}
+function getPeriodFrom(){ return localStorage.getItem(_periodKey("from")) || ""; }
+function getPeriodTo(){   return localStorage.getItem(_periodKey("to"))   || ""; }
 function setPeriodRange(from, to){
-  if(from) localStorage.setItem("opt_period_from", from); else localStorage.removeItem("opt_period_from");
-  if(to)   localStorage.setItem("opt_period_to", to);     else localStorage.removeItem("opt_period_to");
+  if(from) localStorage.setItem(_periodKey("from"), from); else localStorage.removeItem(_periodKey("from"));
+  if(to)   localStorage.setItem(_periodKey("to"), to);     else localStorage.removeItem(_periodKey("to"));
 }
 // Human-readable label for the header and reports
 function getPeriod(){
@@ -10707,7 +10719,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v50';"
+      var swCode = "const CACHE='ejaftech-v51';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
