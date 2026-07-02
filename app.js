@@ -916,7 +916,7 @@ async function loadProfile(){
     console.error("Load profile error:",e);
     state.profile=null;
   }
-  // One-time cleanup: remove the OLD shared (non-per-user) date-range keys so a
+  // One-time cleanup: remove OLD shared (non-per-user) date-range keys so a
   // previously-set global filter can't leak between accounts on this device.
   try{
     localStorage.removeItem("opt_period_from");
@@ -1595,14 +1595,12 @@ window.render=renderTab;
 //  SUMMARY & DASHBOARD
 // ═══════════════════════════════════════════════════════════════════════
 // ═══════════════════════════════════════════════════════════════════════
-//  PERIOD MANAGEMENT (editable label, persisted PER-USER in localStorage)
+//  PERIOD MANAGEMENT (editable label, persisted per-user in localStorage)
 // ═══════════════════════════════════════════════════════════════════════
 // ═══ PERIOD / DATE-RANGE SYSTEM ═══
-// Stored as two real dates (ISO yyyy-mm-dd) in localStorage, keyed per-user
-// so one account's date filter never leaks into another account signed in
-// on the same device/browser. Empty = no filter (show all).
+// Stored as two real dates (ISO yyyy-mm-dd) in localStorage.
+// Empty = no filter (show all). The label is derived from the dates.
 function _periodKey(which){
-  // Include the signed-in user's UID so each account has its own date range.
   const uid = (state.profile && state.profile.uid) ? state.profile.uid : "anon";
   return `opt_period_${which}_${uid}`;
 }
@@ -2020,9 +2018,24 @@ function buildReportHTML(refNo, reportType, periodLabel, bodyHTML){
     .actions{padding:12px;background:#FFF8E1;border:1px solid #FFE082;border-radius:8px;margin-bottom:14px;text-align:center;font-size:13px;color:#7F6000}
     .actions button{background:#03308B;color:#C9A84C;border:none;padding:10px 24px;border-radius:6px;font-weight:700;cursor:pointer;font-size:13px;margin:0 4px}
     .lv-badge{padding:2px 8px;border-radius:10px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;display:inline-block}
+    /* EJAF watermark — light blue, tilted, centered on every printed page */
+    .wm{position:fixed;top:0;left:0;width:100%;height:100%;z-index:0;pointer-events:none;
+        display:flex;align-items:center;justify-content:center;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    .wm svg{width:82%;height:auto}
+    .rh,.rd,.rb,.rf{position:relative;z-index:1}
     @media print{.no-print{display:none}body{background:#fff}}
   `;
+  // EJAF wordmark watermark (letter A drawn WITHOUT its crossbar), tilted, slightly saturated blue.
+  const watermark = `<div class="wm"><svg viewBox="0 0 400 140" xmlns="http://www.w3.org/2000/svg">
+    <g transform="rotate(-30 200 70)" fill="#0A3FB0" opacity="0.13" font-family="Arial Black, Arial, sans-serif" font-weight="900">
+      <text x="0" y="105" font-size="130" letter-spacing="4">E</text>
+      <text x="95" y="105" font-size="130" letter-spacing="4">J</text>
+      <polygon points="175,105 210,20 245,105 228,105 210,58 192,105"/>
+      <text x="255" y="105" font-size="130" letter-spacing="4">F</text>
+    </g>
+  </svg></div>`;
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>${css}</style></head><body>
+${watermark}
 <div class="rh">
   <div>
     <div class="rl">EJAF <span>TECHNOLOGY</span></div>
@@ -5194,7 +5207,7 @@ window.exportAssetPDF = async function(){
         <td>${escapeHtml(toDateStr(d.installDate))}</td>
         <td>${escapeHtml(toDateStr(d.warrantyExp))}</td>
         <td>${escapeHtml(d.stack||'')}</td>
-        <td>${escapeHtml(d.status||'')}</td>
+        <td>${deviceStatusBadge(d.status)}</td>
       </tr>`).join("")}
     </tbody></table>
     <script>setTimeout(()=>window.print(),500)<\/script>`;
@@ -7503,7 +7516,7 @@ function renderClientPortal(){
         <td>${escapeHtml(d.serialNumber||"—")}</td>
         <td>${escapeHtml(d.model||"—")}</td>
         <td>${escapeHtml(d.site||"—")}</td>
-        <td><span style="font-size:11px;font-weight:700;color:${(d.status||"")==="Active"?"#2E7D32":"#888"}">${escapeHtml(d.status||"—")}</span></td>
+        <td>${deviceStatusBadge(d.status)}</td>
         ${perms.deviceEditSuggest?`<td style="text-align:right">${pending
           ?`<span style="font-size:10px;color:#E65100;font-weight:700">⏳ Pending review</span>`
           :`<button onclick="openDeviceSuggest('${d.id}')" style="background:#03308B;color:#C9A84C;border:none;padding:5px 10px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer">✏️ Suggest edit</button>`}</td>`:""}
@@ -7672,7 +7685,7 @@ window.exportClientPDF = async function(){
   if(perms.repDevices){
     body+=`<div class="ksec"><span class="kbad">0${n++}</span><h3>Devices (${devices.length})</h3></div>
     <table><thead><tr><th>Device</th><th>Serial</th><th>Model</th><th>Site</th><th>Status</th></tr></thead>
-    <tbody>${devices.map(d=>`<tr><td>${escapeHtml(d.deviceName||"—")}</td><td>${escapeHtml(d.serialNumber||"—")}</td><td>${escapeHtml(d.model||"—")}</td><td>${escapeHtml(d.site||"—")}</td><td>${escapeHtml(d.status||"—")}</td></tr>`).join("")}</tbody></table>`;
+    <tbody>${devices.map(d=>`<tr><td>${escapeHtml(d.deviceName||"—")}</td><td>${escapeHtml(d.serialNumber||"—")}</td><td>${escapeHtml(d.model||"—")}</td><td>${escapeHtml(d.site||"—")}</td><td>${deviceStatusBadge(d.status)}</td></tr>`).join("")}</tbody></table>`;
   }
   if(perms.repRequests){
     body+=`<div class="ksec"><span class="kbad">0${n++}</span><h3>Requests (${requests.length})</h3></div>
@@ -10719,7 +10732,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v51';"
+      var swCode = "const CACHE='ejaftech-v52';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
