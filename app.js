@@ -7724,7 +7724,7 @@ function renderRequests(){
   if(isClient()){
     const c = getMyClientRecord();
     if(!c) return `<div class="card"><div class="empty">Account not linked to a client</div></div>`;
-    if(!requestForm) requestForm={title:"",description:"",project:(c.projects||[])[0]||"",area:"",site:"",deviceSerial:""};
+    if(!requestForm) requestForm={title:"",description:"",project:(c.projects||[])[0]||"",projectCode:"",area:"",site:"",deviceSerial:""};
     const perms = getClientPermissions(c.id);
     const myReqs = (state.clientRequests||[])
       .filter(r=>r.clientId===c.id)
@@ -7734,7 +7734,7 @@ function renderRequests(){
     let detailFields = "";
     if(perms.projectDetails){
       const proj = (state.projects||[]).find(p=>p.name===requestForm.project);
-      const pCode = proj ? (proj.code||"") : "";
+      const pCodes = proj ? (proj.codes||[]) : [];   // projects store an ARRAY of codes
       const areas = proj ? (proj.areas||[]) : [];
       const areaObj = areas.find(a=>a.name===requestForm.area);
       const sites = areaObj ? (areaObj.sites||[]).filter(s=>s.active!==false) : [];
@@ -7745,7 +7745,13 @@ function renderRequests(){
       );
       detailFields = `
         <div class="field"><label>🔌 Project Code</label>
-          <input value="${escapeHtml(pCode)}" disabled style="background:#F5F7FA;color:#555"></div>
+          ${pCodes.length
+            ? `<select onchange="window.requestForm.projectCode=this.value">
+                <option value="">${pCodes.length>1?"— Select —":"— Optional —"}</option>
+                ${pCodes.map(code=>`<option value="${escapeHtml(code)}" ${code===requestForm.projectCode?"selected":""}>${escapeHtml(code)}</option>`).join("")}
+              </select>`
+            : `<input value="" disabled placeholder="No codes for this project" style="background:#F5F7FA;color:#999">`}
+        </div>
         <div class="field"><label>🗺️ Area</label>
           <select onchange="window.requestForm.area=this.value;window.requestForm.site='';window.requestForm.deviceSerial='';render()">
             <option value="">— Optional —</option>
@@ -7769,7 +7775,7 @@ function renderRequests(){
         <div class="field full"><label>Task Title <span class="req">*</span></label>
           <input value="${escapeHtml(requestForm.title||"")}" oninput="window.requestForm.title=this.value" placeholder="e.g., Install additional camera at gate 3"></div>
         <div class="field ${perms.projectDetails?"":"full"}"><label>Project</label>
-          <select onchange="window.requestForm.project=this.value;window.requestForm.area='';window.requestForm.site='';window.requestForm.deviceSerial='';${perms.projectDetails?"render()":""}">
+          <select onchange="window.requestForm.project=this.value;window.requestForm.projectCode='';window.requestForm.area='';window.requestForm.site='';window.requestForm.deviceSerial='';${perms.projectDetails?"render()":""}">
             ${(c.projects||[]).map(p=>`<option value="${escapeHtml(p)}" ${p===requestForm.project?"selected":""}>${escapeHtml(p)}</option>`).join("")}
           </select></div>
         ${detailFields}
@@ -7788,7 +7794,7 @@ function renderRequests(){
             <div style="flex:1;min-width:180px">
               <div style="font-weight:700;font-size:14px;color:#1A202C">${escapeHtml(r.title)}</div>
               <div style="font-size:11px;color:var(--muted);margin-top:2px">${escapeHtml(r.project||"")} · ${fmtDate((r.createdAt||"").slice(0,10))}</div>
-              ${(r.area||r.site||r.deviceSerial)?`<div style="font-size:11px;color:#03308B;margin-top:3px">${[r.area&&`🗺️ ${escapeHtml(r.area)}`,r.site&&`📍 ${escapeHtml(r.site)}`,r.deviceSerial&&`📟 ${escapeHtml(r.deviceSerial)}`].filter(Boolean).join(" · ")}</div>`:""}
+              ${(r.projectCode||r.area||r.site||r.deviceSerial)?`<div style="font-size:11px;color:#03308B;margin-top:3px">${[r.projectCode&&`🔌 ${escapeHtml(r.projectCode)}`,r.area&&`🗺️ ${escapeHtml(r.area)}`,r.site&&`📍 ${escapeHtml(r.site)}`,r.deviceSerial&&`📟 ${escapeHtml(r.deviceSerial)}`].filter(Boolean).join(" · ")}</div>`:""}
               <div style="font-size:12px;color:#555;margin-top:6px;line-height:1.5">${escapeHtml(r.description||"")}</div>
             </div>
             ${reqStatusBadge(r.status)}
@@ -7820,7 +7826,7 @@ function renderRequests(){
               <div style="font-size:11px;color:var(--muted);margin-top:3px">
                 🏢 ${escapeHtml(client?.name||"Unknown client")} · 📁 ${escapeHtml(r.project||"—")} · ${fmtDate((r.createdAt||"").slice(0,10))}
               </div>
-              ${(r.area||r.site||r.deviceSerial)?`<div style="font-size:11px;color:#03308B;margin-top:3px;font-weight:600">${[r.area&&`🗺️ ${escapeHtml(r.area)}`,r.site&&`📍 ${escapeHtml(r.site)}`,r.deviceSerial&&`📟 ${escapeHtml(r.deviceSerial)}`].filter(Boolean).join(" · ")}</div>`:""}
+              ${(r.projectCode||r.area||r.site||r.deviceSerial)?`<div style="font-size:11px;color:#03308B;margin-top:3px;font-weight:600">${[r.projectCode&&`🔌 ${escapeHtml(r.projectCode)}`,r.area&&`🗺️ ${escapeHtml(r.area)}`,r.site&&`📍 ${escapeHtml(r.site)}`,r.deviceSerial&&`📟 ${escapeHtml(r.deviceSerial)}`].filter(Boolean).join(" · ")}</div>`:""}
               <div style="font-size:13px;color:#444;margin-top:8px;line-height:1.6">${escapeHtml(r.description||"")}</div>
             </div>
             <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">
@@ -7877,6 +7883,7 @@ async function submitClientRequest(){
     clientId: c.id,
     clientName: c.name,
     project: requestForm.project||"",
+    projectCode: requestForm.projectCode||"",
     area: requestForm.area||"",
     site: requestForm.site||"",
     deviceSerial: requestForm.deviceSerial||"",
@@ -7912,7 +7919,7 @@ async function autoSendRequestEmail(req){
     recipients = resolveEmailRecipients();
   }
   if(recipients.length === 0) return;
-  const detailLine = [req.area&&`Area: ${req.area}`, req.site&&`Site: ${req.site}`, req.deviceSerial&&`Device: ${req.deviceSerial}`].filter(Boolean).join("\n");
+  const detailLine = [req.projectCode&&`Code: ${req.projectCode}`, req.area&&`Area: ${req.area}`, req.site&&`Site: ${req.site}`, req.deviceSerial&&`Device: ${req.deviceSerial}`].filter(Boolean).join("\n");
   const body =
     `🔔 New Client Request\n\n` +
     `Client: ${req.clientName||"—"}\n` +
@@ -10700,7 +10707,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v49';"
+      var swCode = "const CACHE='ejaftech-v50';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
