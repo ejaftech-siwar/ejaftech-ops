@@ -69,6 +69,8 @@ const state = {
   employeePermissions: [],  // Per-employee entry permissions (GPS / Resolution requirements)
   clientPermissions: [],    // Per-client portal permissions (project details, filters, reports, edit-suggest)
   deviceEditSuggestions: [], // Client-proposed device edits awaiting admin approval
+  tasks: [],             // Task-assignment workflow (from client requests or manual)
+  notifications: [],     // In-app notifications (header bell)
   clients: [],          // Client companies with linked users + projects
   clientRequests: [],   // Task requests submitted by clients
   waContacts: [],       // WhatsApp contacts/groups (Firestore)
@@ -953,6 +955,8 @@ async function subscribeData(){
     ["deviceEditSuggestions","deviceEditSuggestions"],
     ["clients","clients"],
     ["clientRequests","clientRequests"],
+    ["tasks","tasks"],
+    ["notifications","notifications"],
     ["waContacts","waContacts"],
     ["emailContacts","emailContacts"],
   ];
@@ -982,6 +986,7 @@ async function subscribeData(){
         items.sort((a,b)=>(a.name||"").localeCompare(b.name||""));
       }
       state[key]=items;
+      if(col==="notifications") updateNotifBell();
 
       // Seed defaults on first run (admin only, if projects empty)
       if(col==="projects" && items.length===0 && isAdmin() && !state._seeded){
@@ -1236,6 +1241,7 @@ function renderApp(){
           <h1>Girêk</h1>
           ${state.tab==="Dashboard"?"":`<p><span id="periodLabelInline" onclick="editPeriod(event)" style="cursor:pointer;${(getPeriodFrom()||getPeriodTo())?'background:#C9A84C;color:#03308B;padding:2px 10px;border-radius:12px;font-weight:700':'text-decoration:underline dotted;opacity:0.9'}">${(getPeriodFrom()||getPeriodTo())?'📅 ':''}${escapeHtml(getPeriod())}${(getPeriodFrom()||getPeriodTo())?' ✕':''}</span></p>`}
         </div>
+        <span id="notifBell" onclick="openNotifPanel()" style="position:relative;cursor:pointer;font-size:20px;padding:4px 6px;margin-right:2px;user-select:none">🔔<span id="notifBellBadge" style="position:absolute;top:0;right:-2px;background:#C62828;color:#fff;font-size:9px;font-weight:800;min-width:15px;height:15px;border-radius:8px;display:${unreadNotifCount()>0?'flex':'none'};align-items:center;justify-content:center;padding:0 3px">${unreadNotifCount()>99?'99+':unreadNotifCount()}</span></span>
         <div class="user-chip" onclick="confirm('Sign out?')&&doSignOut()">
           <div style="display:flex;flex-direction:column;align-items:center;gap:2px">
             <span class="role-badge">${roleBadge}</span>
@@ -1249,14 +1255,14 @@ function renderApp(){
         if(!groups){
           // Client portal: keep the simple flat bar
           return `<nav class="tab-bar" id="tabBar">${tabs.map(t=>{
-            const nReq = t==="Requests" ? pendingRequestCount() : 0;
+            const nReq = tabBadgeCount(t);
             return `<button class="tab ${t===state.tab?"active":""}" data-tab="${t}" onclick="switchTab('${t}')" style="position:relative">${t}${nReq?`<span style="position:absolute;top:2px;right:2px;background:#C62828;color:white;font-size:9px;font-weight:800;min-width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 4px">${nReq}</span>`:""}</button>`;
           }).join("")}<span class="tab-indicator" id="tabIndicator"></span></nav>`;
         }
         const activeGroup = groupOfTab(state.tab);
         const curGroup = groups.find(g=>g.id===activeGroup) || groups[0];
         // Pending-request badge shows on the group that contains Requests
-        const groupReqCount = (g)=> g.children.includes("Requests") ? pendingRequestCount() : 0;
+        const groupReqCount = (g)=> g.children.reduce((s,c)=>s+tabBadgeCount(c),0);
         // MAIN bar (groups) + SUB bar (children of active group)
         return `
         <nav class="tab-bar group-bar" id="groupBar">${groups.map(g=>{
@@ -1265,7 +1271,7 @@ function renderApp(){
           return `<button class="tab gtab ${on?"active":""}" data-group="${g.id}" onclick="switchGroup('${g.id}')" style="position:relative">${g.icon} ${g.label}${n?`<span style="position:absolute;top:2px;right:2px;background:#C62828;color:white;font-size:9px;font-weight:800;min-width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 4px">${n}</span>`:""}</button>`;
         }).join("")}<span class="tab-indicator" id="groupIndicator"></span></nav>
         ${curGroup.children.length>1?`<nav class="tab-bar sub-bar" id="tabBar">${curGroup.children.map(t=>{
-          const nReq = t==="Requests" ? pendingRequestCount() : 0;
+          const nReq = tabBadgeCount(t);
           return `<button class="tab subtab ${t===state.tab?"active":""}" data-tab="${t}" onclick="switchTab('${t}')" style="position:relative">${t}${nReq?`<span style="position:absolute;top:2px;right:2px;background:#C62828;color:white;font-size:9px;font-weight:800;min-width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 4px">${nReq}</span>`:""}</button>`;
         }).join("")}<span class="tab-indicator" id="tabIndicator"></span></nav>`:`<span class="tab-indicator" id="tabIndicator" style="display:none"></span>`}`;
       })()}
@@ -1286,7 +1292,7 @@ function renderApp(){
 // ═══════════════════════════════════════════════════════════════════════
 const TAB_GROUPS = [
   { id:"Dashboard", label:"Dashboard", icon:"📊", children:["Dashboard"] },
-  { id:"Logs",      label:"Logs",      icon:"📝", children:["Daily Log","Overtime","Travel","Leaves"] },
+  { id:"Logs",      label:"Logs",      icon:"📝", children:["Daily Log","Overtime","Travel","Leaves","My Tasks"] },
   { id:"Reports",   label:"Reports",   icon:"📈", children:["HR Report","Reports","Technical Report"] },
   { id:"Database",  label:"Database",  icon:"🗄️", children:["Branches","Departments","Locations","Projects","Assets"] },
   { id:"Clients",   label:"Clients",   icon:"🤝", children:["Clients","Requests"] },
@@ -1325,27 +1331,27 @@ function getTabs(){
   }
   // Employee: own-data tabs only
   if(role === "employee"){
-    const base = ["Dashboard","Daily Log","Overtime","Travel","Leaves","Work Instructions","Profile"];
+    const base = ["Dashboard","Daily Log","Overtime","Travel","Leaves","My Tasks","Work Instructions","Profile"];
     if(!base.includes(state.tab)) state.tab = base[0];
     return base;
   }
   // HR: full ops but no Users/Share/Clients
   if(role === "hr"){
-    const base = ["Dashboard","Daily Log","Overtime","Travel","Leaves","Work Instructions",
+    const base = ["Dashboard","Daily Log","Overtime","Travel","Leaves","My Tasks","Work Instructions",
                   "HR Report","Technical Report","Reports","Requests","Projects","Locations","Departments","Profile"];
     if(!base.includes(state.tab)) state.tab = base[0];
     return base;
   }
   // Support: full access except Users and Share
   if(role === "support"){
-    const base = ["Dashboard","Daily Log","Overtime","Travel","Leaves","Work Instructions",
+    const base = ["Dashboard","Daily Log","Overtime","Travel","Leaves","My Tasks","Work Instructions",
                   "HR Report","Technical Report","Reports","Requests","Projects","Locations","Departments","Profile"];
     if(!base.includes(state.tab)) state.tab = base[0];
     return base;
   }
   // Admin / Owner: everything
   const base = ["Dashboard","Daily Log","Overtime","Travel","Leaves","Work Instructions",
-                "HR Report","Technical Report","Reports","Requests","Clients","Projects","Assets","Locations","Departments","Branches","Users","WhatsApp","Email","Share","Profile","Technical Classifications","Entry Manage"];
+                "HR Report","Technical Report","Reports","Requests","Clients","Projects","Assets","Locations","Departments","Branches","Users","WhatsApp","Email","Share","Profile","Technical Classifications","Entry Manage","My Tasks"];
   if(!base.includes(state.tab)) state.tab = base[0];
   return base;
 }
@@ -1581,7 +1587,7 @@ function renderTab(){
     "Projects":renderProjects,"Assets":renderAssets,"Locations":renderLocations,"Users":renderUsers,
     "Departments":renderDepartments,"Branches":renderBranches,"Work Instructions":renderWorkInstructions,
     "Share":renderShare,"Profile":renderProfile,
-    "Clients":renderClients,"Requests":renderRequests,"My Project":renderClientPortal,
+    "Clients":renderClients,"Requests":renderRequests,"My Tasks":renderMyTasks,"My Project":renderClientPortal,
     "WhatsApp":renderWhatsApp,
     "Email":renderEmailTab,
     "Technical Classifications":renderTechClassifications,
@@ -5845,6 +5851,10 @@ function renderUsers(){
             <input type="checkbox" ${u.showLastSeen!==false?"checked":""} onchange="toggleShowLastSeen('${u.id}')" style="width:16px;height:16px;cursor:pointer">
             <span style="color:${u.showLastSeen!==false?'#1565C0':'#666'};font-weight:600">🕐 Show Last Seen</span>
           </label>
+          ${(u.role||"")!=="client"?`<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;user-select:none">
+            <input type="checkbox" ${u.canAssignTasks?"checked":""} onchange="toggleCanAssign('${u.id}')" style="width:16px;height:16px;cursor:pointer">
+            <span style="color:${u.canAssignTasks?'#6A1B9A':'#666'};font-weight:600">🎯 Assign Tasks</span>
+          </label>`:""}
           ${hasActiveSession && !isAdminUser ? `<button class="btn btn-sm" style="background:#FFF3E0;border:1px solid #FB8C00;color:#E65100;font-size:11px;padding:4px 10px" onclick="resetUserSession('${u.id}')">🔓 Reset Session</button>` : ''}
         </div>
       </div>`;
@@ -7744,6 +7754,317 @@ window.exportClientExcel = function(){
 // ═══════════════════════════════════════════════════════════════════════
 let requestForm=null;
 
+// ═══════════════════════════════════════════════════════════════════════
+//  TASK ASSIGNMENT WORKFLOW + IN-APP NOTIFICATIONS (bell 🔔)
+//  Assign from client requests or manually → employee confirms → assigner notified.
+// ═══════════════════════════════════════════════════════════════════════
+
+// Who may assign tasks: admins, plus anyone the admin granted via Users tab.
+function canAssignTasks(){
+  return isAdmin() || !!(state.profile && state.profile.canAssignTasks);
+}
+
+// Badge counts shown on tabs/groups (Requests kept + new My Tasks)
+function tabBadgeCount(t){
+  if(t==="Requests") return pendingRequestCount();
+  if(t==="My Tasks") return myPendingTaskCount();
+  return 0;
+}
+function myPendingTaskCount(){
+  const uid = state.profile && state.profile.uid;
+  if(!uid) return 0;
+  return (state.tasks||[]).filter(t=>t.assignedToUid===uid && t.status==="pending").length;
+}
+
+// ── Notifications core ──
+function myNotifications(){
+  const uid = state.profile && state.profile.uid;
+  return (state.notifications||[]).filter(n=>n.toUid===uid)
+    .sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||""));
+}
+function unreadNotifCount(){ return myNotifications().filter(n=>!n.read).length; }
+
+async function pushNotification(toUid, type, title, body, refId){
+  if(!toUid) return;
+  await fbSave("notifications",{
+    toUid, type, title, body, refId: refId||"",
+    read:false,
+    fromName:(state.profile && (state.profile.name||state.profile.employeeName))||"",
+    createdAt:new Date().toISOString(),
+  });
+}
+
+// Live-refresh the header bell badge without rebuilding the shell.
+function updateNotifBell(){
+  const b=document.getElementById("notifBellBadge");
+  if(!b) return;
+  const n=unreadNotifCount();
+  if(n>0){ b.style.display="flex"; b.textContent=n>99?"99+":String(n); }
+  else{ b.style.display="none"; }
+}
+
+// ── Notifications panel (bell click) ──
+window.openNotifPanel=function(){
+  const list=myNotifications();
+  let ov=document.getElementById("notifOverlay");
+  if(!ov){ ov=document.createElement("div"); ov.id="notifOverlay"; document.body.appendChild(ov); }
+  ov.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:9990;display:flex;align-items:flex-start;justify-content:center;padding:60px 12px 12px";
+  ov.onclick=(e)=>{ if(e.target===ov) closeNotifPanel(); };
+  const items = list.length ? list.map(n=>`
+    <div onclick="markNotifRead('${n.id}')" style="padding:10px 12px;border-bottom:1px solid #eee;cursor:pointer;background:${n.read?'#fff':'#EEF4FF'}">
+      <div style="display:flex;justify-content:space-between;gap:8px">
+        <strong style="font-size:12.5px;color:#03308B">${n.read?'':'🔵 '}${escapeHtml(n.title||'')}</strong>
+        <span style="font-size:10px;color:#999;white-space:nowrap">${escapeHtml(fmtLastSeen(n.createdAt)||'')}</span>
+      </div>
+      <div style="font-size:11.5px;color:#444;margin-top:3px;line-height:1.5">${escapeHtml(n.body||'')}</div>
+      ${(n.type==="task_assigned"||n.type==="task_confirmed")?`<div style="margin-top:5px"><button onclick="event.stopPropagation();markNotifRead('${n.id}');closeNotifPanel();switchTab('My Tasks')" style="background:#03308B;color:#C9A84C;border:none;padding:5px 12px;border-radius:6px;font-weight:700;font-size:10px;cursor:pointer">📋 Open My Tasks</button></div>`:''}
+    </div>`).join("") : `<div style="padding:26px;text-align:center;color:#999;font-style:italic;font-size:12px">No notifications yet</div>`;
+  ov.innerHTML=`<div style="background:#fff;border-radius:12px;max-width:420px;width:100%;max-height:75vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,0.3)">
+    <div style="background:linear-gradient(135deg,#03308B,#2E5FA3);color:#fff;padding:12px 14px;display:flex;justify-content:space-between;align-items:center">
+      <strong style="font-size:14px">🔔 Notifications${unreadNotifCount()?` <span style="background:#C62828;padding:1px 8px;border-radius:10px;font-size:11px">${unreadNotifCount()}</span>`:''}</strong>
+      <div style="display:flex;gap:6px">
+        ${unreadNotifCount()?`<button onclick="markAllNotifsRead()" style="background:rgba(255,255,255,0.15);color:#fff;border:none;padding:4px 10px;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer">Mark all read</button>`:''}
+        <button onclick="closeNotifPanel()" style="background:rgba(255,255,255,0.15);color:#fff;border:none;width:26px;height:26px;border-radius:6px;font-weight:700;cursor:pointer">✕</button>
+      </div>
+    </div>
+    <div style="overflow-y:auto">${items}</div>
+  </div>`;
+};
+window.closeNotifPanel=function(){ const ov=document.getElementById("notifOverlay"); if(ov) ov.remove(); };
+
+window.markNotifRead=async function(id){
+  const n=(state.notifications||[]).find(x=>x.id===id);
+  if(!n||n.read) return;
+  n.read=true;                                   // optimistic local
+  try{
+    const{db,doc,updateDoc}=window.__fb;
+    await updateDoc(doc(db,"notifications",id),{read:true});
+  }catch(e){ console.error(e); }
+  updateNotifBell(); openNotifPanel();
+};
+window.markAllNotifsRead=async function(){
+  const un=myNotifications().filter(n=>!n.read);
+  try{
+    const{db,doc,updateDoc}=window.__fb;
+    for(const n of un){ n.read=true; await updateDoc(doc(db,"notifications",n.id),{read:true}); }
+  }catch(e){ console.error(e); }
+  updateNotifBell(); openNotifPanel();
+};
+
+// ── Task e-mails (reuses the app's EmailJS settings; fails silently) ──
+async function _sendTaskEmail(toEmail, subject, message){
+  try{
+    const s=emailGetSettings();
+    if(!s.serviceId||!s.templateId||!s.publicKey) return false;
+    if(typeof emailjs==="undefined" || !toEmail) return false;
+    emailjs.init({publicKey:s.publicKey});
+    await emailjs.send(s.serviceId, s.templateId, { subject, message, to_email: toEmail });
+    return true;
+  }catch(e){ console.error("Task email failed:", e); return false; }
+}
+
+// ── Employee directory for the cascading pickers (users with accounts) ──
+// branch from user doc; dept from user doc (userDept) or matching nametag entry.
+function _empDirectory(){
+  const tags=state.nametagEmployees||[];
+  return (state.users||[]).filter(u=>(u.role||"")!=="client").map(u=>{
+    const nm=(u.employeeName||u.name||u.email||"").trim();
+    const tag=tags.find(t=>(t.name||"").trim().toLowerCase()===nm.toLowerCase());
+    return {
+      uid:u.id, name:nm, email:u.email||"",
+      branch:((u.branch||(tag&&tag.branch))||"").trim(),
+      dept:((u.userDept||(tag&&tag.dept))||"").trim(),
+    };
+  }).filter(e=>e.name);
+}
+
+// ── Assign-task modal (cascading Branch → Department → Employee) ──
+window.openAssignTask=function(requestId){
+  if(!canAssignTasks()) return toast("You don't have permission to assign tasks");
+  window._assignCtx={ requestId:requestId||"", branch:"", dept:"", uid:"", desc:"", title:"" };
+  _renderAssignModal();
+};
+window._assignSet=function(field,val){
+  const c=window._assignCtx; if(!c) return;
+  c[field]=val;
+  if(field==="branch"){ c.dept=""; c.uid=""; }
+  if(field==="dept"){ c.uid=""; }
+  _renderAssignModal();
+};
+function _renderAssignModal(){
+  const c=window._assignCtx; if(!c) return;
+  const dir=_empDirectory();
+  const req=c.requestId ? (state.clientRequests||[]).find(r=>r.id===c.requestId) : null;
+  const branches=[...new Set(dir.map(e=>e.branch).filter(Boolean))].sort();
+  const inBranch=dir.filter(e=>!c.branch||e.branch===c.branch);
+  const depts=[...new Set(inBranch.map(e=>e.dept).filter(Boolean))].sort();
+  const emps=inBranch.filter(e=>!c.dept||e.dept===c.dept).sort((a,b)=>a.name.localeCompare(b.name));
+  let ov=document.getElementById("assignOverlay");
+  if(!ov){ ov=document.createElement("div"); ov.id="assignOverlay"; document.body.appendChild(ov); }
+  ov.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9991;display:flex;align-items:center;justify-content:center;padding:16px";
+  ov.onclick=(e)=>{ if(e.target===ov) closeAssignModal(); };
+  const inp="width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;background:#fff;box-sizing:border-box";
+  ov.innerHTML=`<div style="background:#fff;border-radius:12px;max-width:420px;width:100%;max-height:85vh;overflow-y:auto;box-shadow:0 10px 40px rgba(0,0,0,0.3)">
+    <div style="background:linear-gradient(135deg,#03308B,#2E5FA3);color:#fff;padding:12px 14px;display:flex;justify-content:space-between;align-items:center;border-radius:12px 12px 0 0">
+      <strong style="font-size:14px">👤 Assign Task</strong>
+      <button onclick="closeAssignModal()" style="background:rgba(255,255,255,0.15);color:#fff;border:none;width:26px;height:26px;border-radius:6px;font-weight:700;cursor:pointer">✕</button>
+    </div>
+    <div style="padding:14px;display:flex;flex-direction:column;gap:10px">
+      ${req
+        ? `<div style="background:#F0F4FF;border:1px solid #B8CCE0;border-radius:8px;padding:9px 11px;font-size:12px;line-height:1.5"><strong style="color:#03308B">🤝 ${escapeHtml(req.clientName||"")}</strong> — ${escapeHtml(req.title||"")}</div>`
+        : `<div><label style="font-size:11px;font-weight:700;color:#555">📌 Task Title *</label><input value="${escapeHtml(c.title||"")}" oninput="window._assignCtx.title=this.value" placeholder="e.g. Check Gate 3 camera" style="${inp}"></div>`}
+      <div><label style="font-size:11px;font-weight:700;color:#555">🏢 Branch</label>
+        <select onchange="_assignSet('branch',this.value)" style="${inp}">
+          <option value="">— All branches —</option>
+          ${branches.map(b=>`<option value="${escapeHtml(b)}" ${b===c.branch?"selected":""}>${escapeHtml(b)}</option>`).join("")}
+        </select></div>
+      <div><label style="font-size:11px;font-weight:700;color:#555">🏛️ Department</label>
+        <select onchange="_assignSet('dept',this.value)" style="${inp}">
+          <option value="">— All departments —</option>
+          ${depts.map(d=>`<option value="${escapeHtml(d)}" ${d===c.dept?"selected":""}>${escapeHtml(d)}</option>`).join("")}
+        </select></div>
+      <div><label style="font-size:11px;font-weight:700;color:#555">👤 Employee *</label>
+        <select onchange="window._assignCtx.uid=this.value" style="${inp}">
+          <option value="">— Select employee —</option>
+          ${emps.map(e=>`<option value="${e.uid}" ${e.uid===c.uid?"selected":""}>${escapeHtml(e.name)}${e.dept?` · ${escapeHtml(e.dept)}`:""}${e.branch?` (${escapeHtml(e.branch)})`:""}</option>`).join("")}
+        </select></div>
+      <div><label style="font-size:11px;font-weight:700;color:#555">📝 Task Description *</label>
+        <textarea oninput="window._assignCtx.desc=this.value" rows="3" placeholder="Describe what the employee should do..." style="${inp};resize:vertical">${escapeHtml(c.desc||"")}</textarea></div>
+      <button onclick="confirmAssignTask()" style="background:#03308B;color:#C9A84C;border:none;padding:11px;border-radius:8px;font-weight:800;font-size:13px;cursor:pointer">👤 Assign Task</button>
+    </div>
+  </div>`;
+}
+window.closeAssignModal=function(){ const ov=document.getElementById("assignOverlay"); if(ov) ov.remove(); window._assignCtx=null; };
+
+window.confirmAssignTask=async function(){
+  const c=window._assignCtx; if(!c) return;
+  const req=c.requestId ? (state.clientRequests||[]).find(r=>r.id===c.requestId) : null;
+  const title=(req ? (req.title||"") : (c.title||"")).trim();
+  if(!title) return toast("Task title is required");
+  if(!c.uid) return toast("Please select an employee");
+  if(!(c.desc||"").trim()) return toast("Task description is required");
+  const emp=_empDirectory().find(e=>e.uid===c.uid);
+  if(!emp) return toast("Employee not found");
+  const myName=(state.profile&&(state.profile.name||state.profile.employeeName))||"Admin";
+  const tid="tsk"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+  const task={
+    id:tid,
+    source:req?"request":"manual",
+    requestId:c.requestId||"",
+    clientName:(req&&req.clientName)||"",
+    title,
+    description:c.desc.trim(),
+    branch:emp.branch||"", dept:emp.dept||"",
+    assignedTo:emp.name, assignedToUid:emp.uid,
+    assignedBy:myName, assignedByUid:state.profile.uid,
+    status:"pending",
+    createdAt:new Date().toISOString(),
+    confirmedAt:"",
+  };
+  await fbSave("tasks", task);
+  await pushNotification(emp.uid,"task_assigned","📋 New Task Assigned",
+    `You have been assigned a task: "${title}" — by ${myName}`, tid);
+  const emailed=await _sendTaskEmail(emp.email,
+    `📋 New Task Assigned — ${title}`,
+    `Hello ${emp.name},\n\nYou have been assigned a new task in Girêk:\n\nTask: ${title}\nDescription: ${task.description}\n${task.clientName?`Client: ${task.clientName}\n`:""}Assigned by: ${myName}\n\nPlease open Girêk → My Tasks and confirm the task.\n\n— EJAF Technology · Girêk`);
+  closeAssignModal();
+  toast(emailed ? `✓ Assigned to ${emp.name} — notified + emailed` : `✓ Assigned to ${emp.name} — in-app notification sent`);
+  render();
+};
+
+// ── Employee confirms a task → notify + email the assigner ──
+window.confirmTask=async function(id){
+  const t=(state.tasks||[]).find(x=>x.id===id);
+  if(!t) return;
+  const uid=state.profile&&state.profile.uid;
+  if(t.assignedToUid!==uid) return toast("Only the assigned employee can confirm");
+  if(t.status==="confirmed") return;
+  try{
+    const{db,doc,updateDoc}=window.__fb;
+    await updateDoc(doc(db,"tasks",id),{status:"confirmed",confirmedAt:new Date().toISOString()});
+  }catch(e){ return toast("Confirm failed: "+e.message); }
+  const myName=(state.profile&&(state.profile.name||state.profile.employeeName))||"";
+  await pushNotification(t.assignedByUid,"task_confirmed","✅ Task Confirmed",
+    `${myName} confirmed the task: "${t.title}"`, id);
+  const assigner=(state.users||[]).find(u=>u.id===t.assignedByUid);
+  if(assigner&&assigner.email){
+    await _sendTaskEmail(assigner.email,
+      `✅ Task Confirmed — ${t.title}`,
+      `Hello ${t.assignedBy},\n\n${myName} has CONFIRMED the task:\n\nTask: ${t.title}\n${t.clientName?`Client: ${t.clientName}\n`:""}\n— EJAF Technology · Girêk`);
+  }
+  toast("✓ Task confirmed");
+  render();
+};
+
+// ── Assignment info block shown on each client-request card (staff view) ──
+function taskStatusChip(t){
+  return t.status==="confirmed"
+    ? `<span style="background:#E8F5E9;color:#2E7D32;padding:3px 10px;border-radius:10px;font-size:10px;font-weight:800;white-space:nowrap">✅ CONFIRMED</span>`
+    : `<span style="background:#FFF8E1;color:#B26A00;padding:3px 10px;border-radius:10px;font-size:10px;font-weight:800;white-space:nowrap">⏳ AWAITING CONFIRM</span>`;
+}
+function taskAssignBlockHTML(r){
+  const t=(state.tasks||[]).find(x=>x.requestId===r.id);
+  if(t){
+    return `<div style="margin-top:8px;background:#F0F7F0;border:1px solid #C8E6C9;border-radius:8px;padding:7px 10px;font-size:11px;display:flex;justify-content:space-between;align-items:center;gap:6px;flex-wrap:wrap">
+      <span>👤 Assigned to <strong>${escapeHtml(t.assignedTo||"")}</strong> · by ${escapeHtml(t.assignedBy||"")}</span>${taskStatusChip(t)}</div>`;
+  }
+  if(canAssignTasks()){
+    return `<div style="margin-top:8px"><button onclick="openAssignTask('${r.id}')" style="background:#03308B;color:#C9A84C;border:none;padding:7px 14px;border-radius:8px;font-weight:800;font-size:11px;cursor:pointer">👤 Assign Task</button></div>`;
+  }
+  return "";
+}
+
+// ── Admin: grant/revoke "can assign tasks" (Users tab toggle) ──
+window.toggleCanAssign=async function(userId){
+  if(!isAdmin()) return toast("Admin only");
+  const u=(state.users||[]).find(x=>x.id===userId); if(!u) return;
+  const nv=!u.canAssignTasks;
+  try{
+    const{db,doc,updateDoc}=window.__fb;
+    await updateDoc(doc(db,"users",userId),{canAssignTasks:nv});
+    toast(nv?"✓ Can now assign tasks":"Assign-tasks permission removed");
+  }catch(e){ toast("Failed: "+e.message); }
+};
+
+// ── My Tasks tab ──
+function _taskCard(t, mineView){
+  return `<div class="card" style="border-left:4px solid ${t.status==="confirmed"?"#2E7D32":"#C9A84C"};padding:12px 14px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap">
+      <strong style="font-size:13.5px;color:#03308B">${escapeHtml(t.title||"")}</strong>
+      ${taskStatusChip(t)}
+    </div>
+    ${t.clientName
+      ? `<div style="font-size:11px;color:#6A1B9A;font-weight:700;margin-top:3px">🤝 ${escapeHtml(t.clientName)}${t.source==="request"?" · from client request":""}</div>`
+      : (t.source==="manual" ? `<div style="font-size:10.5px;color:#888;margin-top:3px">✍️ Manual task</div>` : "")}
+    <div style="font-size:12px;color:#333;margin-top:6px;line-height:1.6;background:#F8FAFF;border:1px solid #E3ECF7;border-radius:8px;padding:8px 10px">${escapeHtml(t.description||"")}</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;flex-wrap:wrap;gap:6px">
+      <span style="font-size:10.5px;color:#666">${mineView
+        ? `👤 By: <strong>${escapeHtml(t.assignedBy||"")}</strong>`
+        : `👤 To: <strong>${escapeHtml(t.assignedTo||"")}</strong>`} · 📅 ${escapeHtml(fmtDate((t.createdAt||"").slice(0,10)))}${(t.status==="confirmed"&&t.confirmedAt)?` · ✅ ${escapeHtml(fmtLastSeen(t.confirmedAt)||"")}`:""}</span>
+      ${(mineView&&t.status==="pending")?`<button onclick="confirmTask('${t.id}')" style="background:#2E7D32;color:#fff;border:none;padding:8px 18px;border-radius:8px;font-weight:800;font-size:12px;cursor:pointer">✅ Confirm</button>`:""}
+    </div>
+  </div>`;
+}
+function renderMyTasks(){
+  const uid=state.profile&&state.profile.uid;
+  const byDate=(a,b)=>(b.createdAt||"").localeCompare(a.createdAt||"");
+  const mine=(state.tasks||[]).filter(t=>t.assignedToUid===uid).sort(byDate);
+  const pend=mine.filter(t=>t.status==="pending").length;
+  let h=`<div class="card" style="background:linear-gradient(135deg,#03308B,#2E5FA3);color:#fff;padding:14px 16px">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+      <div><strong style="font-size:15px">📋 My Tasks</strong>
+        <div style="font-size:11px;opacity:0.85;margin-top:2px">${mine.length} task(s)${pend?` · ${pend} awaiting your confirmation`:""}</div></div>
+      ${canAssignTasks()?`<button onclick="openAssignTask('')" style="background:#C9A84C;color:#03308B;border:none;padding:9px 14px;border-radius:8px;font-weight:800;font-size:12px;cursor:pointer">➕ New Task</button>`:""}
+    </div></div>`;
+  h += mine.length ? mine.map(t=>_taskCard(t,true)).join("") : `<div class="card"><div class="empty">No tasks assigned to you yet</div></div>`;
+  if(canAssignTasks()){
+    const byMe=(state.tasks||[]).filter(t=>t.assignedByUid===uid).sort(byDate);
+    h+=`<div class="card" style="margin-top:16px;background:#F8FAFF;border:1px solid #B8CCE0;padding:10px 14px"><strong style="color:#03308B;font-size:13.5px">📤 Tasks I Assigned <span class="count-pill">${byMe.length}</span></strong></div>`;
+    h += byMe.length ? byMe.map(t=>_taskCard(t,false)).join("") : `<div class="card"><div class="empty">You haven't assigned any tasks yet</div></div>`;
+  }
+  return h;
+}
+
 function renderRequests(){
   // CLIENT VIEW: submit + track own requests
   if(isClient()){
@@ -7853,6 +8174,7 @@ function renderRequests(){
               </div>
               ${(r.projectCode||r.area||r.site||r.deviceSerial)?`<div style="font-size:11px;color:#03308B;margin-top:3px;font-weight:600">${[r.projectCode&&`🔌 ${escapeHtml(r.projectCode)}`,r.area&&`🗺️ ${escapeHtml(r.area)}`,r.site&&`📍 ${escapeHtml(r.site)}`,r.deviceSerial&&`📟 ${escapeHtml(r.deviceSerial)}`].filter(Boolean).join(" · ")}</div>`:""}
               <div style="font-size:13px;color:#444;margin-top:8px;line-height:1.6">${escapeHtml(r.description||"")}</div>
+              ${taskAssignBlockHTML(r)}
             </div>
             <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">
               ${reqStatusBadge(r.status)}
@@ -10732,7 +11054,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v52';"
+      var swCode = "const CACHE='ejaftech-v53';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
