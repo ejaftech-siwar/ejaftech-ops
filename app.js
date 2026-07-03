@@ -7799,16 +7799,13 @@ window.openNotifPanel=function(){
   ov.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:9990;display:flex;align-items:flex-start;justify-content:center;padding:60px 12px 12px";
   ov.onclick=(e)=>{ if(e.target===ov) closeNotifPanel(); };
   const items = list.length ? list.map(n=>`
-    <div onclick="markNotifRead('${n.id}')" style="padding:10px 12px;border-bottom:1px solid #eee;cursor:pointer;background:${n.read?'#fff':'#EEF4FF'}">
+    <div onclick="openNotif('${n.id}')" style="padding:10px 12px;border-bottom:1px solid #eee;cursor:pointer;background:${n.read?'#fff':'#EEF4FF'}">
       <div style="display:flex;justify-content:space-between;gap:8px">
         <strong style="font-size:12.5px;color:#03308B">${n.read?'':'🔵 '}${escapeHtml(n.title||'')}</strong>
         <span style="display:flex;align-items:center;gap:6px;white-space:nowrap"><span style="font-size:10px;color:#999">${escapeHtml(fmtLastSeen(n.createdAt)||'')}</span><button onclick="event.stopPropagation();deleteNotif('${n.id}')" title="Delete" style="background:#FFEBEE;color:#C62828;border:none;width:18px;height:18px;border-radius:9px;font-size:10px;font-weight:800;cursor:pointer;line-height:1">✕</button></span>
       </div>
       <div style="font-size:11.5px;color:#444;margin-top:3px;line-height:1.5">${escapeHtml(n.body||'')}</div>
-      ${(()=>{const nav = n.type==="task_assigned" ? {label:"📋 Open My Tasks", tab:"My Tasks"}
-            : (n.type==="new_request"||n.type==="task_confirmed") ? {label:"📨 Open Requests", tab:"Requests"}
-            : null;
-        return nav?`<div style="margin-top:5px"><button onclick="event.stopPropagation();markNotifRead('${n.id}');closeNotifPanel();switchTab('${nav.tab}')" style="background:#03308B;color:#C9A84C;border:none;padding:5px 12px;border-radius:6px;font-weight:700;font-size:10px;cursor:pointer">${nav.label}</button></div>`:'';})()}
+
     </div>`).join("") : `<div style="padding:26px;text-align:center;color:#999;font-style:italic;font-size:12px">No notifications yet</div>`;
   ov.innerHTML=`<div style="background:#fff;border-radius:12px;max-width:420px;width:100%;max-height:75vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,0.3)">
     <div style="background:linear-gradient(135deg,#03308B,#2E5FA3);color:#fff;padding:12px 14px;display:flex;justify-content:space-between;align-items:center">
@@ -7834,6 +7831,26 @@ window.markNotifRead=async function(id){
   }catch(e){ console.error(e); }
   updateNotifBell(); openNotifPanel();
 };
+// Tap on a notification: mark it read, then jump straight to the right tab
+// (no button needed). Types without a destination just get marked read.
+window.openNotif=async function(id){
+  const n=(state.notifications||[]).find(x=>x.id===id);
+  if(!n) return;
+  if(!n.read){
+    n.read=true;                                  // optimistic
+    try{
+      const{db,doc,updateDoc}=window.__fb;
+      await updateDoc(doc(db,"notifications",id),{read:true});
+    }catch(e){ console.error(e); }
+    updateNotifBell();
+  }
+  const tab = n.type==="task_assigned" ? "My Tasks"
+            : (n.type==="new_request"||n.type==="task_confirmed") ? "Requests"
+            : null;
+  if(tab){ closeNotifPanel(); switchTab(tab); }
+  else { openNotifPanel(); }                      // just refresh the panel
+};
+
 window.markAllNotifsRead=async function(){
   const un=myNotifications().filter(n=>!n.read);
   try{
@@ -11107,7 +11124,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v56';"
+      var swCode = "const CACHE='ejaftech-v57';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
