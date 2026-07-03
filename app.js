@@ -1171,12 +1171,12 @@ function showSetupNeeded(){
 
 function renderLogin(){
   renderRoot(`
-    <div class="login-bg">
-      <div class="login-card">
+    <div class="login-bg" style="min-height:100dvh;padding:0;display:flex;align-items:stretch;justify-content:stretch">
+      <div class="login-card" style="width:100%;max-width:none;min-height:100dvh;margin:0;border-radius:0;box-shadow:none;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:32px 22px">
         <div class="login-logo"><img src="data:image/png;base64,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" alt="EJAF Technology" style="width:100%;height:100%;object-fit:cover;border-radius:18px"></div>
         <h2>Girêk</h2>
-        <div class="sub">EjafTech Operations · Sign In</div>
-        <form id="loginForm" onsubmit="handleLogin(event)">
+        <div class="sub">Sign In</div>
+        <form id="loginForm" onsubmit="handleLogin(event)" style="width:100%;max-width:420px">
           <label>Email</label>
           <input type="email" id="loginEmail" required autocomplete="email">
           <label>Password</label>
@@ -5722,8 +5722,10 @@ Object.defineProperty(window,'locForm',{get:()=>locForm,set:v=>locForm=v});
 function renderUsers(){
   if(!isAdmin())return `<div class="card"><div class="empty">Access denied — Admin only</div></div>`;
   if(!userForm)userForm={name:"",email:"",password:"",role:"employee",employeeName:"",branch:"",userDept:"",jobTitle:"",supervisorName:"",isSupervisor:false};
-
-  return `<div class="card">
+  const uv = window._usersView || "team";
+  const _up=(id,ic,lb)=>`<button onclick="window._usersView='${id}';render()" style="flex:1;padding:10px 6px;border:none;border-radius:9px;font-weight:800;font-size:12px;cursor:pointer;background:${uv===id?'#03308B':'#E8EEF7'};color:${uv===id?'#C9A84C':'#1B3A6B'}">${ic} ${lb}</button>`;
+  let h = `<div style="display:flex;gap:6px;margin-bottom:14px">${_up("team","👥","Team Members")}${_up("add","➕","Add User")}${_up("tags","🏷️","Nametags")}</div>`;
+  if(uv==="add")  h += `<div class="card">
     <div class="sec-hdr">${userEditId?"Edit":"Add"} User</div>
     ${!userEditId?`<div style="background:#FFF8E1;border:1px solid #FFE082;border-radius:8px;padding:10px;font-size:12px;color:#7F6000;margin-bottom:14px">
       <strong>⚠ How user creation works:</strong><br>
@@ -5804,9 +5806,8 @@ function renderUsers(){
       <button class="btn btn-primary" onclick="saveUser()">${userEditId?"Update":"Create User"}</button>
       ${userEditId?`<button class="btn btn-ghost" onclick="cancelUser()">Cancel</button>`:""}
     </div>
-  </div>
-
-  <div class="card">
+  </div>`;
+  if(uv==="team") h += `  <div class="card">
     <div class="card-title">Team Members · ${state.users.length}</div>
     ${state.users.map(u=>{
       const roleCls=u.role==="admin"||u.role==="owner"?"admin":u.role==="hr"||u.role==="support"||u.role==="client"?"hr":u.role==="it"?"hr":"emp";
@@ -5847,21 +5848,8 @@ function renderUsers(){
         </div>
       </div>`;
     }).join("")}
-  </div>
-
-  <div class="card">
-    <div class="card-title">Manual Setup Guide</div>
-    <p style="font-size:13px;color:var(--muted);line-height:1.6">
-      For maximum safety, you can add users directly from Firebase Console:<br><br>
-      <strong>1.</strong> Firebase Console → Authentication → Users → Add user<br>
-      <strong>2.</strong> Copy the User UID<br>
-      <strong>3.</strong> Firestore → users collection → Add document<br>
-      <strong>4.</strong> Document ID = the UID; add fields: name, email, role, employeeName<br><br>
-      Roles: <code>admin</code> · <code>owner</code> · <code>support</code> · <code>hr</code> · <code>it</code> · <code>employee</code>
-    </p>
-  </div>
-
-  <!-- ═══ NAMETAG EMPLOYEES (no auth account) ═══ -->
+  </div>`;
+  if(uv==="tags") h += `  <!-- ═══ NAMETAG EMPLOYEES (no auth account) ═══ -->
   <div class="card" style="border-top:4px solid #D4AF37">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
       <div>
@@ -5933,107 +5921,8 @@ function renderUsers(){
           }).join("")}
         </div>`
     }
-  </div>
-
-  <!-- ═══ PER-EMPLOYEE ENTRY PERMISSIONS (Admin) ═══ -->
-  <div class="card" style="border-left:4px solid #0277BD">
-    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px">
-      <span style="background:#0277BD;color:white;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">🔐</span>
-      Entry Permissions per Employee
-    </div>
-    <p style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.6">
-      Control what each employee must provide when adding a Daily Log entry.<br>
-      <strong>GPS Required:</strong> employee location captured automatically on save (entry still saves if denied, marked "GPS denied").<br>
-      <strong>Resolution Required:</strong> description text + at least 1 photo mandatory.<br>
-      <strong>Area/Site Required:</strong> employee must pick an Area + Site (only for projects that have areas).<br>
-      <strong>Device Tracking:</strong> shows a Device picker in Daily Log; employee can update device Status + Install Date (syncs centrally).<br>
-      <strong>Full Device Edit:</strong> employee can edit ALL device fields from Daily Log (IP, model, vendor…). Requires Device Tracking.
-    </p>
-    <div style="display:flex;flex-direction:column;gap:6px">
-      ${allEmployees().map(emp => {
-        const p = getEmpPermissions(emp);
-        return `<div style="display:flex;align-items:center;justify-content:space-between;padding:9px 14px;background:#F7FAFC;border:1px solid #E2E8F0;border-radius:8px;gap:10px;flex-wrap:wrap">
-          <div style="font-weight:700;color:#1A202C;font-size:13px;min-width:140px">${employeeBadge(emp)}</div>
-          <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
-            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;user-select:none">
-              <input type="checkbox" ${p.gpsRequired?"checked":""} onchange="toggleEmpPerm('${escapeHtml(emp)}','gpsRequired')" style="width:16px;height:16px;cursor:pointer">
-              <span style="color:${p.gpsRequired?'#2E7D32':'#999'};font-weight:600">🛰️ GPS Required</span>
-            </label>
-            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;user-select:none">
-              <input type="checkbox" ${p.resolutionRequired?"checked":""} onchange="toggleEmpPerm('${escapeHtml(emp)}','resolutionRequired')" style="width:16px;height:16px;cursor:pointer">
-              <span style="color:${p.resolutionRequired?'#03308B':'#999'};font-weight:600">📸 Resolution Required</span>
-            </label>
-            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;user-select:none">
-              <input type="checkbox" ${p.equipmentRequired?"checked":""} onchange="toggleEmpPerm('${escapeHtml(emp)}','equipmentRequired')" style="width:16px;height:16px;cursor:pointer">
-              <span style="color:${p.equipmentRequired?'#6A1B9A':'#999'};font-weight:600">🗺️ Area/Site Required</span>
-            </label>
-            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;user-select:none">
-              <input type="checkbox" ${p.deviceTracking?"checked":""} onchange="toggleEmpPerm('${escapeHtml(emp)}','deviceTracking')" style="width:16px;height:16px;cursor:pointer">
-              <span style="color:${p.deviceTracking?'#00897B':'#999'};font-weight:600">📟 Device Tracking</span>
-            </label>
-            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;user-select:none">
-              <input type="checkbox" ${p.fullDeviceEdit?"checked":""} onchange="toggleEmpPerm('${escapeHtml(emp)}','fullDeviceEdit')" style="width:16px;height:16px;cursor:pointer">
-              <span style="color:${p.fullDeviceEdit?'#E65100':'#999'};font-weight:600">🔧 Full Device Edit</span>
-            </label>
-          </div>
-        </div>`;
-      }).join("")}
-    </div>
-  </div>
-
-  <!-- ═══ ENTRY PERMISSION PER CLIENT (Admin) ═══ -->
-  <div class="card" style="border-left:4px solid #C9A84C">
-    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px">
-      <span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">🤝</span>
-      Entry Permission per Client
-    </div>
-    <p style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.6">
-      Control what each client can see and do in their portal.<br>
-      <strong>Project Details:</strong> client can pick Project → Project Code → Area → Site → Device when submitting a Request (pinpoints exactly what they need).<br>
-      <strong>Suggest Device Edits:</strong> client can propose changes to device details — saved as suggestions for your approval, never written directly.<br>
-      <strong>Portal Filters:</strong> filter bar in the client portal (Project · Code · Area · Site · Device · Serial · Model).<br>
-      <strong>Reports Export:</strong> client can generate branded PDF / Excel reports of their own projects.
-    </p>
-    ${(state.clients||[]).length===0?`<div class="empty" style="padding:14px">No clients yet — add them in the Clients tab.</div>`:`
-    <div style="display:flex;flex-direction:column;gap:6px">
-      ${(state.clients||[]).map(c => {
-        const p = getClientPermissions(c.id);
-        const linked = !!(c.linkedUserEmail || c.linkedUserUid);
-        return `<div style="display:flex;align-items:center;justify-content:space-between;padding:9px 14px;background:#FFFDF5;border:1px solid #EADFC0;border-radius:8px;gap:10px;flex-wrap:wrap">
-          <div style="min-width:150px">
-            <div style="font-weight:700;color:#1A202C;font-size:13px">🤝 ${escapeHtml(c.name)}</div>
-            <div style="font-size:10px;color:${linked?'#2E7D32':'#C62828'}">${linked?`👤 ${escapeHtml(linkedClientLabel(c)||'linked')}`:'No login linked'}</div>
-          </div>
-          <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
-            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;user-select:none">
-              <input type="checkbox" ${p.projectDetails?"checked":""} onchange="toggleClientPerm('${escapeHtml(c.id)}','projectDetails')" style="width:16px;height:16px;cursor:pointer">
-              <span style="color:${p.projectDetails?'#03308B':'#999'};font-weight:600">🗂️ Project Details</span>
-            </label>
-            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;user-select:none">
-              <input type="checkbox" ${p.deviceEditSuggest?"checked":""} onchange="toggleClientPerm('${escapeHtml(c.id)}','deviceEditSuggest')" style="width:16px;height:16px;cursor:pointer">
-              <span style="color:${p.deviceEditSuggest?'#E65100':'#999'};font-weight:600">✏️ Suggest Device Edits</span>
-            </label>
-            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;user-select:none">
-              <input type="checkbox" ${p.portalFilters?"checked":""} onchange="toggleClientPerm('${escapeHtml(c.id)}','portalFilters')" style="width:16px;height:16px;cursor:pointer">
-              <span style="color:${p.portalFilters?'#6A1B9A':'#999'};font-weight:600">🔎 Portal Filters</span>
-            </label>
-            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;user-select:none">
-              <input type="checkbox" ${p.reportsExport?"checked":""} onchange="toggleClientPerm('${escapeHtml(c.id)}','reportsExport')" style="width:16px;height:16px;cursor:pointer">
-              <span style="color:${p.reportsExport?'#00897B':'#999'};font-weight:600">📊 Reports Export</span>
-            </label>
-          </div>
-          ${p.reportsExport?`<div style="width:100%;display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:6px 0 0 8px;border-top:1px dashed #EADFC0;margin-top:4px">
-            <span style="font-size:10px;color:#7F6000;font-weight:700">Report includes:</span>
-            ${[["repSummary","Summary"],["repWorkLog","Work Log"],["repDevices","Devices"],["repRequests","Requests"]].map(([k,l])=>`
-            <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:11px;user-select:none">
-              <input type="checkbox" ${p[k]?"checked":""} onchange="toggleClientPerm('${escapeHtml(c.id)}','${k}')" style="width:13px;height:13px;cursor:pointer">
-              <span style="color:${p[k]?'#00897B':'#999'}">${l}</span>
-            </label>`).join("")}
-          </div>`:""}
-        </div>`;
-      }).join("")}
-    </div>`}
   </div>`;
+  return h;
 }
 
 async function saveUser(){
@@ -6109,6 +5998,7 @@ async function saveUser(){
 }
 
 function editUser(id){
+  window._usersView="add"; window.scrollTo(0,0);
   const u=state.users.find(x=>x.id===id);
   if(u){userForm={name:u.name||"",email:u.email||"",password:"",role:u.role||"employee",employeeName:u.employeeName||"",branch:u.branch||"",userDept:u.userDept||"",jobTitle:u.jobTitle||"",supervisorName:u.supervisorName||"",isSupervisor:!!u.isSupervisor,isTrackedEmployee:!!u.isTrackedEmployee};userEditId=id;render();window.scrollTo(0,0);}
 }
@@ -6301,6 +6191,7 @@ async function saveNametagEmp(){
 }
 
 function editNametagEmp(id){
+  window._usersView="tags"; window.scrollTo(0,0);
   if(!isAdmin()) return toast("Admin only");
   const e = (state.nametagEmployees||[]).find(x=>x.id===id);
   if(e){ nametagForm = {name: e.name, type: e.type||"internal", branch: e.branch||"", dept: e.dept||""}; nametagEditId=id; render(); window.scrollTo(0,0); }
@@ -9197,7 +9088,10 @@ function renderEmailTab(){
   const contacts = state.emailContacts || [];
   const configured = s.serviceId && s.templateId && s.publicKey;
 
-  return `
+  const ev = window._emailView || "setup";
+  const _ep=(id,ic,lb)=>`<button onclick="window._emailView='${id}';render()" style="flex:1;padding:10px 4px;border:none;border-radius:9px;font-weight:800;font-size:11.5px;cursor:pointer;background:${ev===id?'#03308B':'#E8EEF7'};color:${ev===id?'#C9A84C':'#1B3A6B'}">${ic} ${lb}</button>`;
+  let h = `<div style="display:flex;gap:6px;margin-bottom:14px">${_ep("setup","🔑","Setup")}${_ep("recipients","👥","Recipients")}${_ep("options","🧩","Options")}${_ep("scheduled","⏰","Scheduled")}</div>`;
+  if(ev==="setup")      h += `
   <!-- MASTER SWITCH -->
   <div class="card" style="border-left:4px solid ${s.enabled?'#2E7D32':'#999'}">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
@@ -9238,7 +9132,8 @@ function renderEmailTab(){
       Set the template's "To Email" field to <code style="background:white;padding:1px 5px;border-radius:3px">{{to_email}}</code>
     </div>
     ${configured?`<button class="btn btn-sm" style="background:#03308B;color:#C9A84C;margin-top:10px" onclick="sendTestEmail()">📨 Send Test Email</button>`:''}
-  </div>
+  </div>`;
+  if(ev==="recipients") h += `
 
   <!-- RECIPIENTS -->
   <div class="card" style="border-left:4px solid #25D366">
@@ -9313,6 +9208,27 @@ function renderEmailTab(){
     </div>
   </div>
 
+  <!-- CLIENT REQUEST RECIPIENTS -->
+  <div class="card" style="border-left:4px solid #AD1457">
+    <div class="card-title">📨 Client Request Notifications</div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:10px">When a client submits a new request, these addresses get an automatic email. ${(s.triggers||[]).includes("clientRequests")?'':'<strong style="color:#C62828">⚠ Enable the "After a Client Request" trigger above first.</strong>'}</p>
+    <div class="field" style="margin-bottom:8px"><label>Add notification email</label>
+      <div style="display:flex;gap:6px">
+        <input id="reqEmailInput" type="email" placeholder="manager@ejaftech.iq" style="flex:1">
+        <button class="btn btn-sm" style="background:#AD1457;color:white;border:none;font-weight:700" onclick="addRequestRecipient()">Add</button>
+      </div>
+    </div>
+    ${(s.requestRecipients||[]).length===0
+      ? `<div style="padding:10px 12px;background:#FCE4EC;border-radius:7px;font-size:11px;color:#880E4F">No dedicated recipients — requests will fall back to the main recipient list above.</div>`
+      : `<div style="display:flex;flex-direction:column;gap:6px">
+          ${(s.requestRecipients||[]).map((em,idx)=>`<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 12px;background:#FCE4EC;border:1px solid #F8BBD0;border-radius:8px">
+            <div style="display:flex;align-items:center;gap:8px;min-width:0"><span style="font-size:16px">✉️</span><span style="font-size:12px;color:#880E4F;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(em)}</span></div>
+            <button class="btn btn-sm btn-danger" onclick="removeRequestRecipient(${idx})">🗑</button>
+          </div>`).join("")}
+        </div>`}
+  </div>`;
+  if(ev==="options")    h += `
+
   <!-- MESSAGE FIELDS -->
   <div class="card" style="border-left:4px solid #6A1B9A">
     <div class="card-title">⚙️ Email Content — Fields to Include</div>
@@ -9357,31 +9273,11 @@ function renderEmailTab(){
         </label>`;
       }).join("")}
     </div>
-  </div>
-
-  <!-- CLIENT REQUEST RECIPIENTS -->
-  <div class="card" style="border-left:4px solid #AD1457">
-    <div class="card-title">📨 Client Request Notifications</div>
-    <p style="font-size:12px;color:var(--muted);margin-bottom:10px">When a client submits a new request, these addresses get an automatic email. ${(s.triggers||[]).includes("clientRequests")?'':'<strong style="color:#C62828">⚠ Enable the "After a Client Request" trigger above first.</strong>'}</p>
-    <div class="field" style="margin-bottom:8px"><label>Add notification email</label>
-      <div style="display:flex;gap:6px">
-        <input id="reqEmailInput" type="email" placeholder="manager@ejaftech.iq" style="flex:1">
-        <button class="btn btn-sm" style="background:#AD1457;color:white;border:none;font-weight:700" onclick="addRequestRecipient()">Add</button>
-      </div>
-    </div>
-    ${(s.requestRecipients||[]).length===0
-      ? `<div style="padding:10px 12px;background:#FCE4EC;border-radius:7px;font-size:11px;color:#880E4F">No dedicated recipients — requests will fall back to the main recipient list above.</div>`
-      : `<div style="display:flex;flex-direction:column;gap:6px">
-          ${(s.requestRecipients||[]).map((em,idx)=>`<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 12px;background:#FCE4EC;border:1px solid #F8BBD0;border-radius:8px">
-            <div style="display:flex;align-items:center;gap:8px;min-width:0"><span style="font-size:16px">✉️</span><span style="font-size:12px;color:#880E4F;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(em)}</span></div>
-            <button class="btn btn-sm btn-danger" onclick="removeRequestRecipient(${idx})">🗑</button>
-          </div>`).join("")}
-        </div>`}
-  </div>
-  ${renderScheduledReportsCard()}`;
+  </div>`;
+  if(ev==="scheduled")  h += renderScheduledReportsCard();
+  return h;
 }
 
-// ── Recipient CRUD ──
 async function saveEmailContact(){
   if(!isAdmin()) return toast("Admin only");
   const name=(emailContactForm.name||"").trim();
@@ -9396,6 +9292,7 @@ async function saveEmailContact(){
   emailContactForm=null; emailContactEditId=null;
 }
 function editEmailContact(id){
+  window._emailView="recipients";
   const c=(state.emailContacts||[]).find(x=>x.id===id);
   if(c){ emailContactForm={name:c.name,email:c.email}; emailContactEditId=id; render(); window.scrollTo(0,0); }
 }
@@ -9758,7 +9655,7 @@ function renderProfile(){
 function renderEntryManage(){
   if(!isAdmin()) return `<div class="card"><p style="text-align:center;color:var(--muted);padding:20px">Admin only.</p></div>`;
   const projects = [...new Set(state.daily.map(r=>r.project).filter(Boolean))].sort();
-  return `
+  let h = `
   <div class="card" style="border-left:4px solid #C9A84C">
     <div class="sec-hdr" style="display:flex;align-items:center;gap:8px">
       <span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">⚙</span>
@@ -9827,6 +9724,105 @@ function renderEntryManage(){
       <button class="btn btn-sm" style="background:#C62828;border:none;color:white;font-weight:700;padding:8px 16px;border-radius:6px" onclick="purgeResolutionImagesCustom()">🗑️ Purge Images</button>
     </div>
   </div>`;
+  h += `  <!-- ═══ PER-EMPLOYEE ENTRY PERMISSIONS (Admin) ═══ -->
+  <div class="card" style="border-left:4px solid #0277BD">
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px">
+      <span style="background:#0277BD;color:white;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">🔐</span>
+      Entry Permissions per Employee
+    </div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.6">
+      Control what each employee must provide when adding a Daily Log entry.<br>
+      <strong>GPS Required:</strong> employee location captured automatically on save (entry still saves if denied, marked "GPS denied").<br>
+      <strong>Resolution Required:</strong> description text + at least 1 photo mandatory.<br>
+      <strong>Area/Site Required:</strong> employee must pick an Area + Site (only for projects that have areas).<br>
+      <strong>Device Tracking:</strong> shows a Device picker in Daily Log; employee can update device Status + Install Date (syncs centrally).<br>
+      <strong>Full Device Edit:</strong> employee can edit ALL device fields from Daily Log (IP, model, vendor…). Requires Device Tracking.
+    </p>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      ${allEmployees().map(emp => {
+        const p = getEmpPermissions(emp);
+        return `<div style="display:flex;align-items:center;justify-content:space-between;padding:9px 14px;background:#F7FAFC;border:1px solid #E2E8F0;border-radius:8px;gap:10px;flex-wrap:wrap">
+          <div style="font-weight:700;color:#1A202C;font-size:13px;min-width:140px">${employeeBadge(emp)}</div>
+          <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;user-select:none">
+              <input type="checkbox" ${p.gpsRequired?"checked":""} onchange="toggleEmpPerm('${escapeHtml(emp)}','gpsRequired')" style="width:16px;height:16px;cursor:pointer">
+              <span style="color:${p.gpsRequired?'#2E7D32':'#999'};font-weight:600">🛰️ GPS Required</span>
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;user-select:none">
+              <input type="checkbox" ${p.resolutionRequired?"checked":""} onchange="toggleEmpPerm('${escapeHtml(emp)}','resolutionRequired')" style="width:16px;height:16px;cursor:pointer">
+              <span style="color:${p.resolutionRequired?'#03308B':'#999'};font-weight:600">📸 Resolution Required</span>
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;user-select:none">
+              <input type="checkbox" ${p.equipmentRequired?"checked":""} onchange="toggleEmpPerm('${escapeHtml(emp)}','equipmentRequired')" style="width:16px;height:16px;cursor:pointer">
+              <span style="color:${p.equipmentRequired?'#6A1B9A':'#999'};font-weight:600">🗺️ Area/Site Required</span>
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;user-select:none">
+              <input type="checkbox" ${p.deviceTracking?"checked":""} onchange="toggleEmpPerm('${escapeHtml(emp)}','deviceTracking')" style="width:16px;height:16px;cursor:pointer">
+              <span style="color:${p.deviceTracking?'#00897B':'#999'};font-weight:600">📟 Device Tracking</span>
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;user-select:none">
+              <input type="checkbox" ${p.fullDeviceEdit?"checked":""} onchange="toggleEmpPerm('${escapeHtml(emp)}','fullDeviceEdit')" style="width:16px;height:16px;cursor:pointer">
+              <span style="color:${p.fullDeviceEdit?'#E65100':'#999'};font-weight:600">🔧 Full Device Edit</span>
+            </label>
+          </div>
+        </div>`;
+      }).join("")}
+    </div>
+  </div>`;
+  h += `  <!-- ═══ ENTRY PERMISSION PER CLIENT (Admin) ═══ -->
+  <div class="card" style="border-left:4px solid #C9A84C">
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px">
+      <span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">🤝</span>
+      Entry Permission per Client
+    </div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.6">
+      Control what each client can see and do in their portal.<br>
+      <strong>Project Details:</strong> client can pick Project → Project Code → Area → Site → Device when submitting a Request (pinpoints exactly what they need).<br>
+      <strong>Suggest Device Edits:</strong> client can propose changes to device details — saved as suggestions for your approval, never written directly.<br>
+      <strong>Portal Filters:</strong> filter bar in the client portal (Project · Code · Area · Site · Device · Serial · Model).<br>
+      <strong>Reports Export:</strong> client can generate branded PDF / Excel reports of their own projects.
+    </p>
+    ${(state.clients||[]).length===0?`<div class="empty" style="padding:14px">No clients yet — add them in the Clients tab.</div>`:`
+    <div style="display:flex;flex-direction:column;gap:6px">
+      ${(state.clients||[]).map(c => {
+        const p = getClientPermissions(c.id);
+        const linked = !!(c.linkedUserEmail || c.linkedUserUid);
+        return `<div style="display:flex;align-items:center;justify-content:space-between;padding:9px 14px;background:#FFFDF5;border:1px solid #EADFC0;border-radius:8px;gap:10px;flex-wrap:wrap">
+          <div style="min-width:150px">
+            <div style="font-weight:700;color:#1A202C;font-size:13px">🤝 ${escapeHtml(c.name)}</div>
+            <div style="font-size:10px;color:${linked?'#2E7D32':'#C62828'}">${linked?`👤 ${escapeHtml(linkedClientLabel(c)||'linked')}`:'No login linked'}</div>
+          </div>
+          <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;user-select:none">
+              <input type="checkbox" ${p.projectDetails?"checked":""} onchange="toggleClientPerm('${escapeHtml(c.id)}','projectDetails')" style="width:16px;height:16px;cursor:pointer">
+              <span style="color:${p.projectDetails?'#03308B':'#999'};font-weight:600">🗂️ Project Details</span>
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;user-select:none">
+              <input type="checkbox" ${p.deviceEditSuggest?"checked":""} onchange="toggleClientPerm('${escapeHtml(c.id)}','deviceEditSuggest')" style="width:16px;height:16px;cursor:pointer">
+              <span style="color:${p.deviceEditSuggest?'#E65100':'#999'};font-weight:600">✏️ Suggest Device Edits</span>
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;user-select:none">
+              <input type="checkbox" ${p.portalFilters?"checked":""} onchange="toggleClientPerm('${escapeHtml(c.id)}','portalFilters')" style="width:16px;height:16px;cursor:pointer">
+              <span style="color:${p.portalFilters?'#6A1B9A':'#999'};font-weight:600">🔎 Portal Filters</span>
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;user-select:none">
+              <input type="checkbox" ${p.reportsExport?"checked":""} onchange="toggleClientPerm('${escapeHtml(c.id)}','reportsExport')" style="width:16px;height:16px;cursor:pointer">
+              <span style="color:${p.reportsExport?'#00897B':'#999'};font-weight:600">📊 Reports Export</span>
+            </label>
+          </div>
+          ${p.reportsExport?`<div style="width:100%;display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:6px 0 0 8px;border-top:1px dashed #EADFC0;margin-top:4px">
+            <span style="font-size:10px;color:#7F6000;font-weight:700">Report includes:</span>
+            ${[["repSummary","Summary"],["repWorkLog","Work Log"],["repDevices","Devices"],["repRequests","Requests"]].map(([k,l])=>`
+            <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:11px;user-select:none">
+              <input type="checkbox" ${p[k]?"checked":""} onchange="toggleClientPerm('${escapeHtml(c.id)}','${k}')" style="width:13px;height:13px;cursor:pointer">
+              <span style="color:${p[k]?'#00897B':'#999'}">${l}</span>
+            </label>`).join("")}
+          </div>`:""}
+        </div>`;
+      }).join("")}
+    </div>`}
+  </div>`;
+  return h;
 }
 
 function passwordStrengthBar(pw){
@@ -11124,7 +11120,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v57';"
+      var swCode = "const CACHE='ejaftech-v58';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
