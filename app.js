@@ -301,7 +301,7 @@ function isIT()      { return getUserRole() === "it"; }
 function isEmployee(){ return getUserRole() === "employee"; }
 // Compound permission checks
 function canManageData()  { return isAdmin() || isSupport() || getUserRole()==="hr"; }
-function canSeeReports()  { return isAdmin() || isSupport() || getUserRole()==="hr"; }
+function canSeeReports()  { return isAdmin() || isSupport() || getUserRole()==="hr" || !!(state.profile&&state.profile.canViewReports); }
 function canManageUsers() { return isAdmin(); } // Owner maps to admin, so covered
 function canAddWorkInstructions()  { return isAdmin() || isIT(); }
 function canEditWorkInstructions() { return isAdmin(); }
@@ -987,6 +987,7 @@ async function subscribeData(){
       }
       state[key]=items;
       if(col==="notifications") updateNotifBell();
+      if(col==="users" && state.user){ const me=items.find(x=>x.id===state.user.uid); if(me) state.profile={uid:state.user.uid,...me}; }
 
       // Seed defaults on first run (admin only, if projects empty)
       if(col==="projects" && items.length===0 && isAdmin() && !state._seeded){
@@ -1332,6 +1333,9 @@ function getTabs(){
   // Employee: own-data tabs only
   if(role === "employee"){
     const base = ["Dashboard","Daily Log","Overtime","Travel","Leaves","My Tasks","Work Instructions","Profile"];
+    if(state.profile && state.profile.canViewReports){
+      base.splice(base.indexOf("Work Instructions"), 0, "HR Report","Reports","Technical Report");
+    }
     if(!base.includes(state.tab)) state.tab = base[0];
     return base;
   }
@@ -2548,20 +2552,8 @@ function renderDashboard(){
   // Export button at the top
   let exportBar = '';
   if(!isEmployee()){
-    exportBar = `<div class="card" style="background:linear-gradient(135deg,#1B3A6B,#2E5FA3)">
-      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
-        <div>
-          <div style="color:#C9A84C;font-weight:800;font-size:14px;text-transform:uppercase;letter-spacing:0.5px">Quick Export</div>
-          <div style="color:#B8CFE8;font-size:11px;margin-top:2px">Download dashboard report</div>
-        </div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn btn-sm" style="background:#C9A84C;color:#1B3A6B" onclick="exportDashboardPDF()">📄 Dashboard PDF</button>
-          <button class="btn btn-sm" style="background:#C9A84C;color:#1B3A6B" onclick="exportExcel()">📊 Full Excel</button>
-        </div>
-      </div>
-    </div>`;
-    // Add global filter UI for non-employees
-    exportBar += renderEmployeeFilterUI("Filters");
+    // Quick Export card removed — exports now live only in the Reports / HR Report tabs.
+    exportBar = renderEmployeeFilterUI("Filters");
   }
 
   const dT={};
@@ -2616,16 +2608,8 @@ function renderDashboard(){
   }
   h+=`</div>`;
 
-  // Export quick-access card
-  h+=`<div class="card">
-    <div class="card-title">Export Data</div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <button class="btn btn-primary" onclick="exportCSV()">📊 Excel (CSV)</button>
-      <button class="btn btn-secondary" onclick="exportPDF()">📄 PDF Report</button>
-      ${!isEmployee()?`<button class="btn btn-ghost" onclick="editPeriod()" style="margin-left:auto">📅 ${escapeHtml(getPeriod())}</button>`:""}
-    </div>
-    <p style="font-size:11px;color:var(--muted);margin:10px 0 0">Tap the period chip in the header anytime to change it.</p>
-  </div>`;
+  // "Export Data" card removed — all exports are in Reports / HR Report tabs
+  // (employees see them only when granted 📊 View Reports by the admin).
 
   return h;
 }
@@ -5855,6 +5839,10 @@ function renderUsers(){
             <input type="checkbox" ${u.canAssignTasks?"checked":""} onchange="toggleCanAssign('${u.id}')" style="width:16px;height:16px;cursor:pointer">
             <span style="color:${u.canAssignTasks?'#6A1B9A':'#666'};font-weight:600">🎯 Assign Tasks</span>
           </label>`:""}
+          ${(u.role||"")==="employee"?`<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;user-select:none">
+            <input type="checkbox" ${u.canViewReports?"checked":""} onchange="toggleViewReports('${u.id}')" style="width:16px;height:16px;cursor:pointer">
+            <span style="color:${u.canViewReports?'#00695C':'#666'};font-weight:600">📊 View Reports</span>
+          </label>`:""}
           ${hasActiveSession && !isAdminUser ? `<button class="btn btn-sm" style="background:#FFF3E0;border:1px solid #FB8C00;color:#E65100;font-size:11px;padding:4px 10px" onclick="resetUserSession('${u.id}')">🔓 Reset Session</button>` : ''}
         </div>
       </div>`;
@@ -8057,6 +8045,18 @@ window.toggleCanAssign=async function(userId){
     const{db,doc,updateDoc}=window.__fb;
     await updateDoc(doc(db,"users",userId),{canAssignTasks:nv});
     toast(nv?"✓ Can now assign tasks":"Assign-tasks permission removed");
+  }catch(e){ toast("Failed: "+e.message); }
+};
+
+// ── Admin: grant/revoke "view reports" for an employee (Users tab toggle) ──
+window.toggleViewReports=async function(userId){
+  if(!isAdmin()) return toast("Admin only");
+  const u=(state.users||[]).find(x=>x.id===userId); if(!u) return;
+  const nv=!u.canViewReports;
+  try{
+    const{db,doc,updateDoc}=window.__fb;
+    await updateDoc(doc(db,"users",userId),{canViewReports:nv});
+    toast(nv?"✓ Employee can now view Reports":"Reports access removed");
   }catch(e){ toast("Failed: "+e.message); }
 };
 
@@ -11091,7 +11091,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v54';"
+      var swCode = "const CACHE='ejaftech-v55';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
