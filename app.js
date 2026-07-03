@@ -7805,7 +7805,10 @@ window.openNotifPanel=function(){
         <span style="display:flex;align-items:center;gap:6px;white-space:nowrap"><span style="font-size:10px;color:#999">${escapeHtml(fmtLastSeen(n.createdAt)||'')}</span><button onclick="event.stopPropagation();deleteNotif('${n.id}')" title="Delete" style="background:#FFEBEE;color:#C62828;border:none;width:18px;height:18px;border-radius:9px;font-size:10px;font-weight:800;cursor:pointer;line-height:1">✕</button></span>
       </div>
       <div style="font-size:11.5px;color:#444;margin-top:3px;line-height:1.5">${escapeHtml(n.body||'')}</div>
-      ${(n.type==="task_assigned"||n.type==="task_confirmed")?`<div style="margin-top:5px"><button onclick="event.stopPropagation();markNotifRead('${n.id}');closeNotifPanel();switchTab('My Tasks')" style="background:#03308B;color:#C9A84C;border:none;padding:5px 12px;border-radius:6px;font-weight:700;font-size:10px;cursor:pointer">📋 Open My Tasks</button></div>`:''}
+      ${(()=>{const nav = n.type==="task_assigned" ? {label:"📋 Open My Tasks", tab:"My Tasks"}
+            : (n.type==="new_request"||n.type==="task_confirmed") ? {label:"📨 Open Requests", tab:"Requests"}
+            : null;
+        return nav?`<div style="margin-top:5px"><button onclick="event.stopPropagation();markNotifRead('${n.id}');closeNotifPanel();switchTab('${nav.tab}')" style="background:#03308B;color:#C9A84C;border:none;padding:5px 12px;border-radius:6px;font-weight:700;font-size:10px;cursor:pointer">${nav.label}</button></div>`:'';})()}
     </div>`).join("") : `<div style="padding:26px;text-align:center;color:#999;font-style:italic;font-size:12px">No notifications yet</div>`;
   ov.innerHTML=`<div style="background:#fff;border-radius:12px;max-width:420px;width:100%;max-height:75vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,0.3)">
     <div style="background:linear-gradient(135deg,#03308B,#2E5FA3);color:#fff;padding:12px 14px;display:flex;justify-content:space-between;align-items:center">
@@ -8094,11 +8097,8 @@ function renderMyTasks(){
       ${canAssignTasks()?`<button onclick="openAssignTask('')" style="background:#C9A84C;color:#03308B;border:none;padding:9px 14px;border-radius:8px;font-weight:800;font-size:12px;cursor:pointer">➕ New Task</button>`:""}
     </div></div>`;
   h += mine.length ? mine.map(t=>_taskCard(t,true)).join("") : `<div class="card"><div class="empty">No tasks assigned to you yet</div></div>`;
-  if(canAssignTasks()){
-    const byMe=(state.tasks||[]).filter(t=>t.assignedByUid===uid).sort(byDate);
-    h+=`<div class="card" style="margin-top:16px;background:#F8FAFF;border:1px solid #B8CCE0;padding:10px 14px"><strong style="color:#03308B;font-size:13.5px">📤 Tasks I Assigned <span class="count-pill">${byMe.length}</span></strong></div>`;
-    h += byMe.length ? byMe.map(t=>_taskCard(t,false)).join("") : `<div class="card"><div class="empty">You haven't assigned any tasks yet</div></div>`;
-  }
+  // "Tasks I Assigned" section removed — assignment tracking now lives on the
+  // request cards themselves (Requests tab). My Tasks = employee inbox only.
   return h;
 }
 
@@ -8282,8 +8282,24 @@ async function submitClientRequest(){
   });
   requestForm=null;
   toast("Request submitted ✓ — our team will review it");
+  // Bell 🔔 notification to everyone who can access the Requests tab.
+  notifyRequestStaff(savedRequest);
   // Auto-email the admin-specified recipients about this new request.
   autoSendRequestEmail(savedRequest);
+}
+
+// Fan-out an in-app bell 🔔 notification about a NEW client request to all
+// staff roles that can open the Requests tab (admin / owner / hr / support).
+async function notifyRequestStaff(req){
+  try{
+    const staff=(state.users||[]).filter(u=>["admin","owner","hr","support"].includes((u.role||"").toLowerCase()));
+    const me=state.profile&&state.profile.uid;
+    for(const s of staff){
+      if(s.id===me) continue;
+      await pushNotification(s.id,"new_request","📨 New Client Request",
+        `${req.clientName||"A client"} submitted: "${req.title}"${req.project?` — ${req.project}`:""}`, "");
+    }
+  }catch(e){ console.error("notifyRequestStaff:", e); }
 }
 
 // Silent auto-email for a NEW client request → goes to the request-notification
@@ -11091,7 +11107,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v55';"
+      var swCode = "const CACHE='ejaftech-v56';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
