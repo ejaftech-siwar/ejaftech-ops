@@ -1243,13 +1243,7 @@ function renderApp(){
           ${state.tab==="Dashboard"?"":`<p><span id="periodLabelInline" onclick="editPeriod(event)" style="cursor:pointer;white-space:nowrap;display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;vertical-align:bottom;font-size:10.5px;${(getPeriodFrom()||getPeriodTo())?'background:#C9A84C;color:#03308B;padding:2px 10px;border-radius:12px;font-weight:700':'text-decoration:underline dotted;opacity:0.9'}">${(getPeriodFrom()||getPeriodTo())?'📅 ':''}${escapeHtml(getPeriod())}${(getPeriodFrom()||getPeriodTo())?' ✕':''}</span></p>`}
         </div>
         <span id="notifBell" onclick="openNotifPanel()" style="position:relative;cursor:pointer;font-size:20px;padding:4px 6px;margin-right:2px;user-select:none">🔔<span id="notifBellBadge" style="position:absolute;top:0;right:-2px;background:#C62828;color:#fff;font-size:9px;font-weight:800;min-width:15px;height:15px;border-radius:8px;display:${unreadNotifCount()>0?'flex':'none'};align-items:center;justify-content:center;padding:0 3px">${unreadNotifCount()>99?'99+':unreadNotifCount()}</span></span>
-        <div class="user-chip" onclick="confirm('Sign out?')&&doSignOut()">
-          <div style="display:flex;flex-direction:column;align-items:center;gap:2px">
-            <span class="role-badge">${roleBadge}</span>
-            <span style="font-size:8px;color:rgba(255,255,255,0.65);font-style:italic;letter-spacing:0.3px;white-space:nowrap">Powered by Siwar</span>
-          </div>
-          <span>⏻</span>
-        </div>
+        <button onclick="switchTab('Profile')" title="My Profile" style="width:40px;height:40px;border-radius:50%;padding:0;border:2px solid var(--gold);background:var(--navy);color:var(--gold);font-weight:800;font-size:15px;cursor:pointer;overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.25)">${(state.profile&&state.profile.photoData)?`<img src="${state.profile.photoData}" alt="" style="width:100%;height:100%;object-fit:cover">`:escapeHtml(((state.profile&&(state.profile.name||state.profile.employeeName||state.profile.email))||"?").charAt(0).toUpperCase())}</button>
       </div>
       ${(()=>{
         const groups = getVisibleGroups();
@@ -7931,6 +7925,14 @@ window.deleteTask=async function(id){
 };
 
 // ── Assignment info block shown on each client-request card (staff view) ──
+function miniAvatar(uid, nameFallback){
+  const u=(state.users||[]).find(x=>x.id===uid);
+  const nm=(u&&(u.employeeName||u.name||u.email))||nameFallback||"?";
+  const ph=u&&u.photoData;
+  if(ph) return `<img src="${ph}" alt="" style="width:18px;height:18px;border-radius:50%;object-fit:cover;vertical-align:-4px;margin-right:3px;border:1px solid var(--line)">`;
+  return `<span style="display:inline-flex;width:18px;height:18px;border-radius:50%;background:var(--navy);color:var(--gold);font-size:9px;font-weight:800;align-items:center;justify-content:center;vertical-align:-4px;margin-right:3px">${escapeHtml(nm.charAt(0).toUpperCase())}</span>`;
+}
+
 function taskStatusChip(t){
   return t.status==="confirmed"
     ? `<span style="background:#E8F5E9;color:#2E7D32;padding:3px 10px;border-radius:10px;font-size:10px;font-weight:800;white-space:nowrap">✅ CONFIRMED</span>`
@@ -7985,8 +7987,8 @@ function _taskCard(t, mineView){
     <div style="font-size:12px;color:#333;margin-top:6px;line-height:1.6;background:#F8FAFF;border:1px solid #E3ECF7;border-radius:8px;padding:8px 10px">${escapeHtml(t.description||"")}</div>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;flex-wrap:wrap;gap:6px">
       <span style="font-size:10.5px;color:#666">${mineView
-        ? `👤 By: <strong>${escapeHtml(t.assignedBy||"")}</strong>`
-        : `👤 To: <strong>${escapeHtml(t.assignedTo||"")}</strong>`} · 📅 ${escapeHtml(fmtDate((t.createdAt||"").slice(0,10)))}${(t.status==="confirmed"&&t.confirmedAt)?` · ✅ ${escapeHtml(fmtLastSeen(t.confirmedAt)||"")}`:""}</span>
+        ? `${miniAvatar(t.assignedByUid,t.assignedBy)} By: <strong>${escapeHtml(t.assignedBy||"")}</strong>`
+        : `${miniAvatar(t.assignedToUid,t.assignedTo)} To: <strong>${escapeHtml(t.assignedTo||"")}</strong>`} · 📅 ${escapeHtml(fmtDate((t.createdAt||"").slice(0,10)))}${(t.status==="confirmed"&&t.confirmedAt)?` · ✅ ${escapeHtml(fmtLastSeen(t.confirmedAt)||"")}`:""}</span>
       <div style="display:flex;gap:6px;align-items:center">
         ${(mineView&&t.status==="pending")?`<button onclick="confirmTask('${t.id}')" style="background:#2E7D32;color:#fff;border:none;padding:8px 18px;border-radius:8px;font-weight:800;font-size:12px;cursor:pointer">✅ Confirm</button>`:""}
         ${(isAdmin()||t.assignedByUid===(state.profile&&state.profile.uid))?`<button onclick="deleteTask('${t.id}')" title="Delete task" style="background:#FFEBEE;color:#C62828;border:1px solid #EF9A9A;padding:8px 12px;border-radius:8px;font-weight:800;font-size:12px;cursor:pointer">🗑</button>`:""}
@@ -9650,6 +9652,14 @@ function renderProfile(){
       <strong style="color:#1B3A6B">EjafTech Girêk</strong><br>
       Account managed via Firebase Authentication · Your data is encrypted and secure
     </div>
+  </div>
+
+  <div class="card" style="border-left:4px solid var(--red)">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+      <div><strong style="color:var(--red);font-size:13px">⏻ Sign Out</strong><div style="font-size:11px;color:var(--muted);margin-top:2px">End your session on this device</div></div>
+      <button class="btn btn-danger" onclick="confirm('Sign out?')&&doSignOut()">⏻ Sign Out</button>
+    </div>
+    <div style="text-align:center;margin-top:12px;padding-top:10px;border-top:1px dashed var(--line);font-size:10px;color:var(--muted);font-style:italic;letter-spacing:0.5px">Powered by Siwar</div>
   </div>`;
 }
 
@@ -11121,7 +11131,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v59';"
+      var swCode = "const CACHE='ejaftech-v60';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
