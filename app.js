@@ -9650,16 +9650,8 @@ function renderProfile(){
   <div class="card" style="background:#F5F8FC;border:1px dashed var(--line)">
     <div style="font-size:12px;color:var(--muted);text-align:center;line-height:1.6">
       <strong style="color:#1B3A6B">EjafTech Girêk</strong><br>
-      Account managed via Firebase Authentication · Your data is encrypted and secure
+      Account managed via Firebase Authentication · Your data is encrypted and secure<br><span style="font-size:10px;font-style:italic;letter-spacing:0.6px;color:var(--muted)">Powered by Siwar</span>
     </div>
-  </div>
-
-  <div class="card" style="border-left:4px solid var(--red)">
-    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
-      <div><strong style="color:var(--red);font-size:13px">⏻ Sign Out</strong><div style="font-size:11px;color:var(--muted);margin-top:2px">End your session on this device</div></div>
-      <button class="btn btn-danger" onclick="confirm('Sign out?')&&doSignOut()">⏻ Sign Out</button>
-    </div>
-    <div style="text-align:center;margin-top:12px;padding-top:10px;border-top:1px dashed var(--line);font-size:10px;color:var(--muted);font-style:italic;letter-spacing:0.5px">Powered by Siwar</div>
   </div>`;
 }
 
@@ -11131,7 +11123,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v60';"
+      var swCode = "const CACHE='ejaftech-v61';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
