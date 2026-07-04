@@ -1000,7 +1000,7 @@ async function subscribeData(){
         state.initialized=true;
         renderApp();
       } else if(state.initialized){
-        renderTab();
+        scheduleRender();
       }
     },(err)=>{
       console.error(`${col} sync error:`,err);
@@ -1364,6 +1364,7 @@ function pendingRequestCount(){
 }
 
 window.switchTab=function(t){
+  window.__navFade=true;
   const prevGroup = groupOfTab(state.tab);
   state.tab=t;
   const newGroup = groupOfTab(t);
@@ -1393,6 +1394,7 @@ window.switchTab=function(t){
 
 // Switch to a main group → opens its FIRST child sub-tab.
 window.switchGroup = function(groupId){
+  window.__navFade=true;
   const groups = getVisibleGroups() || [];
   const g = groups.find(x=>x.id===groupId);
   if(!g || g.children.length===0) return;
@@ -1594,7 +1596,19 @@ function renderTab(){
     "Entry Manage":renderEntryManage,
   }[state.tab]||(isClient()?renderClientPortal:renderDashboard);
   c.innerHTML=fn();
-  c.classList.remove("content-fade"); void c.offsetWidth; c.classList.add("content-fade");
+  if(window.__navFade){
+    window.__navFade=false;
+    c.classList.remove("content-fade"); void c.offsetWidth; c.classList.add("content-fade");
+  }
+}
+
+// Coalesce data-driven re-renders: any burst of Firestore snapshots in the
+// same frame collapses into ONE renderTab (was: 27+ full renders on load).
+let _renderQueued=false;
+function scheduleRender(){
+  if(_renderQueued) return;
+  _renderQueued=true;
+  requestAnimationFrame(()=>{ _renderQueued=false; if(state.initialized) renderTab(); });
 }
 window.render=renderTab;
 
@@ -5720,7 +5734,7 @@ function renderUsers(){
   if(!isAdmin())return `<div class="card"><div class="empty">Access denied — Admin only</div></div>`;
   if(!userForm)userForm={name:"",email:"",password:"",role:"employee",employeeName:"",branch:"",userDept:"",jobTitle:"",supervisorName:"",isSupervisor:false};
   const uv = window._usersView || "team";
-  const _up=(id,ic,lb)=>`<button onclick="window._usersView='${id}';render()" style="flex:1;padding:10px 6px;border:none;border-radius:9px;font-weight:800;font-size:12px;cursor:pointer;background:${uv===id?'#03308B':'#E8EEF7'};color:${uv===id?'#C9A84C':'#1B3A6B'}">${ic} ${lb}</button>`;
+  const _up=(id,ic,lb)=>`<button onclick="window._usersView='${id}';window.__navFade=true;render()" style="flex:1;padding:10px 6px;border:none;border-radius:9px;font-weight:800;font-size:12px;cursor:pointer;background:${uv===id?'#03308B':'#E8EEF7'};color:${uv===id?'#C9A84C':'#1B3A6B'}">${ic} ${lb}</button>`;
   let h = `<div style="display:flex;gap:6px;margin-bottom:14px">${_up("team","👥","Team Members")}${_up("add","➕","Add User")}${_up("tags","🏷️","Nametags")}</div>`;
   if(uv==="add")  h += `<div class="card">
     <div class="sec-hdr">${userEditId?"Edit":"Add"} User</div>
@@ -6768,7 +6782,7 @@ function renderWorkInstructions(){
 // UI that previously lived inside Work Instructions.
 function _pills(stateVar, views){
   const cur = window[stateVar] || views[0].id;
-  return `<div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap">${views.map(v=>`<button onclick="window.${stateVar}='${v.id}';render()" style="flex:1;min-width:86px;padding:10px 6px;border:none;border-radius:9px;font-weight:800;font-size:11.5px;cursor:pointer;background:${cur===v.id?'#03308B':'#E8EEF7'};color:${cur===v.id?'#C9A84C':'#1B3A6B'}">${v.ic} ${v.lb}</button>`).join("")}</div>`;
+  return `<div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap">${views.map(v=>`<button onclick="window.${stateVar}='${v.id}';window.__navFade=true;render()" style="flex:1;min-width:86px;padding:10px 6px;border:none;border-radius:9px;font-weight:800;font-size:11.5px;cursor:pointer;background:${cur===v.id?'#03308B':'#E8EEF7'};color:${cur===v.id?'#C9A84C':'#1B3A6B'}">${v.ic} ${v.lb}</button>`).join("")}</div>`;
 }
 
 function renderTechClassifications(){
@@ -9116,7 +9130,7 @@ function renderEmailTab(){
   const configured = s.serviceId && s.templateId && s.publicKey;
 
   const ev = window._emailView || "setup";
-  const _ep=(id,ic,lb)=>`<button onclick="window._emailView='${id}';render()" style="flex:1;padding:10px 4px;border:none;border-radius:9px;font-weight:800;font-size:11.5px;cursor:pointer;background:${ev===id?'#03308B':'#E8EEF7'};color:${ev===id?'#C9A84C':'#1B3A6B'}">${ic} ${lb}</button>`;
+  const _ep=(id,ic,lb)=>`<button onclick="window._emailView='${id}';window.__navFade=true;render()" style="flex:1;padding:10px 4px;border:none;border-radius:9px;font-weight:800;font-size:11.5px;cursor:pointer;background:${ev===id?'#03308B':'#E8EEF7'};color:${ev===id?'#C9A84C':'#1B3A6B'}">${ic} ${lb}</button>`;
   let h = `<div style="display:flex;gap:6px;margin-bottom:14px">${_ep("setup","🔑","Setup")}${_ep("recipients","👥","Recipients")}${_ep("options","🧩","Options")}${_ep("scheduled","⏰","Scheduled")}</div>`;
   if(ev==="setup")      h += `
   <!-- MASTER SWITCH -->
@@ -11186,7 +11200,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v63';"
+      var swCode = "const CACHE='ejaftech-v64';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
