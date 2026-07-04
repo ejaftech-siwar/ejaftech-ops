@@ -103,6 +103,18 @@ let projForm=null, projEditId=null;
 let locForm="", locEditId=null;
 let userForm=null, userEditId=null;
 let nametagForm={name:"", type:"internal", branch:"", dept:""}, nametagEditId=null;
+let leaveForm = null, leaveEditId = null, leaveFilter = "";
+let deviceForm = null, deviceEditId = null;
+let deptForm = null;
+let deptEditId = null;
+let branchForm=null, branchEditId=null;
+let wiCategoryForm = null, wiCategoryEditId = null;
+let wiTaskForm = null, wiTaskEditId = null;
+let profileForm = null;
+let clientForm=null, clientEditId=null;
+let requestForm=null;
+let waContactForm = null, waContactEditId = null;
+let emailContactForm = null, emailContactEditId = null;   // ← hoisted (fixes "Cannot access before initialization")
 
 // ═══════════════════════════════════════════════════════════════════════
 //  HELPERS
@@ -3594,7 +3606,7 @@ Object.defineProperty(window,'trForm',{get:()=>trForm,set:v=>trForm=v});
 // ═══════════════════════════════════════════════════════════════════════
 //  LEAVES MODULE (vacations, sick days, etc.)
 // ═══════════════════════════════════════════════════════════════════════
-let leaveForm = null, leaveEditId = null, leaveFilter = "";
+/* leave state hoisted to top (TDZ fix) */
 
 const LEAVE_TYPES = [
   {id:"annual", label:"Annual Leave", color:"#2E7D32"},
@@ -4886,7 +4898,7 @@ window.toggleSiteStatus = async function(ai, si){
 //  Central "devices" collection. Each device has link keys + 9 detail fields.
 //  Serial Number is the unique identifier (prevents duplicates).
 // ═══════════════════════════════════════════════════════════════════════
-let deviceForm = null, deviceEditId = null;
+/* device state hoisted to top (TDZ fix) */
 let assetSearch = "", assetFilterProject = "", assetFilterStatus = "";
 let selectedDevices = new Set();  // multi-select for bulk delete
 
@@ -6303,13 +6315,13 @@ function deptNames(){
 // ═══════════════════════════════════════════════════════════════════════
 //  DEPARTMENTS MANAGEMENT (HR+)
 // ═══════════════════════════════════════════════════════════════════════
-let deptForm = null;
-let deptEditId = null;
+/* deptForm state hoisted to top (TDZ fix) */
+/* deptEditId state hoisted to top (TDZ fix) */
 
 // ═══════════════════════════════════════════════════════════════════════
 //  BRANCHES MODULE — Company branches (cities)
 // ═══════════════════════════════════════════════════════════════════════
-let branchForm=null, branchEditId=null;
+/* branch state hoisted to top (TDZ fix) */
 
 function renderBranches(){
   if(!isHR()) return `<div class="card"><div class="empty">Access denied — HR/Admin only</div></div>`;
@@ -6626,8 +6638,8 @@ Object.defineProperty(window,'deptForm',{get:()=>deptForm,set:v=>deptForm=v,conf
 //  WORK INSTRUCTIONS MODULE
 //  Categories → Tasks → (Task Name + Google Drive Link + Description)
 // ═══════════════════════════════════════════════════════════════════════
-let wiCategoryForm = null, wiCategoryEditId = null;
-let wiTaskForm = null, wiTaskEditId = null;
+/* wiCat state hoisted to top (TDZ fix) */
+/* wiTask state hoisted to top (TDZ fix) */
 let wiActiveCategory = "";  // filter UI state
 
 function renderWorkInstructions(){
@@ -7066,12 +7078,12 @@ window.importBackup = importBackup;
 // ═══════════════════════════════════════════════════════════════════════
 //  PROFILE PAGE — My Account, Change Password
 // ═══════════════════════════════════════════════════════════════════════
-let profileForm = null;
+/* profile state hoisted to top (TDZ fix) */
 
 // ═══════════════════════════════════════════════════════════════════════
 //  CLIENTS MODULE — Client companies, linked users, project assignment
 // ═══════════════════════════════════════════════════════════════════════
-let clientForm=null, clientEditId=null;
+/* client state hoisted to top (TDZ fix) */
 
 function renderClients(){
   if(!isAdmin()) return `<div class="card"><div class="empty">Access denied — Admin only</div></div>`;
@@ -7599,7 +7611,7 @@ window.exportClientExcel = function(){
 // ═══════════════════════════════════════════════════════════════════════
 //  REQUESTS MODULE — Client task requests with status workflow
 // ═══════════════════════════════════════════════════════════════════════
-let requestForm=null;
+/* request state hoisted to top (TDZ fix) */
 
 // ═══════════════════════════════════════════════════════════════════════
 //  TASK ASSIGNMENT WORKFLOW + IN-APP NOTIFICATIONS (bell 🔔)
@@ -7652,6 +7664,7 @@ function updateNotifBell(){
 
 // ── Notifications panel (bell click) ──
 window.openNotifPanel=function(){
+  try{
   const list=myNotifications();
   let ov=document.getElementById("notifOverlay");
   if(!ov){ ov=document.createElement("div"); ov.id="notifOverlay"; document.body.appendChild(ov); }
@@ -7677,6 +7690,7 @@ window.openNotifPanel=function(){
     </div>
     <div style="overflow-y:auto">${items}</div>
   </div>`;
+  }catch(err){ console.error("Notif panel error:",err); toast("Could not open notifications"); }
 };
 window.closeNotifPanel=function(){ const ov=document.getElementById("notifOverlay"); if(ov) ov.remove(); };
 
@@ -8310,7 +8324,7 @@ window.cascadeRenameLocation=cascadeRenameLocation;
 // ═══════════════════════════════════════════════════════════════════════
 //  WHATSAPP MODULE — contacts, settings, and share button
 // ═══════════════════════════════════════════════════════════════════════
-let waContactForm = null, waContactEditId = null;
+/* wa state hoisted to top (TDZ fix) */
 
 // Available message fields the admin can toggle
 const WA_FIELDS = [
@@ -8672,7 +8686,7 @@ window.sendToWa = async function(contactId){
 // ═══════════════════════════════════════════════════════════════════════
 //  EMAIL MODULE (EmailJS) — recipients, settings, send button
 // ═══════════════════════════════════════════════════════════════════════
-let emailContactForm = null, emailContactEditId = null;
+/* email state hoisted to top (TDZ fix) */
 
 const EMAIL_FIELDS = [
   {id:"entryNo",        label:"Entry #",        icon:"#️⃣"},
@@ -11216,7 +11230,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v65';"
+      var swCode = "const CACHE='ejaftech-v66';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
