@@ -5684,6 +5684,27 @@ function renderProjects(){
   return h;
 }
 
+async function saveProj(){
+  if(!isAdmin()) return toast("Admin only");
+  const cleanName=(projForm.name||"").trim();
+  if(!cleanName) return toast("Project name is required");
+  const dup=(state.projects||[]).find(p=>(p.name||"").trim().toLowerCase()===cleanName.toLowerCase() && p.id!==projEditId);
+  if(dup) return toast("⚠ A project with this name already exists");
+  // Preserve existing areas/codes when editing (the form only edits name/dept/status/hours)
+  const existing = projEditId ? state.projects.find(p=>p.id===projEditId) : null;
+  const areas = existing ? getProjectAreas(existing) : [];
+  const codes = existing ? (existing.codes||[]) : [];
+  await fbSave("projects",{
+    id: projEditId||undefined,
+    name: cleanName,
+    dept: projForm.dept||"",
+    status: projForm.status||"",
+    estimatedHours: Number(projForm.estimatedHours||0),
+    areas, codes,
+  });
+  toast(projEditId?"Project updated ✓":"Project added ✓");
+  projForm=null; projEditId=null; render();
+}
 function editProj(id){const r=state.projects.find(p=>p.id===id);if(r){projForm={...r};projEditId=id;render();window.scrollTo(0,0);}}
 async function delProj(id){if(confirm("Delete?")){await fbDelete("projects",id);toast("Deleted");}}
 function cancelProj(){projForm=null;projEditId=null;render();}
@@ -6891,6 +6912,21 @@ function renderTechClassifications(){
     `;
   h += `</div>`;
   return h;
+}
+async function saveWICategory(){
+  if(!isAdmin()) return toast("Only Admin can save categories");
+  const name=(wiCategoryForm.name||"").trim();
+  if(!name) return toast("Category name is required");
+  const dup=(state.workCategories||[]).find(c=>(c.name||"").trim().toLowerCase()===name.toLowerCase() && c.id!==wiCategoryEditId);
+  if(dup) return toast("⚠ A category with this name already exists");
+  await fbSave("workCategories",{
+    id: wiCategoryEditId||undefined,
+    name,
+    icon: wiCategoryForm.icon||"📁",
+    color: wiCategoryForm.color||"#2E5FA3",
+  });
+  toast(wiCategoryEditId?"Category updated ✓":"Category added ✓");
+  wiCategoryForm=null; wiCategoryEditId=null; render();
 }
 function editWICategory(id){
   if(!isAdmin()) return toast("Only Admin can edit categories");
@@ -11230,7 +11266,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v66';"
+      var swCode = "const CACHE='ejaftech-v67';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
