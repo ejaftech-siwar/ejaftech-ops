@@ -1288,7 +1288,7 @@ function renderApp(){
 const TAB_GROUPS = [
   { id:"Dashboard", label:"Dashboard", icon:"<svg viewBox='0 0 24 24' width='15' height='15' fill='currentColor' style='vertical-align:-2px'><path d='M4 20h3v-8H4v8zm6.5 0h3V4h-3v16zm6.5 0h3v-5h-3v5z'/></svg>", children:["Dashboard"] },
   { id:"Logs",      label:"Logs",      icon:"<svg viewBox='0 0 24 24' width='15' height='15' fill='none' stroke='currentColor' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round' style='vertical-align:-2px'><path d='M12 20h9'/><path d='M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z'/></svg>", children:["Daily Log","Overtime","Travel","Leaves","My Tasks"] },
-  { id:"Reports",   label:"Reports",   icon:"<svg viewBox='0 0 24 24' width='15' height='15' fill='none' stroke='currentColor' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round' style='vertical-align:-2px'><polyline points='3 17 9 11 13 15 21 7'/><polyline points='15 7 21 7 21 13'/></svg>", children:["HR Report","Reports","Technical Report"] },
+  { id:"Reports",   label:"Reports",   icon:"<svg viewBox='0 0 24 24' width='15' height='15' fill='none' stroke='currentColor' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round' style='vertical-align:-2px'><polyline points='3 17 9 11 13 15 21 7'/><polyline points='15 7 21 7 21 13'/></svg>", children:["HR Report","Daily Log Report","Reports","Technical Report"] },
   { id:"Database",  label:"Database",  icon:"<svg viewBox='0 0 24 24' width='15' height='15' fill='none' stroke='currentColor' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round' style='vertical-align:-2px'><ellipse cx='12' cy='5' rx='8' ry='3'/><path d='M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5'/><path d='M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6'/></svg>", children:["Branches","Departments","Locations","Projects","Assets"] },
   { id:"Clients",   label:"Clients",   icon:"<svg viewBox='0 0 24 24' width='15' height='15' fill='none' stroke='currentColor' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round' style='vertical-align:-2px'><path d='M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2'/><circle cx='9' cy='7' r='4'/><path d='M22 21v-2a4 4 0 0 0-3-3.87'/><path d='M16 3.13a4 4 0 0 1 0 7.75'/></svg>", children:["Clients","Requests"] },
   { id:"Settings",  label:"Settings",  icon:"<svg viewBox='0 0 24 24' width='15' height='15' fill='none' stroke='currentColor' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round' style='vertical-align:-2px'><circle cx='12' cy='12' r='3'/><path d='M12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4'/></svg>", children:["Profile","Technical Classifications","Users","Email","WhatsApp","Share","Entry Manage"] },
@@ -1328,7 +1328,7 @@ function getTabs(){
   if(role === "employee"){
     const base = ["Dashboard","Daily Log","Overtime","Travel","Leaves","My Tasks","Work Instructions","Profile"];
     if(state.profile && state.profile.canViewReports){
-      base.splice(base.indexOf("Work Instructions"), 0, "HR Report","Reports","Technical Report");
+      base.splice(base.indexOf("Work Instructions"), 0, "HR Report","Daily Log Report","Reports","Technical Report");
     }
     if(!base.includes(state.tab)) state.tab = base[0];
     return base;
@@ -1336,20 +1336,20 @@ function getTabs(){
   // HR: full ops but no Users/Share/Clients
   if(role === "hr"){
     const base = ["Dashboard","Daily Log","Overtime","Travel","Leaves","My Tasks","Work Instructions",
-                  "HR Report","Technical Report","Reports","Requests","Projects","Locations","Departments","Profile"];
+                  "HR Report","Daily Log Report","Technical Report","Reports","Requests","Projects","Locations","Departments","Profile"];
     if(!base.includes(state.tab)) state.tab = base[0];
     return base;
   }
   // Support: full access except Users and Share
   if(role === "support"){
     const base = ["Dashboard","Daily Log","Overtime","Travel","Leaves","My Tasks","Work Instructions",
-                  "HR Report","Technical Report","Reports","Requests","Projects","Locations","Departments","Profile"];
+                  "HR Report","Daily Log Report","Technical Report","Reports","Requests","Projects","Locations","Departments","Profile"];
     if(!base.includes(state.tab)) state.tab = base[0];
     return base;
   }
   // Admin / Owner: everything
   const base = ["Dashboard","Daily Log","Overtime","Travel","Leaves","Work Instructions",
-                "HR Report","Technical Report","Reports","Requests","Clients","Projects","Assets","Locations","Departments","Branches","Users","WhatsApp","Email","Share","Profile","Technical Classifications","Entry Manage","My Tasks"];
+                "HR Report","Daily Log Report","Technical Report","Reports","Requests","Clients","Projects","Assets","Locations","Departments","Branches","Users","WhatsApp","Email","Share","Profile","Technical Classifications","Entry Manage","My Tasks"];
   if(!base.includes(state.tab)) state.tab = base[0];
   return base;
 }
@@ -1572,8 +1572,10 @@ function renderTab(){
     // IT: only dashboard, work instructions, profile
     if(!["Dashboard","Work Instructions","Profile"].includes(state.tab)) state.tab="Dashboard";
   } else if(role === "employee"){
-    // Employee: no HR/admin tabs
-    if(["HR Report","Technical Report","Reports","Requests","Clients","Projects","Assets","Locations","Departments","Branches","Users","Share","WhatsApp","Email","Entry Manage"].includes(state.tab)) state.tab="Dashboard";
+    // Employee: no admin tabs. Report tabs ARE allowed when admin granted View Reports.
+    const _repTabs = ["HR Report","Daily Log Report","Technical Report","Reports"];
+    const _blocked = ["Requests","Clients","Projects","Assets","Locations","Departments","Branches","Users","Share","WhatsApp","Email","Entry Manage"];
+    if(_blocked.includes(state.tab) || (!(state.profile&&state.profile.canViewReports) && _repTabs.includes(state.tab))) state.tab="Dashboard";
   } else if(role === "support" || role === "hr"){
     // Support/HR: no Users, Share, or Clients management
     if(["Users","Share","Clients","WhatsApp","Email","Entry Manage"].includes(state.tab)) state.tab="Dashboard";
@@ -1585,7 +1587,7 @@ function renderTab(){
     "Projects":renderProjects,"Assets":renderAssets,"Locations":renderLocations,"Users":renderUsers,
     "Departments":renderDepartments,"Branches":renderBranches,"Work Instructions":renderWorkInstructions,
     "Share":renderShare,"Profile":renderProfile,
-    "Clients":renderClients,"Requests":renderRequests,"My Tasks":renderMyTasks,"My Project":renderClientPortal,
+    "Clients":renderClients,"Requests":renderRequests,"My Tasks":renderMyTasks,"Daily Log Report":renderDailyLogReport,"My Project":renderClientPortal,
     "WhatsApp":renderWhatsApp,
     "Email":renderEmailTab,
     "Technical Classifications":renderTechClassifications,
@@ -2908,7 +2910,7 @@ function renderDailyLog(){
             style="width:64px;border:none;background:transparent;font-size:11px;padding:5px 2px;outline:none">
           ${dailyEntryNo?`<button onclick="window.dailyEntryNo='';render()" style="border:none;background:none;cursor:pointer;color:#c62828;font-size:12px;padding:0 2px">✕</button>`:""}
         </div>
-        ${canSeeReports()?`<button onclick="exportDailyPDF()" style="background:#03308B;color:#C9A84C;border:none;font-weight:700;padding:6px 14px;border-radius:6px;font-size:12px;cursor:pointer">\u{1F4C4} PDF</button><button onclick="exportDailyExcel()" style="background:#2E7D32;color:white;border:none;font-weight:700;padding:6px 14px;border-radius:6px;font-size:12px;cursor:pointer;margin-left:4px">\u{1F4CA} Excel</button>`:""}
+        
       </div>
     </div>
     ${!isEmployee()?renderEmployeeFilterUI("Filter Work Log"):""}
@@ -4197,6 +4199,30 @@ window.toggleTechCol = async function(key){
 };
 
 
+function renderDailyLogReport(){
+  if(!canSeeReports()) return `<div class="card"><div class="empty">Access requires report permission.</div></div>`;
+  const rows = (typeof applyReportFilters==="function") ? applyReportFilters(state.daily,"date") : (state.daily||[]);
+  const period = getPeriodFrom() ? `${fmtDate(getPeriodFrom())} → ${fmtDate(getPeriodTo())}` : "All time — no period set";
+  return `<div class="card" style="border-left:4px solid #03308B">
+    <div class="sec-hdr">📋 Daily Log Report</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+      <div style="border:1px solid var(--line);border-radius:10px;padding:12px;background:#F8FAFD">
+        <div style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:1px">Period</div>
+        <div style="font-weight:800;color:#03308B;margin-top:3px;font-size:13px">📅 ${period}</div>
+      </div>
+      <div style="border:1px solid var(--line);border-radius:10px;padding:12px;background:#F8FAFD">
+        <div style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:1px">Entries in report</div>
+        <div style="font-family:'DM Serif Display',serif;font-size:22px;color:#03308B;margin-top:2px">${rows.length}</div>
+      </div>
+    </div>
+    <p style="font-size:11.5px;color:var(--muted);margin:0 0 14px;line-height:1.6">This report follows the header <strong>period</strong> and all <strong>global filters</strong> (branch, employee, project, work type…). Adjust them, then export.</p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <button onclick="exportDailyPDF()" style="flex:1;min-width:150px;background:#03308B;color:#C9A84C;border:none;padding:14px;border-radius:10px;font-weight:800;font-size:13px;cursor:pointer;box-shadow:0 3px 10px rgba(27,58,107,0.22)">📄 Export PDF</button>
+      <button onclick="exportDailyExcel()" style="flex:1;min-width:150px;background:#1B5E20;color:#fff;border:none;padding:14px;border-radius:10px;font-weight:800;font-size:13px;cursor:pointer;box-shadow:0 3px 10px rgba(27,94,32,0.22)">📊 Export Excel</button>
+    </div>
+  </div>`;
+}
+
 function renderHRReport(){
   const s=summary();
   const tot=k=>s.reduce((a,b)=>a+b[k],0);
@@ -4229,7 +4255,9 @@ function renderHRReport(){
   h += renderEmployeeFilterUI("Filter Report by Employees");
 
   // ═══════ EXECUTIVE KPI SUMMARY ═══════
-  h+=`<div class="card">
+  const hv = window._hrView || "summary";
+  h += _pills('_hrView',[{id:"summary",ic:"📊",lb:"Summary"},{id:"daily",ic:"👥",lb:"Daily"},{id:"leaves",ic:"🏖️",lb:"Leaves"},{id:"overtime",ic:"⏱️",lb:"Overtime"},{id:"travel",ic:"✈️",lb:"Travel"}]);
+  if(hv==="summary") h+=`<div class="card">
     <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">01</span> Executive Summary</div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-top:10px">
       <div style="border:1px solid var(--line);border-left:4px solid #2E5FA3;border-radius:8px;padding:12px;background:white">
@@ -4261,7 +4289,7 @@ function renderHRReport(){
   </div>`;
 
   // ═══════ STAFF WORK SUMMARY (Section 2) ═══════
-  h+=`<div class="card">
+  if(hv==="daily") h+=`<div class="card">
     <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">02</span> Staff Work Summary</div>
     <div class="tbl-wrap"><table class="tbl">
       <thead><tr style="background:linear-gradient(135deg,#1B3A6B,#2E5FA3);color:white"><th style="color:white">Employee</th>${state.departments.map(d=>`<th style="color:white;border-bottom:3px solid ${d.color}">${escapeHtml(d.name.slice(0,8))}</th>`).join("")}<th style="color:white">Total</th><th style="color:white">OT</th><th style="color:white">Travel</th><th style="color:white">Per Diem</th><th style="color:white">Leave</th></tr></thead>
@@ -4286,7 +4314,7 @@ function renderHRReport(){
   </div>`;
 
   // ═══════ LEAVES SECTION (Section 3) — NEW ═══════
-  h+=`<div class="card">
+  if(hv==="leaves") h+=`<div class="card">
     <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">03</span> Employee Leaves</div>
     ${state.leaves.length===0?`<div class="empty">No leaves recorded</div>`:`
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;margin-bottom:14px">
@@ -4325,7 +4353,7 @@ function renderHRReport(){
   });
 
   // ═══════ OVERTIME (Section 4) ═══════
-  h+=`<div class="card">
+  if(hv==="overtime") h+=`<div class="card">
     <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">04</span> Overtime by Employee</div>`;
   emps.forEach(emp=>{
     const my=applyReportFilters(state.overtime).filter(r=>r.employee===emp);
@@ -4344,7 +4372,7 @@ function renderHRReport(){
   h+=`</div>`;
 
   // ═══════ TRAVEL (Section 5) ═══════
-  h+=`<div class="card">
+  if(hv==="travel") h+=`<div class="card">
     <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">05</span> Travel by Employee</div>`;
   emps.forEach(emp=>{
     const my=applyReportFilters(state.travel).filter(r=>r.employee===emp);
@@ -4364,7 +4392,7 @@ function renderHRReport(){
   h+=`</div>`;
 
   // Footer
-  h+=`<div class="card" style="background:#F5F8FC;text-align:center;padding:14px;font-size:11px;color:var(--muted);border:1px dashed var(--line)">
+  if(hv==="travel") h+=`<div class="card" style="background:#F5F8FC;text-align:center;padding:14px;font-size:11px;color:var(--muted);border:1px dashed var(--line)">
     <strong style="color:#1B3A6B">EjafTech Operations</strong> · Confidential HR Document · Generated by Girêk
   </div>`;
 
@@ -5260,7 +5288,9 @@ function renderAssets(){
   const selArea = projAreas.find(a=>a.name===deviceForm.area);
   const areaSites = selArea?.sites || [];
 
-  return `<div class="card">
+  const av = window._assetView || "devices";
+  let h = _pills('_assetView',[{id:"devices",ic:"📦",lb:"Devices"},{id:"summary",ic:"📊",lb:"Summary"},{id:"manage",ic:"➕",lb:"Manage"}]);
+  if(av==="manage")  h += `<div class="card">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
       <div style="flex:1;min-width:180px">
         <div class="card-title" style="margin:0">📦 Asset Management</div>
@@ -5279,7 +5309,8 @@ function renderAssets(){
     <p style="font-size:12px;color:#004D40;margin:0;line-height:1.6">
       <strong>📥 Bulk Import:</strong> Upload a file to build the full hierarchy at once — Projects, Project Codes, Areas, Sites, and Devices. Serial Number is the unique key (existing devices are updated, not duplicated). 15 columns: Project · Project Code · Area Name · Site Status · Site Name · Device · Device Code · Serial Number · IP Address · Vendor · Model · Installation Date · Warranty Expiration · Stack · Device Status.
     </p>
-  </div>`+`
+  </div>`+``;
+  if(av==="summary") h += `
 
   ${(()=>{
     // ── Inventory summary ──
@@ -5361,7 +5392,8 @@ function renderAssets(){
       <button class="btn btn-primary" onclick="saveDevice()">${deviceEditId?"Update Device":"Add Device"}</button>
       ${deviceEditId?`<button class="btn btn-ghost" onclick="cancelDevice()">Cancel</button>`:""}
     </div>
-  </div>
+  </div>`;
+  if(av==="devices") h += `
 
   <!-- Device list with filters -->
   <div class="card">
@@ -5422,6 +5454,7 @@ function renderAssets(){
       </table>
     </div>`}
   </div>`;
+  return h;
 }
 
 function deviceStatusBadge(status){
@@ -5566,7 +5599,9 @@ function renderProjects(){
     </div>`;
   }
 
-  return `<div class="card">
+  const pv = window._projView || "list";
+  let h = _pills('_projView',[{id:"list",ic:"📁",lb:"Projects"},{id:"add",ic:"➕",lb:"Add Project"}]);
+  if(pv==="add")  h += `<div class="card">
     <div class="sec-hdr">${projEditId?"Edit":"Add"} Project</div>
     <div class="form-grid">
       <div class="field"><label>Name <span class="req">*</span></label><input value="${escapeHtml(projForm.name)}" oninput="window.projForm.name=this.value" placeholder="e.g. New Project"></div>
@@ -5594,7 +5629,8 @@ function renderProjects(){
       </div>
       <button class="btn btn-sm" style="background:#00897B;color:white;border:none;font-weight:700" onclick="downloadImportTemplate()">⬇ Template</button>
     </div>
-  </div>
+  </div>`;
+  if(pv==="list") h += `
   ${Object.keys(g).filter(d=>g[d].length>0 || allDepts.includes(d)).map(d=>{
     const isUncategorized = d === "(uncategorized)";
     const color = isUncategorized ? "#6B7B8F" : deptColor(d);
@@ -5609,43 +5645,9 @@ function renderProjects(){
         <button class="btn btn-sm btn-danger" onclick="delProj('${p.id}')" style="padding:2px 6px">🗑</button></span>`}).join("")}</div>`}
     </div>`;
   }).join("")}`;
+  return h;
 }
-async function saveProj(){
-  const cleanName = (projForm.name||"").trim();
-  if(!cleanName)return toast("Name required");
-  if(!projEditId&&state.projects.find(p=>(p.name||"").trim()===cleanName))return toast("Already exists");
-  const id=projEditId||cleanName.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,40);
-  if(!id)return toast("Invalid name — use letters/numbers");
 
-  // ── Cascade rename if name changed (Admin only) ──
-  let oldName = null;
-  if(projEditId){
-    const existing = state.projects.find(p=>p.id===projEditId);
-    if(existing && existing.name !== cleanName) oldName = existing.name;
-  }
-  if(oldName && !isAdmin()) return toast("Only Admin can rename projects");
-  if(oldName){
-    const affected = state.daily.filter(r=>r.project===oldName).length
-      + state.overtime.filter(r=>r.project===oldName).length
-      + state.travel.filter(r=>r.project===oldName).length;
-    if(affected > 0 && !confirm(`Rename "${oldName}" → "${cleanName}"?\n\nThis will update ${affected} record(s) across Daily Log, Overtime, and Travel, plus client assignments.\n\nThis cannot be undone.`)) return;
-  }
-
-  // Preserve existing sites (managed separately via the Sites manager)
-  const existingProj = state.projects.find(p=>p.id===id);
-  // Preserve existing areas + codes (managed separately via the Areas/Sites manager)
-  const areas = (projForm.areas!==undefined) ? projForm.areas : (existingProj?.areas || []);
-  const codes = existingProj?.codes || [];
-  await fbSave("projects",{id,name:cleanName,dept:projForm.dept,status:projForm.status||"",estimatedHours:Number(projForm.estimatedHours||0),areas,codes});
-
-  if(oldName){
-    const synced = await cascadeRenameProject(oldName, cleanName);
-    toast(`✓ Renamed & synced ${synced} record(s)`);
-  } else {
-    toast("Saved ✓");
-  }
-  projForm=null;projEditId=null;
-}
 function editProj(id){const r=state.projects.find(p=>p.id===id);if(r){projForm={...r};projEditId=id;render();window.scrollTo(0,0);}}
 async function delProj(id){if(confirm("Delete?")){await fbDelete("projects",id);toast("Deleted");}}
 function cancelProj(){projForm=null;projEditId=null;render();}
@@ -6491,7 +6493,9 @@ function renderDepartments(){
 
   const presetColors = ["#2E7D32","#E65100","#6A1B9A","#1565C0","#C62828","#00838F","#5D4037","#37474F","#AD1457","#558B2F"];
 
-  return `<div class="card">
+  const dv = window._deptView || "list";
+  let h = _pills('_deptView',[{id:"list",ic:"🏛️",lb:"Departments"},{id:"add",ic:"➕",lb:"Add"}]);
+  if(dv==="add")  h += `<div class="card">
     <div class="sec-hdr">${deptEditId?"Edit":"Add"} Department</div>
     <div class="form-grid">
       <div class="field full"><label>Department Name <span class="req">*</span></label>
@@ -6512,7 +6516,8 @@ function renderDepartments(){
       <button class="btn btn-primary" onclick="saveDept()">${deptEditId?"Update":"Add Department"}</button>
       ${deptEditId?`<button class="btn btn-ghost" onclick="cancelDept()">Cancel</button>`:""}
     </div>
-  </div>
+  </div>`;
+  if(dv==="list") h += `
 
   <div class="card">
     <div class="card-title">Departments · ${state.departments.length}</div>
@@ -6540,6 +6545,7 @@ function renderDepartments(){
       <strong>⚠ Note:</strong> Deleting a department doesn't delete projects assigned to it. They'll show "uncategorized". Reassign projects first if needed.
     </p>
   </div>`;
+  return h;
 }
 
 async function saveDept(){
@@ -6760,59 +6766,16 @@ function renderWorkInstructions(){
 
 // Technical Classifications — its own tab (under Settings). Same admin manager
 // UI that previously lived inside Work Instructions.
+function _pills(stateVar, views){
+  const cur = window[stateVar] || views[0].id;
+  return `<div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap">${views.map(v=>`<button onclick="window.${stateVar}='${v.id}';render()" style="flex:1;min-width:86px;padding:10px 6px;border:none;border-radius:9px;font-weight:800;font-size:11.5px;cursor:pointer;background:${cur===v.id?'#03308B':'#E8EEF7'};color:${cur===v.id?'#C9A84C':'#1B3A6B'}">${v.ic} ${v.lb}</button>`).join("")}</div>`;
+}
+
 function renderTechClassifications(){
   if(!isAdmin()) return `<div class="card"><div class="empty">Admin only.</div></div>`;
-  let h = "";
-
-  // ═══ CLIENT REQUEST ENTRY — editable status options ═══
-  {
-    const rss=(state.requestStatuses||[]).slice().sort((a,b)=>(a.order||0)-(b.order||0));
-    const pss=(state.projectStatuses||[]).slice().sort((a,b)=>(a.order||0)-(b.order||0));
-    h += `
-    <div class="card" style="border:2px solid #C9A84C">
-      <div class="card-title" style="color:#7F6000">📨 Client Request Entry</div>
-      <p style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.6">
-        Options used in the client <strong>Requests</strong> workflow. Leave a list empty to keep the built-in defaults.<br>
-        Deleting an option never touches existing requests — they keep their status; the option just disappears from pickers.
-      </p>
-      <div style="margin-bottom:18px">
-        <div style="font-weight:800;color:#B8860B;font-size:13px;margin-bottom:8px">🔖 Request Statuses <span style="font-weight:400;color:#999;font-size:11px">(defaults: New · In Progress · Completed)</span></div>
-        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">
-          ${rss.length===0?`<span style="font-size:12px;color:#999">Using built-in defaults</span>`:rss.map(w=>`
-            <span style="display:inline-flex;align-items:center;gap:5px;background:#FFF8E1;color:#7F6000;padding:5px 8px 5px 12px;border-radius:14px;font-size:12px;font-weight:600">
-              ${escapeHtml(w.name)}
-              <button onclick="delTechItem('requestStatuses','${w.id}')" style="background:#F5E3B0;border:none;color:#7F6000;width:18px;height:18px;border-radius:50%;cursor:pointer;font-weight:700;font-size:11px">×</button>
-            </span>`).join("")}
-        </div>
-        <div style="display:flex;gap:6px">
-          <input id="newReqStatus" placeholder="Add request status (e.g. Waiting Parts)" style="flex:1;padding:7px 10px;border:1px solid var(--line);border-radius:7px;font-size:12px">
-          <button class="btn btn-sm" style="background:#B8860B;color:white;border:none;font-weight:700" onclick="addTechItem('requestStatuses','newReqStatus',${rss.length})">+ Add</button>
-        </div>
-        <div style="font-size:10px;color:#999;margin-top:5px">💡 The <strong>first</strong> status in this list is what new client requests start as.</div>
-      </div>
-      <div>
-        <div style="font-weight:800;color:#00695C;font-size:13px;margin-bottom:8px">🏗️ Project Statuses <span style="font-weight:400;color:#999;font-size:11px">(defaults: Active · On Hold · Completed)</span></div>
-        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">
-          ${pss.length===0?`<span style="font-size:12px;color:#999">Using built-in defaults</span>`:pss.map(w=>`
-            <span style="display:inline-flex;align-items:center;gap:5px;background:#E0F2F1;color:#00695C;padding:5px 8px 5px 12px;border-radius:14px;font-size:12px;font-weight:600">
-              ${escapeHtml(w.name)}
-              <button onclick="delTechItem('projectStatuses','${w.id}')" style="background:#B2DFDB;border:none;color:#00695C;width:18px;height:18px;border-radius:50%;cursor:pointer;font-weight:700;font-size:11px">×</button>
-            </span>`).join("")}
-        </div>
-        <div style="display:flex;gap:6px">
-          <input id="newProjStatus" placeholder="Add project status (e.g. Handover)" style="flex:1;padding:7px 10px;border:1px solid var(--line);border-radius:7px;font-size:12px">
-          <button class="btn btn-sm" style="background:#00695C;color:white;border:none;font-weight:700" onclick="addTechItem('projectStatuses','newProjStatus',${pss.length})">+ Add</button>
-        </div>
-        <div style="font-size:10px;color:#999;margin-top:5px">Set each project's status in <strong>Database → Projects</strong>; clients see it on their portal.</div>
-      </div>
-    </div>`;
-  }
-
-    const workTypes = (state.techWorkTypes||[]).slice().sort((a,b)=>(a.order||0)-(b.order||0));
-    const statuses  = (state.techStatuses||[]).slice().sort((a,b)=>(a.order||0)-(b.order||0));
-    const cats2     = (state.techCategories||[]).slice().sort((a,b)=>(a.order||0)-(b.order||0));
-
-    h += `
+  const tv = window._techView || "types";
+  let h = _pills('_techView',[{id:"types",ic:"🔧",lb:"Work Types"},{id:"statuses",ic:"📊",lb:"Statuses"},{id:"categories",ic:"📁",lb:"Categories"}]);
+  h += `
     <div class="card" style="margin-top:16px;border:2px solid #6A1B9A">
       <div class="card-title" style="color:#6A1B9A">⚙️ Technical Classifications (Resolution)</div>
       <p style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.6">
@@ -6824,7 +6787,8 @@ function renderTechClassifications(){
         <button class="btn btn-sm" style="background:#E65100;color:white;border:none;font-weight:700" onclick="seedTechDefaults()">⬇ Load Default Classifications</button>
       </div>`:''}
 
-      <!-- WORK TYPES -->
+      `;
+  if(tv==="types")      h += `<!-- WORK TYPES -->
       <div style="margin-bottom:18px">
         <div style="font-weight:800;color:#3949AB;font-size:13px;margin-bottom:8px">🧭 Work Types</div>
         <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">
@@ -6840,7 +6804,8 @@ function renderTechClassifications(){
         </div>
       </div>
 
-      <!-- TASK STATUSES -->
+      `;
+  if(tv==="statuses")   h += `<!-- TASK STATUSES -->
       <div style="margin-bottom:18px">
         <div style="font-weight:800;color:#00897B;font-size:13px;margin-bottom:8px">📊 Task Statuses</div>
         <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">
@@ -6856,7 +6821,8 @@ function renderTechClassifications(){
         </div>
       </div>
 
-      <!-- CATEGORIES + SUBCATEGORIES -->
+      `;
+  if(tv==="categories") h += `<!-- CATEGORIES + SUBCATEGORIES -->
       <div>
         <div style="font-weight:800;color:#C2185B;font-size:13px;margin-bottom:8px">🗂️ Categories & Subcategories</div>
         <div style="display:flex;gap:6px;margin-bottom:10px">
@@ -6883,30 +6849,10 @@ function renderTechClassifications(){
           </div>
         `).join("")}
       </div>
-    </div>`;
+    `;
+  h += `</div>`;
   return h;
 }
-
-
-async function saveWICategory(){
-  if(!isAdmin()) return toast("Only Admin can manage Work Instructions");
-  const name = (wiCategoryForm.name||"").trim();
-  if(!name) return toast("Category name required");
-  // Check duplicate
-  const existing = state.workCategories.find(c => c.name.toLowerCase() === name.toLowerCase() && c.id !== wiCategoryEditId);
-  if(existing) return toast("Category name already exists");
-  await fbSave("workCategories", {
-    id: wiCategoryEditId || undefined,
-    name,
-    icon: wiCategoryForm.icon || "📁",
-    color: wiCategoryForm.color || "#2E5FA3",
-  });
-  if(!wiCategoryEditId) wiActiveCategory = name;
-  wiCategoryForm = null;
-  wiCategoryEditId = null;
-  toast("Category saved ✓");
-}
-
 function editWICategory(id){
   if(!isAdmin()) return toast("Only Admin can edit categories");
   const c = state.workCategories.find(x => x.id === id);
@@ -8001,18 +7947,26 @@ function renderMyTasks(){
   const byDate=(a,b)=>(b.createdAt||"").localeCompare(a.createdAt||"");
   const mine=(state.tasks||[]).filter(t=>t.assignedToUid===uid).sort(byDate);
   const pend=mine.filter(t=>t.status==="pending").length;
+  const canAsg=canAssignTasks();
+  const byMe=canAsg?(state.tasks||[]).filter(t=>t.assignedByUid===uid).sort(byDate):[];
+  const pendBy=byMe.filter(t=>t.status==="pending").length;
+  const mv=canAsg?(window._myTasksView||"inbox"):"inbox";
   let h=`<div class="card" style="background:linear-gradient(135deg,#03308B,#2E5FA3);color:#fff;padding:14px 16px">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
       <div><strong style="font-size:15px">📋 My Tasks</strong>
-        <div style="font-size:11px;opacity:0.85;margin-top:2px">${mine.length} task(s)${pend?` · ${pend} awaiting your confirmation`:""}</div></div>
-      ${canAssignTasks()?`<button onclick="openAssignTask('')" style="background:#C9A84C;color:#03308B;border:none;padding:9px 14px;border-radius:8px;font-weight:800;font-size:12px;cursor:pointer">➕ New Task</button>`:""}
+        <div style="font-size:11px;opacity:0.85;margin-top:2px">${mv==="assigned"
+          ? `${byMe.length} assigned by you${pendBy?` · ${pendBy} awaiting confirmation`:""}`
+          : `${mine.length} task(s)${pend?` · ${pend} awaiting your confirmation`:""}`}</div></div>
+      ${canAsg?`<button onclick="openAssignTask('')" style="background:#C9A84C;color:#03308B;border:none;padding:9px 14px;border-radius:8px;font-weight:800;font-size:12px;cursor:pointer">➕ New Task</button>`:""}
     </div></div>`;
-  h += mine.length ? mine.map(t=>_taskCard(t,true)).join("") : `<div class="card"><div class="empty">No tasks assigned to you yet</div></div>`;
-  // "Tasks I Assigned" section removed — assignment tracking now lives on the
-  // request cards themselves (Requests tab). My Tasks = employee inbox only.
+  if(canAsg) h += _pills('_myTasksView',[{id:"inbox",ic:"📥",lb:`Inbox${pend?` (${pend})`:""}`},{id:"assigned",ic:"📤",lb:`Assigned by Me${pendBy?` (${pendBy})`:""}`}]);
+  if(mv==="inbox"){
+    h += mine.length ? mine.map(t=>_taskCard(t,true)).join("") : `<div class="card"><div class="empty">No tasks assigned to you yet</div></div>`;
+  } else {
+    h += byMe.length ? byMe.map(t=>_taskCard(t,false)).join("") : `<div class="card"><div class="empty">You haven't assigned any tasks yet</div></div>`;
+  }
   return h;
 }
-
 function renderRequests(){
   // CLIENT VIEW: submit + track own requests
   if(isClient()){
@@ -8359,7 +8313,9 @@ function renderWhatsApp(){
   const s = waGetSettings();
   const contacts = state.waContacts || [];
 
-  return `<div class="card" style="border-left:4px solid #25D366">
+  const wv = window._waView || "contacts";
+  let h = _pills('_waView',[{id:"contacts",ic:"👥",lb:"Contacts"},{id:"options",ic:"🧩",lb:"Options"}]);
+  if(wv==="contacts") h += `<div class="card" style="border-left:4px solid #25D366">
     <div class="card-title">📲 ${waContactEditId?"Edit Contact":"Add WhatsApp Contact / Group"}</div>
     <div class="form-grid">
       <div class="field"><label>Name / Label <span class="req">*</span></label>
@@ -8451,10 +8407,78 @@ function renderWhatsApp(){
         </label>`;
       }).join("")}
     </div>
+  </div
+
+  <div class="card">
+    <div class="filter-row"><span class="card-title" style="margin:0">Saved Contacts & Groups</span><span class="count-pill">${contacts.length}</span></div>
+    ${contacts.length===0?`<div class="empty">No contacts yet</div>`:
+    `<div style="display:flex;flex-direction:column;gap:8px">
+      ${contacts.map(c=>`<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;background:#F7FAF8;border:1px solid #D7E8DD;border-radius:8px">
+        <div style="display:flex;align-items:center;gap:10px;min-width:0">
+          <span style="font-size:20px">${c.type==="group"?"👥":"📱"}</span>
+          <div style="min-width:0">
+            <div style="font-weight:700;font-size:13px;color:#1B3A6B">${escapeHtml(c.name)}</div>
+            <div style="font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.type==="group"?"Group link":escapeHtml(c.value)}</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:5px;flex-shrink:0">
+          <button class="btn btn-sm btn-secondary" onclick="editWaContact('${c.id}')">✎</button>
+          <button class="btn btn-sm btn-danger" onclick="delWaContact('${c.id}')">🗑</button>
+        </div>
+      </div>`).join("")}
+    </div>`}
   </div>`;
+  if(wv==="options")  h += `
+
+  <div class="card" style="border-left:4px solid #03308B">
+    <div class="card-title">⚙️ Message Content — Fields to Include</div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:10px">Choose which details appear in the WhatsApp message.</p>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      ${WA_FIELDS.map(f=>{
+        const on = (s.enabledFields||[]).includes(f.id);
+        return `<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;padding:7px 10px;background:${on?'#E8F5E9':'#F7F7F7'};border-radius:6px">
+          <input type="checkbox" ${on?"checked":""} onchange="toggleWaField('${f.id}')" style="width:16px;height:16px;cursor:pointer">
+          <span style="font-size:15px">${f.icon}</span>
+          <span style="font-weight:600;color:${on?'#2E7D32':'#666'}">${f.label}</span>
+        </label>`;
+      }).join("")}
+    </div>
+    <div class="field" style="margin-top:12px">
+      <label>Message Header</label>
+      <input value="${escapeHtml(s.messageHeader||"")}" onchange="window.setWaHeader(this.value)" placeholder="🔔 New Task — EJAF Operations">
+    </div>
+  </div>
+
+  <div class="card" style="border-left:4px solid #6A1B9A">
+    <div class="card-title">👁️ Who Can See the WhatsApp Button</div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:10px">Admin always has access. Select which other roles can share to WhatsApp.</p>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      ${[["hr","📋 HR / Manager"],["support","🛠 Support"],["it","💻 IT"],["employee","👤 Employee"]].map(([role,lbl])=>{
+        const on = (s.allowedRoles||["admin"]).includes(role);
+        return `<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;padding:7px 10px;background:${on?'#F3E5F5':'#F7F7F7'};border-radius:6px">
+          <input type="checkbox" ${on?"checked":""} onchange="toggleWaRole('${role}')" style="width:16px;height:16px;cursor:pointer">
+          <span style="font-weight:600;color:${on?'#6A1B9A':'#666'}">${lbl}</span>
+        </label>`;
+      }).join("")}
+    </div>
+  </div>
+
+  <div class="card" style="border-left:4px solid #E65100">
+    <div class="card-title">🎯 When to Show the Button</div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:10px">Show the WhatsApp share button after these actions.</p>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      ${[["daily","📋 After adding a Daily Log entry"],["clientRequests","📨 After a Client Request"]].map(([trig,lbl])=>{
+        const on = (s.triggers||[]).includes(trig);
+        return `<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;padding:7px 10px;background:${on?'#FFF3E0':'#F7F7F7'};border-radius:6px">
+          <input type="checkbox" ${on?"checked":""} onchange="toggleWaTrigger('${trig}')" style="width:16px;height:16px;cursor:pointer">
+          <span style="font-weight:600;color:${on?'#E65100':'#666'}">${lbl}</span>
+        </label>`;
+      }).join("")}
+    </div>
+  </div>`;
+  return h;
 }
 
-// ── Contact CRUD ──
 async function saveWaContact(){
   if(!isAdmin()) return toast("Admin only");
   const name=(waContactForm.name||"").trim();
@@ -9658,7 +9682,9 @@ function renderProfile(){
 function renderEntryManage(){
   if(!isAdmin()) return `<div class="card"><p style="text-align:center;color:var(--muted);padding:20px">Admin only.</p></div>`;
   const projects = [...new Set(state.daily.map(r=>r.project).filter(Boolean))].sort();
-  let h = `
+  const emv = window._emView || "counters";
+  let h = _pills('_emView',[{id:"counters",ic:"🔢",lb:"Counters"},{id:"employees",ic:"👷",lb:"Employees"},{id:"clients",ic:"🤝",lb:"Clients"},{id:"requests",ic:"📨",lb:"Requests"}]);
+  if(emv==="counters") h += `
   <div class="card" style="border-left:4px solid #C9A84C">
     <div class="sec-hdr" style="display:flex;align-items:center;gap:8px">
       <span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">⚙</span>
@@ -9727,7 +9753,7 @@ function renderEntryManage(){
       <button class="btn btn-sm" style="background:#C62828;border:none;color:white;font-weight:700;padding:8px 16px;border-radius:6px" onclick="purgeResolutionImagesCustom()">🗑️ Purge Images</button>
     </div>
   </div>`;
-  h += `  <!-- ═══ PER-EMPLOYEE ENTRY PERMISSIONS (Admin) ═══ -->
+  if(emv==="employees") h += `  <!-- ═══ PER-EMPLOYEE ENTRY PERMISSIONS (Admin) ═══ -->
   <div class="card" style="border-left:4px solid #0277BD">
     <div class="sec-hdr" style="display:flex;align-items:center;gap:8px">
       <span style="background:#0277BD;color:white;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">🔐</span>
@@ -9772,7 +9798,7 @@ function renderEntryManage(){
       }).join("")}
     </div>
   </div>`;
-  h += `  <!-- ═══ ENTRY PERMISSION PER CLIENT (Admin) ═══ -->
+  if(emv==="clients") h += `  <!-- ═══ ENTRY PERMISSION PER CLIENT (Admin) ═══ -->
   <div class="card" style="border-left:4px solid #C9A84C">
     <div class="sec-hdr" style="display:flex;align-items:center;gap:8px">
       <span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">🤝</span>
@@ -9825,9 +9851,46 @@ function renderEntryManage(){
       }).join("")}
     </div>`}
   </div>`;
+  if(emv==="requests"){ h += `
+    <div class="card" style="border:2px solid #C9A84C">
+      <div class="card-title" style="color:#7F6000">📨 Client Request Entry</div>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.6">
+        Options used in the client <strong>Requests</strong> workflow. Leave a list empty to keep the built-in defaults.<br>
+        Deleting an option never touches existing requests — they keep their status; the option just disappears from pickers.
+      </p>
+      <div style="margin-bottom:18px">
+        <div style="font-weight:800;color:#B8860B;font-size:13px;margin-bottom:8px">🔖 Request Statuses <span style="font-weight:400;color:#999;font-size:11px">(defaults: New · In Progress · Completed)</span></div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">
+          ${rss.length===0?`<span style="font-size:12px;color:#999">Using built-in defaults</span>`:rss.map(w=>`
+            <span style="display:inline-flex;align-items:center;gap:5px;background:#FFF8E1;color:#7F6000;padding:5px 8px 5px 12px;border-radius:14px;font-size:12px;font-weight:600">
+              ${escapeHtml(w.name)}
+              <button onclick="delTechItem('requestStatuses','${w.id}')" style="background:#F5E3B0;border:none;color:#7F6000;width:18px;height:18px;border-radius:50%;cursor:pointer;font-weight:700;font-size:11px">×</button>
+            </span>`).join("")}
+        </div>
+        <div style="display:flex;gap:6px">
+          <input id="newReqStatus" placeholder="Add request status (e.g. Waiting Parts)" style="flex:1;padding:7px 10px;border:1px solid var(--line);border-radius:7px;font-size:12px">
+          <button class="btn btn-sm" style="background:#B8860B;color:white;border:none;font-weight:700" onclick="addTechItem('requestStatuses','newReqStatus',${rss.length})">+ Add</button>
+        </div>
+        <div style="font-size:10px;color:#999;margin-top:5px">💡 The <strong>first</strong> status in this list is what new client requests start as.</div>
+      </div>
+      <div>
+        <div style="font-weight:800;color:#00695C;font-size:13px;margin-bottom:8px">🏗️ Project Statuses <span style="font-weight:400;color:#999;font-size:11px">(defaults: Active · On Hold · Completed)</span></div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">
+          ${pss.length===0?`<span style="font-size:12px;color:#999">Using built-in defaults</span>`:pss.map(w=>`
+            <span style="display:inline-flex;align-items:center;gap:5px;background:#E0F2F1;color:#00695C;padding:5px 8px 5px 12px;border-radius:14px;font-size:12px;font-weight:600">
+              ${escapeHtml(w.name)}
+              <button onclick="delTechItem('projectStatuses','${w.id}')" style="background:#B2DFDB;border:none;color:#00695C;width:18px;height:18px;border-radius:50%;cursor:pointer;font-weight:700;font-size:11px">×</button>
+            </span>`).join("")}
+        </div>
+        <div style="display:flex;gap:6px">
+          <input id="newProjStatus" placeholder="Add project status (e.g. Handover)" style="flex:1;padding:7px 10px;border:1px solid var(--line);border-radius:7px;font-size:12px">
+          <button class="btn btn-sm" style="background:#00695C;color:white;border:none;font-weight:700" onclick="addTechItem('projectStatuses','newProjStatus',${pss.length})">+ Add</button>
+        </div>
+        <div style="font-size:10px;color:#999;margin-top:5px">Set each project's status in <strong>Database → Projects</strong>; clients see it on their portal.</div>
+      </div>
+    </div>`; }
   return h;
 }
-
 function passwordStrengthBar(pw){
   let score = 0;
   if(pw.length >= 6) score++;
@@ -11123,7 +11186,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v61';"
+      var swCode = "const CACHE='ejaftech-v63';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
