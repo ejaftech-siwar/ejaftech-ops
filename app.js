@@ -8438,73 +8438,7 @@ function renderWhatsApp(){
       </div>`).join("")}
     </div>`}
   </div>
-
-  <div class="card" style="border-left:4px solid #03308B">
-    <div class="card-title">⚙️ Message Content — Fields to Include</div>
-    <p style="font-size:12px;color:var(--muted);margin-bottom:10px">Choose which details appear in the WhatsApp message.</p>
-    <div style="display:flex;flex-direction:column;gap:6px">
-      ${WA_FIELDS.map(f=>{
-        const on = (s.enabledFields||[]).includes(f.id);
-        return `<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;padding:7px 10px;background:${on?'#E8F5E9':'#F7F7F7'};border-radius:6px">
-          <input type="checkbox" ${on?"checked":""} onchange="toggleWaField('${f.id}')" style="width:16px;height:16px;cursor:pointer">
-          <span style="font-size:15px">${f.icon}</span>
-          <span style="font-weight:600;color:${on?'#2E7D32':'#666'}">${f.label}</span>
-        </label>`;
-      }).join("")}
-    </div>
-    <div class="field" style="margin-top:12px">
-      <label>Message Header</label>
-      <input value="${escapeHtml(s.messageHeader||"")}" onchange="window.setWaHeader(this.value)" placeholder="🔔 New Task — EJAF Operations">
-    </div>
-  </div>
-
-  <div class="card" style="border-left:4px solid #6A1B9A">
-    <div class="card-title">👁️ Who Can See the WhatsApp Button</div>
-    <p style="font-size:12px;color:var(--muted);margin-bottom:10px">Admin always has access. Select which other roles can share to WhatsApp.</p>
-    <div style="display:flex;flex-direction:column;gap:6px">
-      ${[["hr","📋 HR / Manager"],["support","🛠 Support"],["it","💻 IT"],["employee","👤 Employee"]].map(([role,lbl])=>{
-        const on = (s.allowedRoles||["admin"]).includes(role);
-        return `<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;padding:7px 10px;background:${on?'#F3E5F5':'#F7F7F7'};border-radius:6px">
-          <input type="checkbox" ${on?"checked":""} onchange="toggleWaRole('${role}')" style="width:16px;height:16px;cursor:pointer">
-          <span style="font-weight:600;color:${on?'#6A1B9A':'#666'}">${lbl}</span>
-        </label>`;
-      }).join("")}
-    </div>
-  </div>
-
-  <div class="card" style="border-left:4px solid #E65100">
-    <div class="card-title">🎯 When to Show the Button</div>
-    <p style="font-size:12px;color:var(--muted);margin-bottom:10px">Show the WhatsApp share button after these actions.</p>
-    <div style="display:flex;flex-direction:column;gap:6px">
-      ${[["daily","📋 After adding a Daily Log entry"],["clientRequests","📨 After a Client Request"]].map(([trig,lbl])=>{
-        const on = (s.triggers||[]).includes(trig);
-        return `<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;padding:7px 10px;background:${on?'#FFF3E0':'#F7F7F7'};border-radius:6px">
-          <input type="checkbox" ${on?"checked":""} onchange="toggleWaTrigger('${trig}')" style="width:16px;height:16px;cursor:pointer">
-          <span style="font-weight:600;color:${on?'#E65100':'#666'}">${lbl}</span>
-        </label>`;
-      }).join("")}
-    </div>
-  </div
-
-  <div class="card">
-    <div class="filter-row"><span class="card-title" style="margin:0">Saved Contacts & Groups</span><span class="count-pill">${contacts.length}</span></div>
-    ${contacts.length===0?`<div class="empty">No contacts yet</div>`:
-    `<div style="display:flex;flex-direction:column;gap:8px">
-      ${contacts.map(c=>`<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;background:#F7FAF8;border:1px solid #D7E8DD;border-radius:8px">
-        <div style="display:flex;align-items:center;gap:10px;min-width:0">
-          <span style="font-size:20px">${c.type==="group"?"👥":"📱"}</span>
-          <div style="min-width:0">
-            <div style="font-weight:700;font-size:13px;color:#1B3A6B">${escapeHtml(c.name)}</div>
-            <div style="font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.type==="group"?"Group link":escapeHtml(c.value)}</div>
-          </div>
-        </div>
-        <div style="display:flex;gap:5px;flex-shrink:0">
-          <button class="btn btn-sm btn-secondary" onclick="editWaContact('${c.id}')">✎</button>
-          <button class="btn btn-sm btn-danger" onclick="delWaContact('${c.id}')">🗑</button>
-        </div>
-      </div>`).join("")}
-    </div>`}
-  </div>`;
+`;
   if(wv==="options")  h += `
 
   <div class="card" style="border-left:4px solid #03308B">
@@ -11266,7 +11200,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v67';"
+      var swCode = "const CACHE='ejaftech-v68';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
