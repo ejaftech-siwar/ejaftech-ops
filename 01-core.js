@@ -232,16 +232,30 @@ function skeletonHTML(){
 // Fixed bottom navigation (mobile) — mirrors the main groups
 function renderBottomNav(){
   try{
-    const groups=(getVisibleGroups()||[]).slice(0,5);
+    const all=(getVisibleGroups()||[]);
     let el=document.getElementById('bottomNav');
-    if(!groups.length || !state.user){ if(el) el.style.display='none'; document.body.classList.remove('has-bnav'); return; }
+    if(!all.length || !state.user){ if(el) el.style.display='none'; document.body.classList.remove('has-bnav'); return; }
     if(!el){ el=document.createElement('div'); el.id='bottomNav'; document.body.appendChild(el); }
     el.style.display='';
     document.body.classList.add('has-bnav');
     const cur=groupOfTab(state.tab);
-    el.innerHTML=groups.map(g=>`<button class="bnav-it ${g.id===cur?'on':''}" onclick="switchGroup('${g.id}')">${NAV_ICONS[g.id]||''}<span>${g.label}</span></button>`).join('');
+    const main=all.slice(0,4), rest=all.slice(4);
+    const moreOn = rest.some(g=>g.id===cur);
+    el.innerHTML = main.map(g=>`<button class="bnav-it ${g.id===cur?'on':''}" onclick="switchGroup('${g.id}')">${NAV_ICONS[g.id]||''}<span>${g.label}</span></button>`).join('')
+      + (rest.length?`<button class="bnav-it ${moreOn?'on':''}" onclick="toggleMoreSheet()">${_svg('<circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/>')}<span>More</span></button>`:'');
+    // "More" sheet (hidden until toggled)
+    let sh=document.getElementById('moreSheet');
+    if(!sh){ sh=document.createElement('div'); sh.id='moreSheet'; document.body.appendChild(sh); }
+    sh.innerHTML = rest.map(g=>`<button class="msheet-it ${g.id===cur?'on':''}" onclick="switchGroup('${g.id}');toggleMoreSheet(false)">${NAV_ICONS[g.id]||''}<span>${g.label}</span></button>`).join('');
+    if(!moreOnKeepOpen()) sh.classList.remove('open');
   }catch(e){}
 }
+function moreOnKeepOpen(){ return false; }
+window.toggleMoreSheet=function(force){
+  const sh=document.getElementById('moreSheet'); if(!sh) return;
+  const open = force!==undefined ? force : !sh.classList.contains('open');
+  sh.classList.toggle('open', open);
+};
 
 function toast(msg){
   const t=$("toast");

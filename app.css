@@ -444,3 +444,16 @@ body.hdr-compact .logo-mark img{width:34px;height:34px;transition:width .25s,hei
 @media (max-width:520px){.login-card{max-width:none;border-radius:0;min-height:100dvh}}
 [data-theme="dark"] .login-bg{background:linear-gradient(160deg,#070E1C 0%,#0F2347 60%,#1B3A6B 130%)}
 [data-theme="dark"] .login-card{background:rgba(21,34,56,0.97)}
+/* ═══ v75: no duplicate nav — mobile shows bottom bar only ═══ */
+@media (max-width:860px){
+  #groupBar{display:none}                    /* top groups hidden on phones */
+  .sub-bar{border-top:none}                  /* sub tabs remain, cleaner edge */
+  #bottomNav{grid-template-columns:repeat(5,1fr)}
+}
+#moreSheet{position:fixed;left:10px;right:10px;bottom:calc(70px + env(safe-area-inset-bottom,0px));z-index:59;background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:0 16px 44px rgba(0,0,0,.45);padding:8px;display:none;grid-template-columns:1fr 1fr;gap:6px}
+#moreSheet.open{display:grid}
+.msheet-it{background:none;border:none;font-family:inherit;color:var(--text);font-size:13px;font-weight:700;display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:10px;cursor:pointer}
+.msheet-it:active{background:var(--line)}
+.msheet-it.on{color:var(--gold)}
+.msheet-it .nvic{width:19px;height:19px;margin:0}
+@media (min-width:861px){#moreSheet{display:none!important}}
