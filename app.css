@@ -386,3 +386,61 @@ body{padding-bottom:env(safe-area-inset-bottom,0px)}
 [data-theme="dark"] [style*="#E1F5FE"]{background:#1B2740!important;color:#BFD3F2!important}
 [data-theme="dark"] [style*="#EEF4FF"]{background:#1B2740!important;color:#BFD3F2!important}
 [data-theme="dark"] [style*="#FFF8E8"]{background:#1B2740!important;color:#BFD3F2!important}
+
+/* ═══════════════ Girêk Polish Pack v74 ═══════════════ */
+/* SVG nav icons */
+.nvic{width:17px;height:17px;vertical-align:-3px;margin-right:6px}
+.gtab .nvic{width:16px;height:16px}
+.gtab-lb{vertical-align:middle}
+/* glass header + scroll shrink */
+.app-header{backdrop-filter:saturate(140%) blur(10px);-webkit-backdrop-filter:saturate(140%) blur(10px);box-shadow:0 4px 18px rgba(3,20,50,0.25);border-bottom:1px solid rgba(201,168,76,0.35);transition:padding .25s ease}
+body.hdr-compact .header-row{padding-top:6px;padding-bottom:6px;transition:padding .25s ease}
+body.hdr-compact .logo-mark img{width:34px;height:34px;transition:width .25s,height .25s}
+/* bell */
+.bell-btn{color:#F4D061;display:inline-flex;align-items:center}
+.bell-btn .nvic{width:21px;height:21px;margin:0}
+.bell-btn.ring .nvic{transform-origin:top center;animation:bellring 2.4s ease-in-out infinite}
+@keyframes bellring{0%,72%,100%{transform:rotate(0)}76%{transform:rotate(13deg)}80%{transform:rotate(-11deg)}84%{transform:rotate(8deg)}88%{transform:rotate(-6deg)}92%{transform:rotate(3deg)}}
+#themeBtn{display:inline-flex;align-items:center;justify-content:center;color:#F4D061}
+#themeBtn .nvic{width:17px;height:17px;margin:0}
+/* compact period pill */
+#periodLabelInline{font-size:11px;letter-spacing:.2px}
+/* micro-interactions */
+@media (prefers-reduced-motion: no-preference){
+  #content .card{animation:cardin .3s ease both}
+  #content .card:nth-child(2){animation-delay:.05s}
+  #content .card:nth-child(3){animation-delay:.1s}
+  @keyframes cardin{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  .btn:active,.gtab:active,.subtab:active,.bnav-it:active{transform:scale(.96)}
+  .btn,.gtab,.subtab,.bnav-it{transition:transform .12s ease,background .2s,color .2s}
+}
+/* typed toasts */
+.toast{border-left:4px solid #C9A84C;display:flex;align-items:center;gap:8px;box-shadow:0 8px 24px rgba(0,0,0,.35)}
+.toast::before{font-size:14px}
+.toast[data-type="ok"]{border-left-color:#2E7D32}.toast[data-type="ok"]::before{content:"✔"}
+.toast[data-type="err"]{border-left-color:#C62828}.toast[data-type="err"]::before{content:"✖"}
+.toast[data-type="warn"]{border-left-color:#F9A825}.toast[data-type="warn"]::before{content:"⚠"}
+.toast[data-type="info"]{border-left-color:#2E5FA3}.toast[data-type="info"]::before{content:"ℹ"}
+/* skeleton loading */
+.skl-card{min-height:110px}
+.skl-bar{height:13px;border-radius:7px;margin:12px 0;background:linear-gradient(90deg,var(--line) 25%,rgba(255,255,255,0.45) 50%,var(--line) 75%);background-size:200% 100%;animation:sklp 1.2s linear infinite}
+[data-theme="dark"] .skl-bar{background:linear-gradient(90deg,#1E2E4A 25%,#2A3D5C 50%,#1E2E4A 75%);background-size:200% 100%}
+@keyframes sklp{from{background-position:200% 0}to{background-position:-200% 0}}
+/* bottom mobile nav */
+#bottomNav{position:fixed;left:0;right:0;bottom:0;z-index:60;display:none;grid-template-columns:repeat(5,1fr);background:rgba(20,36,66,0.92);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-top:1px solid rgba(201,168,76,0.35);padding:6px 4px calc(6px + env(safe-area-inset-bottom,0px))}
+.bnav-it{background:none;border:none;color:#9FB6D2;font-family:inherit;font-size:10px;font-weight:700;display:flex;flex-direction:column;align-items:center;gap:2px;padding:5px 2px;border-radius:10px;cursor:pointer}
+.bnav-it .nvic{width:20px;height:20px;margin:0}
+.bnav-it.on{color:var(--gold)}
+.bnav-it.on .nvic{filter:drop-shadow(0 0 6px rgba(201,168,76,.6))}
+@media (max-width:860px){
+  #bottomNav{display:grid}
+  body.has-bnav #content{padding-bottom:76px}
+}
+[data-theme="dark"] #bottomNav{background:rgba(10,18,34,0.94)}
+/* login page — branded, both themes */
+.login-bg{background:linear-gradient(160deg,#0F2347 0%,#1B3A6B 55%,#2E5FA3 130%);position:relative;overflow:hidden}
+.login-bg::before{content:"EJAF";position:absolute;font-family:'DM Serif Display',serif;font-size:34vmin;font-weight:700;color:rgba(255,255,255,0.045);transform:rotate(-24deg);top:14%;left:-6%;pointer-events:none;letter-spacing:2vmin}
+.login-card{background:rgba(255,255,255,0.97);border-radius:18px;min-height:auto;max-width:420px;margin:auto;box-shadow:0 24px 64px rgba(0,0,0,0.45);backdrop-filter:blur(6px)}
+@media (max-width:520px){.login-card{max-width:none;border-radius:0;min-height:100dvh}}
+[data-theme="dark"] .login-bg{background:linear-gradient(160deg,#070E1C 0%,#0F2347 60%,#1B3A6B 130%)}
+[data-theme="dark"] .login-card{background:rgba(21,34,56,0.97)}
