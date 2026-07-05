@@ -1254,7 +1254,7 @@ function renderApp(){
           <h1>Girêk</h1>
           ${state.tab==="Dashboard"?"":`<p><span id="periodLabelInline" onclick="editPeriod(event)" style="cursor:pointer;white-space:nowrap;display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;vertical-align:bottom;font-size:10.5px;${(getPeriodFrom()||getPeriodTo())?'background:#C9A84C;color:#03308B;padding:2px 10px;border-radius:12px;font-weight:700':'text-decoration:underline dotted;opacity:0.9'}">${(getPeriodFrom()||getPeriodTo())?'📅 ':''}${escapeHtml(getPeriod())}${(getPeriodFrom()||getPeriodTo())?' ✕':''}</span></p>`}
         </div>
-        <span id="notifBell" onclick="openNotifPanel()" style="position:relative;cursor:pointer;font-size:20px;padding:4px 6px;margin-right:2px;user-select:none">🔔<span id="notifBellBadge" style="position:absolute;top:0;right:-2px;background:#C62828;color:#fff;font-size:9px;font-weight:800;min-width:15px;height:15px;border-radius:8px;display:${unreadNotifCount()>0?'flex':'none'};align-items:center;justify-content:center;padding:0 3px">${unreadNotifCount()>99?'99+':unreadNotifCount()}</span></span>
+        <button id="themeBtn" onclick="toggleTheme()" title="Light / Dark mode" style="background:rgba(255,255,255,0.14);border:none;border-radius:8px;width:32px;height:32px;font-size:15px;cursor:pointer;margin-right:2px;line-height:1">${document.documentElement.getAttribute('data-theme')==='dark'?'☀️':'🌙'}</button><span id="notifBell" onclick="openNotifPanel()" style="position:relative;cursor:pointer;font-size:20px;padding:4px 6px;margin-right:2px;user-select:none">🔔<span id="notifBellBadge" style="position:absolute;top:0;right:-2px;background:#C62828;color:#fff;font-size:9px;font-weight:800;min-width:15px;height:15px;border-radius:8px;display:${unreadNotifCount()>0?'flex':'none'};align-items:center;justify-content:center;padding:0 3px">${unreadNotifCount()>99?'99+':unreadNotifCount()}</span></span>
         <button onclick="switchTab('Profile')" title="My Profile" style="width:40px;height:40px;border-radius:50%;padding:0;border:2px solid var(--gold);background:var(--navy);color:var(--gold);font-weight:800;font-size:15px;cursor:pointer;overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.25)">${(state.profile&&state.profile.photoData)?`<img src="${state.profile.photoData}" alt="" style="width:100%;height:100%;object-fit:cover">`:escapeHtml(((state.profile&&(state.profile.name||state.profile.employeeName||state.profile.email))||"?").charAt(0).toUpperCase())}</button>
       </div>
       ${(()=>{
@@ -1936,3 +1936,14 @@ async function resetDailyEntryCounter(){
   toast(`Numbers removed from ${count} entries ✓ — use Assign Numbers to re-number`);
 }
 
+
+
+// ── Light / Dark theme toggle (persisted per device) ──
+function toggleTheme(){
+  const r=document.documentElement;
+  const dark=r.getAttribute('data-theme')==='dark';
+  if(dark) r.removeAttribute('data-theme'); else r.setAttribute('data-theme','dark');
+  try{ localStorage.setItem('girek-theme', dark?'light':'dark'); }catch(e){}
+  const b=document.getElementById('themeBtn'); if(b) b.textContent=dark?'🌙':'☀️';
+}
+window.toggleTheme = toggleTheme;

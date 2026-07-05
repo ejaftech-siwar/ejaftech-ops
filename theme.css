@@ -1,2 +1,17 @@
 /* Girêk — design tokens: colors, fonts, radius, shadows */
 :root{--navy:#1B3A6B;--navy-2:#2E5FA3;--gold:#C9A84C;--gold-2:#B58E2E;--bg:#F5F8FC;--card:#FFFFFF;--line:#D6E4F0;--text:#1A1A2E;--muted:#6B7B8F;--green:#2E7D32;--green-bg:#E8F2E8;--orange:#E65100;--orange-bg:#FCEAE0;--purple:#6A1B9A;--purple-bg:#F0E8F7;--yellow:#FFF2CC;--yellow-text:#7F6000;--red:#C0392B;--shadow:0 2px 12px rgba(27,58,107,0.08);--shadow-lg:0 8px 28px rgba(27,58,107,0.15);--radius:14px;--radius-sm:8px;--shadow-sm:0 1px 4px rgba(27,58,107,0.06)}
+
+
+/* ═══ Girêk Dark Mode — token overrides (activated by data-theme="dark") ═══ */
+[data-theme="dark"]{
+  --bg:#0C1524; --card:#152238; --line:#2A3D5C;
+  --text:#E7EDF6; --muted:#96A7C0;
+  --green:#7CDA8C; --green-bg:#1D3326;
+  --orange:#FFA366; --orange-bg:#3A2C1C;
+  --purple:#CE93E8; --purple-bg:#2E2140;
+  --yellow:#3A3220; --yellow-text:#E5CE8F;
+  --red:#FF8F8F;
+  --shadow:0 2px 12px rgba(0,0,0,0.45); --shadow-lg:0 8px 28px rgba(0,0,0,0.6);
+  --shadow-sm:0 1px 4px rgba(0,0,0,0.4);
+}
+html{transition:background-color .25s ease}

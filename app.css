@@ -224,3 +224,56 @@ body{padding-bottom:env(safe-area-inset-bottom,0px)}
 /* Accessibility + brand selection */
 .btn:focus-visible,.tab:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 ::selection{background:rgba(201,168,76,0.35)}
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Girêk Dark Mode — centralized overrides.
+   Section A: components that hardcode light colors in this stylesheet.
+   Section B: attribute-selector overrides that beat INLINE styles in the
+   JS modules (this is why we don't have to edit thousands of lines).
+   ═══════════════════════════════════════════════════════════════════════ */
+[data-theme="dark"] .login-card input{background:#101B2E}
+[data-theme="dark"] .dept-body{background:var(--card)}
+[data-theme="dark"] input,[data-theme="dark"] select,[data-theme="dark"] textarea{color-scheme:dark}
+
+/* ── Section B: inline-style neutralizers ── */
+/* light surfaces → dark surfaces */
+[data-theme="dark"] [style*="background:#fff"],[data-theme="dark"] [style*="background:#FFF"],[data-theme="dark"] [style*="background:white"]{background:var(--card)!important}
+[data-theme="dark"] [style*="background:#F5F8FC"]{background:var(--bg)!important}
+[data-theme="dark"] [style*="background:#F5F7FA"],[data-theme="dark"] [style*="background:#F0F4FF"],[data-theme="dark"] [style*="background:#f0f4ff"]{background:#1B2740!important}
+[data-theme="dark"] [style*="background:#f8faff"],[data-theme="dark"] [style*="background:#F8FAFD"]{background:#18233A!important}
+[data-theme="dark"] [style*="background:#F5F5F5"],[data-theme="dark"] [style*="background:#F0F0F0"]{background:#202B3E!important}
+/* tinted banners */
+[data-theme="dark"] [style*="background:#FFF8E1"],[data-theme="dark"] [style*="background:#FEF3C7"],[data-theme="dark"] [style*="background:#FFFDF5"]{background:#332C18!important}
+[data-theme="dark"] [style*="background:#E3F2FD"]{background:#1B2C45!important}
+[data-theme="dark"] [style*="background:#E8F5E9"],[data-theme="dark"] [style*="background:#f0fff4"]{background:#1D3326!important}
+[data-theme="dark"] [style*="background:#FFEBEE"]{background:#3A2226!important}
+[data-theme="dark"] [style*="background:#FFF3E0"]{background:#3A2C1C!important}
+[data-theme="dark"] [style*="background:#F3E5F5"]{background:#2E2140!important}
+[data-theme="dark"] [style*="background:#ECEFF1"]{background:#232C36!important}
+/* dark-on-light text → light equivalents */
+[data-theme="dark"] [style*="color:#1B3A6B"]{color:#BFD3F2!important}
+[data-theme="dark"] [style*="color:#03308B"],[data-theme="dark"] [style*="color:#0D47A1"]{color:#9FC0FF!important}
+[data-theme="dark"] [style*="color:#1A202C"]{color:var(--text)!important}
+[data-theme="dark"] [style*="color:#2E5FA3"]{color:#8FB4E8!important}
+[data-theme="dark"] [style*="color:#475569"],[data-theme="dark"] [style*="color:#555"]{color:#A7B7CD!important}
+[data-theme="dark"] [style*="color:#444"],[data-theme="dark"] [style*="color:#666"]{color:#9FB0C6!important}
+[data-theme="dark"] [style*="color:#888"]{color:#8FA1B8!important}
+[data-theme="dark"] [style*="color:#999"]{color:#8296AD!important}
+[data-theme="dark"] [style*="color:#6B7B8F"]{color:var(--muted)!important}
+/* accent text: readable-on-dark variants (identity preserved) */
+[data-theme="dark"] [style*="color:#7F6000"]{color:#E5CE8F!important}
+[data-theme="dark"] [style*="color:#B8860B"]{color:#E2B75C!important}
+[data-theme="dark"] [style*="color:#C62828"]{color:#FF8F8F!important}
+[data-theme="dark"] [style*="color:#C53030"]{color:#FF9B9B!important}
+[data-theme="dark"] [style*="color:#2E7D32"]{color:#7CDA8C!important}
+[data-theme="dark"] [style*="color:#E65100"]{color:#FFA366!important}
+[data-theme="dark"] [style*="color:#6A1B9A"]{color:#CE93E8!important}
+[data-theme="dark"] [style*="color:#1565C0"]{color:#7FB3F0!important}
+[data-theme="dark"] [style*="color:#00695C"],[data-theme="dark"] [style*="color:#00897B"]{color:#5FD0C0!important}
+/* light borders */
+[data-theme="dark"] [style*="solid #ddd"],[data-theme="dark"] [style*="solid #eee"],[data-theme="dark"] [style*="solid #ccc"]{border-color:var(--line)!important}
+[data-theme="dark"] [style*="solid #a5d6a7"]{border-color:#2F5B3A!important}
+[data-theme="dark"] [style*="solid #FFE082"],[data-theme="dark"] [style*="solid #EADFC0"],[data-theme="dark"] [style*="solid #FFE0B2"]{border-color:#4A3F22!important}
+/* NOTE: solid-fill badges (gold/navy/green/red buttons & pills) are left
+   untouched on purpose — they carry white/navy text and read perfectly on dark. */
