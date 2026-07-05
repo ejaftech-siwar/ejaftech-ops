@@ -277,3 +277,75 @@ body{padding-bottom:env(safe-area-inset-bottom,0px)}
 [data-theme="dark"] [style*="solid #FFE082"],[data-theme="dark"] [style*="solid #EADFC0"],[data-theme="dark"] [style*="solid #FFE0B2"]{border-color:#4A3F22!important}
 /* NOTE: solid-fill badges (gold/navy/green/red buttons & pills) are left
    untouched on purpose — they carry white/navy text and read perfectly on dark. */
+
+/* ═══ Dark v2 — GENERATED exhaustive light-background neutralizers ═══ */
+[data-theme="dark"] [style*="background:#B2DFDB"]{background:#1D3326!important}
+[data-theme="dark"] [style*="background:#BBDEFB"]{background:#1B2740!important}
+[data-theme="dark"] [style*="background:#C5CAE9"]{background:#1B2740!important}
+[data-theme="dark"] [style*="background:#E0E8F0"]{background:#1B2740!important}
+[data-theme="dark"] [style*="background:#E0F2F1"]{background:#1D3326!important}
+[data-theme="dark"] [style*="background:#E2E8F0"]{background:#1B2740!important}
+[data-theme="dark"] [style*="background:#E3F2FD"]{background:#1B2740!important}
+[data-theme="dark"] [style*="background:#E8EAF6"]{background:#1B2740!important}
+[data-theme="dark"] [style*="background:#E8F0FE"]{background:#1B2740!important}
+[data-theme="dark"] [style*="background:#E8F2E8"]{background:#1D3326!important}
+[data-theme="dark"] [style*="background:#E8F5E9"]{background:#1D3326!important}
+[data-theme="dark"] [style*="background:#F0F0F0"]{background:#2E2140!important}
+[data-theme="dark"] [style*="background:#F0F4FA"]{background:#1B2740!important}
+[data-theme="dark"] [style*="background:#F0F4FF"]{background:#1B2740!important}
+[data-theme="dark"] [style*="background:#F0F7F0"]{background:#1D3326!important}
+[data-theme="dark"] [style*="background:#F0F7FF"]{background:#1B2740!important}
+[data-theme="dark"] [style*="background:#F1F5F9"]{background:#1B2740!important}
+[data-theme="dark"] [style*="background:#F3E5F5"]{background:#2E2140!important}
+[data-theme="dark"] [style*="background:#F5E3B0"]{background:#332C18!important}
+[data-theme="dark"] [style*="background:#F5F5F5"]{background:#2E2140!important}
+[data-theme="dark"] [style*="background:#F5F7FA"]{background:#1B2740!important}
+[data-theme="dark"] [style*="background:#F5F8FC"]{background:#1B2740!important}
+[data-theme="dark"] [style*="background:#F7F7F7"]{background:#2E2140!important}
+[data-theme="dark"] [style*="background:#F7FAF8"]{background:#1D3326!important}
+[data-theme="dark"] [style*="background:#F7FAFC"]{background:#1B2740!important}
+[data-theme="dark"] [style*="background:#F7FAFF"]{background:#1B2740!important}
+[data-theme="dark"] [style*="background:#F8FAFC"]{background:#1B2740!important}
+[data-theme="dark"] [style*="background:#F8FAFD"]{background:#1B2740!important}
+[data-theme="dark"] [style*="background:#F8FAFF"]{background:#1B2740!important}
+[data-theme="dark"] [style*="background:#FBF5FC"]{background:#2E2140!important}
+[data-theme="dark"] [style*="background:#FCE4EC"]{background:#3A2230!important}
+[data-theme="dark"] [style*="background:#FEE2E2"]{background:#3A2230!important}
+[data-theme="dark"] [style*="background:#FEF3C7"]{background:#332C18!important}
+[data-theme="dark"] [style*="background:#FFEBEE"]{background:#3A2230!important}
+[data-theme="dark"] [style*="background:#FFF3E0"]{background:#332C18!important}
+[data-theme="dark"] [style*="background:#FFF5F8"]{background:#3A2230!important}
+[data-theme="dark"] [style*="background:#FFF8E1"]{background:#332C18!important}
+[data-theme="dark"] [style*="background:#FFFBEB"]{background:#332C18!important}
+[data-theme="dark"] [style*="background:#FFFDF5"]{background:#3A2230!important}
+[data-theme="dark"] [style*="background:#FFFDF7"]{background:#3A2230!important}
+[data-theme="dark"] [style*="background:#FFFEF7"]{background:#3A2230!important}
+[data-theme="dark"] [style*="background:#f0f0f0"]{background:#2E2140!important}
+[data-theme="dark"] [style*="background:#f0f4ff"]{background:#1B2740!important}
+[data-theme="dark"] [style*="background:#f0fff4"]{background:#1D3326!important}
+[data-theme="dark"] [style*="background:#f5f7ff"]{background:#1B2740!important}
+[data-theme="dark"] [style*="background:#f8faff"]{background:#1B2740!important}
+/* light gradients */
+[data-theme="dark"] [style*="linear-gradient(135deg,#E3F2FD 0%"]{background:#1B2C45!important}
+[data-theme="dark"] [style*="linear-gradient(135deg,#E8F4FD 0%"]{background:#1B2C45!important}
+[data-theme="dark"] [style*="linear-gradient(135deg,#F0F4FA 0%"]{background:#18233A!important}
+[data-theme="dark"] [style*="linear-gradient(135deg,#FFF3E0 0%"]{background:#332C18!important}
+[data-theme="dark"] [style*="linear-gradient(135deg,#FFF8E1 0%"]{background:#332C18!important}
+/* class-based components */
+[data-theme="dark"] .tbl tr:nth-child(even) td{background:#101B2E}
+[data-theme="dark"] .donut-leg-item{background:#18233A}
+[data-theme="dark"] .proj-chip{background:#18233A;color:#BFD3F2}
+[data-theme="dark"] .user-row{background:var(--card)}
+[data-theme="dark"] .badge-hr{background:#1B2C45}
+[data-theme="dark"] .badge-admin{background:#3A2226}
+[data-theme="dark"] .badge-emp{background:#202B3E}
+[data-theme="dark"] .loader{background:var(--bg)}
+[data-theme="dark"] .login-bg{background:var(--bg)}
+[data-theme="dark"] .login-card{background:var(--card)}
+[data-theme="dark"] .login-err{background:#3A2226;border-color:#5C3236}
+/* navy TEXT (token stays navy for backgrounds; text needs light variants) */
+[data-theme="dark"] .card-title,[data-theme="dark"] .login-card h2,[data-theme="dark"] .dept-row .name,
+[data-theme="dark"] .donut-leg-name,[data-theme="dark"] .user-info .name{color:#BFD3F2}
+[data-theme="dark"] .btn-ghost{color:#BFD3F2;border-color:#3E5A85}
+
+[data-theme="dark"] [style*="color:var(--navy)"]{color:#BFD3F2!important}
