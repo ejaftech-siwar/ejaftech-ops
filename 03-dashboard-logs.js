@@ -441,8 +441,7 @@ function renderDailyLog(){
     </div>
     <div class="btn-row">
       <button class="btn btn-primary" onclick="saveDaily()">${dailyEditId?"Update":"Add Entry"}</button>
-      ${dailyEditId?`<button class="btn btn-ghost" onclick="cancelDaily()">Cancel</button>`:!isEmployee()?`<button class="btn btn-ghost" style="background:#FFF8E1;border:1px solid #C9A84C;color:#7F6000" onclick="saveDailyAndNext()" title="Save and keep date/time/project to add same task for another employee">💾 Save & Add for Another Employee</button>`:""}
-      ${!dailyEditId?`<button class="btn btn-ghost" style="background:#E8F5E9;border:1px solid #66BB6A;color:#2E7D32" onclick="startNewDailyEntry()" title="Clear everything and start a fresh blank entry">➕ Start New Entry</button>`:""}
+      ${dailyEditId?`<button class="btn btn-ghost" onclick="cancelDaily()">Cancel</button>`:!isEmployee()?`<button class="btn btn-ghost" style="background:#FFF8E1;border:1px solid #C9A84C;color:#7F6000" onclick="saveDailyAndNext()" title="Save and keep ALL task details (incl. resolution) to add the same task for another employee">💾 Save & Add for Another Employee</button>`:""}
     </div>
   </div>
 
@@ -621,6 +620,8 @@ async function saveDaily(){
   window._devEdit = null;
 
   dailyForm=null;dailyEditId=null;
+  render();
+  window.scrollTo({top:0, behavior:'smooth'});   // fresh blank form, back at Employee
   toast("Saved ✓");
   // WhatsApp stays manual (📲 button per row).
   // Email logic:
@@ -665,45 +666,18 @@ async function saveDailyAndNext(){
   if((emailGetSettings().triggers||[]).includes("daily")){
     bufferTaskEmail(recordForEmail);
   }
-  // Keep only the fields meant to carry over (date/time/project/location/dept),
-  // and rebuild a GUARANTEED-CLEAN form object so no stale state lingers.
+  // SAME TASK, ANOTHER EMPLOYEE: keep EVERYTHING the user filled —
+  // date/time/project/location/area/site, equipment/device, the full
+  // Resolution (work type, status, category, subcategory, text, photos)
+  // and notes. Only the employee is cleared for the next person.
   const savedEmp = dailyForm.employee;
-  const carry = {
-    date: dailyForm.date,
-    project: dailyForm.project,
-    start: dailyForm.start,
-    end: dailyForm.end,
-    location: dailyForm.location,
-    area: dailyForm.area,
-    site: dailyForm.site,
-  };
-  window._devEdit = null;        // clear any device-edit buffer
-  dailyForm = {
-    ...carry,
-    employee: "",                // next employee
-    equipment: "",
-    deviceSerial: "",
-    workType: "", taskStatus: "", taskCategory: "", taskSubcategory: "",
-    resolutionText: "",
-    resolutionImages: [],
-    notes: "",
-  };
+  window._devEdit = null;        // device-edit buffer applies to the saved entry only
+  dailyForm = { ...dailyForm, employee: "" };
   render();
   // Scroll back to the top of the form so the user clearly sees the fresh entry
   window.scrollTo({top:0, behavior:'smooth'});
-  toast(`Saved for ${savedEmp} ✓ — ready for next employee`);
+  toast(`Saved for ${savedEmp} ✓ — same task ready for next employee`);
 }
-
-// Fully clear the Daily Log form and start a brand-new blank entry.
-// Fixes the case where, after several "Save & Add", the form needs a clean reset.
-window.startNewDailyEntry = function(){
-  window._devEdit = null;
-  dailyForm = null;       // renderDailyLog rebuilds a fresh blank form when null
-  dailyEditId = null;
-  render();
-  window.scrollTo({top:0, behavior:'smooth'});
-  toast("New blank entry ✓");
-};
 
 // ── Combined email buffer for "Save & Add for Another Employee" ──
 // Collects entries, then sends ONE email listing all employees after a pause.
