@@ -349,3 +349,40 @@ body{padding-bottom:env(safe-area-inset-bottom,0px)}
 [data-theme="dark"] .btn-ghost{color:#BFD3F2;border-color:#3E5A85}
 
 [data-theme="dark"] [style*="color:var(--navy)"]{color:#BFD3F2!important}
+
+/* ═══ Dark v3 — dynamic/edge coverage ═══ */
+/* inputs & placeholders anywhere (modals with bare inputs had black text) */
+[data-theme="dark"] input,[data-theme="dark"] select,[data-theme="dark"] textarea{color:var(--text)}
+[data-theme="dark"] ::placeholder{color:#7285A0;opacity:1}
+/* remaining dark TEXT hexes → readable equivalents */
+[data-theme="dark"] [style*="color:#333"]{color:#C6D2E2!important}
+[data-theme="dark"] [style*="color:#334155"]{color:#A7B7CD!important}
+[data-theme="dark"] [style*="color:#64748B"],[data-theme="dark"] [style*="color:#94A3B8"]{color:#A7B7CD!important}
+[data-theme="dark"] [style*="color:#0F2347"]{color:#BFD3F2!important}
+[data-theme="dark"] [style*="color:#5C4A12"],[data-theme="dark"] [style*="color:#7F4A00"],[data-theme="dark"] [style*="color:#B26A00"]{color:#E5CE8F!important}
+[data-theme="dark"] [style*="color:#5D4037"]{color:#C7A79A!important}
+[data-theme="dark"] [style*="color:#004D40"]{color:#5FD0C0!important}
+[data-theme="dark"] [style*="color:#880E4F"],[data-theme="dark"] [style*="color:#C2185B"]{color:#F48FB1!important}
+[data-theme="dark"] [style*="color:#3949AB"]{color:#9FA8DA!important}
+[data-theme="dark"] [style*="color:#2F855A"],[data-theme="dark"] [style*="color:#2e7d32"],[data-theme="dark"] [style*="color:#558B2F"]{color:#7CDA8C!important}
+[data-theme="dark"] [style*="color:#BF360C"]{color:#FF8A65!important}
+[data-theme="dark"] [style*="color:#DC2626"],[data-theme="dark"] [style*="color:#c62828"],[data-theme="dark"] [style*="color:#C53030"]{color:#FF9B9B!important}
+[data-theme="dark"] [style*="color:#B8860B"]{color:#E2B75C!important}
+[data-theme="dark"] [style*="border-bottom:1px solid #f0f0f0"]{border-bottom-color:var(--line)!important}
+/* GOLD-SURFACE EXCEPTIONS: dark text must STAY dark on gold pills/buttons
+   (double-attribute selectors outrank the single-attribute light-text rules) */
+[data-theme="dark"] [style*="background:#C9A84C"][style*="color:#1B3A6B"],
+[data-theme="dark"] [style*="background:#C9A84C"][style*="color:#03308B"],
+[data-theme="dark"] [style*="background:#E4C97A"][style*="color:#1B3A6B"],
+[data-theme="dark"] [style*="background:#D4AF37"][style*="color:#1B3A6B"],
+[data-theme="dark"] [style*="background:#F5E3B0"][style*="color:#7F6000"],
+[data-theme="dark"] [style*="background:#C9A84C"][style*="color:var(--navy)"]{color:#1B2A45!important}
+/* _pills inactive state (conditional template: '#E8EEF7' + navy text) */
+[data-theme="dark"] [style*="background:#E8EEF7"]{background:#1B2740!important;color:#BFD3F2!important}
+/* quoted-template light hexes */
+[data-theme="dark"] [style*="#E0E0E0"]{background:#1B2740!important;color:#BFD3F2!important}
+[data-theme="dark"] [style*="#E0E6ED"]{background:#1B2740!important;color:#BFD3F2!important}
+[data-theme="dark"] [style*="#E0F7FA"]{background:#1B2740!important;color:#BFD3F2!important}
+[data-theme="dark"] [style*="#E1F5FE"]{background:#1B2740!important;color:#BFD3F2!important}
+[data-theme="dark"] [style*="#EEF4FF"]{background:#1B2740!important;color:#BFD3F2!important}
+[data-theme="dark"] [style*="#FFF8E8"]{background:#1B2740!important;color:#BFD3F2!important}
