@@ -1181,19 +1181,44 @@ async function seedDefaults(){
   }catch(e){console.error(e);}
 }
 
+// ── AUDIT LOG: every save/delete is recorded (who, what, when) ──
+const AUDIT_SKIP=new Set(["auditLog","notifications","counters"]);
+function auditLabel(col,item){
+  if(!item) return "";
+  return item.name||item.title||item.serialNumber||item.deviceName||
+         (item.employee?`${item.employee} · ${item.date||""}`:"")||item.email||"";
+}
+function logAudit(action,col,id,item){
+  try{
+    if(AUDIT_SKIP.has(col)) return;
+    if(!state.profile||!state.profile.uid) return;
+    const {db,collection,addDoc}=window.__fb;
+    addDoc(collection(db,"auditLog"),{
+      ts:new Date().toISOString(),
+      uid:state.profile.uid,
+      user:state.profile.name||state.profile.email||"",
+      action, col, docId:id,
+      label:String(auditLabel(col,item)).slice(0,120),
+    }).catch(()=>{});   // never block or break the actual operation
+  }catch(e){}
+}
+
 async function fbSave(col,item){
   try{
     const{db,doc,setDoc}=window.__fb;
     const id=item.id||(Date.now().toString(36)+Math.random().toString(36).slice(2,6));
     const data={...item};delete data.id;
     await setDoc(doc(db,col,id),data);
+    logAudit(item&&item.id?"update":"create",col,id,item);
   }catch(e){console.error(e);toast("Save failed: "+e.message);}
 }
 
 async function fbDelete(col,id){
   try{
     const{db,doc,deleteDoc}=window.__fb;
+    const _prev=(state[col]||[]).find(x=>x.id===id);
     await deleteDoc(doc(db,col,id));
+    logAudit("delete",col,id,_prev);
   }catch(e){console.error(e);toast("Delete failed");}
 }
 
@@ -1311,7 +1336,7 @@ function renderApp(){
           <h1>Girêk</h1>
           ${state.tab==="Dashboard"?"":`<p><span id="periodLabelInline" onclick="editPeriod(event)" style="cursor:pointer;white-space:nowrap;display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;vertical-align:bottom;font-size:10.5px;${(getPeriodFrom()||getPeriodTo())?'background:#C9A84C;color:#03308B;padding:2px 10px;border-radius:12px;font-weight:700':'text-decoration:underline dotted;opacity:0.9'}">${(getPeriodFrom()||getPeriodTo())?'📅 ':''}${escapeHtml(shortPeriod())}${(getPeriodFrom()||getPeriodTo())?' ✕':''}</span></p>`}
         </div>
-        <span id="netDot" title="You are offline — changes will sync when back online" style="display:${(typeof navigator!=='undefined'&&navigator.onLine===false)?'inline-flex':'none'};align-items:center;gap:5px;background:#7A1F1F;color:#FFD9D9;font-size:10px;font-weight:800;padding:4px 9px;border-radius:12px;margin-right:4px">📴 OFFLINE</span><button id="themeBtn" onclick="toggleTheme()" title="Light / Dark mode" style="background:rgba(255,255,255,0.14);border:none;border-radius:8px;width:32px;height:32px;font-size:15px;cursor:pointer;margin-right:2px;line-height:1">${document.documentElement.getAttribute('data-theme')==='dark'?ICON_SUN:ICON_MOON}</button><span id="notifBell" onclick="openNotifPanel()" style="position:relative;cursor:pointer;font-size:20px;padding:4px 6px;margin-right:2px;user-select:none" class="bell-btn ${unreadNotifCount()>0?'ring':''}">${ICON_BELL}<span id="notifBellBadge" style="position:absolute;top:0;right:-2px;background:#C62828;color:#fff;font-size:9px;font-weight:800;min-width:15px;height:15px;border-radius:8px;display:${unreadNotifCount()>0?'flex':'none'};align-items:center;justify-content:center;padding:0 3px">${unreadNotifCount()>99?'99+':unreadNotifCount()}</span></span>
+        <button id="cmdkBtn" onclick="openCmdK()" title="Search everything (Ctrl+K)" style="background:rgba(255,255,255,0.14);border:none;border-radius:8px;width:32px;height:32px;cursor:pointer;margin-right:4px;color:#F4D061;display:inline-flex;align-items:center;justify-content:center">${_svg('<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>')}</button><span id="netDot" title="You are offline — changes will sync when back online" style="display:${(typeof navigator!=='undefined'&&navigator.onLine===false)?'inline-flex':'none'};align-items:center;gap:5px;background:#7A1F1F;color:#FFD9D9;font-size:10px;font-weight:800;padding:4px 9px;border-radius:12px;margin-right:4px">📴 OFFLINE</span><button id="themeBtn" onclick="toggleTheme()" title="Light / Dark mode" style="background:rgba(255,255,255,0.14);border:none;border-radius:8px;width:32px;height:32px;font-size:15px;cursor:pointer;margin-right:2px;line-height:1">${document.documentElement.getAttribute('data-theme')==='dark'?ICON_SUN:ICON_MOON}</button><span id="notifBell" onclick="openNotifPanel()" style="position:relative;cursor:pointer;font-size:20px;padding:4px 6px;margin-right:2px;user-select:none" class="bell-btn ${unreadNotifCount()>0?'ring':''}">${ICON_BELL}<span id="notifBellBadge" style="position:absolute;top:0;right:-2px;background:#C62828;color:#fff;font-size:9px;font-weight:800;min-width:15px;height:15px;border-radius:8px;display:${unreadNotifCount()>0?'flex':'none'};align-items:center;justify-content:center;padding:0 3px">${unreadNotifCount()>99?'99+':unreadNotifCount()}</span></span>
         <button onclick="switchTab('Profile')" title="My Profile" style="width:40px;height:40px;border-radius:50%;padding:0;border:2px solid var(--gold);background:var(--navy);color:var(--gold);font-weight:800;font-size:15px;cursor:pointer;overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.25)">${(state.profile&&state.profile.photoData)?`<img src="${state.profile.photoData}" alt="" style="width:100%;height:100%;object-fit:cover">`:escapeHtml(((state.profile&&(state.profile.name||state.profile.employeeName||state.profile.email))||"?").charAt(0).toUpperCase())}</button>
       </div>
       ${(()=>{
@@ -2013,3 +2038,71 @@ window.addEventListener('scroll',()=>{try{document.body.classList.toggle('hdr-co
 // ── Connection awareness: badge + toasts, so field staff always know ──
 window.addEventListener('offline',()=>{try{const d=document.getElementById('netDot');if(d)d.style.display='inline-flex';toast('⚠ Offline — your changes are saved locally and will sync automatically');}catch(e){}});
 window.addEventListener('online',()=>{try{const d=document.getElementById('netDot');if(d)d.style.display='none';toast('Back online — syncing ✓');}catch(e){}});
+
+// ═══════════ COMMAND PALETTE — search everything, jump anywhere ═══════════
+let _ckSel=0,_ckRes=[];
+function _ckRecent(){try{return JSON.parse(localStorage.getItem('girek-cmdk')||'[]')}catch(e){return[]}}
+function _ckPushRecent(q){try{const r=[q,..._ckRecent().filter(x=>x!==q)].slice(0,5);localStorage.setItem('girek-cmdk',JSON.stringify(r));}catch(e){}}
+function _hl(t,q){const i=t.toLowerCase().indexOf(q.toLowerCase());if(i<0||!q)return escapeHtml(t);return escapeHtml(t.slice(0,i))+'<mark class="ck-hl">'+escapeHtml(t.slice(i,i+q.length))+'</mark>'+escapeHtml(t.slice(i+q.length));}
+function cmdkSearch(q){
+  const out=[];const Q=q.toLowerCase();
+  const add=(group,icon,title,meta,go,score)=>out.push({group,icon,title,meta,go,score});
+  const m=(s)=>{s=String(s||'').toLowerCase();if(!Q)return 0;if(s===Q)return 100;if(s.startsWith(Q))return 60;if(s.includes(Q))return 30;return -1;};
+  // Tabs (respect visibility)
+  (getTabs()||[]).forEach(t=>{const sc=m(t);if(sc>=0)add('Go to','🧭',t,'tab',()=>switchTab(t),sc+20);});
+  if(isClient()){
+    const cr=getMyClientRecord();
+    if(cr){
+      (cr.projects||[]).forEach(p=>{const sc=m(p);if(sc>=0)add('Projects','📁',p,'your project',()=>switchTab('My Project'),sc);});
+      (state.devices||[]).filter(d=>(cr.projects||[]).includes(d.project)).forEach(d=>{
+        const sc=Math.max(m(d.serialNumber),m(d.deviceName),m(d.model));
+        if(sc>=0)add('Devices','📟',d.deviceName||d.model||d.serialNumber||'Device',(d.serialNumber?('SN:'+d.serialNumber+' · '):'')+(d.site||''),()=>switchTab('My Project'),sc);});
+      (state.clientRequests||[]).filter(r=>r.clientId===cr.id).forEach(r=>{const sc=m(r.title);if(sc>=0)add('Requests','📨',r.title||'',r.status||'',()=>switchTab('Requests'),sc);});
+    }
+  } else {
+    (state.projects||[]).forEach(p=>{const sc=Math.max(m(p.name),m((p.codes||[]).join(' ')));if(sc>=0)add('Projects','📁',p.name||'',p.status||'',()=>{switchTab('Projects');},sc);});
+    (state.devices||[]).forEach(d=>{const sc=Math.max(m(d.serialNumber),m(d.deviceName),m(d.model),m(d.ipAddress));
+      if(sc>=0)add('Devices','📟',d.deviceName||d.model||d.serialNumber||'Device',(d.serialNumber?('SN:'+d.serialNumber+' · '):'')+(d.project||''),()=>{window._devProjFilter=d.project||'';switchTab('Assets');},sc);});
+    if(isAdmin()||isHR()){
+      (state.users||[]).forEach(u=>{const sc=Math.max(m(u.name),m(u.email),m(u.employeeName));if(sc>=0)add('People','👤',u.name||u.email||'',u.role||'',()=>switchTab('Users'),sc);});
+      (state.clients||[]).forEach(cl=>{const sc=m(cl.name);if(sc>=0)add('Clients','🤝',cl.name||'',(cl.projects||[]).length+' project(s)',()=>switchTab('Clients'),sc);});
+    }
+    (state.clientRequests||[]).forEach(r=>{const sc=m(r.title);if(sc>=0)add('Requests','📨',r.title||'',r.clientName||'',()=>switchTab('Requests'),sc);});
+    (state.daily||[]).slice(-800).forEach(r=>{const sc=Math.max(m(r.resolutionText),m(r.notes),m(r.employee));
+      if(sc>=30)add('Work Log','📝',`#${r.entryNo||'—'} · ${r.employee||''}`,`${fmtDate(r.date)} · ${r.project||''}`,()=>switchTab('Daily Log'),sc-10);});
+  }
+  return out.filter(x=>x.score>=0).sort((a,b)=>b.score-a.score).slice(0,12);
+}
+function _ckRender(q){
+  const list=document.getElementById('ckList');if(!list)return;
+  if(!q){const rec=_ckRecent();
+    list.innerHTML=rec.length?('<div class="ck-g">Recent</div>'+rec.map((r,i)=>`<div class="ck-it" onclick="document.getElementById('ckInput').value='${escapeHtml(r)}';window._ckType()">${_svg('<polyline points=\'1 4 1 10 7 10\'/><path d=\'M3.51 15a9 9 0 1 0 2.13-9.36L1 10\'/>')} ${escapeHtml(r)}</div>`).join('')):'<div class="ck-empty">Type to search projects, devices, people, requests…</div>';
+    _ckRes=[];return;}
+  _ckRes=cmdkSearch(q);_ckSel=0;
+  if(!_ckRes.length){list.innerHTML='<div class="ck-empty">No matches for "'+escapeHtml(q)+'"</div>';return;}
+  let g='';list.innerHTML=_ckRes.map((r,i)=>{
+    const gh=r.group!==g?`<div class="ck-g">${r.group}</div>`:'';g=r.group;
+    return gh+`<div class="ck-it ${i===_ckSel?'sel':''}" data-i="${i}" onclick="_ckGo(${i})"><span class="ck-ic">${r.icon}</span><span class="ck-t">${_hl(r.title,q)}</span><span class="ck-m">${escapeHtml(r.meta||'')}</span></div>`;
+  }).join('');
+}
+window._ckType=function(){const q=document.getElementById('ckInput').value.trim();_ckRender(q);};
+window._ckGo=function(i){const r=_ckRes[i];if(!r)return;const q=document.getElementById('ckInput').value.trim();if(q)_ckPushRecent(q);closeCmdK();r.go();};
+window.openCmdK=function(){
+  let ov=document.getElementById('cmdk');
+  if(!ov){ov=document.createElement('div');ov.id='cmdk';document.body.appendChild(ov);
+    ov.innerHTML='<div class="ck-box"><input id="ckInput" placeholder="Search everything…  (projects · devices · people · requests)" autocomplete="off" oninput="_ckType()"><div id="ckList"></div><div class="ck-ft">↑↓ navigate · Enter open · Esc close</div></div>';
+    ov.addEventListener('click',e=>{if(e.target===ov)closeCmdK();});}
+  ov.classList.add('open');const inp=document.getElementById('ckInput');if(inp){inp.value='';setTimeout(()=>inp.focus(),30);}_ckRender('');
+};
+window.closeCmdK=function(){const ov=document.getElementById('cmdk');if(ov)ov.classList.remove('open');};
+document.addEventListener('keydown',e=>{
+  try{
+    if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();openCmdK();return;}
+    const ov=document.getElementById('cmdk');if(!ov||!ov.classList.contains('open'))return;
+    if(e.key==='Escape')closeCmdK();
+    else if(e.key==='ArrowDown'){_ckSel=Math.min(_ckSel+1,_ckRes.length-1);_ckPaint();}
+    else if(e.key==='ArrowUp'){_ckSel=Math.max(_ckSel-1,0);_ckPaint();}
+    else if(e.key==='Enter'&&_ckRes.length){_ckGo(_ckSel);}
+  }catch(err){}
+});
+function _ckPaint(){document.querySelectorAll('#ckList .ck-it').forEach((el)=>{el.classList.toggle('sel',Number(el.dataset.i)===_ckSel);});}

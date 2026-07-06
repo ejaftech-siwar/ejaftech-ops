@@ -326,6 +326,19 @@ function renderEntryManage(){
         <div style="font-size:10px;color:#999;margin-top:5px">Set each project's status in <strong>Database → Projects</strong>; clients see it on their portal.</div>
       </div>
     </div>`; }
+  // ═══ AUDIT LOG (admin) ═══
+  if(emv!=="employees"){
+    const rows=window._auditRows;
+    h += `<div class="card" style="border-left:4px solid #546E7A">
+      <div class="filter-row"><span class="card-title" style="margin:0">🕵️ Audit Log</span>
+        <button class="btn btn-sm" style="background:#546E7A;color:white;border:none;font-weight:700" onclick="loadAuditLog()">${rows?'↻ Refresh':'Load latest 100'}</button></div>
+      <p style="font-size:11px;color:var(--muted);margin:4px 0 10px">Who changed what, and when — saves and deletions across the whole app. Immutable.</p>
+      ${!rows?'':rows.length===0?'<div class="empty">No audit entries yet</div>':`
+      <div class="tbl-wrap"><table class="tbl"><thead><tr><th>When</th><th>User</th><th>Action</th><th>Where</th><th>Item</th></tr></thead><tbody>
+        ${rows.map(r=>`<tr><td style="white-space:nowrap">${escapeHtml((r.ts||'').slice(0,16).replace('T',' '))}</td><td>${escapeHtml(r.user||'')}</td><td><span style="font-size:10px;font-weight:800;color:${r.action==='delete'?'#C62828':r.action==='create'?'#2E7D32':'#E65100'}">${escapeHtml((r.action||'').toUpperCase())}</span></td><td>${escapeHtml(r.col||'')}</td><td>${escapeHtml(r.label||r.docId||'')}</td></tr>`).join('')}
+      </tbody></table></div>`}
+    </div>`;
+  }
   return h;
 }
 function passwordStrengthBar(pw){
@@ -591,3 +604,12 @@ Object.assign(window, {copyAppLink, shareAppLink, downloadQR});
 // ═══════════════════════════════════════════════════════════════════════
 //  FLEXIBLE REPORTS — Date range filtering
 // ═══════════════════════════════════════════════════════════════════════
+
+window.loadAuditLog=async function(){
+  try{
+    const {db,collection,query,orderBy,limit,getDocs}=window.__fb;
+    const snap=await getDocs(query(collection(db,"auditLog"),orderBy("ts","desc"),limit(100)));
+    window._auditRows=snap.docs.map(d=>({id:d.id,...d.data()}));
+    render();
+  }catch(e){toast("Audit load failed: "+e.message);}
+};

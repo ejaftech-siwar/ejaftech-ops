@@ -6,7 +6,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-auth.js";
 import {
   getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
-  collection, doc, getDoc, setDoc, updateDoc, deleteDoc, onSnapshot, query, where, getDocs, addDoc, runTransaction, deleteField
+  collection, doc, getDoc, setDoc, updateDoc, deleteDoc, onSnapshot, query, where, orderBy, limit, getDocs, addDoc, runTransaction, deleteField
 } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js";
 
 // ╔═══════════════════════════════════════════════════════════════════╗
@@ -46,7 +46,7 @@ if (isConfigured) {
       app, auth, db,
       signInWithEmailAndPassword, signOut, onAuthStateChanged, createUserWithEmailAndPassword,
       updatePassword, sendPasswordResetEmail, reauthenticateWithCredential, EmailAuthProvider,
-      collection, doc, getDoc, setDoc, updateDoc, deleteDoc, onSnapshot, query, where, getDocs, addDoc, runTransaction, deleteField
+      collection, doc, getDoc, setDoc, updateDoc, deleteDoc, onSnapshot, query, where, orderBy, limit, getDocs, addDoc, runTransaction, deleteField
     };
   } catch(e) { console.error("Firebase init error:", e); }
 }
