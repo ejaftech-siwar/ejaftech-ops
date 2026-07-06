@@ -5,7 +5,8 @@ import {
   updatePassword, sendPasswordResetEmail, reauthenticateWithCredential, EmailAuthProvider
 } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-auth.js";
 import {
-  getFirestore, collection, doc, getDoc, setDoc, updateDoc, deleteDoc, onSnapshot, query, where, getDocs, addDoc, runTransaction, deleteField
+  getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
+  collection, doc, getDoc, setDoc, updateDoc, deleteDoc, onSnapshot, query, where, getDocs, addDoc, runTransaction, deleteField
 } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js";
 
 // ╔═══════════════════════════════════════════════════════════════════╗
@@ -29,7 +30,17 @@ if (isConfigured) {
   try {
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
-    const db = getFirestore(app); // uses (default) database
+    // OFFLINE-FIRST: persistent local cache — reads serve instantly from
+    // device storage, writes queue while offline and sync automatically.
+    let db;
+    try {
+      db = initializeFirestore(app, {
+        localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+      });
+    } catch(e) {
+      console.warn("Persistent cache unavailable, falling back:", e.message);
+      db = getFirestore(app);
+    }
     window.__fb = {
       isConfigured: true,
       app, auth, db,

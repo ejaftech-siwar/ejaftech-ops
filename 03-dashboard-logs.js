@@ -175,7 +175,39 @@ function renderDashboard(){
 // ═══════════════════════════════════════════════════════════════════════
 //  DAILY LOG
 // ═══════════════════════════════════════════════════════════════════════
+// ── Daily Log AUTO-DRAFT: never lose a half-filled entry again ──
+// Event-driven (no timers): every input/change while on Daily Log persists
+// the form locally; restored automatically after any reload/crash.
+const DAILY_DRAFT_KEY='girek-draft-daily-v1';
+let _draftTimer=null;
+function saveDailyDraft(){
+  try{
+    if(state.tab!=="Daily Log" || !dailyForm || dailyEditId) return;
+    localStorage.setItem(DAILY_DRAFT_KEY, JSON.stringify(dailyForm));
+  }catch(e){
+    // Quota (photos too large): keep the text fields at least
+    try{ const {resolutionImages, ...rest}=dailyForm; rest._imagesDropped=true;
+         localStorage.setItem(DAILY_DRAFT_KEY, JSON.stringify(rest)); }catch(_){}
+  }
+}
+function scheduleDailyDraft(){ clearTimeout(_draftTimer); _draftTimer=setTimeout(saveDailyDraft, 700); }
+function loadDailyDraft(){
+  try{ const s=localStorage.getItem(DAILY_DRAFT_KEY); return s?JSON.parse(s):null; }catch(e){ return null; }
+}
+function clearDailyDraft(){ try{ localStorage.removeItem(DAILY_DRAFT_KEY); }catch(e){} }
+document.addEventListener('input',  ()=>{ if(state.tab==="Daily Log") scheduleDailyDraft(); });
+document.addEventListener('change', ()=>{ if(state.tab==="Daily Log") scheduleDailyDraft(); });
+window.addEventListener('beforeunload', saveDailyDraft);
+
 function renderDailyLog(){
+  if(!dailyForm){
+    const _draft=loadDailyDraft();
+    if(_draft && !dailyEditId){
+      dailyForm=_draft;
+      if(!window._draftToastShown){ window._draftToastShown=true;
+        setTimeout(()=>toast(_draft._imagesDropped?"Draft restored (photos need re-attaching) ✓":"Draft restored — continue where you left off ✓"),400); }
+    }
+  }
   if(!dailyForm){
     dailyForm={
       date:today(),
@@ -621,6 +653,7 @@ async function saveDaily(){
 
   dailyForm=null;dailyEditId=null;
   render();
+  clearDailyDraft();
   window.scrollTo({top:0, behavior:'smooth'});   // fresh blank form, back at Employee
   toast("Saved ✓");
   // WhatsApp stays manual (📲 button per row).
@@ -673,6 +706,7 @@ async function saveDailyAndNext(){
   const savedEmp = dailyForm.employee;
   window._devEdit = null;        // device-edit buffer applies to the saved entry only
   dailyForm = { ...dailyForm, employee: "" };
+  saveDailyDraft();   // carried task survives even a sudden reload
   render();
   // Scroll back to the top of the form so the user clearly sees the fresh entry
   window.scrollTo({top:0, behavior:'smooth'});
