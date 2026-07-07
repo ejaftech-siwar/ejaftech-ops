@@ -1311,7 +1311,7 @@ function renderApp(){
           <h1>Girêk</h1>
           ${state.tab==="Dashboard"?"":`<p><span id="periodLabelInline" onclick="editPeriod(event)" style="cursor:pointer;white-space:nowrap;display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;vertical-align:bottom;font-size:10.5px;${(getPeriodFrom()||getPeriodTo())?'background:#C9A84C;color:#03308B;padding:2px 10px;border-radius:12px;font-weight:700':'text-decoration:underline dotted;opacity:0.9'}">${(getPeriodFrom()||getPeriodTo())?'📅 ':''}${escapeHtml(shortPeriod())}${(getPeriodFrom()||getPeriodTo())?' ✕':''}</span></p>`}
         </div>
-        <span id="netDot" title="You are offline — changes will sync when back online" style="display:${(typeof navigator!=='undefined'&&navigator.onLine===false)?'inline-flex':'none'};align-items:center;gap:5px;background:#7A1F1F;color:#FFD9D9;font-size:10px;font-weight:800;padding:4px 9px;border-radius:12px;margin-right:4px">📴 OFFLINE</span><span id="alertBell" onclick="openAlerts()" title="Smart alerts" style="position:relative;cursor:pointer;padding:4px 6px;margin-right:2px;color:#F4D061;display:inline-flex;align-items:center" class="bell-btn">${_svg('<path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M18.63 13A17.89 17.89 0 0 1 18 8"/><path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14"/><path d="M18 8a6 6 0 0 0-9.33-5"/><line x1="1" y1="1" x2="23" y2="23"/>')}<span id="alertDot" style="position:absolute;top:0;right:-2px;background:#E65100;color:#fff;font-size:9px;font-weight:800;min-width:15px;height:15px;border-radius:8px;display:none;align-items:center;justify-content:center;padding:0 3px"></span></span><button id="themeBtn" onclick="toggleTheme()" title="Light / Dark mode" style="background:rgba(255,255,255,0.14);border:none;border-radius:8px;width:32px;height:32px;font-size:15px;cursor:pointer;margin-right:2px;line-height:1">${document.documentElement.getAttribute('data-theme')==='dark'?ICON_SUN:ICON_MOON}</button><span id="notifBell" onclick="openNotifPanel()" style="position:relative;cursor:pointer;font-size:20px;padding:4px 6px;margin-right:2px;user-select:none" class="bell-btn ${unreadNotifCount()>0?'ring':''}">${ICON_BELL}<span id="notifBellBadge" style="position:absolute;top:0;right:-2px;background:#C62828;color:#fff;font-size:9px;font-weight:800;min-width:15px;height:15px;border-radius:8px;display:${unreadNotifCount()>0?'flex':'none'};align-items:center;justify-content:center;padding:0 3px">${unreadNotifCount()>99?'99+':unreadNotifCount()}</span></span>
+        <span id="netDot" title="You are offline — changes will sync when back online" style="display:${(typeof navigator!=='undefined'&&navigator.onLine===false)?'inline-flex':'none'};align-items:center;gap:5px;background:#7A1F1F;color:#FFD9D9;font-size:10px;font-weight:800;padding:4px 9px;border-radius:12px;margin-right:4px">📴 OFFLINE</span><button id="themeBtn" onclick="toggleTheme()" title="Light / Dark mode" style="background:rgba(255,255,255,0.14);border:none;border-radius:8px;width:32px;height:32px;font-size:15px;cursor:pointer;margin-right:2px;line-height:1">${document.documentElement.getAttribute('data-theme')==='dark'?ICON_SUN:ICON_MOON}</button><span id="notifBell" onclick="openNotifPanel()" style="position:relative;cursor:pointer;font-size:20px;padding:4px 6px;margin-right:2px;user-select:none" class="bell-btn ${unreadNotifCount()>0?'ring':''}">${ICON_BELL}<span id="notifBellBadge" style="position:absolute;top:0;right:-2px;background:#C62828;color:#fff;font-size:9px;font-weight:800;min-width:15px;height:15px;border-radius:8px;display:${unreadNotifCount()>0?'flex':'none'};align-items:center;justify-content:center;padding:0 3px">${unreadNotifCount()>99?'99+':unreadNotifCount()}</span></span>
         <button onclick="switchTab('Profile')" title="My Profile" style="width:40px;height:40px;border-radius:50%;padding:0;border:2px solid var(--gold);background:var(--navy);color:var(--gold);font-weight:800;font-size:15px;cursor:pointer;overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.25)">${(state.profile&&state.profile.photoData)?`<img src="${state.profile.photoData}" alt="" style="width:100%;height:100%;object-fit:cover">`:escapeHtml(((state.profile&&(state.profile.name||state.profile.employeeName||state.profile.email))||"?").charAt(0).toUpperCase())}</button>
       </div>
       ${(()=>{
@@ -1346,7 +1346,6 @@ function renderApp(){
   // Position the sliding gold indicators on initial render.
   // Double rAF + timeout fallback ensures layout is fully measured first.
   renderBottomNav();
-  if(typeof refreshAlertBadge==="function") refreshAlertBadge();
   requestAnimationFrame(()=>requestAnimationFrame(()=>{ positionTabIndicator(); positionGroupIndicator(); }));
   setTimeout(()=>{ positionTabIndicator(); positionGroupIndicator(); }, 100);
   // Enable swipe navigation between tabs (mobile)
@@ -2014,76 +2013,3 @@ window.addEventListener('scroll',()=>{try{document.body.classList.toggle('hdr-co
 // ── Connection awareness: badge + toasts, so field staff always know ──
 window.addEventListener('offline',()=>{try{const d=document.getElementById('netDot');if(d)d.style.display='inline-flex';toast('⚠ Offline — your changes are saved locally and will sync automatically');}catch(e){}});
 window.addEventListener('online',()=>{try{const d=document.getElementById('netDot');if(d)d.style.display='none';toast('Back online — syncing ✓');}catch(e){}});
-
-// ═══════════════════════════════════════════════════════════════════════
-//  SMART ALERTS — proactive, computed from state (offline-safe, read-only)
-//  Surfaces things you'd otherwise have to go looking for. Admin/HR only.
-// ═══════════════════════════════════════════════════════════════════════
-function computeAlerts(){
-  if(!(isAdmin()||isHR())) return [];
-  const out=[], now=new Date();
-  const daily=state.daily||[], devices=state.devices||[], projects=state.projects||[], reqs=state.clientRequests||[];
-  const dstr=(n)=>new Date(now-n*864e5).toISOString().slice(0,10);
-
-  // 1) Warranty: expired + expiring within 30 days
-  let expired=0, soon=0;
-  devices.forEach(d=>{ const s=toDateStr(d.warrantyExp); const w=s?new Date(s):null;
-    if(w&&!isNaN(w)){ const diff=(w-now)/864e5; if(diff<0)expired++; else if(diff<=30)soon++; } });
-  if(expired>0) out.push({sev:"high",icon:"🛡️",title:`${expired} device${expired>1?'s':''} out of warranty`,meta:"Review renewals / replacements",go:()=>switchTab("Analytics")});
-  if(soon>0)    out.push({sev:"med",icon:"⏳",title:`${soon} warranty${soon>1?'ies':'y'} expiring ≤ 30 days`,meta:"Plan ahead",go:()=>switchTab("Analytics")});
-
-  // 2) Project health: over budget / near budget (needs estimatedHours)
-  const projHrs={}; daily.forEach(r=>{const p=(r.project||"").trim(); if(p)projHrs[p]=(projHrs[p]||0)+Number(r.duration||0);});
-  projects.filter(p=>Number(p.estimatedHours||0)>0).forEach(p=>{
-    const est=Number(p.estimatedHours)*60, used=projHrs[(p.name||"").trim()]||0, pct=Math.round(used/est*100);
-    if(pct>100) out.push({sev:"high",icon:"🏗️",title:`${p.name} is over budget (${pct}%)`,meta:`${fmtHM(used)} of ${fmtHM(est)}`,go:()=>switchTab("Analytics")});
-    else if(pct>=90) out.push({sev:"med",icon:"🏗️",title:`${p.name} near budget (${pct}%)`,meta:"Watch closely",go:()=>switchTab("Analytics")});
-  });
-
-  // 3) Idle tracked employees: no entry in 3+ days
-  const tracked={}; (state.users||[]).forEach(u=>{ if(u.isTrackedEmployee && u.employeeName) tracked[u.employeeName]=null; });
-  daily.forEach(r=>{ if(r.employee && (r.employee in tracked)){ if(!tracked[r.employee]||r.date>tracked[r.employee]) tracked[r.employee]=r.date; } });
-  const d3=dstr(3);
-  Object.entries(tracked).forEach(([e,last])=>{
-    if(!last) out.push({sev:"med",icon:"👤",title:`${e} has no work entries yet`,meta:"Tracked employee",go:()=>switchTab("Daily Log")});
-    else if(last<d3) out.push({sev:"low",icon:"👤",title:`${e} — no entry since ${fmtDate(last)}`,meta:"3+ days idle",go:()=>switchTab("Daily Log")});
-  });
-
-  // 4) Pending client requests (new/unfinished) & device-edit suggestions
-  const openReq=reqs.filter(r=>r.status==="new").length;
-  if(openReq>0) out.push({sev:"med",icon:"📨",title:`${openReq} new client request${openReq>1?'s':''} awaiting review`,meta:"Requests tab",go:()=>switchTab("Requests")});
-
-  // priority order
-  const rank={high:0,med:1,low:2};
-  return out.sort((a,b)=>rank[a.sev]-rank[b.sev]);
-}
-window._alertsCache=[];
-function alertCountHigh(){ try{ return window._alertsCache.filter(a=>a.sev==="high").length; }catch(e){ return 0; } }
-window.openAlerts=function(){
-  window._alertsCache=computeAlerts();
-  let ov=document.getElementById('alertsPanel');
-  if(!ov){ ov=document.createElement('div'); ov.id='alertsPanel'; document.body.appendChild(ov);
-    ov.addEventListener('click',e=>{if(e.target===ov)ov.classList.remove('open');}); }
-  const A=window._alertsCache;
-  const sevc={high:"#C62828",med:"#E65100",low:"#2E5FA3"};
-  ov.innerHTML=`<div class="al-box">
-    <div class="al-hd"><span>🔔 Smart Alerts</span><button onclick="document.getElementById('alertsPanel').classList.remove('open')" class="al-x">✕</button></div>
-    <div class="al-list">${A.length?A.map((a,i)=>`<div class="al-it" onclick="_alertGo(${i})">
-      <span class="al-dot" style="background:${sevc[a.sev]}"></span>
-      <span class="al-ic">${a.icon}</span>
-      <span class="al-tx"><span class="al-t">${escapeHtml(a.title)}</span><span class="al-m">${escapeHtml(a.meta||'')}</span></span>
-    </div>`).join(''):'<div class="al-empty">✅ All clear — nothing needs attention.</div>'}</div>
-    <div class="al-ft">Computed live from your data · updates each time you open this</div>
-  </div>`;
-  ov.classList.add('open');
-};
-window._alertGo=function(i){ const a=window._alertsCache[i]; document.getElementById('alertsPanel').classList.remove('open'); if(a&&a.go)a.go(); };
-// keep the header badge fresh
-function refreshAlertBadge(){ try{
-  window._alertsCache=computeAlerts();
-  const b=document.getElementById('alertDot'); if(!b)return;
-  const n=window._alertsCache.length, hi=alertCountHigh();
-  b.style.display=n>0?'flex':'none';
-  b.textContent=n>99?'99+':n;
-  b.style.background=hi>0?'#C62828':'#E65100';
-}catch(e){} }
