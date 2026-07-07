@@ -903,7 +903,7 @@ function renderAssets(){
   })()}`+`
     <div class="form-grid">
       <div class="field"><label>Serial Number <span class="req">*</span></label>
-        <input value="${escapeHtml(deviceForm.serialNumber)}" oninput="window.deviceForm.serialNumber=this.value" placeholder="e.g. FOC1234X5YZ" ${deviceEditId?'disabled style="background:#f0f0f0"':''}></div>
+        <div style="display:flex;gap:6px"><input style="flex:1" value="${escapeHtml(deviceForm.serialNumber)}" oninput="window.deviceForm.serialNumber=this.value" placeholder="e.g. FOC1234X5YZ" ${deviceEditId?'disabled style="background:#f0f0f0"':''}>${deviceEditId?'':'<button type="button" onclick="openScanner(v=>{window.deviceForm.serialNumber=v;render();})" title="Scan barcode" style="background:#03308B;color:#C9A84C;border:none;border-radius:8px;width:42px;cursor:pointer;font-size:18px">📷</button>'}</div></div>
       <div class="field"><label>Device Name</label>
         <input value="${escapeHtml(deviceForm.deviceName)}" oninput="window.deviceForm.deviceName=this.value" placeholder="e.g. Core Switch"></div>
       <div class="field"><label>Device Code</label>
@@ -1135,3 +1135,45 @@ Object.defineProperty(window,'assetFilterProject',{get:()=>assetFilterProject,se
 Object.defineProperty(window,'assetFilterStatus',{get:()=>assetFilterStatus,set:v=>assetFilterStatus=v,configurable:true});
 
 
+
+
+// ═══════════════════════════════════════════════════════════════════════
+//  BARCODE / QR SCANNER — fills a serial field from the device camera.
+//  Uses @zxing/library (loaded in index.html). Fails gracefully if absent.
+// ═══════════════════════════════════════════════════════════════════════
+let _zxReader=null, _zxStream=null;
+window.openScanner=function(targetSetter){
+  window._scanTarget=targetSetter;
+  let ov=document.getElementById('scanOv');
+  if(!ov){ov=document.createElement('div');ov.id='scanOv';document.body.appendChild(ov);}
+  ov.innerHTML=`<div class="scan-box">
+    <div class="scan-hd"><span>📷 Scan barcode / QR</span><button class="al-x" onclick="closeScanner()">✕</button></div>
+    <div class="scan-vidwrap"><video id="scanVid" playsinline></video><div class="scan-frame"></div></div>
+    <div class="scan-hint" id="scanHint">Point the camera at the device barcode…</div>
+    <div class="scan-ft"><input id="scanManual" placeholder="…or type it manually" oninput="0"><button class="btn btn-sm" style="background:#03308B;color:#C9A84C;border:none;font-weight:700" onclick="scanManualApply()">Use</button></div>
+  </div>`;
+  ov.classList.add('open');
+  startScan();
+};
+function startScan(){
+  const hint=document.getElementById('scanHint');
+  if(typeof ZXing==="undefined"){ if(hint){hint.textContent="Scanner library not loaded — type the code manually below."; hint.style.color="#C62828";} return; }
+  try{
+    _zxReader=new ZXing.BrowserMultiFormatReader();
+    _zxReader.decodeFromVideoDevice(null, 'scanVid', (result, err)=>{
+      if(result){ const txt=result.getText(); applyScan(txt); }
+    }).catch(e=>{ if(hint){hint.textContent="Camera unavailable: "+e.message+" — type manually."; hint.style.color="#C62828";} });
+  }catch(e){ if(hint){hint.textContent="Scanner error — type manually."; hint.style.color="#C62828";} }
+}
+function applyScan(txt){
+  try{ if(navigator.vibrate) navigator.vibrate(60); }catch(e){}
+  if(window._scanTarget) window._scanTarget(String(txt).trim());
+  toast("Scanned: "+txt);
+  closeScanner();
+}
+window.scanManualApply=function(){ const v=(document.getElementById('scanManual')||{}).value; if(v&&v.trim()) applyScan(v.trim()); };
+window.closeScanner=function(){
+  try{ if(_zxReader){_zxReader.reset();_zxReader=null;} }catch(e){}
+  const ov=document.getElementById('scanOv'); if(ov)ov.classList.remove('open');
+  render();
+};
