@@ -433,3 +433,160 @@ window.downloadImportTemplate = function(){
   toast("Template downloaded ✓");
 };
 
+
+// ═══════════════════════════════════════════════════════════════════════
+//  SMART ANALYTICS — trends, rankings, forecasts & health (all in-memory)
+//  Admin + HR · ignores the global period filter on purpose (trends need
+//  full history) · works offline (reads only from state).
+// ═══════════════════════════════════════════════════════════════════════
+function _anMonths(n){
+  const out=[],d=new Date();d.setDate(1);
+  for(let i=n-1;i>=0;i--){const x=new Date(d.getFullYear(),d.getMonth()-i,1);
+    out.push(`${x.getFullYear()}-${String(x.getMonth()+1).padStart(2,"0")}`);}
+  return out;
+}
+const _anMLabel=(k)=>["","Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][Number(k.slice(5,7))]+" "+k.slice(2,4);
+function _anSpark(vals,color){
+  const w=300,h=64,p=6,mx=Math.max(...vals,1);
+  const pts=vals.map((v,i)=>[p+i*(w-2*p)/Math.max(vals.length-1,1), h-p-(v/mx)*(h-2*p)]);
+  const line=pts.map((pt,i)=>(i?"L":"M")+pt[0].toFixed(1)+" "+pt[1].toFixed(1)).join(" ");
+  const area=line+` L${pts[pts.length-1][0].toFixed(1)} ${h-2} L${pts[0][0].toFixed(1)} ${h-2} Z`;
+  return `<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:64px;display:block">
+    <path d="${area}" fill="${color}" opacity="0.15"/>
+    <path d="${line}" fill="none" stroke="${color}" stroke-width="2.5" stroke-linecap="round"/>
+    ${pts.map(pt=>`<circle cx="${pt[0].toFixed(1)}" cy="${pt[1].toFixed(1)}" r="2.4" fill="${color}"/>`).join("")}
+  </svg>`;
+}
+function _anBar(label,val,max,color,meta){
+  const pct=max>0?Math.max(2,Math.round(val/max*100)):0;
+  return `<div class="an-row"><div class="an-rl"><span>${escapeHtml(label)}</span><span class="an-rm">${meta||""}</span></div>
+    <div class="an-tr"><div class="an-fl" style="width:${pct}%;background:${color}"></div></div></div>`;
+}
+function _anDelta(cur,prev){
+  if(prev<=0) return cur>0?`<span class="an-up">▲ new</span>`:"";
+  const d=Math.round((cur-prev)/prev*100);
+  if(d===0) return `<span class="an-eq">— 0%</span>`;
+  return d>0?`<span class="an-up">▲ ${d}%</span>`:`<span class="an-dn">▼ ${Math.abs(d)}%</span>`;
+}
+function renderAnalytics(){
+  if(!(isAdmin()||isHR())) return `<div class="card"><div class="empty">Admin / HR only.</div></div>`;
+  const daily=state.daily||[], devices=state.devices||[], projects=state.projects||[], reqs=state.clientRequests||[];
+  const now=new Date(), todayK=now.toISOString().slice(0,7);
+  const months=_anMonths(12), prevK=months[months.length-2];
+
+  // 1) Monthly hours
+  const byM={}; daily.forEach(r=>{const k=String(r.date||"").slice(0,7); if(k) byM[k]=(byM[k]||0)+Number(r.duration||0);});
+  const series=months.map(k=>byM[k]||0);
+  const curM=series[series.length-1], prevM=series[series.length-2]||0;
+
+  // 2) Locations
+  const locAll={},locCur={},locPrev={};
+  daily.forEach(r=>{const L=r.location||"—",k=String(r.date||"").slice(0,7),m=Number(r.duration||0);
+    locAll[L]=(locAll[L]||0)+m; if(k===todayK)locCur[L]=(locCur[L]||0)+m; if(k===prevK)locPrev[L]=(locPrev[L]||0)+m;});
+  const locTop=Object.entries(locAll).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  const locMax=locTop.length?locTop[0][1]:0, locTotal=Object.values(locAll).reduce((s,v)=>s+v,0);
+
+  // 3) Warranty forecast
+  const parsed=devices.map(d=>{const s=toDateStr(d.warrantyExp);const t=s?new Date(s):null;
+    return {d,w:(t&&!isNaN(t))?t:null};}).filter(x=>x.w);
+  const expired=parsed.filter(x=>x.w<now);
+  const in30=parsed.filter(x=>{const diff=(x.w-now)/864e5;return diff>=0&&diff<=30;});
+  const fut={}; parsed.forEach(x=>{const k=x.w.toISOString().slice(0,7); fut[k]=(fut[k]||0)+1;});
+  const futMonths=(()=>{const o=[];for(let i=0;i<6;i++){const x=new Date(now.getFullYear(),now.getMonth()+i,1);
+    o.push(`${x.getFullYear()}-${String(x.getMonth()+1).padStart(2,"0")}`);}return o;})();
+  const futMax=Math.max(...futMonths.map(k=>fut[k]||0),1);
+  const soonest=parsed.filter(x=>x.w>=now).sort((a,b)=>a.w-b.w).slice(0,8);
+
+  // 4) Team (last 90d)
+  const D=(n)=>new Date(now-n*864e5).toISOString().slice(0,10);
+  const d90=D(90),d28=D(28),d56=D(56);
+  const emp={},empA={},empB={},empType={};
+  daily.forEach(r=>{const e=r.employee||"—",dt=r.date||"",m=Number(r.duration||0);
+    if(dt>=d90){emp[e]=(emp[e]||0)+m;const t=r.workType||"";
+      if(t){empType[e]=empType[e]||{};empType[e][t]=(empType[e][t]||0)+1;}}
+    if(dt>=d28)empA[e]=(empA[e]||0)+m; else if(dt>=d56)empB[e]=(empB[e]||0)+m;});
+  const empTop=Object.entries(emp).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  const empMax=empTop.length?empTop[0][1]:0;
+  const topType=(e)=>{const t=Object.entries(empType[e]||{}).sort((a,b)=>b[1]-a[1]);return t.length?t[0][0]:"";};
+
+  // 5) Project health
+  const projHrs={}; daily.forEach(r=>{const p=(r.project||"").trim(); if(p)projHrs[p]=(projHrs[p]||0)+Number(r.duration||0);});
+  const health=projects.filter(p=>Number(p.estimatedHours||0)>0).map(p=>{
+    const est=Number(p.estimatedHours)*60, used=projHrs[(p.name||"").trim()]||0;
+    return {name:p.name,used,est,pct:Math.round(used/est*100),status:p.status||""};
+  }).sort((a,b)=>b.pct-a.pct);
+
+  // 6) Requests
+  const rCur=reqs.filter(r=>String(r.createdAt||"").slice(0,7)===todayK).length;
+  const rPrev=reqs.filter(r=>String(r.createdAt||"").slice(0,7)===prevK).length;
+  const byStatus={}; reqs.forEach(r=>{const s=r.status||"—";byStatus[s]=(byStatus[s]||0)+1;});
+  const byClient={}; reqs.forEach(r=>{const cn=r.clientName||"—";byClient[cn]=(byClient[cn]||0)+1;});
+  const clTop=Object.entries(byClient).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  const done=reqs.filter(r=>r.status==="completed"&&r.updatedAt&&r.createdAt);
+  const avgDays=done.length?(done.reduce((s,r)=>s+(new Date(r.updatedAt)-new Date(r.createdAt))/864e5,0)/done.length).toFixed(1):null;
+  const pretty=(s)=>String(s||"").replace(/_/g," ").replace(/\b\w/g,ch=>ch.toUpperCase());
+
+  return `
+  <div class="card" style="background:linear-gradient(135deg,#1B3A6B,#2E5FA3);border:none;color:white">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+      <div><div style="font-size:17px;font-weight:800">📊 Smart Analytics</div>
+      <div style="font-size:11px;opacity:.75;margin-top:2px">All-time & recent trends · independent of the period filter · works offline</div></div>
+      <div style="text-align:right"><div style="font-size:22px;font-weight:800;color:#C9A84C">${fmtHM(curM)}</div>
+      <div style="font-size:10px;opacity:.8">this month ${_anDelta(curM,prevM)}</div></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">📈 Monthly Hours — last 12 months</div>
+    ${daily.length?_anSpark(series,"#C9A84C"):'<div class="empty">No work entries yet</div>'}
+    <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-top:4px">
+      <span>${_anMLabel(months[0])}</span><span>${_anMLabel(months[6])}</span><span>${_anMLabel(months[11])}</span>
+    </div>
+  </div>
+  <div class="an-grid">
+    <div class="card">
+      <div class="card-title">📍 Top Locations — hours share</div>
+      ${locTop.length?locTop.map(([L,v])=>_anBar(L,v,locMax,"#2E5FA3",
+        `${fmtHM(v)} · ${locTotal?Math.round(v/locTotal*100):0}% ${_anDelta(locCur[L]||0,locPrev[L]||0)}`)).join(""):'<div class="empty">No data</div>'}
+    </div>
+    <div class="card">
+      <div class="card-title">🛡️ Warranty Forecast</div>
+      <div style="display:flex;gap:10px;margin-bottom:12px">
+        <div class="an-kpi" style="border-color:#C62828"><div class="an-kv" style="color:#C62828">${expired.length}</div><div class="an-kl">expired</div></div>
+        <div class="an-kpi" style="border-color:#E65100"><div class="an-kv" style="color:#E65100">${in30.length}</div><div class="an-kl">&le; 30 days</div></div>
+        <div class="an-kpi" style="border-color:#2E7D32"><div class="an-kv" style="color:#2E7D32">${parsed.length}</div><div class="an-kl">tracked</div></div>
+      </div>
+      ${futMonths.map(k=>_anBar(_anMLabel(k),fut[k]||0,futMax,"#E65100",`${fut[k]||0} device(s)`)).join("")}
+      ${soonest.length?`<div style="font-size:11px;color:var(--muted);margin:10px 0 4px;font-weight:700">Soonest to expire:</div>`+
+        soonest.map(x=>`<div style="font-size:11px;padding:3px 0;border-bottom:1px solid var(--line)">📟 ${escapeHtml(x.d.deviceName||x.d.model||"Device")} <span style="color:var(--muted)">· ${escapeHtml(x.d.serialNumber||"")} · ${escapeHtml(x.d.site||"")} · <strong>${toDateStr(x.d.warrantyExp)}</strong></span></div>`).join(""):""}
+    </div>
+    <div class="card">
+      <div class="card-title">👥 Team Productivity — last 90 days</div>
+      ${empTop.length?empTop.map(([e,v])=>_anBar(e,v,empMax,"#6A1B9A",
+        `${fmtHM(v)} ${_anDelta(empA[e]||0,empB[e]||0)}${topType(e)?` · ${escapeHtml(topType(e))}`:""}`)).join(""):'<div class="empty">No data</div>'}
+      <div style="font-size:10px;color:var(--muted);margin-top:6px">▲▼ compares the last 28 days with the 28 before</div>
+    </div>
+    <div class="card">
+      <div class="card-title">🏗️ Project Health — consumed vs estimated</div>
+      ${health.length?health.map(p=>{
+        const col=p.pct>100?"#C62828":p.pct>=80?"#E65100":"#2E7D32";
+        const flag=p.pct>100?"&#9888; Over budget":p.pct>=80?"Watch":"On track";
+        return `<div class="an-row"><div class="an-rl"><span>${escapeHtml(p.name)}${p.status?` <span style="font-size:9px;background:#F0F4FF;color:#03308B;border:1px solid #C9A84C;padding:1px 7px;border-radius:9px;font-weight:800">${escapeHtml(p.status)}</span>`:""}</span>
+          <span class="an-rm" style="color:${col};font-weight:800">${p.pct}% · ${flag}</span></div>
+          <div class="an-tr"><div class="an-fl" style="width:${Math.min(p.pct,100)}%;background:${col}"></div></div>
+          <div style="font-size:10px;color:var(--muted)">${fmtHM(p.used)} of ${fmtHM(p.est)}</div></div>`;
+      }).join(""):'<div class="empty">Set Estimated Hours on projects to see health</div>'}
+    </div>
+    <div class="card">
+      <div class="card-title">📨 Client Requests</div>
+      <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+        <div class="an-kpi" style="border-color:#03308B"><div class="an-kv" style="color:#03308B">${rCur}</div><div class="an-kl">this month ${_anDelta(rCur,rPrev)}</div></div>
+        <div class="an-kpi" style="border-color:#00897B"><div class="an-kv" style="color:#00897B">${avgDays!==null?avgDays+"d":"—"}</div><div class="an-kl">avg completion</div></div>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
+        ${Object.entries(byStatus).map(([s,n])=>`<span style="font-size:11px;font-weight:700;background:#F0F4FF;color:#03308B;padding:4px 10px;border-radius:12px">${escapeHtml(pretty(s))} · ${n}</span>`).join("")||'<span class="empty">No requests yet</span>'}
+      </div>
+      ${clTop.length?`<div style="font-size:11px;color:var(--muted);font-weight:700;margin-bottom:4px">Most active clients:</div>`+
+        clTop.map(([cn,n])=>_anBar(cn,n,clTop[0][1],"#00897B",`${n} request(s)`)).join(""):""}
+    </div>
+  </div>`;
+}
