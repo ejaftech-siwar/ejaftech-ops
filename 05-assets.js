@@ -1206,35 +1206,67 @@ window.closeScanner=function(){
 Object.defineProperty(window,'assetFilterWarranty',{get:()=>assetFilterWarranty,set:v=>assetFilterWarranty=v});
 
 // ═══════════════════════════════════════════════════════════════════════
-//  PREVENTIVE MAINTENANCE — schedules, due tracking, mark-done history
-//  + DEVICE TIMELINE — the full life story of any asset, from data you
-//    already have (work entries, suggestions, PM history, install/warranty)
+//  PREVENTIVE MAINTENANCE v2 — hierarchical scope + project filter
+//  A schedule can target: whole Project (by name/code) › Area › Site › Device.
+//  Devices are always identified by SERIAL + MODEL (as in Assets) so
+//  identical names can never be confused.
+//  + DEVICE TIMELINE — the full life story of any asset.
 // ═══════════════════════════════════════════════════════════════════════
-let pmForm=null, pmEditId=null;
+let pmForm=null, pmEditId=null, pmProjFilter="";
 function _pmAddDays(ds,n){ const d=new Date(ds); d.setDate(d.getDate()+Number(n||0));
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; }
 function pmNextDue(s){ return s.lastDone ? _pmAddDays(s.lastDone, s.freqDays) : (s.startDate || today()); }
 function pmDaysLeft(s){ return Math.floor((new Date(pmNextDue(s)) - new Date(today()))/864e5); }
-function pmStatusCounts(){
-  const act=(state.pmSchedules||[]).filter(s=>s.active!==false);
+function pmStatusCounts(list){
+  const act=(list||state.pmSchedules||[]).filter(s=>s.active!==false);
   let overdue=0, soon=0;
   act.forEach(s=>{ const d=pmDaysLeft(s); if(d<0)overdue++; else if(d<=7)soon++; });
   return {overdue, soon, total:act.length};
 }
+// Device label — ALWAYS serial + name + model (matches Assets identity)
+function _pmDevLabel(d){
+  return `SN:${d.serialNumber||"—"} · ${d.deviceName||"Device"}${d.model?` · ${d.model}`:""}${d.site?` · ${d.site}`:""}`;
+}
+function _pmProjCodes(name){
+  const p=(state.projects||[]).find(x=>(x.name||"").trim()===(name||"").trim());
+  return (p&&Array.isArray(p.codes)&&p.codes.length)?p.codes:[];
+}
 function _pmTargetLabel(s){
-  if(s.deviceSerial){ const d=(state.devices||[]).find(x=>x.serialNumber===s.deviceSerial);
-    return d ? `${d.deviceName||d.model||"Device"} · ${s.deviceSerial}` : s.deviceSerial; }
-  return s.target || "General";
+  const parts=[];
+  if(s.project){ const c=_pmProjCodes(s.project); parts.push(s.project+(c.length?` [${c[0]}]`:"")); }
+  if(s.area) parts.push(s.area);
+  if(s.site) parts.push(s.site);
+  if(s.deviceSerial){
+    const d=(state.devices||[]).find(x=>x.serialNumber===s.deviceSerial);
+    parts.push(d?`${d.deviceName||"Device"} (SN:${s.deviceSerial}${d.model?` · ${d.model}`:""})`:`SN:${s.deviceSerial}`);
+  }
+  return parts.length?parts.join(" › "):"General";
 }
 function renderMaintenance(){
   if(!isAdmin()) return `<div class="card"><div class="empty">Admin only.</div></div>`;
-  if(!pmForm) pmForm={title:"",deviceSerial:"",freqDays:90,startDate:today(),notes:""};
-  const list=(state.pmSchedules||[]).slice().sort((a,b)=>pmNextDue(a).localeCompare(pmNextDue(b)));
+  if(!pmForm) pmForm={title:"",project:"",area:"",site:"",deviceSerial:"",freqDays:90,startDate:today(),notes:""};
+  const all=(state.pmSchedules||[]).slice().sort((a,b)=>pmNextDue(a).localeCompare(pmNextDue(b)));
+  const list = pmProjFilter ? all.filter(s=>(s.project||"")===pmProjFilter) : all;
   const act=list.filter(s=>s.active!==false);
   const overdue=act.filter(s=>pmDaysLeft(s)<0);
   const soon=act.filter(s=>{const d=pmDaysLeft(s);return d>=0&&d<=7;});
-  const devOpts=(state.devices||[]).slice().sort((a,b)=>(a.deviceName||"").localeCompare(b.deviceName||""))
-    .map(d=>`<option value="${escapeHtml(d.serialNumber||"")}" ${pmForm.deviceSerial===(d.serialNumber||"")?"selected":""}>${escapeHtml(d.deviceName||d.model||"Device")} — ${escapeHtml(d.serialNumber||"")} (${escapeHtml(d.project||"")})</option>`).join("");
+  const gc=pmStatusCounts(list);
+
+  // ── cascading options for the form ──
+  const projSel=(state.projects||[]).slice().sort((a,b)=>(a.name||"").localeCompare(b.name||""));
+  const selProj=projSel.find(p=>(p.name||"").trim()===(pmForm.project||"").trim());
+  const areas=selProj?getProjectAreas(selProj).filter(a=>a.active!==false):[];
+  const selArea=areas.find(a=>a.name===pmForm.area);
+  const sites=(selArea?.sites||[]).filter(x=>x.active!==false);
+  let devPool=(state.devices||[]);
+  if(pmForm.project) devPool=devPool.filter(d=>(d.project||"").trim()===(pmForm.project||"").trim());
+  if(pmForm.site)    devPool=devPool.filter(d=>(d.site||"")===pmForm.site);
+  devPool=devPool.slice().sort((a,b)=>(a.serialNumber||"").localeCompare(b.serialNumber||""));
+  const devOpts=devPool.map(d=>`<option value="${escapeHtml(d.serialNumber||"")}" ${pmForm.deviceSerial===(d.serialNumber||"")?"selected":""}>${escapeHtml(_pmDevLabel(d))}${!pmForm.project?` — ${escapeHtml(d.project||"")}`:""}</option>`).join("");
+
+  // ── project filter options (projects that have schedules) ──
+  const projsWithPM=[...new Set(all.map(s=>s.project).filter(Boolean))].sort();
+
   const dueRow=(s)=>{const dl=pmDaysLeft(s);const od=dl<0;
     return `<div class="pm-due ${od?'od':'sn'}">
       <div style="flex:1;min-width:0">
@@ -1243,29 +1275,89 @@ function renderMaintenance(){
       </div>
       <button class="btn btn-sm" style="background:#2E7D32;color:#fff;border:none;font-weight:800" onclick="markPMDone('${s.id}')">✔ Done</button>
     </div>`;};
+
+  // grouped table (by site/area) when a project is selected — professional detail view
+  const tableRows=(rows)=>rows.map(s=>{
+    const dl=pmDaysLeft(s), off=s.active===false;
+    const col=off?'var(--muted)':dl<0?'#C62828':dl<=7?'#E65100':'#2E7D32';
+    return `<tr style="${off?'opacity:.5':''}">
+      <td style="font-weight:700">${escapeHtml(s.title)}</td>
+      <td style="font-size:11px">${escapeHtml(_pmTargetLabel(s))}</td>
+      <td>${s.freqDays}d</td>
+      <td style="font-size:11px">${s.lastDone?fmtDate(s.lastDone):'—'}</td>
+      <td style="font-weight:800;color:${col}">${fmtDate(pmNextDue(s))}${off?' (paused)':dl<0?` · ${Math.abs(dl)}d late`:''}</td>
+      <td style="white-space:nowrap">
+        <button class="btn btn-sm" style="background:#2E7D32;color:#fff;border:none" title="Mark done today" onclick="markPMDone('${s.id}')">✔</button>
+        <button class="btn btn-sm btn-secondary" onclick="editPM('${s.id}')">✎</button>
+        <button class="btn btn-sm" style="background:${off?'#2E5FA3':'#8496AC'};color:#fff;border:none" title="${off?'Resume':'Pause'}" onclick="togglePM('${s.id}')">${off?'▶':'⏸'}</button>
+        <button class="btn btn-sm btn-danger" onclick="delPM('${s.id}')">🗑</button>
+      </td></tr>`;}).join("");
+  let tableBody;
+  if(pmProjFilter){
+    const groups={};
+    list.forEach(s=>{const k=s.site||s.area||"Project-wide";(groups[k]=groups[k]||[]).push(s);});
+    tableBody=Object.entries(groups).map(([g,rows])=>
+      `<tr><td colspan="6" style="background:var(--line);font-weight:800;font-size:11px;letter-spacing:.5px;padding:6px 10px">📍 ${escapeHtml(g)} · ${rows.length}</td></tr>`+tableRows(rows)
+    ).join("");
+  } else tableBody=tableRows(list);
+
+  const filterCodes=pmProjFilter?_pmProjCodes(pmProjFilter):[];
   return `
   <div class="card" style="background:linear-gradient(135deg,#1B3A6B,#2E5FA3);border:none;color:#fff">
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
       <div><div style="font-size:17px;font-weight:800">🛠️ Preventive Maintenance</div>
-      <div style="font-size:11px;opacity:.75;margin-top:2px">Recurring service schedules for your assets — never miss a check again</div></div>
+      <div style="font-size:11px;opacity:.75;margin-top:2px">Project › Area › Site › Device — schedule at any level</div></div>
       <div style="display:flex;gap:14px;text-align:center">
-        <div><div style="font-size:20px;font-weight:800;color:${pmStatusCounts().overdue?'#FF9B9B':'#C9A84C'}">${pmStatusCounts().overdue}</div><div style="font-size:9px;opacity:.8">OVERDUE</div></div>
-        <div><div style="font-size:20px;font-weight:800;color:#F0D68A">${pmStatusCounts().soon}</div><div style="font-size:9px;opacity:.8">≤ 7 DAYS</div></div>
-        <div><div style="font-size:20px;font-weight:800">${pmStatusCounts().total}</div><div style="font-size:9px;opacity:.8">ACTIVE</div></div>
+        <div><div style="font-size:20px;font-weight:800;color:${gc.overdue?'#FF9B9B':'#C9A84C'}">${gc.overdue}</div><div style="font-size:9px;opacity:.8">OVERDUE</div></div>
+        <div><div style="font-size:20px;font-weight:800;color:#F0D68A">${gc.soon}</div><div style="font-size:9px;opacity:.8">≤ 7 DAYS</div></div>
+        <div><div style="font-size:20px;font-weight:800">${gc.total}</div><div style="font-size:9px;opacity:.8">ACTIVE</div></div>
       </div>
     </div>
   </div>
+
+  ${projsWithPM.length?`<div class="card" style="padding:12px 16px">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <span style="font-size:12px;font-weight:800;color:var(--muted)">🔎 PROJECT FILTER</span>
+      <select onchange="window.pmProjFilter=this.value;render()" style="flex:1;min-width:180px;padding:8px 12px;border:1.5px solid ${pmProjFilter?'#C9A84C':'var(--line)'};border-radius:8px;font-weight:${pmProjFilter?'800':'400'}">
+        <option value="">— All projects —</option>
+        ${projsWithPM.map(p=>{const c=_pmProjCodes(p);return `<option value="${escapeHtml(p)}" ${pmProjFilter===p?"selected":""}>${escapeHtml(p)}${c.length?` [${escapeHtml(c.join(", "))}]`:""}</option>`}).join("")}
+      </select>
+      ${pmProjFilter?`<button class="btn btn-sm" style="background:#C62828;color:#fff;border:none;font-weight:700" onclick="window.pmProjFilter='';render()">✕ Clear</button>`:""}
+    </div>
+    ${pmProjFilter?`<div style="margin-top:10px;padding:10px 14px;background:linear-gradient(135deg,#1B3A6B,#2E5FA3);border-radius:10px;color:#fff;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+      <div><div style="font-weight:800;font-size:14px">📁 ${escapeHtml(pmProjFilter)}</div>
+      ${filterCodes.length?`<div style="margin-top:3px">${filterCodes.map(c=>`<span style="font-size:10px;background:rgba(201,168,76,.25);color:#F0D68A;padding:1px 8px;border-radius:9px;font-weight:800;margin-right:4px">${escapeHtml(c)}</span>`).join("")}</div>`:""}</div>
+      <div style="font-size:11px;opacity:.85">${list.length} schedule(s) · ${overdue.length} overdue · ${(state.devices||[]).filter(d=>(d.project||"").trim()===pmProjFilter).length} devices in project</div>
+    </div>`:""}
+  </div>`:""}
+
   ${(overdue.length||soon.length)?`<div class="card" style="border-left:4px solid ${overdue.length?'#C62828':'#E65100'}">
-    <div class="card-title">⏰ Due now</div>${overdue.map(dueRow).join("")}${soon.map(dueRow).join("")}
+    <div class="card-title">⏰ Due now${pmProjFilter?` — ${escapeHtml(pmProjFilter)}`:""}</div>${overdue.map(dueRow).join("")}${soon.map(dueRow).join("")}
   </div>`:''}
+
   <div class="card">
     <div class="sec-hdr">${pmEditId?"Edit":"Add"} Maintenance Schedule</div>
     <div class="form-grid">
-      <div class="field"><label>Title <span class="req">*</span></label>
-        <input value="${escapeHtml(pmForm.title)}" oninput="window.pmForm.title=this.value" placeholder="e.g. CCTV camera cleaning & focus check"></div>
-      <div class="field"><label>Device (optional — leave empty for a general task)</label>
+      <div class="field" style="grid-column:1/-1"><label>Title <span class="req">*</span></label>
+        <input value="${escapeHtml(pmForm.title)}" oninput="window.pmForm.title=this.value" placeholder="e.g. CCTV cameras cleaning & focus check"></div>
+      <div class="field"><label>📁 Project <span style="font-size:10px;color:var(--muted)">(empty = general task)</span></label>
+        <select onchange="window.pmForm.project=this.value;window.pmForm.area='';window.pmForm.site='';window.pmForm.deviceSerial='';render()">
+          <option value="">— General / company-wide —</option>
+          ${projSel.map(p=>{const n=(p.name||"").trim();const c=Array.isArray(p.codes)&&p.codes.length?` [${p.codes[0]}]`:"";return `<option value="${escapeHtml(n)}" ${n===(pmForm.project||"").trim()?"selected":""}>${escapeHtml(n)}${escapeHtml(c)}</option>`}).join("")}
+        </select></div>
+      ${pmForm.project&&areas.length?`<div class="field"><label>🗺️ Area <span style="font-size:10px;color:var(--muted)">(optional)</span></label>
+        <select onchange="window.pmForm.area=this.value;window.pmForm.site='';window.pmForm.deviceSerial='';render()">
+          <option value="">— Whole project —</option>
+          ${areas.map(a=>`<option ${pmForm.area===a.name?"selected":""}>${escapeHtml(a.name)}</option>`).join("")}
+        </select></div>`:""}
+      ${pmForm.area&&sites.length?`<div class="field"><label>📍 Site <span style="font-size:10px;color:var(--muted)">(optional)</span></label>
+        <select onchange="window.pmForm.site=this.value;window.pmForm.deviceSerial='';render()">
+          <option value="">— Whole area —</option>
+          ${sites.map(x=>`<option ${pmForm.site===x.name?"selected":""}>${escapeHtml(x.name)}</option>`).join("")}
+        </select></div>`:""}
+      <div class="field" style="grid-column:1/-1"><label>📟 Device <span style="font-size:10px;color:var(--muted)">(optional — identified by Serial + Model${pmForm.project?`, ${devPool.length} in scope`:""})</span></label>
         <select onchange="window.pmForm.deviceSerial=this.value">
-          <option value="">— General / site-level task —</option>${devOpts}
+          <option value="">— No specific device —</option>${devOpts}
         </select></div>
       <div class="field"><label>Repeat every <span class="req">*</span></label>
         <select onchange="window.pmForm.freqDays=Number(this.value)">
@@ -1281,33 +1373,20 @@ function renderMaintenance(){
       ${pmEditId?`<button class="btn btn-ghost" onclick="window.pmEditId=null;window.pmForm=null;render()">Cancel</button>`:""}
     </div>
   </div>
+
   <div class="card">
-    <div class="card-title">📋 All Schedules (${list.length})</div>
-    ${list.length===0?'<div class="empty">No maintenance schedules yet — add your first above.</div>':`
+    <div class="card-title">📋 ${pmProjFilter?`Schedules — ${escapeHtml(pmProjFilter)}`:"All Schedules"} (${list.length})</div>
+    ${list.length===0?'<div class="empty">No maintenance schedules here yet.</div>':`
     <div class="tbl-wrap"><table class="tbl">
       <thead><tr><th>Title</th><th>Target</th><th>Every</th><th>Last done</th><th>Next due</th><th></th></tr></thead>
-      <tbody>${list.map(s=>{
-        const dl=pmDaysLeft(s), off=s.active===false;
-        const col=off?'var(--muted)':dl<0?'#C62828':dl<=7?'#E65100':'#2E7D32';
-        return `<tr style="${off?'opacity:.5':''}">
-          <td style="font-weight:700">${escapeHtml(s.title)}</td>
-          <td style="font-size:11px">${escapeHtml(_pmTargetLabel(s))}</td>
-          <td>${s.freqDays}d</td>
-          <td style="font-size:11px">${s.lastDone?fmtDate(s.lastDone):'—'}</td>
-          <td style="font-weight:800;color:${col}">${fmtDate(pmNextDue(s))}${off?' (paused)':dl<0?` · ${Math.abs(dl)}d late`:''}</td>
-          <td style="white-space:nowrap">
-            <button class="btn btn-sm" style="background:#2E7D32;color:#fff;border:none" title="Mark done today" onclick="markPMDone('${s.id}')">✔</button>
-            <button class="btn btn-sm btn-secondary" onclick="editPM('${s.id}')">✎</button>
-            <button class="btn btn-sm" style="background:${off?'#2E5FA3':'#8496AC'};color:#fff;border:none" title="${off?'Resume':'Pause'}" onclick="togglePM('${s.id}')">${off?'▶':'⏸'}</button>
-            <button class="btn btn-sm btn-danger" onclick="delPM('${s.id}')">🗑</button>
-          </td></tr>`;}).join("")}
-      </tbody></table></div>`}
+      <tbody>${tableBody}</tbody></table></div>`}
   </div>`;
 }
 async function savePM(){
   if(!pmForm.title.trim()) return toast("⚠ Title is required");
   if(!Number(pmForm.freqDays)) return toast("⚠ Repeat interval is required");
-  const item={ ...(pmEditId?{id:pmEditId}:{}) , title:pmForm.title.trim(), deviceSerial:pmForm.deviceSerial||"",
+  const item={ ...(pmEditId?{id:pmEditId}:{}) , title:pmForm.title.trim(),
+    project:pmForm.project||"", area:pmForm.area||"", site:pmForm.site||"", deviceSerial:pmForm.deviceSerial||"",
     freqDays:Number(pmForm.freqDays), startDate:pmForm.startDate||today(), notes:pmForm.notes||"",
     active:true, ...(pmEditId?{}:{history:[]}) };
   if(pmEditId){ const old=(state.pmSchedules||[]).find(x=>x.id===pmEditId);
@@ -1316,7 +1395,7 @@ async function savePM(){
   pmForm=null; pmEditId=null; toast("Schedule saved ✓"); render();
 }
 function editPM(id){ const s=(state.pmSchedules||[]).find(x=>x.id===id); if(!s)return;
-  pmEditId=id; pmForm={title:s.title,deviceSerial:s.deviceSerial||"",freqDays:s.freqDays,startDate:s.startDate||today(),notes:s.notes||""};
+  pmEditId=id; pmForm={title:s.title,project:s.project||"",area:s.area||"",site:s.site||"",deviceSerial:s.deviceSerial||"",freqDays:s.freqDays,startDate:s.startDate||today(),notes:s.notes||""};
   render(); window.scrollTo({top:0,behavior:'smooth'}); }
 async function delPM(id){ if(!confirm("Delete this maintenance schedule?"))return;
   await fbDelete("pmSchedules", id); toast("Deleted"); render(); }
@@ -1333,6 +1412,7 @@ async function markPMDone(id){
 Object.assign(window,{savePM,editPM,delPM,togglePM,markPMDone});
 Object.defineProperty(window,'pmForm',{get:()=>pmForm,set:v=>pmForm=v});
 Object.defineProperty(window,'pmEditId',{get:()=>pmEditId,set:v=>pmEditId=v});
+Object.defineProperty(window,'pmProjFilter',{get:()=>pmProjFilter,set:v=>pmProjFilter=v});
 
 // ── DEVICE TIMELINE ──
 window.openDeviceTimeline=function(id){
@@ -1357,7 +1437,7 @@ window.openDeviceTimeline=function(id){
   if(!ov){ov=document.createElement('div');ov.id='dtlOv';document.body.appendChild(ov);
     ov.addEventListener('click',e=>{if(e.target===ov)ov.classList.remove('open');});}
   ov.innerHTML=`<div class="dtl-box">
-    <div class="al-hd"><span>📜 ${escapeHtml(d.deviceName||d.model||"Device")} <span style="font-size:11px;color:var(--muted)">· ${escapeHtml(d.serialNumber||"")}</span></span>
+    <div class="al-hd"><span>📜 ${escapeHtml(d.deviceName||d.model||"Device")} <span style="font-size:11px;color:var(--muted)">· SN:${escapeHtml(d.serialNumber||"—")}${d.model?` · ${escapeHtml(d.model)}`:""}</span></span>
       <button class="al-x" onclick="document.getElementById('dtlOv').classList.remove('open')">✕</button></div>
     <div class="dtl-list">${ev.length?ev.map(e=>`<div class="dtl-it ${e.future?'fut':''}">
         <span class="dtl-dot"></span>
