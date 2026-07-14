@@ -1244,7 +1244,7 @@ function _pmTargetLabel(s){
 }
 function renderMaintenance(){
   if(!isAdmin()) return `<div class="card"><div class="empty">Admin only.</div></div>`;
-  if(!pmForm) pmForm={title:"",project:"",area:"",site:"",deviceSerial:"",freqDays:90,startDate:today(),notes:""};
+  if(!pmForm) pmForm={title:"",project:"",area:"",site:"",deviceSerial:"",freqDays:90,startDate:today(),dateMode:"done",notes:""};
   const all=(state.pmSchedules||[]).slice().sort((a,b)=>pmNextDue(a).localeCompare(pmNextDue(b)));
   const list = pmProjFilter ? all.filter(s=>(s.project||"")===pmProjFilter) : all;
   const act=list.filter(s=>s.active!==false);
@@ -1363,8 +1363,16 @@ function renderMaintenance(){
         <select onchange="window.pmForm.freqDays=Number(this.value)">
           ${[["7","Week"],["14","2 Weeks"],["30","Month"],["90","3 Months"],["180","6 Months"],["365","Year"]].map(([v,l])=>`<option value="${v}" ${Number(pmForm.freqDays)===Number(v)?"selected":""}>${l} (${v}d)</option>`).join("")}
         </select></div>
-      <div class="field"><label>First due date</label>
+      <div class="field"><label>📅 Date</label>
         <input type="date" value="${pmForm.startDate}" onchange="window.pmForm.startDate=this.value"></div>
+      <div class="field"><label>This date means <span class="req">*</span></label>
+        <select onchange="window.pmForm.dateMode=this.value;render()">
+          <option value="done" ${pmForm.dateMode!=="due"?"selected":""}>✔ Maintenance was DONE on this date</option>
+          <option value="due" ${pmForm.dateMode==="due"?"selected":""}>⏳ First maintenance is DUE on this date</option>
+        </select>
+        <p style="font-size:11px;color:var(--muted);margin-top:4px;line-height:1.4">${pmForm.dateMode==="due"
+          ?"For brand-new assets never serviced yet — the first due date is exactly this date."
+          :`Next due is computed automatically: this date + interval = <strong>${fmtDate(_pmAddDays(pmForm.startDate||today(),pmForm.freqDays))}</strong>`}</p></div>
       <div class="field" style="grid-column:1/-1"><label>Notes</label>
         <input value="${escapeHtml(pmForm.notes||"")}" oninput="window.pmForm.notes=this.value" placeholder="Checklist, tools, safety notes…"></div>
     </div>
@@ -1387,15 +1395,27 @@ async function savePM(){
   if(!Number(pmForm.freqDays)) return toast("⚠ Repeat interval is required");
   const item={ ...(pmEditId?{id:pmEditId}:{}) , title:pmForm.title.trim(),
     project:pmForm.project||"", area:pmForm.area||"", site:pmForm.site||"", deviceSerial:pmForm.deviceSerial||"",
-    freqDays:Number(pmForm.freqDays), startDate:pmForm.startDate||today(), notes:pmForm.notes||"",
+    freqDays:Number(pmForm.freqDays), notes:pmForm.notes||"",
     active:true, ...(pmEditId?{}:{history:[]}) };
+  const _d=pmForm.startDate||today();
+  if(pmForm.dateMode==="due"){
+    // brand-new asset: first due IS this date
+    item.startDate=_d; item.lastDone=null;
+  } else {
+    // maintenance ALREADY PERFORMED on this date → next due = date + interval
+    item.lastDone=_d; item.startDate="";
+    if(!pmEditId) item.history=[{date:_d, by:(state.profile&&(state.profile.name||state.profile.email))||"", initial:true}];
+  }
   if(pmEditId){ const old=(state.pmSchedules||[]).find(x=>x.id===pmEditId);
-    if(old){ item.lastDone=old.lastDone||null; item.history=old.history||[]; item.active=old.active!==false; } }
+    if(old){ item.history=old.history||[]; item.active=old.active!==false;
+      if(pmForm.dateMode==="due" && old.lastDone) item.lastDone=null;   // explicit reset to first-due
+    } }
   await fbSave("pmSchedules", item);
   pmForm=null; pmEditId=null; toast("Schedule saved ✓"); render();
 }
 function editPM(id){ const s=(state.pmSchedules||[]).find(x=>x.id===id); if(!s)return;
-  pmEditId=id; pmForm={title:s.title,project:s.project||"",area:s.area||"",site:s.site||"",deviceSerial:s.deviceSerial||"",freqDays:s.freqDays,startDate:s.startDate||today(),notes:s.notes||""};
+  const _mode = s.lastDone ? "done" : "due";
+  pmEditId=id; pmForm={title:s.title,project:s.project||"",area:s.area||"",site:s.site||"",deviceSerial:s.deviceSerial||"",freqDays:s.freqDays,startDate:(_mode==="done"?s.lastDone:(s.startDate||today())),dateMode:_mode,notes:s.notes||""};
   render(); window.scrollTo({top:0,behavior:'smooth'}); }
 async function delPM(id){ if(!confirm("Delete this maintenance schedule?"))return;
   await fbDelete("pmSchedules", id); toast("Deleted"); render(); }
