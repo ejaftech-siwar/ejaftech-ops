@@ -218,7 +218,7 @@ function renderDailyLog(){
     dailyForm={
       date:today(),
       employee:isEmployee()?state.profile.employeeName:"",
-      project:"",start:"",end:"",location:"",
+      project:"",projectCode:"",start:"",end:"",location:"",
       site:"",equipment:"",area:"",  // area + site (from project's areas)
       deviceSerial:"",  // optional device reference (Asset Management)
       workType:"",taskStatus:"",taskCategory:"",taskSubcategory:"",  // technical classification
@@ -289,10 +289,20 @@ function renderDailyLog(){
           ${isSupervisor()&&!isHR()?`<p style="font-size:11px;color:#6A1B9A;margin-top:4px">👔 You can log for your team members.</p>`:''}`}
       </div>
       <div class="field full"><label>Project <span class="req">*</span></label>
-        <select onchange="window.dailyForm.project=this.value;window.dailyForm.area='';window.dailyForm.site='';render()">
+        <select onchange="window.dailyForm.project=this.value;window.dailyForm.projectCode='';window.dailyForm.area='';window.dailyForm.site='';render()">
           <option value="">— Select —</option>
           ${state.projects.map(p=>{const n=(p.name||"").trim();return `<option value="${escapeHtml(n)}" ${n===(dailyForm.project||"").trim()?"selected":""}>${escapeHtml(n)}</option>`}).join("")}
         </select></div>
+      ${(()=>{
+        const _pc = state.projects.find(p=>(p.name||"").trim()===(dailyForm.project||"").trim());
+        const _codes = (_pc && Array.isArray(_pc.codes)) ? _pc.codes : [];
+        if(!_codes.length) return "";
+        return `<div class="field full"><label>🔖 Project Code <span style="font-size:10px;color:var(--muted)">(which work stream / contract)</span></label>
+        <select onchange="window.dailyForm.projectCode=this.value">
+          <option value="">— None —</option>
+          ${_codes.map(c=>`<option ${dailyForm.projectCode===c?"selected":""}>${escapeHtml(c)}</option>`).join("")}
+        </select></div>`;
+      })()}
       ${(()=>{
         const proj = state.projects.find(p=>(p.name||"").trim()===(dailyForm.project||"").trim());
         const areas = proj ? getProjectAreas(proj) : [];
@@ -528,7 +538,7 @@ function renderDailyLog(){
           <td style="text-align:center;font-size:11px;font-weight:700;color:#03308B;background:#f0f4ff;white-space:nowrap">${r.entryNo ? formatEntryNo(r.entryNo) : '<span style="color:#bbb">—</span>'}</td>
           <td>${fmtDate(r.date)}</td>
           ${!isEmployee()?`<td>${employeeBadge(r.employee)}</td>`:""}
-          <td>${escapeHtml(r.project||"")}${(r.area||r.site)?`<div style="font-size:10px;color:#1565C0;margin-top:2px">${r.area?`🗺️ ${escapeHtml(r.area)}`:''}${r.site?` · 📍 ${escapeHtml(r.site)}`:''}</div>`:''}</td>
+          <td>${escapeHtml(r.project||"")}${r.projectCode?` <span style="font-size:9px;background:#FFF3E0;color:#E65100;border:1px solid #EAD3AE;padding:1px 6px;border-radius:8px;font-weight:800">${escapeHtml(r.projectCode)}</span>`:""}${(r.area||r.site)?`<div style="font-size:10px;color:#1565C0;margin-top:2px">${r.area?`🗺️ ${escapeHtml(r.area)}`:''}${r.site?` · 📍 ${escapeHtml(r.site)}`:''}</div>`:''}</td>
           <td>${deptBadge(r.dept)}</td>
           <td>${r.location?`<span style="background:#E3F2FD;color:#1565C0;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600">📍 ${escapeHtml(r.location)}</span>`:'<span style="color:#bbb;font-style:italic;font-size:11px">—</span>'} ${gpsBadgeHTML(r)}</td>
           <td><strong style="color:#2E7D32">${fmtHM(r.duration)}</strong></td>

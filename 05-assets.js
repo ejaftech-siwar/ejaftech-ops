@@ -316,7 +316,7 @@ window.addProjectCode = async function(){
   const codes = [...(proj.codes||[])];
   if(codes.some(c=>c.toLowerCase()===code.toLowerCase())) return toast("Code already exists");
   codes.push(code);
-  await fbSave("projects",{id:proj.id, name:proj.name, dept:proj.dept, estimatedHours:Number(proj.estimatedHours||0), areas:getProjectAreas(proj), codes});
+  await fbSave("projects",{id:proj.id, name:proj.name, dept:proj.dept, status:proj.status||"", estimatedHours:Number(proj.estimatedHours||0), areas:getProjectAreas(proj), codes});
   newCodeName = "";
   showSitesModal();
   toast("Code added ✓");
@@ -327,7 +327,7 @@ window.delProjectCode = async function(ci){
   if(!proj) return;
   const codes = [...(proj.codes||[])];
   codes.splice(ci,1);
-  await fbSave("projects",{id:proj.id, name:proj.name, dept:proj.dept, estimatedHours:Number(proj.estimatedHours||0), areas:getProjectAreas(proj), codes});
+  await fbSave("projects",{id:proj.id, name:proj.name, dept:proj.dept, status:proj.status||"", estimatedHours:Number(proj.estimatedHours||0), areas:getProjectAreas(proj), codes});
   showSitesModal();
   toast("Code removed");
 };
@@ -1411,6 +1411,15 @@ async function savePM(){
       if(pmForm.dateMode==="due" && old.lastDone) item.lastDone=null;   // explicit reset to first-due
     } }
   await fbSave("pmSchedules", item);
+  // Sync: "Preventive Maintenance" becomes a project CODE under this project,
+  // so Daily Log / reports can tag work against it like any other code.
+  if(item.project){
+    const pr=(state.projects||[]).find(p=>(p.name||"").trim()===item.project);
+    if(pr && !((pr.codes||[]).some(c=>String(c).toLowerCase()==="preventive maintenance"))){
+      await fbSave("projects",{id:pr.id, name:pr.name, dept:pr.dept, status:pr.status||"", estimatedHours:Number(pr.estimatedHours||0), areas:getProjectAreas(pr), codes:[...(pr.codes||[]),"Preventive Maintenance"]});
+      toast(`🔖 "Preventive Maintenance" code added to ${pr.name}`);
+    }
+  }
   pmForm=null; pmEditId=null; toast("Schedule saved ✓"); render();
 }
 function editPM(id){ const s=(state.pmSchedules||[]).find(x=>x.id===id); if(!s)return;
@@ -1427,6 +1436,20 @@ async function markPMDone(id){
   const history=[{date:today(),by},...(s.history||[])].slice(0,20);
   await fbSave("pmSchedules",{...s,lastDone:today(),history});
   toast(`✔ ${s.title} — done today. Next due ${fmtDate(_pmAddDays(today(),s.freqDays))}`);
+  // Bridge to Daily Log: offer a prefilled work entry tagged with the PM code
+  if(confirm("Log a Daily Log work entry for this maintenance now?")){
+    const dv=(state.devices||[]).find(x=>x.serialNumber===s.deviceSerial);
+    window._draftSuspend=true; setTimeout(()=>{window._draftSuspend=false;},900);
+    window.dailyForm={date:today(),employee:isEmployee()?state.profile.employeeName:"",
+      project:s.project||(dv?dv.project:"")||"", projectCode:"Preventive Maintenance",
+      area:s.area||(dv?dv.area:"")||"", site:s.site||(dv?dv.site:"")||"",
+      equipment:"", deviceSerial:s.deviceSerial||"", start:"", end:"", location:"",
+      workType:"", taskStatus:"", taskCategory:"", taskSubcategory:"",
+      resolutionText:`${s.title} — preventive maintenance completed`, resolutionImages:[], notes:s.notes||""};
+    switchTab("Daily Log");
+    window.scrollTo({top:0,behavior:"smooth"});
+    return;
+  }
   render();
 }
 Object.assign(window,{savePM,editPM,delPM,togglePM,markPMDone});
