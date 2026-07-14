@@ -208,14 +208,26 @@ let toastTimer;
 
 // ── Crisp SVG icon set (currentColor) — replaces emoji in header & main nav ──
 const _svg=(p)=>`<svg class="nvic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
+const _ICO=(id,c1,c2,glyph)=>`<svg class="nvic nvic2" viewBox="0 0 32 32" aria-hidden="true">
+<defs><linearGradient id="g${id}" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0" stop-color="${c1}"/><stop offset="1" stop-color="${c2}"/></linearGradient></defs>
+<rect x="2" y="2" width="28" height="28" rx="9" fill="url(#g${id})"/>
+<g fill="#fff" transform="translate(6,6) scale(0.833)">${glyph}</g></svg>`;
 const NAV_ICONS={
-  Dashboard:_svg('<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/>'),
-  Logs:_svg('<path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/>'),
-  Reports:_svg('<polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>'),
-  Database:_svg('<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>'),
-  Clients:_svg('<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'),
-  Settings:_svg('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>'),
-  Help:_svg('<circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/>'),
+  // Dashboard — bar chart (EJAF navy→blue)
+  Dashboard:_ICO('dash','#3D6FC4','#1B3A6B','<rect x="3" y="13" width="4" height="8" rx="1.2"/><rect x="10" y="7" width="4" height="14" rx="1.2"/><rect x="17" y="10" width="4" height="11" rx="1.2"/>'),
+  // Logs — pencil on sheet (gold, the "doing" color)
+  Logs:_ICO('logs','#E0BE68','#B58E2E','<path d="M5 3h9l5 5v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z" opacity=".35"/><path d="M13.5 3.2 19 8.7V9h-5.5V3.2z"/><path d="M15.6 11.2 9 17.8V21h3.2l6.6-6.6-3.2-3.2z"/>'),
+  // Reports — trend arrow (green = growth)
+  Reports:_ICO('rep','#4FBF6E','#1F7A3E','<path d="M3 18.5 9.5 12l4 4L21 8.5V13h2V5h-8v2h4.6l-6.1 6.1-4-4L1.6 17.1z" opacity=".35"/><path d="M4 20h16v2H4z"/><path d="M3.2 16.8 9.7 10.3l4 4 7.1-7.1 1.4 1.4-8.5 8.5-4-4-5.1 5.1z"/>'),
+  // Database — stacked discs (deep teal)
+  Database:_ICO('db','#2FA6A0','#146B67','<ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 9.5v3c0 1.66 3.58 3 8 3s8-1.34 8-3v-3c0 1.66-3.58 3-8 3s-8-1.34-8-3z" opacity=".75"/><path d="M4 15.5v3c0 1.66 3.58 3 8 3s8-1.34 8-3v-3c0 1.66-3.58 3-8 3s-8-1.34-8-3z" opacity=".5"/>'),
+  // Clients — handshake/people (purple)
+  Clients:_ICO('cli','#A46BD8','#6A1B9A','<circle cx="9" cy="8" r="3.6"/><path d="M2.5 20.5c0-3.3 2.9-5.8 6.5-5.8s6.5 2.5 6.5 5.8v.8h-13v-.8z"/><circle cx="17.5" cy="9" r="2.8" opacity=".6"/><path d="M14.6 15.4c2.9-.5 6.9 1 6.9 4.4v1.5h-4v-.8c0-2.1-1.1-3.9-2.9-5.1z" opacity=".6"/>'),
+  // Settings — gear (slate)
+  Settings:_ICO('set','#8494AC','#4A5A72','<path d="M12 8.4a3.6 3.6 0 1 0 0 7.2 3.6 3.6 0 0 0 0-7.2zm0 5.4a1.8 1.8 0 1 1 0-3.6 1.8 1.8 0 0 1 0 3.6z"/><path d="M20.4 13.5c.05-.5.05-1 0-1.5l1.9-1.4-1.9-3.3-2.2.9c-.8-.6-1.7-1.1-2.6-1.4L15.2 4h-3.8l-.4 2.8c-.9.3-1.8.8-2.6 1.4l-2.2-.9-1.9 3.3 1.9 1.4c-.05.5-.05 1 0 1.5l-1.9 1.4 1.9 3.3 2.2-.9c.8.6 1.7 1.1 2.6 1.4l.4 2.3h3.8l.4-2.3c.9-.3 1.8-.8 2.6-1.4l2.2.9 1.9-3.3-1.9-1.4z" opacity=".45"/>'),
+  // Help — lifebuoy/question (warm red)
+  Help:_ICO('help','#E88A6E','#C0392B','<circle cx="12" cy="12" r="9" opacity=".35"/><path d="M12 3a9 9 0 1 1 0 18 9 9 0 0 1 0-18zm0 2a7 7 0 1 0 0 14 7 7 0 0 0 0-14z"/><path d="M11 16.4h2v2h-2zm1-10.2c-2 0-3.5 1.3-3.6 3.3h2c.05-.9.7-1.5 1.6-1.5.9 0 1.5.5 1.5 1.3 0 .7-.3 1-1.2 1.7-1 .8-1.4 1.4-1.4 2.6v.5h2v-.4c0-.7.2-1 1.1-1.7 1-.8 1.5-1.6 1.5-2.8 0-1.8-1.4-3-3.5-3z"/>'),
 };
 const ICON_BELL=_svg('<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>');
 const ICON_SUN=_svg('<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>');

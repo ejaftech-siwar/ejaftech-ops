@@ -3,7 +3,7 @@
 // This file MUST sit next to index.html on the server (same folder),
 // alongside: theme.css, app.css, pwa-manifest.js, firebase-init.js, app.js
 
-const CACHE = 'ejaftech-v80';
+const CACHE = 'ejaftech-v81';
 
 self.addEventListener('install', (e) => {
   self.skipWaiting();  // activate new version immediately
