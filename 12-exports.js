@@ -1,3 +1,33 @@
+// ── Shared identity/row filters so Reports matches the rest of the app ──
+// (parity with applyReportFilters: staff-dept + branch act on WHO the employee
+//  is; task-dept + location act on the record itself, guarded by field presence)
+function _identityAllowed(list){
+  const bf = state.globalBranchFilter || "";
+  if(bf){
+    const s=new Set([
+      ...state.users.filter(u=>(u.branch||"")===bf).map(u=>u.employeeName||u.name),
+      ...(state.nametagEmployees||[]).filter(n=>(n.branch||"")===bf).map(n=>n.name),
+    ].filter(Boolean));
+    list = list.filter(x=>s.has(x));
+  }
+  const edf = state.globalEmpDeptFilter || "";
+  if(edf){
+    const s=new Set([
+      ...state.users.filter(u=>(u.userDept||"")===edf).map(u=>u.employeeName||u.name),
+      ...(state.nametagEmployees||[]).filter(n=>(n.dept||"")===edf).map(n=>n.name),
+    ].filter(Boolean));
+    list = list.filter(x=>s.has(x));
+  }
+  return list;
+}
+function _reportRowOK(r){
+  const tdf = state.globalTaskDeptFilter || "";
+  if(tdf && ("dept" in r) && r.dept!==tdf) return false;
+  const lf = state.globalLocationFilter || "";
+  if(lf && ("location" in r) && r.location!==lf) return false;
+  return true;
+}
+
 function renderFlexReports(){
   const f = state.reportFilter;
   // Default: current month if empty
@@ -32,14 +62,15 @@ function renderFlexReports(){
 
   const allowedEmpsBase = isEmployee() ? [state.profile.employeeName] : allEmployees();
   // Apply global employee filter (multi-select)
-  const allowedEmps = (sel.length > 0 && !isEmployee())
+  let allowedEmps = (sel.length > 0 && !isEmployee())
     ? allowedEmpsBase.filter(e => sel.includes(e))
     : allowedEmpsBase;
+  allowedEmps = _identityAllowed(allowedEmps);   // staff-dept + branch (was ignored — the reported bug)
   const projF = f.project || ""; // project filter
-  const dailyFiltered = state.daily.filter(r=>inRange(r) && allowedEmps.includes(r.employee) && (!projF || r.project===projF));
-  const otFiltered = state.overtime.filter(r=>inRange(r) && allowedEmps.includes(r.employee) && (!projF || r.project===projF));
-  const trFiltered = state.travel.filter(r=>inRange(r) && allowedEmps.includes(r.employee) && (!projF || r.project===projF));
-  const lvFiltered = state.leaves.filter(r=>leaveInRange(r) && allowedEmps.includes(r.employee));
+  const dailyFiltered = state.daily.filter(r=>inRange(r) && allowedEmps.includes(r.employee) && _reportRowOK(r) && (!projF || r.project===projF));
+  const otFiltered = state.overtime.filter(r=>inRange(r) && allowedEmps.includes(r.employee) && _reportRowOK(r) && (!projF || r.project===projF));
+  const trFiltered = state.travel.filter(r=>inRange(r) && allowedEmps.includes(r.employee) && _reportRowOK(r) && (!projF || r.project===projF));
+  const lvFiltered = state.leaves.filter(r=>leaveInRange(r) && allowedEmps.includes(r.employee) && _reportRowOK(r));
 
   // Stats per department
   const deptStats = state.departments.map(d=>{
@@ -242,12 +273,15 @@ async function exportFilteredExcel(){
     const f = state.reportFilter;
     const inRange = (r) => !r.date ? false : (!(f.from && r.date < f.from) && !(f.to && r.date > f.to));
     const leaveInRange = (l) => !l.from ? false : (!(f.from && l.from < f.from) && !(f.to && l.from > f.to));
-    const allowedEmps = isEmployee() ? [state.profile.employeeName] : allEmployees();
+    let allowedEmps = isEmployee() ? [state.profile.employeeName] : allEmployees();
+    const _selX = state.globalEmployeeFilter || [];
+    if(_selX.length>0 && !isEmployee()) allowedEmps = allowedEmps.filter(x=>_selX.includes(x));
+    allowedEmps = _identityAllowed(allowedEmps);
     const projF = f.project || "";
-    const dr = state.daily.filter(r=>inRange(r) && allowedEmps.includes(r.employee) && (!projF||r.project===projF));
-    const or = state.overtime.filter(r=>inRange(r) && allowedEmps.includes(r.employee) && (!projF||r.project===projF));
-    const tr = state.travel.filter(r=>inRange(r) && allowedEmps.includes(r.employee) && (!projF||r.project===projF));
-    const lv = state.leaves.filter(r=>leaveInRange(r) && allowedEmps.includes(r.employee));
+    const dr = state.daily.filter(r=>inRange(r) && allowedEmps.includes(r.employee) && _reportRowOK(r) && (!projF||r.project===projF));
+    const or = state.overtime.filter(r=>inRange(r) && allowedEmps.includes(r.employee) && _reportRowOK(r) && (!projF||r.project===projF));
+    const tr = state.travel.filter(r=>inRange(r) && allowedEmps.includes(r.employee) && _reportRowOK(r) && (!projF||r.project===projF));
+    const lv = state.leaves.filter(r=>leaveInRange(r) && allowedEmps.includes(r.employee) && _reportRowOK(r));
 
     const wb = XLSX.utils.book_new();
     const periodStr = `${f.from || 'start'}_to_${f.to || 'end'}`;
@@ -455,12 +489,15 @@ async function exportFilteredPDF(){
     const f = state.reportFilter;
     const inRange = (r) => !r.date ? false : (!(f.from && r.date < f.from) && !(f.to && r.date > f.to));
     const leaveInRange = (l) => !l.from ? false : (!(f.from && l.from < f.from) && !(f.to && l.from > f.to));
-    const allowedEmps = isEmployee() ? [state.profile.employeeName] : allEmployees();
+    let allowedEmps = isEmployee() ? [state.profile.employeeName] : allEmployees();
+    const _selX = state.globalEmployeeFilter || [];
+    if(_selX.length>0 && !isEmployee()) allowedEmps = allowedEmps.filter(x=>_selX.includes(x));
+    allowedEmps = _identityAllowed(allowedEmps);
     const projF = f.project || "";
-    const dr = state.daily.filter(r=>inRange(r) && allowedEmps.includes(r.employee) && (!projF||r.project===projF));
-    const or = state.overtime.filter(r=>inRange(r) && allowedEmps.includes(r.employee) && (!projF||r.project===projF));
-    const tr = state.travel.filter(r=>inRange(r) && allowedEmps.includes(r.employee) && (!projF||r.project===projF));
-    const lv = state.leaves.filter(r=>leaveInRange(r) && allowedEmps.includes(r.employee));
+    const dr = state.daily.filter(r=>inRange(r) && allowedEmps.includes(r.employee) && _reportRowOK(r) && (!projF||r.project===projF));
+    const or = state.overtime.filter(r=>inRange(r) && allowedEmps.includes(r.employee) && _reportRowOK(r) && (!projF||r.project===projF));
+    const tr = state.travel.filter(r=>inRange(r) && allowedEmps.includes(r.employee) && _reportRowOK(r) && (!projF||r.project===projF));
+    const lv = state.leaves.filter(r=>leaveInRange(r) && allowedEmps.includes(r.employee) && _reportRowOK(r));
 
     const totH = dr.reduce((s,r)=>s+Number(r.duration||0),0);
     const totOT = or.reduce((s,r)=>s+Number(r.hours||0),0);
@@ -1030,7 +1067,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v82';"
+      var swCode = "const CACHE='ejaftech-v83';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
