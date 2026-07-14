@@ -450,7 +450,7 @@ async function exportPDF(){
     const t=s.reduce((sum,r)=>sum+(r.leaveBreakdown?.[lt.id]||0),0);
     if(!t)return '';
     return `<div class="kc" style="border-left-color:${lt.color};flex:0 0 auto;min-width:100px;padding:10px">
-      <div class="kl">${lt.label}</div><div class="kv" style="color:${lt.color};font-size:17px">${t}</div><div class="ks">days</div></div>`;
+      <div class="kl">${lt.label}</div><div class="kv" style="color:${lt.color};font-size:17px">${fmtDays(t)}</div><div class="ks">days</div></div>`;
   }).filter(Boolean).join('');
 
   // Leave blocks
@@ -465,10 +465,10 @@ async function exportPDF(){
         const lt=leaveTypeInfo(r.type);
         return `<tr><td><span class="lv-badge" style="background:${lt.color}22;color:${lt.color}">${lt.label}</span></td>
           <td>${escapeHtml(r.from||'')}</td><td>${escapeHtml(r.to||'')}</td>
-          <td><strong style="color:${lt.color}">${r.days||0}</strong></td>
+          <td><strong style="color:${lt.color}">${fmtDays(r.days||0)}</strong></td>
           <td style="color:#888;font-size:9px">${escapeHtml(r.notes||'—')}</td></tr>`;
       }).join('')}</tbody></table>
-      <div class="emp-sub"><span>Subtotal</span><span>${sub} days</span></div>
+      <div class="emp-sub"><span>Subtotal</span><span>${fmtDays(sub)} days</span></div>
     </div>`;
   }).join('');
 
@@ -494,7 +494,7 @@ async function exportPDF(){
     return `<div class="emp-block tr">
       <div class="emp-head"><span>▶ ${employeeBadge(emp)}</span><span class="emp-head-tag">${my.length} trips</span></div>
       ${!my.length?`<div class="empty">No travel</div>`:`<table><thead><tr><th>Date</th><th>Days</th><th>Project</th><th>Location</th><th>Per Diem</th><th>Status</th></tr></thead>
-      <tbody>${my.map(r=>`<tr><td>${fmtDate(r.date)}</td><td><strong>${r.days}</strong></td><td>${escapeHtml(r.project||'—')}</td><td>${escapeHtml(r.location||'—')}</td><td style="color:#6A1B9A;font-weight:700">${fmtMoney(r.perDiem)}</td><td style="font-weight:700;color:${(r.perDiemStatus||'received')==='received'?'#2E7D32':'#C62828'}">${(r.perDiemStatus||'received')==='received'?'✅ Received':'❌ Not Received'}</td></tr>`).join('')}</tbody></table>`}
+      <tbody>${my.map(r=>`<tr><td>${fmtDate(r.date)}</td><td><strong>${fmtDays(r.days)}</strong></td><td>${escapeHtml(r.project||'—')}</td><td>${escapeHtml(r.location||'—')}</td><td style="color:#6A1B9A;font-weight:700">${fmtMoney(r.perDiem)}</td><td style="font-weight:700;color:${(r.perDiemStatus||'received')==='received'?'#2E7D32':'#C62828'}">${(r.perDiemStatus||'received')==='received'?'✅ Received':'❌ Not Received'}</td></tr>`).join('')}</tbody></table>`}
       <div class="emp-sub"><span>Subtotal</span><span>${sd} days · ${fmtMoney(sp)} IQD</span></div>
     </div>`;
   }).filter(Boolean).join('');

@@ -312,7 +312,7 @@ function renderHRReport(){
         if(total===0) return '';
         return `<div style="border:1px solid var(--line);border-left:4px solid ${lt.color};border-radius:8px;padding:10px;background:white">
           <div style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:0.5px">${lt.label}</div>
-          <div style="font-family:'DM Serif Display',serif;font-size:20px;color:${lt.color};margin-top:2px">${total}</div>
+          <div style="font-family:'DM Serif Display',serif;font-size:20px;color:${lt.color};margin-top:2px">${fmtDays(total)}</div>
           <div style="font-size:10px;color:var(--muted)">days</div>
         </div>`;
       }).filter(Boolean).join("")}
@@ -326,7 +326,7 @@ function renderHRReport(){
     h+=`<div class="card" style="border-left:4px solid #C62828">
       <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0">
         <strong style="color:#1B3A6B">📅 ${employeeBadge(emp)}</strong>
-        <span style="background:#C62828;color:white;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700">${sub} days</span>
+        <span style="background:#C62828;color:white;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700">${fmtDays(sub)} days</span>
       </div>
       <div class="tbl-wrap"><table class="tbl">
         <thead><tr><th>Type</th><th>From</th><th>To</th><th>Days</th><th>Notes</th></tr></thead>
@@ -334,7 +334,7 @@ function renderHRReport(){
           <td>${leaveTypeBadge(r.type)}</td>
           <td>${escapeHtml(r.from||'')}</td>
           <td>${escapeHtml(r.to||'')}</td>
-          <td><strong style="color:${leaveTypeInfo(r.type).color}">${r.days||0}</strong></td>
+          <td><strong style="color:${leaveTypeInfo(r.type).color}">${fmtDays(r.days||0)}</strong></td>
           <td style="font-size:12px;color:var(--muted)">${escapeHtml(r.notes||'—')}</td>
         </tr>`).join("")}</tbody>
       </table></div>
@@ -378,7 +378,7 @@ function renderHRReport(){
       </div>
       ${my.length===0?`<div class="empty">No travel</div>`:`<div class="tbl-wrap"><table class="tbl">
         <thead><tr><th>Date</th><th>Days</th><th>Project</th><th>Location</th><th>Per Diem</th></tr></thead>
-        <tbody>${my.map((r,idx)=>`<tr style="background:${idx%2?'#F5F8FC':'white'}"><td>${fmtDate(r.date)}</td><td><strong>${r.days}</strong></td><td>${escapeHtml(r.project||"—")}</td><td>${escapeHtml(r.location||"—")}</td><td><strong style="color:#6A1B9A">${fmtMoney(r.perDiem)}</strong></td></tr>`).join("")}</tbody></table></div>`}
+        <tbody>${my.map((r,idx)=>`<tr style="background:${idx%2?'#F5F8FC':'white'}"><td>${fmtDate(r.date)}</td><td><strong>${fmtDays(r.days)}</strong></td><td>${escapeHtml(r.project||"—")}</td><td>${escapeHtml(r.location||"—")}</td><td><strong style="color:#6A1B9A">${fmtMoney(r.perDiem)}</strong></td></tr>`).join("")}</tbody></table></div>`}
       <div style="background:linear-gradient(135deg,#2E7D32,#1B5E20);color:white;padding:8px 12px;font-weight:700;font-size:12px;display:flex;justify-content:space-between"><span>Subtotal</span><span>${sd} days · ${fmtMoney(sp)} IQD</span></div>
     </div>`;
   });

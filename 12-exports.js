@@ -748,7 +748,7 @@ async function exportExcel(){
       setCell(ws1, `${otCol}${rowNum}`, fmtHM(r.ot), numStyle(alt));
       setCell(ws1, `${trCol}${rowNum}`, r.tDays || 0, numStyle(alt));
       setCell(ws1, `${pdCol}${rowNum}`, r.pd || 0, {...numStyle(alt), numFmt:'#,##0'});
-      setCell(ws1, `${lvCol}${rowNum}`, r.leaveDays || 0, {...numStyle(alt), font:{bold:true,sz:11,color:{rgb:'C62828'}}});
+      setCell(ws1, `${lvCol}${rowNum}`, Math.round((r.leaveDays||0)*100)/100, {...numStyle(alt), font:{bold:true,sz:11,color:{rgb:'C62828'}}});
     });
 
     // Grand total row
@@ -1067,7 +1067,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v83';"
+      var swCode = "const CACHE='ejaftech-v84';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"

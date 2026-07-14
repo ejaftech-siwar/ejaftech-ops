@@ -663,10 +663,10 @@ async function saveDaily(){
   }
   window._devEdit = null;
 
+  clearDailyDraft();                 // MUST run BEFORE render(): otherwise the
+  window._draftToastShown=false;     // re-render finds the old draft and restores it
   dailyForm=null;dailyEditId=null;
   render();
-  clearDailyDraft();
-  window._draftToastShown=false;
   window.scrollTo({top:0, behavior:'smooth'});   // fresh blank form, back at Employee
   toast("Saved ✓");
   // WhatsApp stays manual (📲 button per row).
