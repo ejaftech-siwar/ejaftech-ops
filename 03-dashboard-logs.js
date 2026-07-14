@@ -182,6 +182,7 @@ const DAILY_DRAFT_KEY='girek-draft-daily-v1';
 let _draftTimer=null;
 function saveDailyDraft(){
   try{
+    if(window._draftSuspend) return;
     if(state.tab!=="Daily Log" || !dailyForm || dailyEditId) return;
     localStorage.setItem(DAILY_DRAFT_KEY, JSON.stringify(dailyForm));
   }catch(e){
@@ -194,9 +195,14 @@ function scheduleDailyDraft(){ clearTimeout(_draftTimer); _draftTimer=setTimeout
 function loadDailyDraft(){
   try{ const s=localStorage.getItem(DAILY_DRAFT_KEY); return s?JSON.parse(s):null; }catch(e){ return null; }
 }
-function clearDailyDraft(){ try{ localStorage.removeItem(DAILY_DRAFT_KEY); }catch(e){} }
-document.addEventListener('input',  ()=>{ if(state.tab==="Daily Log") scheduleDailyDraft(); });
-document.addEventListener('change', ()=>{ if(state.tab==="Daily Log") scheduleDailyDraft(); });
+function clearDailyDraft(){
+  clearTimeout(_draftTimer); _draftTimer=null;   // cancel any pending write (race fix)
+  window._draftSuspend=true;                     // ignore input/change events fired by the re-render
+  setTimeout(()=>{window._draftSuspend=false;},900);
+  try{ localStorage.removeItem(DAILY_DRAFT_KEY); }catch(e){}
+}
+document.addEventListener('input',  ()=>{ if(state.tab==="Daily Log" && !window._draftSuspend) scheduleDailyDraft(); });
+document.addEventListener('change', ()=>{ if(state.tab==="Daily Log" && !window._draftSuspend) scheduleDailyDraft(); });
 window.addEventListener('beforeunload', saveDailyDraft);
 
 function renderDailyLog(){
@@ -238,6 +244,7 @@ function renderDailyLog(){
   // plus the local "# Entry" filter which only makes sense here in the Daily Log.
   const rows=applyReportFilters(visibleRows(state.daily)).filter(r=>{
     if(dailyEntryNo && Number(r.entryNo||0) !== Number(dailyEntryNo)) return false;
+    if(window._logEmpFilter && (r.employee||"") !== window._logEmpFilter) return false;   // jump-from-alert filter
     return true;
   }).sort((a,b)=>{
     // Ascending by entry number (001 at top → latest at bottom)
@@ -248,6 +255,11 @@ function renderDailyLog(){
     if(!an && bn) return 1;
     return (a.date||"").localeCompare(b.date||"");
   });
+  // Active jump-filter banner (set by Smart Alerts)
+  const _jumpBanner = window._logEmpFilter ? `<div class="card" style="border-left:4px solid #E65100;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+      <span style="font-size:13px;font-weight:700;color:var(--text)">🔎 Showing entries for: <span style="color:#E65100">${escapeHtml(window._logEmpFilter)}</span> <span style="font-size:11px;color:var(--muted)">(${rows.length} entr${rows.length===1?'y':'ies'})</span></span>
+      <button class="btn btn-sm" style="background:#C62828;color:white;border:none;font-weight:700" onclick="window._logEmpFilter='';render()">✕ Clear filter</button>
+    </div>` : "";
   // Project options for filter
   const projOptions = [...new Set(state.daily.map(r=>r.project).filter(Boolean))].sort();
   const empOptions=allEmployees();
@@ -258,7 +270,7 @@ function renderDailyLog(){
     return {name:l.name, count:items.length, hours};
   }).filter(l=>l.count>0);
 
-  return `<div class="card">
+  return `${_jumpBanner}<div class="card">
     <div class="sec-hdr">${dailyEditId?"Edit":"Add"} Work Entry</div>
     <div class="form-grid">
       <div class="field"><label>Date <span class="req">*</span></label>
@@ -654,6 +666,7 @@ async function saveDaily(){
   dailyForm=null;dailyEditId=null;
   render();
   clearDailyDraft();
+  window._draftToastShown=false;
   window.scrollTo({top:0, behavior:'smooth'});   // fresh blank form, back at Employee
   toast("Saved ✓");
   // WhatsApp stays manual (📲 button per row).

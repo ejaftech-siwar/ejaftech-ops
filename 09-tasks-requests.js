@@ -60,14 +60,14 @@ window.openNotifPanel=function(){
     </div>`).join("") : `<div style="padding:26px;text-align:center;color:#999;font-style:italic;font-size:12px">No notifications yet</div>`;
   ov.innerHTML=`<div style="background:#fff;border-radius:12px;max-width:420px;width:100%;max-height:75vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,0.3)">
     <div style="background:linear-gradient(135deg,#03308B,#2E5FA3);color:#fff;padding:12px 14px;display:flex;justify-content:space-between;align-items:center">
-      <strong style="font-size:14px">🔔 Notifications${unreadNotifCount()?` <span style="background:#C62828;padding:1px 8px;border-radius:10px;font-size:11px">${unreadNotifCount()}</span>`:''}</strong>
+      <strong style="font-size:14px">🔔 Notifications & Alerts${unreadNotifCount()?` <span style="background:#C62828;padding:1px 8px;border-radius:10px;font-size:11px">${unreadNotifCount()}</span>`:''}</strong>
       <div style="display:flex;gap:6px">
         ${unreadNotifCount()?`<button onclick="markAllNotifsRead()" style="background:rgba(255,255,255,0.15);color:#fff;border:none;padding:4px 10px;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer">Mark all read</button>`:''}
         ${list.length?`<button onclick="clearAllNotifs()" style="background:rgba(198,40,40,0.9);color:#fff;border:none;padding:4px 10px;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer">🗑 Clear all</button>`:''}
         <button onclick="closeNotifPanel()" style="background:rgba(255,255,255,0.15);color:#fff;border:none;width:26px;height:26px;border-radius:6px;font-weight:700;cursor:pointer">✕</button>
       </div>
     </div>
-    <div style="overflow-y:auto">${items}</div>
+    <div style="overflow-y:auto">${(typeof alertsHTML==="function"?alertsHTML():"")}${items}</div>
   </div>`;
   }catch(err){ console.error("Notif panel error:",err); toast("Could not open notifications"); }
 };

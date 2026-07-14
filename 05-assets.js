@@ -423,6 +423,7 @@ window.toggleSiteStatus = async function(ai, si){
 // ═══════════════════════════════════════════════════════════════════════
 /* device state hoisted to top (TDZ fix) */
 let assetSearch = "", assetFilterProject = "", assetFilterStatus = "";
+let assetFilterWarranty = "";   // "" | "expired" | "soon30"  (also set by Smart Alerts)
 let selectedDevices = new Set();  // multi-select for bulk delete
 
 // ── Daily Log inline device-edit buffer ──
@@ -730,6 +731,12 @@ function _filteredDevices(){
   let shown = (state.devices||[]).slice();
   if(assetFilterProject) shown = shown.filter(d=>d.project===assetFilterProject);
   if(assetFilterStatus) shown = shown.filter(d=>(d.status||"")===assetFilterStatus);
+  if(assetFilterWarranty) shown = shown.filter(d=>{
+    const s=toDateStr(d.warrantyExp), w=s?new Date(s):null;
+    if(!w||isNaN(w)) return false;
+    const diff=(w-new Date())/864e5;
+    return assetFilterWarranty==="expired" ? diff<0 : (diff>=0 && diff<=30);
+  });
   if(assetSearch){
     const q = assetSearch.toLowerCase();
     shown = shown.filter(d=>
@@ -748,7 +755,7 @@ window.exportAssetPDF = async function(){
   const devices = _filteredDevices();
   if(devices.length===0) return toast("No devices to export");
   const byStatus = {}; devices.forEach(d=>{const s=d.status||"(none)";byStatus[s]=(byStatus[s]||0)+1;});
-  const filterLbl = [assetFilterProject&&`Project: ${assetFilterProject}`, assetFilterStatus&&`Status: ${assetFilterStatus}`, assetSearch&&`Search: ${assetSearch}`].filter(Boolean).join(" · ");
+  const filterLbl = [assetFilterProject&&`Project: ${assetFilterProject}`, assetFilterStatus&&`Status: ${assetFilterStatus}`, assetFilterWarranty&&`Warranty: ${assetFilterWarranty==="expired"?"Expired":"\u2264 30 days"}`, assetSearch&&`Search: ${assetSearch}`].filter(Boolean).join(" · ");
 
   const bodyHTML = `
     <div class="actions no-print" style="padding:10px;background:#FFF8E1;border:1px solid #FFE082;border-radius:8px;margin-bottom:14px;text-align:center;font-size:13px;color:#7F6000">
@@ -828,6 +835,12 @@ function renderAssets(){
   let shown = devices;
   if(assetFilterProject) shown = shown.filter(d=>d.project===assetFilterProject);
   if(assetFilterStatus) shown = shown.filter(d=>(d.status||"")===assetFilterStatus);
+  if(assetFilterWarranty) shown = shown.filter(d=>{
+    const s=toDateStr(d.warrantyExp), w=s?new Date(s):null;
+    if(!w||isNaN(w)) return false;
+    const diff=(w-new Date())/864e5;
+    return assetFilterWarranty==="expired" ? diff<0 : (diff>=0 && diff<=30);
+  });
   if(assetSearch){
     const q = assetSearch.toLowerCase();
     shown = shown.filter(d=>
@@ -903,7 +916,7 @@ function renderAssets(){
   })()}`+`
     <div class="form-grid">
       <div class="field"><label>Serial Number <span class="req">*</span></label>
-        <input value="${escapeHtml(deviceForm.serialNumber)}" oninput="window.deviceForm.serialNumber=this.value" placeholder="e.g. FOC1234X5YZ" ${deviceEditId?'disabled style="background:#f0f0f0"':''}></div>
+        <div style="display:flex;gap:6px"><input style="flex:1" value="${escapeHtml(deviceForm.serialNumber)}" oninput="window.deviceForm.serialNumber=this.value" placeholder="e.g. FOC1234X5YZ" ${deviceEditId?'disabled style="background:#f0f0f0"':''}>${deviceEditId?'':'<button type="button" onclick="openScanner(v=>{window.deviceForm.serialNumber=v;render();})" title="Scan barcode" style="background:#03308B;color:#C9A84C;border:none;border-radius:8px;width:42px;cursor:pointer;font-size:18px">📷</button>'}</div></div>
       <div class="field"><label>Device Name</label>
         <input value="${escapeHtml(deviceForm.deviceName)}" oninput="window.deviceForm.deviceName=this.value" placeholder="e.g. Core Switch"></div>
       <div class="field"><label>Device Code</label>
@@ -964,6 +977,11 @@ function renderAssets(){
         <select onchange="window.assetFilterProject=this.value;render()" style="padding:6px 10px;border:1px solid var(--line);border-radius:6px;font-size:12px">
           <option value="">All Projects</option>
           ${allProjects.map(p=>`<option value="${escapeHtml(p)}" ${p===assetFilterProject?"selected":""}>${escapeHtml(p)}</option>`).join("")}
+        </select>
+        <select onchange="window.assetFilterWarranty=this.value;render()" style="padding:6px 10px;border:1px solid ${assetFilterWarranty?'#E65100':'var(--line)'};border-radius:6px;font-size:12px;font-weight:${assetFilterWarranty?'800':'400'};color:${assetFilterWarranty?'#E65100':'inherit'}">
+          <option value="">🛡️ All Warranty</option>
+          <option value="expired" ${assetFilterWarranty==="expired"?"selected":""}>❌ Expired</option>
+          <option value="soon30" ${assetFilterWarranty==="soon30"?"selected":""}>⏳ Expiring ≤ 30 days</option>
         </select>
         <select onchange="window.assetFilterStatus=this.value;render()" style="padding:6px 10px;border:1px solid var(--line);border-radius:6px;font-size:12px">
           <option value="">All Status</option>
@@ -1077,6 +1095,12 @@ function _shownDevices(){
   let shown = (state.devices||[]).slice();
   if(assetFilterProject) shown = shown.filter(d=>d.project===assetFilterProject);
   if(assetFilterStatus) shown = shown.filter(d=>(d.status||"")===assetFilterStatus);
+  if(assetFilterWarranty) shown = shown.filter(d=>{
+    const s=toDateStr(d.warrantyExp), w=s?new Date(s):null;
+    if(!w||isNaN(w)) return false;
+    const diff=(w-new Date())/864e5;
+    return assetFilterWarranty==="expired" ? diff<0 : (diff>=0 && diff<=30);
+  });
   if(assetSearch){
     const q = assetSearch.toLowerCase();
     shown = shown.filter(d=>
@@ -1135,3 +1159,47 @@ Object.defineProperty(window,'assetFilterProject',{get:()=>assetFilterProject,se
 Object.defineProperty(window,'assetFilterStatus',{get:()=>assetFilterStatus,set:v=>assetFilterStatus=v,configurable:true});
 
 
+
+
+// ═══════════════════════════════════════════════════════════════════════
+//  BARCODE / QR SCANNER — fills a serial field from the device camera.
+//  Uses @zxing/library (loaded in index.html). Fails gracefully if absent.
+// ═══════════════════════════════════════════════════════════════════════
+let _zxReader=null, _zxStream=null;
+window.openScanner=function(targetSetter){
+  window._scanTarget=targetSetter;
+  let ov=document.getElementById('scanOv');
+  if(!ov){ov=document.createElement('div');ov.id='scanOv';document.body.appendChild(ov);}
+  ov.innerHTML=`<div class="scan-box">
+    <div class="scan-hd"><span>📷 Scan barcode / QR</span><button class="al-x" onclick="closeScanner()">✕</button></div>
+    <div class="scan-vidwrap"><video id="scanVid" playsinline></video><div class="scan-frame"></div></div>
+    <div class="scan-hint" id="scanHint">Point the camera at the device barcode…</div>
+    <div class="scan-ft"><input id="scanManual" placeholder="…or type it manually" oninput="0"><button class="btn btn-sm" style="background:#03308B;color:#C9A84C;border:none;font-weight:700" onclick="scanManualApply()">Use</button></div>
+  </div>`;
+  ov.classList.add('open');
+  startScan();
+};
+function startScan(){
+  const hint=document.getElementById('scanHint');
+  if(typeof ZXing==="undefined"){ if(hint){hint.textContent="Scanner library not loaded — type the code manually below."; hint.style.color="#C62828";} return; }
+  try{
+    _zxReader=new ZXing.BrowserMultiFormatReader();
+    _zxReader.decodeFromVideoDevice(null, 'scanVid', (result, err)=>{
+      if(result){ const txt=result.getText(); applyScan(txt); }
+    }).catch(e=>{ if(hint){hint.textContent="Camera unavailable: "+e.message+" — type manually."; hint.style.color="#C62828";} });
+  }catch(e){ if(hint){hint.textContent="Scanner error — type manually."; hint.style.color="#C62828";} }
+}
+function applyScan(txt){
+  try{ if(navigator.vibrate) navigator.vibrate(60); }catch(e){}
+  if(window._scanTarget) window._scanTarget(String(txt).trim());
+  toast("Scanned: "+txt);
+  closeScanner();
+}
+window.scanManualApply=function(){ const v=(document.getElementById('scanManual')||{}).value; if(v&&v.trim()) applyScan(v.trim()); };
+window.closeScanner=function(){
+  try{ if(_zxReader){_zxReader.reset();_zxReader=null;} }catch(e){}
+  const ov=document.getElementById('scanOv'); if(ov)ov.classList.remove('open');
+  render();
+};
+
+Object.defineProperty(window,'assetFilterWarranty',{get:()=>assetFilterWarranty,set:v=>assetFilterWarranty=v});
