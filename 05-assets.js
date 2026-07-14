@@ -1023,6 +1023,7 @@ function renderAssets(){
             <td style="font-size:12px">${escapeHtml(d.model||"—")}</td>
             <td>${deviceStatusBadge(d.status)}</td>
             <td style="white-space:nowrap">
+              <button class="btn btn-sm" style="background:#1F8C86;color:#fff;border:none" title="Device timeline" onclick="openDeviceTimeline('${d.id}')">📜</button>
               <button class="btn btn-sm btn-secondary" onclick="editDevice('${d.id}')">✎</button>
               <button class="btn btn-sm btn-danger" onclick="delDevice('${d.id}')">🗑</button>
             </td>
@@ -1203,3 +1204,168 @@ window.closeScanner=function(){
 };
 
 Object.defineProperty(window,'assetFilterWarranty',{get:()=>assetFilterWarranty,set:v=>assetFilterWarranty=v});
+
+// ═══════════════════════════════════════════════════════════════════════
+//  PREVENTIVE MAINTENANCE — schedules, due tracking, mark-done history
+//  + DEVICE TIMELINE — the full life story of any asset, from data you
+//    already have (work entries, suggestions, PM history, install/warranty)
+// ═══════════════════════════════════════════════════════════════════════
+let pmForm=null, pmEditId=null;
+function _pmAddDays(ds,n){ const d=new Date(ds); d.setDate(d.getDate()+Number(n||0));
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; }
+function pmNextDue(s){ return s.lastDone ? _pmAddDays(s.lastDone, s.freqDays) : (s.startDate || today()); }
+function pmDaysLeft(s){ return Math.floor((new Date(pmNextDue(s)) - new Date(today()))/864e5); }
+function pmStatusCounts(){
+  const act=(state.pmSchedules||[]).filter(s=>s.active!==false);
+  let overdue=0, soon=0;
+  act.forEach(s=>{ const d=pmDaysLeft(s); if(d<0)overdue++; else if(d<=7)soon++; });
+  return {overdue, soon, total:act.length};
+}
+function _pmTargetLabel(s){
+  if(s.deviceSerial){ const d=(state.devices||[]).find(x=>x.serialNumber===s.deviceSerial);
+    return d ? `${d.deviceName||d.model||"Device"} · ${s.deviceSerial}` : s.deviceSerial; }
+  return s.target || "General";
+}
+function renderMaintenance(){
+  if(!isAdmin()) return `<div class="card"><div class="empty">Admin only.</div></div>`;
+  if(!pmForm) pmForm={title:"",deviceSerial:"",freqDays:90,startDate:today(),notes:""};
+  const list=(state.pmSchedules||[]).slice().sort((a,b)=>pmNextDue(a).localeCompare(pmNextDue(b)));
+  const act=list.filter(s=>s.active!==false);
+  const overdue=act.filter(s=>pmDaysLeft(s)<0);
+  const soon=act.filter(s=>{const d=pmDaysLeft(s);return d>=0&&d<=7;});
+  const devOpts=(state.devices||[]).slice().sort((a,b)=>(a.deviceName||"").localeCompare(b.deviceName||""))
+    .map(d=>`<option value="${escapeHtml(d.serialNumber||"")}" ${pmForm.deviceSerial===(d.serialNumber||"")?"selected":""}>${escapeHtml(d.deviceName||d.model||"Device")} — ${escapeHtml(d.serialNumber||"")} (${escapeHtml(d.project||"")})</option>`).join("");
+  const dueRow=(s)=>{const dl=pmDaysLeft(s);const od=dl<0;
+    return `<div class="pm-due ${od?'od':'sn'}">
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:800;font-size:13px;color:var(--text)">${od?'🔴':'🟠'} ${escapeHtml(s.title)}</div>
+        <div style="font-size:11px;color:var(--muted)">${escapeHtml(_pmTargetLabel(s))} · due ${fmtDate(pmNextDue(s))} · <strong style="color:${od?'#C62828':'#E65100'}">${od?Math.abs(dl)+"d overdue":(dl===0?"today":"in "+dl+"d")}</strong></div>
+      </div>
+      <button class="btn btn-sm" style="background:#2E7D32;color:#fff;border:none;font-weight:800" onclick="markPMDone('${s.id}')">✔ Done</button>
+    </div>`;};
+  return `
+  <div class="card" style="background:linear-gradient(135deg,#1B3A6B,#2E5FA3);border:none;color:#fff">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+      <div><div style="font-size:17px;font-weight:800">🛠️ Preventive Maintenance</div>
+      <div style="font-size:11px;opacity:.75;margin-top:2px">Recurring service schedules for your assets — never miss a check again</div></div>
+      <div style="display:flex;gap:14px;text-align:center">
+        <div><div style="font-size:20px;font-weight:800;color:${pmStatusCounts().overdue?'#FF9B9B':'#C9A84C'}">${pmStatusCounts().overdue}</div><div style="font-size:9px;opacity:.8">OVERDUE</div></div>
+        <div><div style="font-size:20px;font-weight:800;color:#F0D68A">${pmStatusCounts().soon}</div><div style="font-size:9px;opacity:.8">≤ 7 DAYS</div></div>
+        <div><div style="font-size:20px;font-weight:800">${pmStatusCounts().total}</div><div style="font-size:9px;opacity:.8">ACTIVE</div></div>
+      </div>
+    </div>
+  </div>
+  ${(overdue.length||soon.length)?`<div class="card" style="border-left:4px solid ${overdue.length?'#C62828':'#E65100'}">
+    <div class="card-title">⏰ Due now</div>${overdue.map(dueRow).join("")}${soon.map(dueRow).join("")}
+  </div>`:''}
+  <div class="card">
+    <div class="sec-hdr">${pmEditId?"Edit":"Add"} Maintenance Schedule</div>
+    <div class="form-grid">
+      <div class="field"><label>Title <span class="req">*</span></label>
+        <input value="${escapeHtml(pmForm.title)}" oninput="window.pmForm.title=this.value" placeholder="e.g. CCTV camera cleaning & focus check"></div>
+      <div class="field"><label>Device (optional — leave empty for a general task)</label>
+        <select onchange="window.pmForm.deviceSerial=this.value">
+          <option value="">— General / site-level task —</option>${devOpts}
+        </select></div>
+      <div class="field"><label>Repeat every <span class="req">*</span></label>
+        <select onchange="window.pmForm.freqDays=Number(this.value)">
+          ${[["7","Week"],["14","2 Weeks"],["30","Month"],["90","3 Months"],["180","6 Months"],["365","Year"]].map(([v,l])=>`<option value="${v}" ${Number(pmForm.freqDays)===Number(v)?"selected":""}>${l} (${v}d)</option>`).join("")}
+        </select></div>
+      <div class="field"><label>First due date</label>
+        <input type="date" value="${pmForm.startDate}" onchange="window.pmForm.startDate=this.value"></div>
+      <div class="field" style="grid-column:1/-1"><label>Notes</label>
+        <input value="${escapeHtml(pmForm.notes||"")}" oninput="window.pmForm.notes=this.value" placeholder="Checklist, tools, safety notes…"></div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:10px">
+      <button class="btn btn-primary" onclick="savePM()">${pmEditId?"Update":"Add"} Schedule</button>
+      ${pmEditId?`<button class="btn btn-ghost" onclick="window.pmEditId=null;window.pmForm=null;render()">Cancel</button>`:""}
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">📋 All Schedules (${list.length})</div>
+    ${list.length===0?'<div class="empty">No maintenance schedules yet — add your first above.</div>':`
+    <div class="tbl-wrap"><table class="tbl">
+      <thead><tr><th>Title</th><th>Target</th><th>Every</th><th>Last done</th><th>Next due</th><th></th></tr></thead>
+      <tbody>${list.map(s=>{
+        const dl=pmDaysLeft(s), off=s.active===false;
+        const col=off?'var(--muted)':dl<0?'#C62828':dl<=7?'#E65100':'#2E7D32';
+        return `<tr style="${off?'opacity:.5':''}">
+          <td style="font-weight:700">${escapeHtml(s.title)}</td>
+          <td style="font-size:11px">${escapeHtml(_pmTargetLabel(s))}</td>
+          <td>${s.freqDays}d</td>
+          <td style="font-size:11px">${s.lastDone?fmtDate(s.lastDone):'—'}</td>
+          <td style="font-weight:800;color:${col}">${fmtDate(pmNextDue(s))}${off?' (paused)':dl<0?` · ${Math.abs(dl)}d late`:''}</td>
+          <td style="white-space:nowrap">
+            <button class="btn btn-sm" style="background:#2E7D32;color:#fff;border:none" title="Mark done today" onclick="markPMDone('${s.id}')">✔</button>
+            <button class="btn btn-sm btn-secondary" onclick="editPM('${s.id}')">✎</button>
+            <button class="btn btn-sm" style="background:${off?'#2E5FA3':'#8496AC'};color:#fff;border:none" title="${off?'Resume':'Pause'}" onclick="togglePM('${s.id}')">${off?'▶':'⏸'}</button>
+            <button class="btn btn-sm btn-danger" onclick="delPM('${s.id}')">🗑</button>
+          </td></tr>`;}).join("")}
+      </tbody></table></div>`}
+  </div>`;
+}
+async function savePM(){
+  if(!pmForm.title.trim()) return toast("⚠ Title is required");
+  if(!Number(pmForm.freqDays)) return toast("⚠ Repeat interval is required");
+  const item={ ...(pmEditId?{id:pmEditId}:{}) , title:pmForm.title.trim(), deviceSerial:pmForm.deviceSerial||"",
+    freqDays:Number(pmForm.freqDays), startDate:pmForm.startDate||today(), notes:pmForm.notes||"",
+    active:true, ...(pmEditId?{}:{history:[]}) };
+  if(pmEditId){ const old=(state.pmSchedules||[]).find(x=>x.id===pmEditId);
+    if(old){ item.lastDone=old.lastDone||null; item.history=old.history||[]; item.active=old.active!==false; } }
+  await fbSave("pmSchedules", item);
+  pmForm=null; pmEditId=null; toast("Schedule saved ✓"); render();
+}
+function editPM(id){ const s=(state.pmSchedules||[]).find(x=>x.id===id); if(!s)return;
+  pmEditId=id; pmForm={title:s.title,deviceSerial:s.deviceSerial||"",freqDays:s.freqDays,startDate:s.startDate||today(),notes:s.notes||""};
+  render(); window.scrollTo({top:0,behavior:'smooth'}); }
+async function delPM(id){ if(!confirm("Delete this maintenance schedule?"))return;
+  await fbDelete("pmSchedules", id); toast("Deleted"); render(); }
+async function togglePM(id){ const s=(state.pmSchedules||[]).find(x=>x.id===id); if(!s)return;
+  await fbSave("pmSchedules",{...s, active: s.active===false}); render(); }
+async function markPMDone(id){
+  const s=(state.pmSchedules||[]).find(x=>x.id===id); if(!s)return;
+  const by=(state.profile&&(state.profile.name||state.profile.email))||"";
+  const history=[{date:today(),by},...(s.history||[])].slice(0,20);
+  await fbSave("pmSchedules",{...s,lastDone:today(),history});
+  toast(`✔ ${s.title} — done today. Next due ${fmtDate(_pmAddDays(today(),s.freqDays))}`);
+  render();
+}
+Object.assign(window,{savePM,editPM,delPM,togglePM,markPMDone});
+Object.defineProperty(window,'pmForm',{get:()=>pmForm,set:v=>pmForm=v});
+Object.defineProperty(window,'pmEditId',{get:()=>pmEditId,set:v=>pmEditId=v});
+
+// ── DEVICE TIMELINE ──
+window.openDeviceTimeline=function(id){
+  const d=(state.devices||[]).find(x=>x.id===id); if(!d)return;
+  const ev=[];
+  const inst=toDateStr(d.installDate); if(inst) ev.push({date:inst,icon:"📦",t:"Installed",m:[d.site,d.project].filter(Boolean).join(" · ")});
+  const wexp=toDateStr(d.warrantyExp);
+  if(wexp) ev.push({date:wexp,icon:"🛡️",t:new Date(wexp)<new Date()?"Warranty expired":"Warranty expires",m:wexp,future:new Date(wexp)>=new Date()});
+  (state.daily||[]).filter(r=>r.deviceSerial && d.serialNumber && r.deviceSerial===d.serialNumber).forEach(r=>{
+    ev.push({date:r.date,icon:"🔧",t:`Work entry ${r.entryNo?("#"+String(r.entryNo).padStart(3,"0")):""} — ${r.employee||""}`,
+      m:[r.workType,r.taskStatus,(r.resolutionText||"").slice(0,70)].filter(Boolean).join(" · ")});
+  });
+  (state.deviceEditSuggestions||[]).filter(s=>s.deviceId===d.id).forEach(s=>{
+    ev.push({date:String(s.createdAt||"").slice(0,10),icon:"✏️",t:`Edit suggestion (${s.status||"pending"})`,m:s.clientName||""});
+  });
+  (state.pmSchedules||[]).filter(p=>p.deviceSerial===d.serialNumber).forEach(p=>{
+    (p.history||[]).forEach(h=>ev.push({date:h.date,icon:"🛠️",t:`Maintenance done — ${p.title}`,m:h.by||""}));
+    if(p.active!==false) ev.push({date:pmNextDue(p),icon:"⏳",t:`Next maintenance — ${p.title}`,m:`every ${p.freqDays}d`,future:true});
+  });
+  ev.sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+  let ov=document.getElementById('dtlOv');
+  if(!ov){ov=document.createElement('div');ov.id='dtlOv';document.body.appendChild(ov);
+    ov.addEventListener('click',e=>{if(e.target===ov)ov.classList.remove('open');});}
+  ov.innerHTML=`<div class="dtl-box">
+    <div class="al-hd"><span>📜 ${escapeHtml(d.deviceName||d.model||"Device")} <span style="font-size:11px;color:var(--muted)">· ${escapeHtml(d.serialNumber||"")}</span></span>
+      <button class="al-x" onclick="document.getElementById('dtlOv').classList.remove('open')">✕</button></div>
+    <div class="dtl-list">${ev.length?ev.map(e=>`<div class="dtl-it ${e.future?'fut':''}">
+        <span class="dtl-dot"></span>
+        <div class="dtl-body">
+          <div class="dtl-t">${e.icon} ${escapeHtml(e.t)} ${e.future?'<span class="dtl-fut">upcoming</span>':''}</div>
+          <div class="dtl-m">${fmtDate(e.date)}${e.m?' — '+escapeHtml(e.m):''}</div>
+        </div></div>`).join(""):'<div class="al-empty" style="color:var(--muted)">No history for this device yet.</div>'}</div>
+    <div class="al-ft">${ev.length} event(s) · assembled live from work logs, suggestions & maintenance</div>
+  </div>`;
+  ov.classList.add('open');
+};

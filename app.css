@@ -508,3 +508,21 @@ body.hdr-compact .logo-mark img{width:34px;height:34px;transition:width .25s,hei
 .bnav-it.on .nvic2,.msheet-it.on .nvic2{filter:drop-shadow(0 0 8px rgba(201,168,76,.6));transform:translateY(-1px)}
 [data-theme="dark"] .nvic2{filter:drop-shadow(0 1px 3px rgba(0,0,0,.5))}
 [data-theme="dark"] .gtab.active .nvic2,[data-theme="dark"] .bnav-it.on .nvic2{filter:drop-shadow(0 0 8px rgba(201,168,76,.65))}
+
+/* ═══ Preventive Maintenance + Device Timeline ═══ */
+.pm-due{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;margin-bottom:8px;border:1px solid var(--line)}
+.pm-due.od{background:#FFEBEE;border-color:#E8B4B4}
+.pm-due.sn{background:#FFF3E0;border-color:#EAD3AE}
+[data-theme="dark"] .pm-due.od{background:#3A2226;border-color:#5C3236}
+[data-theme="dark"] .pm-due.sn{background:#3A2C1C;border-color:#5C4A2E}
+#dtlOv{position:fixed;inset:0;z-index:130;background:rgba(8,14,28,.55);backdrop-filter:blur(4px);display:none;align-items:flex-start;justify-content:center;padding:8vh 14px 0}
+#dtlOv.open{display:flex}
+.dtl-box{width:100%;max-width:520px;background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:0 24px 70px rgba(0,0,0,.5);overflow:hidden}
+.dtl-list{max-height:62vh;overflow-y:auto;padding:14px 16px 14px 22px;position:relative}
+.dtl-it{position:relative;padding:0 0 16px 20px;border-left:2px solid var(--line)}
+.dtl-it:last-child{padding-bottom:2px;border-left-color:transparent}
+.dtl-dot{position:absolute;left:-6px;top:2px;width:10px;height:10px;border-radius:6px;background:#C9A84C;border:2px solid var(--card)}
+.dtl-it.fut .dtl-dot{background:#2E5FA3}
+.dtl-t{font-size:13px;font-weight:700;color:var(--text)}
+.dtl-m{font-size:11px;color:var(--muted);margin-top:2px}
+.dtl-fut{font-size:9px;font-weight:800;background:#1B2C45;color:#8FB4E8;padding:1px 7px;border-radius:8px;vertical-align:1px}
