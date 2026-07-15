@@ -3,10 +3,12 @@
 // This file MUST sit next to index.html on the server (same folder),
 // alongside: theme.css, app.css, pwa-manifest.js, firebase-init.js, app.js
 
-const CACHE = 'ejaftech-v89';
+const CACHE = 'ejaftech-v90';
 
 self.addEventListener('install', (e) => {
-  self.skipWaiting();  // activate new version immediately
+  // NOTE (v90): no skipWaiting here anymore. The new version WAITS until the
+  // user taps "Update now" in the in-app banner — no more surprise reloads
+  // in the middle of someone's work. The page sends SKIP_WAITING when ready.
 });
 
 self.addEventListener('activate', (e) => {
@@ -54,4 +56,9 @@ self.addEventListener('fetch', (e) => {
       }).catch(() => caches.match('./'))
     )
   );
+});
+
+// Activate only when the page asks (user tapped the Update banner)
+self.addEventListener('message',(e)=>{
+  if(e && e.data==='SKIP_WAITING') self.skipWaiting();
 });

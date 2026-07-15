@@ -1077,17 +1077,54 @@ if('serviceWorker' in navigator){
   // Try the real file first; if it's missing (e.g. local single-file use), fall back to Blob.
   window.addEventListener('load', function(){
     navigator.serviceWorker.register('sw.js', {scope: './'}).then(function(reg){
-      // Check for updates on every load; if a new SW takes control, reload once.
+      // ── "New version available" flow (v90) ──
+      // 1) A newer sw.js installs in the background and WAITS (no skipWaiting).
+      // 2) We show a banner; the user taps Update whenever convenient.
+      // 3) We message SKIP_WAITING → controllerchange fires → ONE clean reload.
       reg.update();
+      function showUpdateBar(){
+        try{
+          if(document.getElementById('updBar')) return;
+          var bar=document.createElement('div');
+          bar.id='updBar';
+          bar.innerHTML='<span class="upd-t">🚀 New version available</span>'
+            +'<button class="upd-go" id="updGo">↻ Update now</button>'
+            +'<button class="upd-x" id="updX" title="Later">✕</button>';
+          document.body.appendChild(bar);
+          document.getElementById('updGo').addEventListener('click',function(){
+            try{
+              this.textContent='Updating…'; this.disabled=true;
+              if(reg.waiting){ reg.waiting.postMessage('SKIP_WAITING'); }
+              // Fallback: if control doesn't change quickly, hard-reload anyway
+              setTimeout(function(){ window.location.reload(); }, 2500);
+            }catch(err){ window.location.reload(); }
+          });
+          document.getElementById('updX').addEventListener('click',function(){ bar.remove(); });
+        }catch(err){}
+      }
+      // already-downloaded update from a previous visit
+      if(reg.waiting && navigator.serviceWorker.controller) showUpdateBar();
+      // update found during this session
+      reg.addEventListener('updatefound', function(){
+        var nw=reg.installing;
+        if(!nw) return;
+        nw.addEventListener('statechange', function(){
+          if(nw.state==='installed' && navigator.serviceWorker.controller) showUpdateBar();
+        });
+      });
+      // re-check when the app returns to the foreground (mobile PWA resume)
+      document.addEventListener('visibilitychange', function(){
+        if(!document.hidden){ try{ reg.update(); }catch(err){} }
+      });
       var refreshing = false;
       navigator.serviceWorker.addEventListener('controllerchange', function(){
         if(refreshing) return;
         refreshing = true;
-        window.location.reload();
+        window.location.reload();   // happens only after the user tapped Update
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v89';"
+      var swCode = "const CACHE='ejaftech-v90';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
