@@ -64,6 +64,7 @@ const state = {
   requestStatuses: [], projectStatuses: [],   // Client Request Entry options (admin-editable)
   devices: [],  // Asset Management: central devices collection
   pmSchedules: [],  // Preventive Maintenance schedules
+  settingsDocs: [],  // settings collection (sla, etc.)
   techReportCols: null,  // admin's column selection for Technical Report (from settings/techReport)
   workCategories: [], workTasks: [],  // Work Instructions module
   nametagEmployees: [],  // Admin-managed nametag-only employees (no auth account)
@@ -1041,6 +1042,7 @@ async function subscribeData(){
     ["notifications","notifications"],
     ["waContacts","waContacts"],
     ["emailContacts","emailContacts"],
+    ["settings","settingsDocs"],
   ];
   let firstCount=0;
 
@@ -1058,6 +1060,7 @@ async function subscribeData(){
     const unsub=onSnapshot(collection(db,col),async(snap)=>{
       const items=[];
       snap.forEach(d=>items.push({id:d.id,...d.data()}));
+      if(col==="notifications"){ try{ _sysNotifyNew(items); }catch(e){} }
       if(["daily","overtime","travel"].includes(col)){
         items.sort((a,b)=>(b.date||"").localeCompare(a.date||""));
       } else if(col==="users"){
@@ -2043,6 +2046,47 @@ window.snoozeAlert=function(key){
   try{ if(typeof closeNotifPanel==="function") closeNotifPanel(); }catch(e){}
   render();
 };
+// ── DEVICE (system-tray) NOTIFICATIONS — fire while the app is open/background ──
+let _seenNotifIds=null;
+function sysNotifEnabled(){ try{ return localStorage.getItem('girek-sysnotif')==='on'
+  && typeof Notification!=='undefined' && Notification.permission==='granted'; }catch(e){ return false; } }
+function _sysNotifyNew(items){
+  const me=state.profile&&state.profile.uid; if(!me) return;
+  const mine=items.filter(n=>n.toUid===me);
+  if(_seenNotifIds===null){ _seenNotifIds=new Set(mine.map(n=>n.id)); return; }   // baseline: no spam on load
+  const fresh=mine.filter(n=>!_seenNotifIds.has(n.id));
+  fresh.forEach(n=>_seenNotifIds.add(n.id));
+  if(!fresh.length || !sysNotifEnabled()) return;
+  fresh.slice(0,3).forEach(n=>{
+    const title=n.title||"Girêk"; const body=n.body||n.text||n.msg||n.message||"";
+    try{
+      if(navigator.serviceWorker&&navigator.serviceWorker.ready){
+        navigator.serviceWorker.ready.then(reg=>reg.showNotification(title,{body,tag:'girek-'+n.id,vibrate:[80,40,80],renotify:false})).catch(()=>{});
+      } else if(typeof Notification!=='undefined'){ new Notification(title,{body}); }
+    }catch(e){}
+  });
+}
+window.enableSysNotifs=async function(){
+  try{
+    if(typeof Notification==='undefined') return toast("⚠ Not supported on this browser");
+    const p=await Notification.requestPermission();
+    if(p==='granted'){
+      try{ localStorage.setItem('girek-sysnotif','on'); }catch(e){}
+      toast("🔔 Device notifications ON ✓");
+      try{ navigator.serviceWorker.ready.then(reg=>reg.showNotification("Girêk",{body:"Device notifications are working ✓",vibrate:[80]})); }catch(e){}
+    } else toast("⚠ Permission denied — allow notifications for this site in browser settings");
+  }catch(e){ toast("⚠ "+e.message); }
+  render();
+};
+window.disableSysNotifs=function(){ try{localStorage.setItem('girek-sysnotif','off');}catch(e){} toast("Device notifications OFF"); render(); };
+
+// ── SLA config (settings/sla doc, admin-editable in Requests) ──
+function getSLA(){
+  const d=(state.settingsDocs||[]).find(x=>x.id==="sla")||{};
+  return { responseHrs:Number(d.responseHrs)||24, completeHrs:Number(d.completeHrs)||72 };
+}
+const REQ_FINAL_RE=/complet|closed|done|rejected|cancel/i;
+
 function computeAlerts(){
   if(!(isAdmin()||isHR())) return [];
   const out=[], now=new Date();
@@ -2076,6 +2120,22 @@ function computeAlerts(){
   // 4) Pending client requests (new/unfinished) & device-edit suggestions
   const openReq=reqs.filter(r=>r.status==="new").length;
   if(openReq>0) out.push({sev:"med",icon:"📨",title:`${openReq} new client request${openReq>1?'s':''} awaiting review`,meta:"Requests tab",go:()=>switchTab("Requests")});
+
+  // 4b) SLA breaches / at-risk on open client requests
+  try{
+    const sla=getSLA(), nowT=Date.now();
+    const init=(typeof reqInitialStatus==="function")?reqInitialStatus():"new";
+    let br=0, wr=0;
+    reqs.forEach(r=>{
+      if(!r.createdAt || REQ_FINAL_RE.test(r.status||"")) return;
+      const isNewR=((r.status||init)===init) && !r.respondedAt;
+      const limit=(isNewR?sla.responseHrs:sla.completeHrs)*36e5;
+      const left=new Date(r.createdAt).getTime()+limit-nowT;
+      if(left<0) br++; else if(left<limit*0.25) wr++;
+    });
+    if(br>0) out.push({sev:"high",icon:"⏱",title:`${br} request${br>1?'s':''} breached SLA`,meta:"Respond now",go:()=>switchTab("Requests")});
+    if(wr>0) out.push({sev:"med", icon:"⏱",title:`${wr} request${wr>1?'s':''} nearing SLA limit`,meta:"At risk",go:()=>switchTab("Requests")});
+  }catch(e){}
 
   // 5) Preventive maintenance due
   if(typeof pmStatusCounts==="function"){

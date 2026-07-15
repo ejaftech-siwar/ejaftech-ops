@@ -10,7 +10,17 @@ function renderProfile(){
 
   if(!profileForm) profileForm = { current:"", newPass:"", confirm:"", showOldPass:false, showNewPass:false };
 
-  return `<div class="card" style="background:linear-gradient(135deg,#1B3A6B 0%,#2E5FA3 100%);color:white;border:2px solid #C9A84C">
+  const _sn=(typeof sysNotifEnabled==="function")&&sysNotifEnabled();
+  return `<div class="card" style="border-left:4px solid ${_sn?'#2E7D32':'#C9A84C'};padding:14px 16px">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+      <div style="flex:1;min-width:200px">
+        <div style="font-weight:800;font-size:14px;color:var(--text)">🔔 Device Notifications ${_sn?'<span style="font-size:10px;background:#E8F5E9;color:#2E7D32;padding:2px 8px;border-radius:9px;font-weight:800">ON</span>':''}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:3px">Task assignments & alerts appear in your phone's notification tray with sound — while the app is open or in the background.</div>
+      </div>
+      ${_sn?`<button class="btn btn-sm btn-secondary" onclick="disableSysNotifs()">Turn off</button>`
+           :`<button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:800;border:none" onclick="enableSysNotifs()">🔔 Enable</button>`}
+    </div>
+  </div><div class="card" style="background:linear-gradient(135deg,#1B3A6B 0%,#2E5FA3 100%);color:white;border:2px solid #C9A84C">
     <div style="display:flex;align-items:center;gap:14px">
       <div onclick="document.getElementById('profilePhotoInput').click()" title="Tap to change photo" style="position:relative;width:64px;height:64px;border:2px solid #C9A84C;border-radius:12px;display:flex;align-items:center;justify-content:center;background:#1B3A6B;flex-shrink:0;cursor:pointer;overflow:hidden">
         ${p.photoData?`<img src="${p.photoData}" alt="Profile photo" style="width:100%;height:100%;object-fit:cover">`:`<span style="font-family:'DM Serif Display',serif;font-size:20px;color:#C9A84C;font-weight:700">${escapeHtml((p.name||'?').charAt(0).toUpperCase())}</span>`}

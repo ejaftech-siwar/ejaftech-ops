@@ -522,8 +522,15 @@ function renderAnalytics(){
   const byStatus={}; reqs.forEach(r=>{const s=r.status||"—";byStatus[s]=(byStatus[s]||0)+1;});
   const byClient={}; reqs.forEach(r=>{const cn=r.clientName||"—";byClient[cn]=(byClient[cn]||0)+1;});
   const clTop=Object.entries(byClient).sort((a,b)=>b[1]-a[1]).slice(0,5);
-  const done=reqs.filter(r=>r.status==="completed"&&r.updatedAt&&r.createdAt);
-  const avgDays=done.length?(done.reduce((s,r)=>s+(new Date(r.updatedAt)-new Date(r.createdAt))/864e5,0)/done.length).toFixed(1):null;
+  const done=reqs.filter(r=>(r.completedAt||r.status==="completed")&&(r.completedAt||r.updatedAt)&&r.createdAt);
+  const avgDays=done.length?(done.reduce((s,r)=>s+(new Date(r.completedAt||r.updatedAt)-new Date(r.createdAt))/864e5,0)/done.length).toFixed(1):null;
+  // SLA metrics
+  const _slaC=(typeof getSLA==="function")?getSLA():{responseHrs:24,completeHrs:72};
+  const _fin=reqs.filter(r=>r.completedAt&&r.createdAt);
+  const _ok=_fin.filter(r=>(new Date(r.completedAt)-new Date(r.createdAt))<=_slaC.completeHrs*36e5).length;
+  const slaPct=_fin.length?Math.round(_ok/_fin.length*100):null;
+  const _resp=reqs.filter(r=>r.respondedAt&&r.createdAt);
+  const avgResp=_resp.length?(_resp.reduce((s,r)=>s+(new Date(r.respondedAt)-new Date(r.createdAt))/36e5,0)/_resp.length).toFixed(1):null;
   const pretty=(s)=>String(s||"").replace(/_/g," ").replace(/\b\w/g,ch=>ch.toUpperCase());
 
   return `
@@ -581,6 +588,8 @@ function renderAnalytics(){
       <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap">
         <div class="an-kpi" style="border-color:#03308B"><div class="an-kv" style="color:#03308B">${rCur}</div><div class="an-kl">this month ${_anDelta(rCur,rPrev)}</div></div>
         <div class="an-kpi" style="border-color:#00897B"><div class="an-kv" style="color:#00897B">${avgDays!==null?avgDays+"d":"—"}</div><div class="an-kl">avg completion</div></div>
+        <div class="an-kpi" style="border-color:${slaPct===null?'#8496AC':slaPct>=80?'#2E7D32':'#C62828'}"><div class="an-kv" style="color:${slaPct===null?'#8496AC':slaPct>=80?'#2E7D32':'#C62828'}">${slaPct!==null?slaPct+"%":"—"}</div><div class="an-kl">SLA compliance</div></div>
+        <div class="an-kpi" style="border-color:#1565C0"><div class="an-kv" style="color:#1565C0">${avgResp!==null?avgResp+"h":"—"}</div><div class="an-kl">avg first response</div></div>
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
         ${Object.entries(byStatus).map(([s,n])=>`<span style="font-size:11px;font-weight:700;background:#F0F4FF;color:#03308B;padding:4px 10px;border-radius:12px">${escapeHtml(pretty(s))} · ${n}</span>`).join("")||'<span class="empty">No requests yet</span>'}

@@ -3,7 +3,7 @@
 // This file MUST sit next to index.html on the server (same folder),
 // alongside: theme.css, app.css, pwa-manifest.js, firebase-init.js, app.js
 
-const CACHE = 'ejaftech-v90';
+const CACHE = 'ejaftech-v91';
 
 self.addEventListener('install', (e) => {
   // NOTE (v90): no skipWaiting here anymore. The new version WAITS until the
@@ -61,4 +61,13 @@ self.addEventListener('fetch', (e) => {
 // Activate only when the page asks (user tapped the Update banner)
 self.addEventListener('message',(e)=>{
   if(e && e.data==='SKIP_WAITING') self.skipWaiting();
+});
+
+// Tap on a system notification → focus the app (or open it)
+self.addEventListener('notificationclick',(e)=>{
+  e.notification.close();
+  e.waitUntil(clients.matchAll({type:'window',includeUncontrolled:true}).then(list=>{
+    for(const c of list){ if('focus' in c) return c.focus(); }
+    return clients.openWindow('./');
+  }));
 });

@@ -387,6 +387,26 @@ function renderMyTasks(){
   }
   return h;
 }
+// ── SLA chip: live countdown / breach / met-badge for a request ──
+function slaChip(r){
+  try{
+    const sla=getSLA(); if(!r.createdAt) return "";
+    const created=new Date(r.createdAt).getTime(); const hrs=v=>Math.round(v/36e5*10)/10;
+    if(REQ_FINAL_RE.test(r.status||"")){
+      const end=r.completedAt?new Date(r.completedAt).getTime():(r.statusUpdatedAt?new Date(r.statusUpdatedAt).getTime():null);
+      if(!end) return "";
+      const took=hrs(end-created), ok=took<=sla.completeHrs;
+      return `<span style="font-size:10px;font-weight:800;padding:2px 8px;border-radius:9px;background:${ok?'#E8F5E9':'#FFEBEE'};color:${ok?'#2E7D32':'#C62828'}">${ok?'✔ SLA met':'✖ SLA breached'} · ${took}h</span>`;
+    }
+    const init=(typeof reqInitialStatus==="function")?reqInitialStatus():"new";
+    const isNewR=((r.status||init)===init) && !r.respondedAt;
+    const limit=(isNewR?sla.responseHrs:sla.completeHrs)*36e5;
+    const left=created+limit-Date.now(), lab=isNewR?"response":"completion", lh=hrs(Math.abs(left));
+    if(left<0) return `<span style="font-size:10px;font-weight:800;padding:2px 8px;border-radius:9px;background:#C62828;color:#fff">⚠ ${lab} SLA · ${lh}h over</span>`;
+    const warn=left<limit*0.25;
+    return `<span style="font-size:10px;font-weight:800;padding:2px 8px;border-radius:9px;background:${warn?'#FFF3E0':'#E3F2FD'};color:${warn?'#E65100':'#1565C0'}">⏱ ${lab}: ${lh}h left</span>`;
+  }catch(e){ return ""; }
+}
 function renderRequests(){
   // CLIENT VIEW: submit + track own requests
   if(isClient()){
@@ -465,7 +485,7 @@ function renderRequests(){
               ${(r.projectCode||r.area||r.site||r.deviceSerial)?`<div style="font-size:11px;color:#03308B;margin-top:3px">${[r.projectCode&&`🔌 ${escapeHtml(r.projectCode)}`,r.area&&`🗺️ ${escapeHtml(r.area)}`,r.site&&`📍 ${escapeHtml(r.site)}`,r.deviceSerial&&`📟 ${escapeHtml(r.deviceSerial)}`].filter(Boolean).join(" · ")}</div>`:""}
               <div style="font-size:12px;color:#555;margin-top:6px;line-height:1.5">${escapeHtml(r.description||"")}</div>
             </div>
-            ${reqStatusBadge(r.status)}
+            ${reqStatusBadge(r.status)} ${slaChip(r)}
           </div>
         </div>`).join("")}
       </div>`}
@@ -477,7 +497,15 @@ function renderRequests(){
   const reqs = (state.clientRequests||[]).sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||""));
   const newCount = reqs.filter(r=>r.status==="new"||r.status===reqInitialStatus()).length;
 
-  return `${renderDeviceSuggestionsAdmin()}<div class="card">
+  const _sla=getSLA();
+  return `${renderDeviceSuggestionsAdmin()}${isAdmin()?`<div class="card" style="padding:12px 16px"><div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+    <span style="font-size:12px;font-weight:800;color:var(--muted)">⏱ SLA TARGETS</span>
+    <label style="font-size:11px;font-weight:700;display:flex;align-items:center;gap:6px">First response
+      <input type="number" min="1" value="${_sla.responseHrs}" style="width:64px;padding:6px 8px;border:1px solid var(--line);border-radius:6px" onchange="saveSLA('responseHrs',this.value)"> h</label>
+    <label style="font-size:11px;font-weight:700;display:flex;align-items:center;gap:6px">Completion
+      <input type="number" min="1" value="${_sla.completeHrs}" style="width:64px;padding:6px 8px;border:1px solid var(--line);border-radius:6px" onchange="saveSLA('completeHrs',this.value)"> h</label>
+    <span style="font-size:10px;color:var(--muted)">Timers & breach alerts follow these targets</span>
+  </div></div>`:''}<div class="card">
     <div class="filter-row">
       <span class="card-title" style="margin:0">📨 Client Task Requests</span>
       <span class="count-pill">${reqs.length}</span>
@@ -499,7 +527,7 @@ function renderRequests(){
               ${taskAssignBlockHTML(r)}
             </div>
             <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">
-              ${reqStatusBadge(r.status)}
+              ${reqStatusBadge(r.status)} ${slaChip(r)}
               ${isAdmin()||isHR()?`<select onchange="updateRequestStatus('${r.id}',this.value)" style="padding:5px 10px;border:1px solid var(--line);border-radius:6px;font-size:12px;font-weight:600">
                 ${(()=>{const opts=getReqStatusList();const has=opts.some(o=>o.value===r.status);const all=has?opts:[{value:r.status,label:prettyStatus(r.status)},...opts];return all.map(o=>`<option value="${escapeHtml(o.value)}" ${r.status===o.value?"selected":""}>${o.label}</option>`).join("");})()}
               </select>`:""}
@@ -634,7 +662,12 @@ async function updateRequestStatus(id, status){
   if(!isAdmin() && !isHR()) return toast("Not allowed");
   const r=(state.clientRequests||[]).find(x=>x.id===id);
   if(!r) return;
-  await fbSave("clientRequests",{...r, id, status, statusUpdatedAt:new Date().toISOString(), statusUpdatedBy:state.profile.uid});
+  const patch={...r, id, status, statusUpdatedAt:new Date().toISOString(), statusUpdatedBy:state.profile.uid};
+  // SLA milestones (stamped once)
+  const _init=(typeof reqInitialStatus==="function")?reqInitialStatus():"new";
+  if(!r.respondedAt && (r.status||_init)===_init && status!==_init) patch.respondedAt=new Date().toISOString();
+  if(REQ_FINAL_RE.test(status||"") && !r.completedAt) patch.completedAt=new Date().toISOString();
+  await fbSave("clientRequests",patch);
   toast(`Status → ${status.replace("_"," ")} ✓`);
 }
 async function delRequest(id){
@@ -718,3 +751,9 @@ const WA_FIELDS = [
   {id:"notes",          label:"Notes",          icon:"🗒️"},
 ];
 
+
+window.saveSLA=async function(k,v){
+  const cur=getSLA();
+  await fbSave("settings",{id:"sla",...cur,[k]:Math.max(1,Number(v)||cur[k])});
+  toast("⏱ SLA target saved ✓");
+};
