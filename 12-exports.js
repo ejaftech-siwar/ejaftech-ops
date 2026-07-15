@@ -235,6 +235,26 @@ function renderFlexReports(){
     </div>`;
   }
 
+  // ═══════ 🔖 PROJECT CODE BREAKDOWN — sessions & hours per code ═══════
+  {
+    const codedRows = dailyFiltered.filter(r=>r.projectCode);
+    if(codedRows.length){
+      const grpC={};
+      codedRows.forEach(r=>{const k=(r.project||"—")+"|||"+r.projectCode;(grpC[k]=grpC[k]||{n:0,m:0}).n++;grpC[k].m+=Number(r.duration||0);});
+      const rowsC=Object.entries(grpC).sort((x,y)=>y[1].m-x[1].m);
+      const isPMc=c=>String(c||"").trim().toLowerCase()==="preventive maintenance";
+      h+=`<div class="card">
+      <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">🔖</span> Project Code Breakdown</div>
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>Project</th><th>Code</th><th>Sessions</th><th>Hours</th></tr></thead><tbody>
+        ${rowsC.map(([k,v])=>{const i3=k.indexOf("|||");const p=k.slice(0,i3),c=k.slice(i3+3);
+          return `<tr><td>${escapeHtml(p)}</td><td><span style="font-size:10px;background:${isPMc(c)?'#FFF3E0':'#F0F4FF'};color:${isPMc(c)?'#E65100':'#03308B'};padding:2px 8px;border-radius:9px;font-weight:800">${escapeHtml(c)}</span></td><td style="font-weight:800">${v.n}</td><td style="font-weight:800;color:#1B3A6B">${fmtHM(v.m)}</td></tr>`;}).join("")}
+        </tbody></table></div>
+      <p style="font-size:10px;color:var(--muted);margin-top:6px">Sessions = number of work-log entries tagged with the code — e.g. how many visits a maintenance round took.</p>
+      </div>`;
+    }
+  }
+
   // ═══════ EXPORT BUTTONS ═══════
   h+=`<div class="card" style="background:linear-gradient(135deg,#1B3A6B 0%,#2E5FA3 100%);color:white;border:2px solid #C9A84C">
     <div class="sec-hdr" style="color:#C9A84C;border:none;display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">📤</span> Export Options</div>
@@ -1067,7 +1087,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v88';"
+      var swCode = "const CACHE='ejaftech-v89';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"

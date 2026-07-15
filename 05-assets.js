@@ -1213,6 +1213,41 @@ Object.defineProperty(window,'assetFilterWarranty',{get:()=>assetFilterWarranty,
 //  + DEVICE TIMELINE — the full life story of any asset.
 // ═══════════════════════════════════════════════════════════════════════
 let pmForm=null, pmEditId=null, pmProjFilter="";
+// ── Live link: Daily Log ⇄ Maintenance ──
+function _isPMCode(c){ return String(c||"").trim().toLowerCase()==="preventive maintenance"; }
+function _pmScopeMatch(s,r){
+  if((s.project||"").trim()!==(r.project||"").trim()) return false;
+  if(s.deviceSerial && r.deviceSerial!==s.deviceSerial) return false;
+  if(s.site && r.site!==s.site) return false;
+  if(s.area && r.area!==s.area) return false;
+  return true;
+}
+// Sessions logged since the round started (after lastDone)
+function pmOpenSessions(s){
+  return (state.daily||[]).filter(r=>_isPMCode(r.projectCode)&&_pmScopeMatch(s,r)&&(!s.lastDone||String(r.date)>String(s.lastDone)));
+}
+// Called from Daily Log after saving a PM-coded entry
+window.pmOnDailySaved=function(rec,isFinal,isNew){
+  try{
+    const cands=(state.pmSchedules||[]).filter(s=>s.active!==false&&_pmScopeMatch(s,rec));
+    if(!cands.length){ if(isFinal) setTimeout(()=>toast("⚠ No matching maintenance schedule for this scope"),400); return; }
+    const score=s=>(s.deviceSerial?8:0)+(s.site?4:0)+(s.area?2:0)+1;    // most specific wins
+    const s=cands.sort((x,y)=>score(y)-score(x)||pmNextDue(x).localeCompare(pmNextDue(y)))[0];
+    let sessions=pmOpenSessions(s).length; if(sessions<1) sessions=1;   // local snapshot may lag by one
+    if(isFinal){ _pmCloseRound(s, rec.date||today(), sessions); return; }
+    const started=(sessions===1&&isNew);
+    setTimeout(()=>toast(started?`🛠 Maintenance STARTED — ${s.title}`:`🛠 Maintenance session #${sessions} — ${s.title}`),400);
+  }catch(e){}
+};
+async function _pmCloseRound(s,endDate,sessions){
+  const by=(state.profile&&(state.profile.name||state.profile.email))||"";
+  const history=[{date:endDate,by,sessions},...(s.history||[])].slice(0,20);
+  await fbSave("pmSchedules",{...s,lastDone:endDate,history});
+  setTimeout(()=>toast(`🏁 Round closed — ${sessions} session(s) · next due ${fmtDate(_pmAddDays(endDate,s.freqDays))}`),400);
+}
+const _pmProgBadge=(s)=>{const n=pmOpenSessions(s).length;
+  return n?` <span style="font-size:9px;background:#1B2C45;color:#8FB4E8;padding:1px 7px;border-radius:8px;font-weight:800;vertical-align:1px">⏳ IN PROGRESS · ${n}</span>`:"";};
+
 function _pmAddDays(ds,n){ const d=new Date(ds); d.setDate(d.getDate()+Number(n||0));
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; }
 function pmNextDue(s){ return s.lastDone ? _pmAddDays(s.lastDone, s.freqDays) : (s.startDate || today()); }
@@ -1270,7 +1305,7 @@ function renderMaintenance(){
   const dueRow=(s)=>{const dl=pmDaysLeft(s);const od=dl<0;
     return `<div class="pm-due ${od?'od':'sn'}">
       <div style="flex:1;min-width:0">
-        <div style="font-weight:800;font-size:13px;color:var(--text)">${od?'🔴':'🟠'} ${escapeHtml(s.title)}</div>
+        <div style="font-weight:800;font-size:13px;color:var(--text)">${od?'🔴':'🟠'} ${escapeHtml(s.title)}${_pmProgBadge(s)}</div>
         <div style="font-size:11px;color:var(--muted)">${escapeHtml(_pmTargetLabel(s))} · due ${fmtDate(pmNextDue(s))} · <strong style="color:${od?'#C62828':'#E65100'}">${od?Math.abs(dl)+"d overdue":(dl===0?"today":"in "+dl+"d")}</strong></div>
       </div>
       <button class="btn btn-sm" style="background:#2E7D32;color:#fff;border:none;font-weight:800" onclick="markPMDone('${s.id}')">✔ Done</button>
@@ -1281,7 +1316,7 @@ function renderMaintenance(){
     const dl=pmDaysLeft(s), off=s.active===false;
     const col=off?'var(--muted)':dl<0?'#C62828':dl<=7?'#E65100':'#2E7D32';
     return `<tr style="${off?'opacity:.5':''}">
-      <td style="font-weight:700">${escapeHtml(s.title)}</td>
+      <td style="font-weight:700">${escapeHtml(s.title)}${_pmProgBadge(s)}</td>
       <td style="font-size:11px">${escapeHtml(_pmTargetLabel(s))}</td>
       <td>${s.freqDays}d</td>
       <td style="font-size:11px">${s.lastDone?fmtDate(s.lastDone):'—'}</td>
@@ -1472,7 +1507,7 @@ window.openDeviceTimeline=function(id){
     ev.push({date:String(s.createdAt||"").slice(0,10),icon:"✏️",t:`Edit suggestion (${s.status||"pending"})`,m:s.clientName||""});
   });
   (state.pmSchedules||[]).filter(p=>p.deviceSerial===d.serialNumber).forEach(p=>{
-    (p.history||[]).forEach(h=>ev.push({date:h.date,icon:"🛠️",t:`Maintenance done — ${p.title}`,m:h.by||""}));
+    (p.history||[]).forEach(h=>ev.push({date:h.date,icon:"🛠️",t:`Maintenance done — ${p.title}`,m:[h.by,(h.sessions?`${h.sessions} session(s)`:"")].filter(Boolean).join(" · ")}));
     if(p.active!==false) ev.push({date:pmNextDue(p),icon:"⏳",t:`Next maintenance — ${p.title}`,m:`every ${p.freqDays}d`,future:true});
   });
   ev.sort((a,b)=>String(b.date).localeCompare(String(a.date)));

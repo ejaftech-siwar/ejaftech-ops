@@ -218,7 +218,7 @@ function renderDailyLog(){
     dailyForm={
       date:today(),
       employee:isEmployee()?state.profile.employeeName:"",
-      project:"",projectCode:"",start:"",end:"",location:"",
+      project:"",projectCode:"",pmFinal:false,start:"",end:"",location:"",
       site:"",equipment:"",area:"",  // area + site (from project's areas)
       deviceSerial:"",  // optional device reference (Asset Management)
       workType:"",taskStatus:"",taskCategory:"",taskSubcategory:"",  // technical classification
@@ -289,7 +289,7 @@ function renderDailyLog(){
           ${isSupervisor()&&!isHR()?`<p style="font-size:11px;color:#6A1B9A;margin-top:4px">👔 You can log for your team members.</p>`:''}`}
       </div>
       <div class="field full"><label>Project <span class="req">*</span></label>
-        <select onchange="window.dailyForm.project=this.value;window.dailyForm.projectCode='';window.dailyForm.area='';window.dailyForm.site='';render()">
+        <select onchange="window.dailyForm.project=this.value;window.dailyForm.projectCode='';window.dailyForm.pmFinal=false;window.dailyForm.area='';window.dailyForm.site='';render()">
           <option value="">— Select —</option>
           ${state.projects.map(p=>{const n=(p.name||"").trim();return `<option value="${escapeHtml(n)}" ${n===(dailyForm.project||"").trim()?"selected":""}>${escapeHtml(n)}</option>`}).join("")}
         </select></div>
@@ -297,11 +297,17 @@ function renderDailyLog(){
         const _pc = state.projects.find(p=>(p.name||"").trim()===(dailyForm.project||"").trim());
         const _codes = (_pc && Array.isArray(_pc.codes)) ? _pc.codes : [];
         if(!_codes.length) return "";
+        const _isPM = String(dailyForm.projectCode||"").trim().toLowerCase()==="preventive maintenance";
         return `<div class="field full"><label>🔖 Project Code <span style="font-size:10px;color:var(--muted)">(which work stream / contract)</span></label>
-        <select onchange="window.dailyForm.projectCode=this.value">
+        <select onchange="window.dailyForm.projectCode=this.value;window.dailyForm.pmFinal=false;render()">
           <option value="">— None —</option>
           ${_codes.map(c=>`<option ${dailyForm.projectCode===c?"selected":""}>${escapeHtml(c)}</option>`).join("")}
-        </select></div>`;
+        </select>
+        ${_isPM&&isAdmin()?`<label style="display:flex;align-items:center;gap:8px;margin-top:8px;padding:9px 12px;background:#FFF3E0;border:1px solid #EAD3AE;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;color:#7A4A00">
+          <input type="checkbox" ${dailyForm.pmFinal?"checked":""} onchange="window.dailyForm.pmFinal=this.checked" style="width:16px;height:16px;accent-color:#E65100">
+          🏁 Final log of this maintenance round — closes it & sets the next due date from THIS entry's date
+        </label>`:_isPM?`<p style="font-size:10px;color:var(--muted);margin-top:5px">🛠 This entry counts as a maintenance session.</p>`:""}
+        </div>`;
       })()}
       ${(()=>{
         const proj = state.projects.find(p=>(p.name||"").trim()===(dailyForm.project||"").trim());
@@ -641,6 +647,12 @@ async function saveDaily(){
     createdBy:state.profile.uid,
     ...gpsData,
   });
+
+  // ── PM sync: a "Preventive Maintenance"-coded entry advances the Maintenance tab ──
+  if(String(savedRecord.projectCode||"").trim().toLowerCase()==="preventive maintenance"
+     && typeof window.pmOnDailySaved==="function"){
+    window.pmOnDailySaved(savedRecord, !!dailyForm.pmFinal, isNewDailyEntry);
+  }
 
   // ── Central device sync: if a device was selected and edited, update the devices collection ──
   if(dailyForm.deviceSerial && window._devEdit){
