@@ -119,11 +119,41 @@ function renderDashboard(){
     dT[d.name] = s.reduce((acc,r)=>acc+(r.byDept[d.name]||0), 0);
   });
 
-  let h = exportBar + `<div class="kpi-grid">
-    <div class="kpi" style="--accent:#2E5FA3"><div class="kpi-label">Total Hours</div><div class="kpi-value">${fmtHM(tHrs)}</div><div class="kpi-sub">${isEmployee()?"your hours":applyReportFilters(visibleRows(state.daily)).length+" sessions"}</div></div>
-    <div class="kpi" style="--accent:#E65100"><div class="kpi-label">Overtime</div><div class="kpi-value">${fmtHM(tOT)}</div><div class="kpi-sub">${applyReportFilters(visibleRows(state.overtime)).length} entries</div></div>
-    <div class="kpi" style="--accent:#2E7D32"><div class="kpi-label">Travel Days</div><div class="kpi-value">${tTr}</div><div class="kpi-sub">${applyReportFilters(visibleRows(state.travel)).length} trips</div></div>
-    <div class="kpi" style="--accent:#6A1B9A"><div class="kpi-label">Per Diem</div><div class="kpi-value">${fmtMoney(tPD)}</div><div class="kpi-sub">IQD total</div></div>
+  // ── "Your day" command center ──
+  const _hr=new Date().getHours();
+  const _greet=_hr<12?"Good morning":_hr<17?"Good afternoon":"Good evening";
+  const _gIcon=_hr<12?"☀️":_hr<17?"🌤️":"🌙";
+  const _fname=((state.profile&&(state.profile.name||state.profile.employeeName))||"").split(" ")[0];
+  const _acts=[];
+  try{ if(isAdmin()&&typeof pmStatusCounts==="function"){ const pc=pmStatusCounts();
+    if(pc.overdue+pc.soon>0) _acts.push({ic:"🛠️",t:`${pc.overdue+pc.soon} maintenance task${pc.overdue+pc.soon>1?"s":""} due`,m:pc.overdue?`${pc.overdue} overdue`:"within 7 days",go:"Maintenance",c:pc.overdue?"#C62828":"#E65100"}); } }catch(e){}
+  try{ if(!isEmployee()&&typeof getSLA==="function"){ const sla=getSLA(); let risk=0;
+    (state.clientRequests||[]).forEach(r=>{ if(!r.createdAt||REQ_FINAL_RE.test(r.status||""))return;
+      const isN=!r.respondedAt; const lim=(isN?sla.responseHrs:sla.completeHrs)*36e5;
+      if(new Date(r.createdAt).getTime()+lim-Date.now()<lim*0.25) risk++; });
+    if(risk>0) _acts.push({ic:"⏱",t:`${risk} request${risk>1?"s":""} need attention`,m:"SLA at risk or breached",go:"Requests",c:"#C62828"}); } }catch(e){}
+  try{ const me=state.profile&&state.profile.uid;
+    const myT=(state.tasks||[]).filter(t=>t.assignedToUid===me&&t.status==="pending").length;
+    if(myT>0) _acts.push({ic:"📋",t:`${myT} task${myT>1?"s":""} awaiting your confirmation`,m:"Assigned to you",go:"My Tasks",c:"#2E5FA3"}); }catch(e){}
+  try{ if(isAdmin()){ const init=(typeof reqInitialStatus==="function")?reqInitialStatus():"new";
+    const nw=(state.clientRequests||[]).filter(r=>(r.status||init)===init).length;
+    if(nw>0) _acts.push({ic:"📨",t:`${nw} new client request${nw>1?"s":""}`,m:"Not yet reviewed",go:"Requests",c:"#6A1B9A"}); } }catch(e){}
+  const hero=`<div class="card day-hero">
+    <div class="dh-top">
+      <div><div class="dh-greet">${_greet}${_fname?`, ${escapeHtml(_fname)}`:""} ${_gIcon}</div>
+      <div class="dh-date">${new Date().toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long"})}</div></div>
+      <div class="dh-badge ${_acts.length?"warm":"calm"}">${_acts.length?`<span class="cnt" data-v="${_acts.length}" data-fmt="int">0</span> need${_acts.length===1?"s":""} you`:"✅ All clear"}</div>
+    </div>
+    ${_acts.length?`<div class="dh-acts">${_acts.map(a=>`<button class="dh-act" style="border-left-color:${a.c}" onclick="switchTab('${a.go}')">
+      <span class="dh-ic">${a.ic}</span><span class="dh-body"><span class="dh-t">${a.t}</span><span class="dh-m">${a.m}</span></span><span class="dh-go">›</span></button>`).join("")}</div>`
+    :`<div class="dh-clear">Nothing is waiting on you right now — enjoy the calm ${_gIcon}</div>`}
+  </div>`;
+
+  let h = hero + exportBar + `<div class="kpi-grid">
+    <div class="kpi" style="--accent:#2E5FA3"><div class="kpi-label">Total Hours</div><div class="kpi-value"><span class="cnt" data-v="${tHrs}" data-fmt="hm">0:00</span></div><div class="kpi-sub">${isEmployee()?"your hours":applyReportFilters(visibleRows(state.daily)).length+" sessions"}</div></div>
+    <div class="kpi" style="--accent:#E65100"><div class="kpi-label">Overtime</div><div class="kpi-value"><span class="cnt" data-v="${tOT}" data-fmt="hm">0:00</span></div><div class="kpi-sub">${applyReportFilters(visibleRows(state.overtime)).length} entries</div></div>
+    <div class="kpi" style="--accent:#2E7D32"><div class="kpi-label">Travel Days</div><div class="kpi-value"><span class="cnt" data-v="${tTr}" data-fmt="int">0</span></div><div class="kpi-sub">${applyReportFilters(visibleRows(state.travel)).length} trips</div></div>
+    <div class="kpi" style="--accent:#6A1B9A"><div class="kpi-label">Per Diem</div><div class="kpi-value"><span class="cnt" data-v="${tPD}" data-fmt="money">0</span></div><div class="kpi-sub">IQD total</div></div>
   </div>`;
 
   if(!isEmployee()){
@@ -1623,3 +1653,30 @@ window.exportTechExcel = async function(){
   }catch(e){ toast("Export failed: "+(e.message||"error")); }
 };
 
+
+// ── Animated count-ups (respects reduced-motion; runs once per render) ──
+window._runCountUps=function(root){
+  try{
+    if(window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)").matches){
+      (root||document).querySelectorAll(".cnt").forEach(el=>{ el.textContent=_cntFmt(el); });
+      return;
+    }
+    (root||document).querySelectorAll(".cnt").forEach(el=>{
+      if(el.dataset.done)return; el.dataset.done="1";
+      const target=Number(el.dataset.v)||0, t0=performance.now(), dur=650;
+      const step=(now)=>{
+        const p=Math.min(1,(now-t0)/dur), e=1-Math.pow(1-p,3);   // easeOutCubic
+        el.textContent=_cntFmt(el, target*e);
+        if(p<1) requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+    });
+  }catch(e){}
+};
+function _cntFmt(el,v){
+  const t=(v===undefined)?Number(el.dataset.v)||0:v;
+  const f=el.dataset.fmt||"int";
+  if(f==="hm") return fmtHM(t);
+  if(f==="money") return fmtMoney(Math.round(t));
+  return String(Math.round(t));
+}

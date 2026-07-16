@@ -290,8 +290,28 @@ function renderBottomNav(){
     if(!sh){ sh=document.createElement('div'); sh.id='moreSheet'; document.body.appendChild(sh); }
     sh.innerHTML = rest.map(g=>`<button class="msheet-it ${g.id===cur?'on':''}" onclick="switchGroup('${g.id}');toggleMoreSheet(false)">${NAV_ICONS[g.id]||''}<span>${g.label}</span></button>`).join('');
     if(!moreOnKeepOpen()) sh.classList.remove('open');
+
+    // ── Floating Action Button: the day's most common actions, one thumb away ──
+    const tabsFlat=(typeof visibleTabs==="function"?visibleTabs():[])||[];
+    const acts=[["Daily Log","🔧","Work Entry"],["Overtime","⏰","Overtime"],["Travel","✈️","Travel"],["Leaves","🌴","Leave"]]
+      .filter(a=>tabsFlat.includes(a[0]));
+    let fab=document.getElementById('fab'), fsh=document.getElementById('fabSheet');
+    if(!acts.length){ if(fab)fab.remove(); if(fsh)fsh.remove(); }
+    else{
+      if(!fab){ fab=document.createElement('button'); fab.id='fab'; fab.setAttribute('aria-label','Quick add'); document.body.appendChild(fab); }
+      if(!fsh){ fsh=document.createElement('div'); fsh.id='fabSheet'; document.body.appendChild(fsh); }
+      fab.innerHTML='<svg viewBox="0 0 24 24" width="26" height="26" fill="#1B3A6B"><path d="M11 5h2v14h-2z"/><path d="M5 11h14v2H5z"/></svg>';
+      fab.onclick=()=>document.body.classList.toggle('fab-open');
+      fsh.innerHTML='<div class="fsh-t">Quick add</div>'+acts.map(a=>
+        `<button class="fsh-it" onclick="_fabGo('${a[0]}')"><span class="fsh-ic">${a[1]}</span><span>${a[2]}</span></button>`).join('');
+    }
   }catch(e){}
 }
+window._fabGo=function(tab){
+  document.body.classList.remove('fab-open');
+  switchTab(tab);
+  window.scrollTo({top:0,behavior:'smooth'});
+};
 function moreOnKeepOpen(){ return false; }
 window.toggleMoreSheet=function(force){
   const sh=document.getElementById('moreSheet'); if(!sh) return;
@@ -305,6 +325,7 @@ function toast(msg){
   const s=String(msg||"");
   const type=/error|failed|denied|✗/i.test(s)?"err":(/⚠|required|invalid|already|only|missing/i.test(s)?"warn":(/✓|saved|added|updated|sent|ready|deleted|downloaded/i.test(s)?"ok":"info"));
   t.setAttribute("data-type",type);
+  if(type==="ok"){ try{ navigator.vibrate && navigator.vibrate(14); }catch(e){} }
   t.textContent=s;t.classList.add("show");
   clearTimeout(toastTimer);
   toastTimer=setTimeout(()=>t.classList.remove("show"),2800);
@@ -1497,6 +1518,8 @@ function pendingRequestCount(){
 
 window.switchTab=function(t){
   window.__navFade=true;
+  if(t==="Dashboard") window._dashAnimated=false;   // re-run the KPI count-up on entry
+  document.body.classList.remove('fab-open');
   const prevGroup = groupOfTab(state.tab);
   state.tab=t;
   const newGroup = groupOfTab(t);
@@ -1728,7 +1751,12 @@ function renderTab(){
     "Technical Classifications":renderTechClassifications,
     "Entry Manage":renderEntryManage,
   }[state.tab]||(isClient()?renderClientPortal:renderDashboard);
-  try{ c.innerHTML=fn(); }
+  try{
+    c.innerHTML=fn();
+    // ── polish hooks: animated count-ups + soft view transition ──
+    try{ c.classList.remove("view-in"); void c.offsetWidth; c.classList.add("view-in"); }catch(e){}
+    try{ if(typeof window._runCountUps==="function") window._runCountUps(c); }catch(e){}
+  }
   catch(err){
     console.error("Render failed:", state.tab, err);
     c.innerHTML=`<div class="card" style="border-left:4px solid var(--red)"><div class="empty" style="color:var(--red);font-style:normal">⚠️ ${escapeHtml(state.tab)} failed to render<br><span style="font-size:11px;color:var(--muted)">${escapeHtml((err&&err.message)||String(err))}</span></div></div>`;
