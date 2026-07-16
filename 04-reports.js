@@ -516,6 +516,43 @@ function renderAnalytics(){
     return {name:p.name,used,est,pct:Math.round(used/est*100),status:p.status||"",fin:REQ_FINAL_RE.test(p.status||"")};
   }).sort((a,b)=>(a.fin-b.fin)||(b.pct-a.pct));   // active first, closed at the bottom
 
+  // ── Apple-style progress ring per project ──
+  const _RC=2*Math.PI*52;
+  const _ring=(p)=>{
+    const cap=Math.min(Math.max(p.pct,0),100), dash=(cap/100)*_RC;
+    const col=p.fin?"#8496AC":(p.pct>100?"#C62828":p.pct>=80?"#E65100":"#2E7D32");
+    const flag=p.fin?"✓ Closed":(p.pct>100?"⚠ Over":p.pct>=80?"Watch":"On track");
+    return `<div class="ringc"${p.fin?' style="opacity:.62"':''}>
+      <svg viewBox="0 0 120 120" class="ring-svg">
+        <circle cx="60" cy="60" r="52" fill="none" stroke="var(--line)" stroke-width="11"/>
+        <circle cx="60" cy="60" r="52" fill="none" stroke="${col}" stroke-width="11" stroke-linecap="round"
+          stroke-dasharray="${dash.toFixed(1)} ${_RC.toFixed(1)}" transform="rotate(-90 60 60)" class="ring-arc"/>
+        <text x="60" y="57" text-anchor="middle" class="ring-num" fill="${col}">${p.pct}%</text>
+        <text x="60" y="77" text-anchor="middle" class="ring-sub">${flag}</text>
+      </svg>
+      <div class="ring-name" title="${escapeHtml(p.name)}">${escapeHtml(p.name)}</div>
+      ${p.status?`<div class="ring-st">${escapeHtml(p.status)}</div>`:""}
+      <div class="ring-hrs">${fmtHM(p.used)} of ${fmtHM(p.est)}</div>
+    </div>`;};
+
+  // ── GitHub-style team activity heatmap (last 12 weeks) ──
+  const _hmMap={}; let _hmTot=0,_hmMax=0;
+  visibleRows(state.daily).forEach(x=>{ if(x.date){ const v=(_hmMap[x.date]=(_hmMap[x.date]||0)+Number(x.duration||0)); _hmTot+=Number(x.duration||0); if(v>_hmMax)_hmMax=v; } });
+  const _hmToday=new Date(); _hmToday.setHours(0,0,0,0);
+  const _hmStart=new Date(_hmToday); _hmStart.setDate(_hmStart.getDate()-(_hmToday.getDay()+77));  // Sunday, 12 weeks back
+  const _hmPal=["var(--line)","#CDE9CF","#8FD096","#4CAF50","#1B5E20"];
+  let _hmCells="";
+  for(let col=0; col<12; col++){
+    for(let row=0; row<7; row++){
+      const d=new Date(_hmStart); d.setDate(d.getDate()+col*7+row);
+      if(d>_hmToday){ _hmCells+=`<i class="hm-c" style="background:transparent"></i>`; continue; }
+      const ds=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+      const v=_hmMap[ds]||0;
+      const lvl=v===0?0:(v<=_hmMax*0.25?1:v<=_hmMax*0.5?2:v<=_hmMax*0.75?3:4);
+      _hmCells+=`<i class="hm-c" style="background:${_hmPal[lvl]}" title="${fmtDate(ds)} — ${fmtHM(v)}"></i>`;
+    }
+  }
+
   // 6) Requests
   const rCur=reqs.filter(r=>String(r.createdAt||"").slice(0,7)===todayK).length;
   const rPrev=reqs.filter(r=>String(r.createdAt||"").slice(0,7)===prevK).length;
@@ -573,15 +610,14 @@ function renderAnalytics(){
       <div style="font-size:10px;color:var(--muted);margin-top:6px">▲▼ compares the last 28 days with the 28 before</div>
     </div>
     <div class="card">
+      <div class="card-title">🔥 Team Activity — last 12 weeks</div>
+      <div class="hm-wrap"><div class="hm-grid">${_hmCells}</div></div>
+      <div class="hm-leg"><span><strong>${fmtHM(_hmTot)}</strong> logged in 12 weeks</span>
+        <span class="hm-ll">Less ${_hmPal.map(c=>`<i style="background:${c}"></i>`).join("")} More</span></div>
+    </div>
+    <div class="card">
       <div class="card-title">🏗️ Project Health — consumed vs estimated</div>
-      ${health.length?health.map(p=>{
-        const col=p.fin?"#8496AC":(p.pct>100?"#C62828":p.pct>=80?"#E65100":"#2E7D32");
-        const flag=p.fin?"&#10003; Closed":(p.pct>100?"&#9888; Over budget":p.pct>=80?"Watch":"On track");
-        return `<div class="an-row"><div class="an-rl"><span>${escapeHtml(p.name)}${p.status?` <span style="font-size:9px;background:#F0F4FF;color:#03308B;border:1px solid #C9A84C;padding:1px 7px;border-radius:9px;font-weight:800">${escapeHtml(p.status)}</span>`:""}</span>
-          <span class="an-rm" style="color:${col};font-weight:800">${p.pct}% · ${flag}</span></div>
-          <div class="an-tr"><div class="an-fl" style="width:${Math.min(p.pct,100)}%;background:${col}"></div></div>
-          <div style="font-size:10px;color:var(--muted)">${fmtHM(p.used)} of ${fmtHM(p.est)}</div></div>`;
-      }).join(""):'<div class="empty">Set Estimated Hours on projects to see health</div>'}
+      ${health.length?`<div class="ring-grid">${health.map(_ring).join("")}</div>`:'<div class="empty">Set Estimated Hours on projects to see health</div>'}
     </div>
     <div class="card">
       <div class="card-title">📨 Client Requests</div>
