@@ -1051,7 +1051,10 @@ async function saveOT(){
     dept:projDept(otForm.project),day:dayName(otForm.date),
     createdBy:state.profile.uid,
   });
-  otForm=null;otEditId=null;toast("Saved ✓");
+  const _wasEditOT=!!otEditId;
+  otForm=null;otEditId=null;
+  render(); window.scrollTo({top:0,behavior:'smooth'});   // fresh blank form (missing render() left dead inputs)
+  toast(_wasEditOT?"Updated ✓":"Saved ✓");
 }
 async function saveOTAndNext(){
   if(!otForm.employee||!otForm.date)return toast("Required: Employee and Date");
@@ -1154,7 +1157,10 @@ async function saveTr(){
     perDiemStatus: trForm.perDiemStatus||"received",
     createdBy:state.profile.uid,
   });
-  trForm=null;trEditId=null;toast("Saved ✓");
+  const _wasEditTr=!!trEditId;
+  trForm=null;trEditId=null;
+  render(); window.scrollTo({top:0,behavior:'smooth'});
+  toast(_wasEditTr?"Updated ✓":"Saved ✓");
 }
 async function saveTrAndNext(){
   if(!trForm.employee||!trForm.date||!trForm.days)return toast("Required: Employee, Date, Days");
@@ -1169,6 +1175,7 @@ async function saveTrAndNext(){
   });
   const savedEmp = trForm.employee;
   trForm = {...trForm, employee:""};
+  render();
   toast(`Saved for ${savedEmp} ✓ — Select next employee`);
 }
 function editTr(id){const r=state.travel.find(x=>x.id===id);if(r){trForm={...r,days:String(r.days)};trEditId=id;render();window.scrollTo(0,0);}}
@@ -1443,8 +1450,10 @@ async function saveLeave(){
     days: amount.days,
     createdBy: state.profile.uid,
   });
+  const _wasEditLv = !!leaveEditId;
   leaveForm = null; leaveEditId = null;
-  toast(leaveEditId ? "Updated ✓" : "Added ✓");
+  render(); window.scrollTo({top:0,behavior:'smooth'});
+  toast(_wasEditLv ? "Updated ✓" : "Added ✓");
 }
 async function saveLeaveAndNext(){
   if(!leaveForm.employee)return toast("Employee required");
