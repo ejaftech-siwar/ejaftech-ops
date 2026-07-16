@@ -65,6 +65,7 @@ const state = {
   devices: [],  // Asset Management: central devices collection
   pmSchedules: [],  // Preventive Maintenance schedules
   settingsDocs: [],  // settings collection (sla, etc.)
+  trash: [],  // Recycle Bin (30-day recoverable deletes)
   techReportCols: null,  // admin's column selection for Technical Report (from settings/techReport)
   workCategories: [], workTasks: [],  // Work Instructions module
   nametagEmployees: [],  // Admin-managed nametag-only employees (no auth account)
@@ -1071,6 +1072,7 @@ async function subscribeData(){
     ["waContacts","waContacts"],
     ["emailContacts","emailContacts"],
     ["settings","settingsDocs"],
+    ["trash","trash"],
   ];
   let firstCount=0;
 
@@ -1089,6 +1091,7 @@ async function subscribeData(){
       const items=[];
       snap.forEach(d=>items.push({id:d.id,...d.data()}));
       if(col==="notifications"){ try{ _sysNotifyNew(items); }catch(e){} }
+      if(col==="trash"){ try{ setTimeout(()=>{ if(typeof window._trashAutoPurge==="function") window._trashAutoPurge(); },1200); }catch(e){} }
       if(["daily","overtime","travel"].includes(col)){
         items.sort((a,b)=>(b.date||"").localeCompare(a.date||""));
       } else if(col==="users"){
@@ -1236,7 +1239,21 @@ async function fbSave(col,item){
 
 async function fbDelete(col,id){
   try{
-    const{db,doc,deleteDoc}=window.__fb;
+    const{db,doc,deleteDoc,getDoc,setDoc}=window.__fb;
+    // ── Recycle Bin: every delete is recoverable for 30 days ──
+    if(col!=="trash" && col!=="notifications"){
+      try{
+        const snap=await getDoc(doc(db,col,id));
+        if(snap.exists()){
+          await setDoc(doc(db,"trash", `${col}_${id}_${Date.now()}`),{
+            origCol:col, origId:id, data:snap.data(),
+            deletedAt:new Date().toISOString(),
+            deletedBy:(state.profile&&state.profile.uid)||"",
+            deletedByName:(state.profile&&(state.profile.name||state.profile.email))||"",
+          });
+        }
+      }catch(e){ console.warn("trash copy failed",e); }
+    }
     await deleteDoc(doc(db,col,id));
   }catch(e){console.error(e);toast("Delete failed");}
 }
@@ -1406,7 +1423,7 @@ const TAB_GROUPS = [
   { id:"Reports",   label:"Reports",   icon:"<svg viewBox='0 0 24 24' width='15' height='15' fill='none' stroke='currentColor' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round' style='vertical-align:-2px'><polyline points='3 17 9 11 13 15 21 7'/><polyline points='15 7 21 7 21 13'/></svg>", children:["HR Report","Daily Log Report","Reports","Technical Report","Analytics"] },
   { id:"Database",  label:"Database",  icon:"<svg viewBox='0 0 24 24' width='15' height='15' fill='none' stroke='currentColor' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round' style='vertical-align:-2px'><ellipse cx='12' cy='5' rx='8' ry='3'/><path d='M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5'/><path d='M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6'/></svg>", children:["Branches","Departments","Locations","Projects","Assets","Maintenance"] },
   { id:"Clients",   label:"Clients",   icon:"<svg viewBox='0 0 24 24' width='15' height='15' fill='none' stroke='currentColor' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round' style='vertical-align:-2px'><path d='M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2'/><circle cx='9' cy='7' r='4'/><path d='M22 21v-2a4 4 0 0 0-3-3.87'/><path d='M16 3.13a4 4 0 0 1 0 7.75'/></svg>", children:["Clients","Requests"] },
-  { id:"Settings",  label:"Settings",  icon:"<svg viewBox='0 0 24 24' width='15' height='15' fill='none' stroke='currentColor' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round' style='vertical-align:-2px'><circle cx='12' cy='12' r='3'/><path d='M12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4'/></svg>", children:["Profile","Technical Classifications","Users","Email","WhatsApp","Share","Entry Manage"] },
+  { id:"Settings",  label:"Settings",  icon:"<svg viewBox='0 0 24 24' width='15' height='15' fill='none' stroke='currentColor' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round' style='vertical-align:-2px'><circle cx='12' cy='12' r='3'/><path d='M12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4'/></svg>", children:["Profile","Technical Classifications","Users","Email","WhatsApp","Share","Entry Manage","Recycle Bin"] },
   { id:"Help",      label:"Help",      icon:"<svg viewBox='0 0 24 24' width='15' height='15' fill='none' stroke='currentColor' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round' style='vertical-align:-2px'><circle cx='12' cy='12' r='10'/><path d='M9.1 9a3 3 0 0 1 5.8 1c0 2-3 2.4-3 4'/><path d='M12 17h.01'/></svg>", children:["Work Instructions"] },
 ];
 function getVisibleGroups(){
@@ -1464,7 +1481,7 @@ function getTabs(){
   }
   // Admin / Owner: everything
   const base = ["Dashboard","Daily Log","Overtime","Travel","Leaves","Work Instructions",
-                "HR Report","Daily Log Report","Technical Report","Reports","Analytics","Requests","Clients","Projects","Assets","Maintenance","Locations","Departments","Branches","Users","WhatsApp","Email","Share","Profile","Technical Classifications","Entry Manage","My Tasks"];
+                "HR Report","Daily Log Report","Technical Report","Reports","Analytics","Requests","Clients","Projects","Assets","Maintenance","Locations","Departments","Branches","Users","WhatsApp","Email","Share","Profile","Technical Classifications","Entry Manage","Recycle Bin","My Tasks"];
   if(!base.includes(state.tab)) state.tab = base[0];
   return base;
 }
@@ -1704,7 +1721,7 @@ function renderTab(){
     "Travel":renderTravel,"Leaves":renderLeaves,"HR Report":renderHRReport,"Technical Report":renderTechReport,"Reports":renderFlexReports,"Analytics":renderAnalytics,
     "Projects":renderProjects,"Assets":renderAssets,"Maintenance":renderMaintenance,"Locations":renderLocations,"Users":renderUsers,
     "Departments":renderDepartments,"Branches":renderBranches,"Work Instructions":renderWorkInstructions,
-    "Share":renderShare,"Profile":renderProfile,
+    "Share":renderShare,"Profile":renderProfile,"Recycle Bin":renderRecycleBin,
     "Clients":renderClients,"Requests":renderRequests,"My Tasks":renderMyTasks,"Daily Log Report":renderDailyLogReport,"My Project":renderClientPortal,
     "WhatsApp":renderWhatsApp,
     "Email":renderEmailTab,
@@ -2164,6 +2181,17 @@ function computeAlerts(){
     });
     if(br>0) out.push({sev:"high",icon:"⏱",title:`${br} request${br>1?'s':''} breached SLA`,meta:"Respond now",go:()=>switchTab("Requests")});
     if(wr>0) out.push({sev:"med", icon:"⏱",title:`${wr} request${wr>1?'s':''} nearing SLA limit`,meta:"At risk",go:()=>switchTab("Requests")});
+  }catch(e){}
+
+  // 4c) Backup overdue (admin) — settings/backup {intervalDays, lastBackupAt}
+  try{
+    if(isAdmin()){
+      const b=(state.settingsDocs||[]).find(x=>x.id==="backup")||{};
+      const iv=Number(b.intervalDays)||7;
+      const last=b.lastBackupAt?new Date(b.lastBackupAt).getTime():0;
+      const days=Math.floor((Date.now()-last)/864e5);
+      if(days>=iv) out.push({sev:days>=iv*2?"med":"low",icon:"🗄️",title:last?`Backup overdue — last one ${days}d ago`:"No backup taken yet",meta:`Target: every ${iv} days`,go:()=>switchTab("Recycle Bin")});
+    }
   }catch(e){}
 
   // 5) Preventive maintenance due

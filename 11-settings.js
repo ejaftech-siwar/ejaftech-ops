@@ -601,3 +601,117 @@ Object.assign(window, {copyAppLink, shareAppLink, downloadQR});
 // ═══════════════════════════════════════════════════════════════════════
 //  FLEXIBLE REPORTS — Date range filtering
 // ═══════════════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════════════
+//  RECYCLE BIN — 30-day recoverable deletes + AUTO-BACKUP center
+// ═══════════════════════════════════════════════════════════════════════
+const TRASH_DAYS=30;
+const _trIcons={daily:"🔧",overtime:"⏰",travel:"✈️",leaves:"🌴",projects:"🏗️",devices:"📟",clients:"🤝",clientRequests:"📨",tasks:"✅",pmSchedules:"🛠️",nametagEmployees:"👤",locations:"📍",branches:"🏢",departments:"🗂️"};
+function _trTitle(t){
+  const d=t.data||{};
+  return d.name||d.title||d.deviceName||d.clientName||[d.employee,d.date].filter(Boolean).join(" · ")||d.serialNumber||t.origId;
+}
+function _backupCfg(){
+  const b=(state.settingsDocs||[]).find(x=>x.id==="backup")||{};
+  return {intervalDays:Number(b.intervalDays)||7, lastBackupAt:b.lastBackupAt||""};
+}
+function renderRecycleBin(){
+  if(!isAdmin()) return `<div class="card"><div class="empty">Admin only.</div></div>`;
+  const now=Date.now();
+  const items=(state.trash||[]).slice().sort((a,b)=>String(b.deletedAt||"").localeCompare(String(a.deletedAt||"")));
+  const bk=_backupCfg();
+  const lastD=bk.lastBackupAt?Math.floor((now-new Date(bk.lastBackupAt).getTime())/864e5):null;
+  const due=lastD===null||lastD>=bk.intervalDays;
+  return `
+  <div class="card" style="border-left:4px solid ${due?'#E65100':'#2E7D32'}">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+      <div style="flex:1;min-width:220px">
+        <div style="font-weight:800;font-size:14px;color:var(--text)">🗄️ Auto-Backup</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:3px">
+          ${bk.lastBackupAt?`Last backup: <strong>${fmtDate(bk.lastBackupAt.slice(0,10))}</strong> (${lastD}d ago)`:"<strong>No backup taken yet</strong>"}
+          · target every <select onchange="saveBackupInterval(this.value)" style="padding:2px 6px;border:1px solid var(--line);border-radius:6px;font-size:11px;font-weight:700">
+            ${[7,14,30].map(v=>`<option value="${v}" ${bk.intervalDays===v?"selected":""}>${v}</option>`).join("")}
+          </select> days.
+          ${due?'<span style="color:#E65100;font-weight:800"> ⚠ Backup due!</span>':' <span style="color:#2E7D32;font-weight:800">✓ On schedule</span>'}
+        </div>
+        <div style="font-size:10px;color:var(--muted);margin-top:4px">Downloads a full JSON snapshot of ALL data (entries, projects, assets, clients, requests, maintenance…). Keep it in Drive/OneDrive. The bell reminds you when a backup is due.</div>
+      </div>
+      <button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:800;border:none" onclick="runFullBackup()">⬇ Backup now</button>
+    </div>
+  </div>
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+      <div class="card-title" style="margin:0">🗑 Recycle Bin <span class="count-pill">${items.length}</span></div>
+      ${items.length?`<button class="btn btn-sm btn-danger" onclick="emptyTrash()">🧹 Empty bin</button>`:""}
+    </div>
+    <p style="font-size:11px;color:var(--muted);margin:6px 0 12px">Every deleted record lands here and can be restored with one tap. Items older than ${TRASH_DAYS} days are purged automatically.</p>
+    ${items.length===0?'<div class="empty">Bin is empty — deletes are protected from now on.</div>':`
+    <div style="display:flex;flex-direction:column;gap:8px">
+      ${items.map(t=>{
+        const age=Math.floor((now-new Date(t.deletedAt||0).getTime())/864e5);
+        const leftD=Math.max(0,TRASH_DAYS-age);
+        return `<div style="display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:10px;padding:10px 12px;flex-wrap:wrap">
+          <span style="font-size:18px">${_trIcons[t.origCol]||"📄"}</span>
+          <div style="flex:1;min-width:180px">
+            <div style="font-weight:700;font-size:13px;color:var(--text)">${escapeHtml(_trTitle(t))}</div>
+            <div style="font-size:10.5px;color:var(--muted)">
+              <span style="background:#F0F4FF;color:#03308B;padding:1px 7px;border-radius:8px;font-weight:800;font-size:9px">${escapeHtml(t.origCol)}</span>
+              · deleted ${fmtDate(String(t.deletedAt||"").slice(0,10))} by ${escapeHtml(t.deletedByName||"—")}
+              · <span style="color:${leftD<=5?'#C62828':'var(--muted)'};font-weight:700">${leftD}d left</span>
+            </div>
+          </div>
+          <button class="btn btn-sm" style="background:#2E7D32;color:#fff;border:none;font-weight:800" onclick="restoreTrash('${t.id}')">♻ Restore</button>
+          <button class="btn btn-sm btn-danger" onclick="purgeTrashItem('${t.id}')">🗑 Forever</button>
+        </div>`;}).join("")}
+    </div>`}
+  </div>`;
+}
+window.restoreTrash=async function(id){
+  const t=(state.trash||[]).find(x=>x.id===id); if(!t)return;
+  const {db,doc,setDoc}=window.__fb;
+  await setDoc(doc(db,t.origCol,t.origId), t.data);
+  await fbDelete("trash", id);
+  toast(`♻ Restored to ${t.origCol} ✓`);
+  render();
+};
+window.purgeTrashItem=async function(id){
+  if(!confirm("Delete FOREVER? This cannot be undone."))return;
+  await fbDelete("trash", id); toast("Purged"); render();
+};
+window.emptyTrash=async function(){
+  const n=(state.trash||[]).length;
+  if(!confirm(`Empty the bin? ${n} item(s) will be deleted FOREVER.`))return;
+  for(const t of (state.trash||[]).slice()) await fbDelete("trash", t.id);
+  toast("🧹 Bin emptied"); render();
+};
+// auto-purge >30d (admins, once per session)
+(function(){ let done=false;
+  window._trashAutoPurge=async function(){
+    if(done||!isAdmin())return; done=true;
+    const cutoff=Date.now()-TRASH_DAYS*864e5;
+    const old=(state.trash||[]).filter(t=>new Date(t.deletedAt||0).getTime()<cutoff);
+    for(const t of old){ try{ await fbDelete("trash",t.id); }catch(e){} }
+    if(old.length) console.log("trash auto-purged:",old.length);
+  };
+})();
+window.saveBackupInterval=async function(v){
+  const b=_backupCfg();
+  await fbSave("settings",{id:"backup",intervalDays:Number(v)||7,lastBackupAt:b.lastBackupAt||""});
+  toast("Backup interval saved ✓");
+};
+window.runFullBackup=async function(){
+  try{
+    const cols=["daily","overtime","travel","leaves","projects","devices","clients","clientRequests","tasks","pmSchedules","nametagEmployees","locations","branches","departments","workCategories","workTasks","techWorkTypes","techStatuses","techCategories","requestStatuses","projectStatuses","clientPermissions","deviceEditSuggestions","waContacts","emailContacts","settingsDocs","notifications","users"];
+    const payload={app:"Girêk — EJAF Technology",exportedAt:new Date().toISOString(),by:(state.profile&&(state.profile.name||state.profile.email))||"",collections:{}};
+    let total=0;
+    cols.forEach(k=>{ const v=state[k]; if(Array.isArray(v)){ payload.collections[k]=v; total+=v.length; } });
+    const blob=new Blob([JSON.stringify(payload,null,1)],{type:"application/json"});
+    const a=document.createElement("a");
+    a.href=URL.createObjectURL(blob);
+    a.download=`girek-backup-${today()}.json`;
+    document.body.appendChild(a); a.click(); a.remove();
+    await fbSave("settings",{id:"backup",intervalDays:_backupCfg().intervalDays,lastBackupAt:new Date().toISOString()});
+    toast(`🗄️ Backup downloaded — ${total} records ✓`);
+    render();
+  }catch(e){ toast("⚠ Backup failed: "+e.message); }
+};
