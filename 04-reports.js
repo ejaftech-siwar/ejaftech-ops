@@ -635,3 +635,229 @@ function renderAnalytics(){
     </div>
   </div>`;
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+//  ✨ GIRÊK ASSISTANT — analytical copilot over LIVE data (no server, free)
+//  Free-text Arabic/English questions → intent engine → instant answers.
+// ═══════════════════════════════════════════════════════════════════════
+let _aiMsgs=[];
+function _aiNorm(s){
+  return String(s||"").toLowerCase()
+    .replace(/[\u064B-\u0652\u0640]/g,"")
+    .replace(/[أإآ]/g,"ا").replace(/ة/g,"ه").replace(/ى/g,"ي").replace(/ؤ/g,"و").replace(/ئ/g,"ي")
+    .replace(/[؟?!.,،:;"'()\[\]{}]/g," ").replace(/\s+/g," ").trim();
+}
+const _aiHas=(qn,arr)=>arr.some(k=>qn.includes(k));
+function _aiIsAr(q){ return /[\u0600-\u06FF]/.test(q); }
+function _aiPeriod(qn){
+  const t=new Date(); t.setHours(0,0,0,0);
+  const iso=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+  const mk=(f,l,le)=>({from:iso(f),to:iso(t),label:l,labelEn:le});
+  if(_aiHas(qn,["اليوم","today"])) return mk(t,"اليوم","today");
+  if(_aiHas(qn,["امس","yesterday"])){const y=new Date(t);y.setDate(y.getDate()-1);return {from:iso(y),to:iso(y),label:"أمس",labelEn:"yesterday"};}
+  if(_aiHas(qn,["هذا الاسبوع","الاسبوع","this week","week"])){const f=new Date(t);f.setDate(f.getDate()-6);return mk(f,"آخر ٧ أيام","last 7 days");}
+  if(_aiHas(qn,["الشهر الماضي","last month"])){const f=new Date(t.getFullYear(),t.getMonth()-1,1);const e=new Date(t.getFullYear(),t.getMonth(),0);return {from:iso(f),to:iso(e),label:"الشهر الماضي",labelEn:"last month"};}
+  if(_aiHas(qn,["السنه","هذه السنه","this year","year"])){const f=new Date(t.getFullYear(),0,1);return mk(f,"هذه السنة","this year");}
+  if(_aiHas(qn,["الكل","اجمالي","كامل","all time","total","overall"])) return null;
+  const f=new Date(t.getFullYear(),t.getMonth(),1);
+  return mk(f,"هذا الشهر","this month");   // sensible default
+}
+const _aiInP=(r,P)=>!P||( (r.date||"")>=P.from && (r.date||"")<=P.to );
+function _aiFindProject(qn){
+  let best=null;
+  (state.projects||[]).forEach(p=>{
+    const n=_aiNorm(p.name); if(!n)return;
+    if(qn.includes(n)){ if(!best||n.length>best._l) best={p,_l:n.length}; return; }
+    const toks=n.split(" ").filter(w=>w.length>=4);
+    if(toks.length&&toks.every(w=>qn.includes(w))){ if(!best||n.length>best._l) best={p,_l:n.length}; }
+  });
+  return best&&best.p;
+}
+function _aiFindEmployee(qn){
+  let best=null;
+  (typeof allEmployees==="function"?allEmployees():[]).forEach(e=>{
+    const n=_aiNorm(e); if(!n)return;
+    if(qn.includes(n)){ if(!best||n.length>best._l) best={e,_l:n.length}; return; }
+    const first=n.split(" ")[0];
+    if(first.length>=4&&qn.includes(first)){ if(!best||first.length>best._l) best={e,_l:first.length}; }
+  });
+  return best&&best.e;
+}
+const _aiRow=(l,v)=>`<div class="ai-r"><span>${l}</span><strong>${v}</strong></div>`;
+function _aiAnswer(q){
+  const qn=_aiNorm(q), ar=_aiIsAr(q), P=_aiPeriod(qn);
+  const PL=P?(ar?P.label:P.labelEn):(ar?"كل الفترات":"all time");
+  const daily=visibleRows(state.daily).filter(r=>_aiInP(r,P));
+  const emp=_aiFindEmployee(qn), proj=_aiFindProject(qn);
+
+  // 1) Maintenance due
+  if(_aiHas(qn,["صيان","maintenance","pm "])&&_aiHas(qn,["مستحق","متاخر","due","overdue","قادم"])){
+    if(typeof pmStatusCounts!=="function") return ar?"وحدة الصيانة غير محمّلة.":"Maintenance module not loaded.";
+    const pc=pmStatusCounts();
+    const rows=(state.pmSchedules||[]).filter(s=>s.active!==false&&pmDaysLeft(s)<=7).sort((a,b)=>pmDaysLeft(a)-pmDaysLeft(b)).slice(0,5);
+    return `<div class="ai-t">🛠️ ${ar?"الصيانة الوقائية":"Preventive maintenance"}</div>`
+      +_aiRow(ar?"متأخرة":"Overdue",`<span style="color:#C62828">${pc.overdue}</span>`)
+      +_aiRow(ar?"خلال ٧ أيام":"Due ≤7d",`<span style="color:#E65100">${pc.soon}</span>`)
+      +(rows.length?`<div class="ai-l">${rows.map(s=>`• ${escapeHtml(s.title)} — <strong>${fmtDate(pmNextDue(s))}</strong> (${escapeHtml(_pmTargetLabel(s))})`).join("<br>")}</div>`:"")
+      +`<button class="ai-go" onclick="switchTab('Maintenance')">${ar?"فتح تبويب الصيانة":"Open Maintenance"} ›</button>`;
+  }
+  // 2) Warranty
+  if(_aiHas(qn,["ضمان","warrant"])){
+    const now=new Date(); let exp=[],soon=[];
+    (state.devices||[]).forEach(d=>{const s=toDateStr(d.warrantyExp);if(!s)return;const diff=(new Date(s)-now)/864e5;
+      if(diff<0)exp.push(d);else if(diff<=30)soon.push(d);});
+    return `<div class="ai-t">🛡️ ${ar?"الضمانات":"Warranties"}</div>`
+      +_aiRow(ar?"منتهية":"Expired",`<span style="color:#C62828">${exp.length}</span>`)
+      +_aiRow(ar?"تنتهي ≤ ٣٠ يوماً":"Expiring ≤30d",`<span style="color:#E65100">${soon.length}</span>`)
+      +(exp.slice(0,4).length?`<div class="ai-l">${exp.slice(0,4).map(d=>`• ${escapeHtml(d.deviceName||d.model||"Device")} — SN:${escapeHtml(d.serialNumber||"—")}`).join("<br>")}</div>`:"")
+      +`<button class="ai-go" onclick="window.assetFilterWarranty='expired';switchTab('Assets')">${ar?"عرضها في الأصول":"Show in Assets"} ›</button>`;
+  }
+  // 3) Requests / SLA
+  if(_aiHas(qn,["طلب","request","sla","تذكر","ticket"])){
+    const reqs=(state.clientRequests||[]);
+    const init=(typeof reqInitialStatus==="function")?reqInitialStatus():"new";
+    if(_aiHas(qn,["متاخر","خرق","breach","overdue","تاخر"])&&typeof getSLA==="function"){
+      const sla=getSLA(); const br=[];
+      reqs.forEach(r=>{ if(!r.createdAt||REQ_FINAL_RE.test(r.status||""))return;
+        const isN=((r.status||init)===init)&&!r.respondedAt;
+        const lim=(isN?sla.responseHrs:sla.completeHrs)*36e5;
+        const over=Date.now()-(new Date(r.createdAt).getTime()+lim);
+        if(over>0) br.push({r,h:Math.round(over/36e5)}); });
+      br.sort((a,b)=>b.h-a.h);
+      return `<div class="ai-t">⏱ ${ar?"طلبات خرقت SLA":"SLA-breached requests"}: <strong style="color:#C62828">${br.length}</strong></div>`
+        +(br.slice(0,5).map(x=>`<div class="ai-l">• ${escapeHtml(x.r.title||x.r.clientName||"Request")} — <span style="color:#C62828">${x.h}h ${ar?"تجاوز":"over"}</span></div>`).join("")||`<div class="ai-l">${ar?"لا خروقات — أحسنتم ✅":"No breaches ✅"}</div>`)
+        +`<button class="ai-go" onclick="switchTab('Requests')">${ar?"فتح الطلبات":"Open Requests"} ›</button>`;
+    }
+    const by={}; reqs.forEach(r=>{const s=r.status||init;by[s]=(by[s]||0)+1;});
+    return `<div class="ai-t">📨 ${ar?"طلبات العملاء":"Client requests"} (${reqs.length})</div>`
+      +Object.entries(by).map(([s,n])=>_aiRow(escapeHtml(s),n)).join("")
+      +`<button class="ai-go" onclick="switchTab('Requests')">${ar?"فتح الطلبات":"Open Requests"} ›</button>`;
+  }
+  // 4) Leaves
+  if(_aiHas(qn,["اجاز","leave","عطل"])){
+    const lv=visibleRows(state.leaves);
+    if(emp){
+      const mine=lv.filter(l=>l.employee===emp);
+      const tot=mine.reduce((a,b)=>a+Number(b.days||0),0);
+      return `<div class="ai-t">🌴 ${ar?"إجازات":"Leaves of"} ${escapeHtml(emp)}</div>`
+        +_aiRow(ar?"الإجمالي":"Total",`${fmtDays(tot)} ${ar?"يوم":"days"}`)
+        +(mine.slice(0,4).map(l=>`<div class="ai-l">• ${fmtDate(l.from)} — ${fmtDays(l.days)} ${ar?"يوم":"d"} (${escapeHtml(l.type||"Annual")})</div>`).join(""));
+    }
+    const today_=today();
+    const on=lv.filter(l=>(l.from||"")<=today_&&(l.to||l.from||"")>=today_);
+    return `<div class="ai-t">🌴 ${ar?"في إجازة اليوم":"On leave today"}: <strong>${on.length}</strong></div>`
+      +(on.map(l=>`<div class="ai-l">• ${escapeHtml(l.employee)} (${ar?"حتى":"until"} ${fmtDate(l.to||l.from)})</div>`).join("")||`<div class="ai-l">${ar?"الجميع على رأس عملهم 💪":"Everyone is at work 💪"}</div>`);
+  }
+  // 5) Overtime
+  if(_aiHas(qn,["اضافي","overtime"])){
+    const ot=visibleRows(state.overtime).filter(r=>_aiInP(r,P)).filter(r=>!emp||r.employee===emp);
+    const tot=ot.reduce((a,b)=>a+Number(b.duration||0),0);
+    return `<div class="ai-t">⏰ ${ar?"العمل الإضافي":"Overtime"}${emp?` — ${escapeHtml(emp)}`:""} (${PL})</div>`
+      +_aiRow(ar?"الساعات":"Hours",fmtHM(tot))+_aiRow(ar?"الإدخالات":"Entries",ot.length);
+  }
+  // 6) Travel
+  if(_aiHas(qn,["سفر","travel","مياوم","per diem","رحل"])){
+    const tr=visibleRows(state.travel).filter(r=>_aiInP(r,P)).filter(r=>!emp||r.employee===emp);
+    const days=tr.reduce((a,b)=>a+Number(b.days||0),0), pd=tr.reduce((a,b)=>a+Number(b.perDiem||0),0);
+    return `<div class="ai-t">✈️ ${ar?"السفر":"Travel"}${emp?` — ${escapeHtml(emp)}`:""} (${PL})</div>`
+      +_aiRow(ar?"الرحلات":"Trips",tr.length)+_aiRow(ar?"الأيام":"Days",fmtDays(days))+_aiRow(ar?"المياومات":"Per-diem",fmtMoney(pd)+" IQD");
+  }
+  // 7) Devices
+  if(_aiHas(qn,["جهاز","اجهزه","device","asset"])){
+    let dv=(state.devices||[]); if(proj) dv=dv.filter(d=>(d.project||"").trim()===(proj.name||"").trim());
+    const bySite={}; dv.forEach(d=>{const k=d.site||(ar?"غير محدد":"Unassigned");bySite[k]=(bySite[k]||0)+1;});
+    return `<div class="ai-t">📟 ${ar?"الأجهزة":"Devices"}${proj?` — ${escapeHtml(proj.name)}`:""}: <strong>${dv.length}</strong></div>`
+      +Object.entries(bySite).sort((a,b)=>b[1]-a[1]).slice(0,6).map(([s,n])=>_aiRow(escapeHtml(s),n)).join("");
+  }
+  // 8) Productivity ranking
+  if(_aiHas(qn,["انتاجي","الاكثر","افضل","اعلي","most","best","top","productiv","ranking"])){
+    const by={}; daily.forEach(r=>{if(r.employee)by[r.employee]=(by[r.employee]||0)+Number(r.duration||0);});
+    const top=Object.entries(by).sort((a,b)=>b[1]-a[1]).slice(0,5);
+    if(!top.length) return ar?`لا إدخالات في ${PL}.`:`No entries in ${PL}.`;
+    return `<div class="ai-t">🏆 ${ar?"الأكثر إنتاجية":"Top by hours"} (${PL})</div>`
+      +top.map(([e,h],i)=>_aiRow(`${["🥇","🥈","🥉","4.","5."][i]} ${escapeHtml(e)}`,fmtHM(h))).join("");
+  }
+  // 9) Employee hours
+  if(emp&&_aiHas(qn,["ساعه","ساعات","عمل","hour","work","كم"])){
+    const mine=daily.filter(r=>r.employee===emp);
+    const tot=mine.reduce((a,b)=>a+Number(b.duration||0),0);
+    const byP={}; mine.forEach(r=>{if(r.project)byP[r.project]=(byP[r.project]||0)+Number(r.duration||0);});
+    const topP=Object.entries(byP).sort((a,b)=>b[1]-a[1])[0];
+    return `<div class="ai-t">👤 ${escapeHtml(emp)} (${PL})</div>`
+      +_aiRow(ar?"الساعات":"Hours",fmtHM(tot))+_aiRow(ar?"الجلسات":"Sessions",mine.length)
+      +(topP?_aiRow(ar?"أكثر مشروع":"Top project",`${escapeHtml(topP[0])} · ${fmtHM(topP[1])}`):"");
+  }
+  // 10) Project hours / budget / health
+  if(proj){
+    const rows=daily.filter(r=>(r.project||"").trim()===(proj.name||"").trim());
+    const used=rows.reduce((a,b)=>a+Number(b.duration||0),0);
+    const allUsed=visibleRows(state.daily).filter(r=>(r.project||"").trim()===(proj.name||"").trim()).reduce((a,b)=>a+Number(b.duration||0),0);
+    const est=Number(proj.estimatedHours||0);
+    let h=`<div class="ai-t">🏗️ ${escapeHtml(proj.name)}</div>`
+      +_aiRow(`${ar?"ساعات":"Hours"} (${PL})`,fmtHM(used))+_aiRow(ar?"الجلسات":"Sessions",rows.length);
+    if(est>0){ const pct=Math.round(allUsed/est*100);
+      const col=pct>100?"#C62828":pct>=80?"#E65100":"#2E7D32";
+      h+=_aiRow(ar?"الميزانية":"Budget",`<span style="color:${col}">${fmtHM(allUsed)} / ${fmtHM(est)} · ${pct}%</span>`);
+    }
+    const pmRows=rows.filter(r=>String(r.projectCode||"").toLowerCase()==="preventive maintenance");
+    if(pmRows.length) h+=_aiRow(ar?"جلسات الصيانة":"PM sessions",pmRows.length);
+    h+=`<button class="ai-go" onclick="switchTab('Analytics')">${ar?"فتح التحليلات":"Open Analytics"} ›</button>`;
+    return h;
+  }
+  // 11) Total hours (generic)
+  if(_aiHas(qn,["ساعه","ساعات","hour","كم عمل"])){
+    const tot=daily.reduce((a,b)=>a+Number(b.duration||0),0);
+    return `<div class="ai-t">🔧 ${ar?"إجمالي ساعات العمل":"Total work hours"} (${PL})</div>`
+      +_aiRow(ar?"الساعات":"Hours",fmtHM(tot))+_aiRow(ar?"الإدخالات":"Entries",daily.length)
+      +_aiRow(ar?"الموظفون النشطون":"Active people",new Set(daily.map(r=>r.employee).filter(Boolean)).size);
+  }
+  // 12) counts
+  if(_aiHas(qn,["كم مشروع","مشاريع","projects"])) return _aiRow(ar?"عدد المشاريع":"Projects",(state.projects||[]).length);
+  if(_aiHas(qn,["كم عميل","عملاء","clients"])) return _aiRow(ar?"عدد العملاء":"Clients",(state.clients||[]).length);
+  // fallback
+  return `<div class="ai-t">${ar?"لم أفهم السؤال تماماً 🤔":"I didn't quite get that 🤔"}</div>
+    <div class="ai-l">${ar?"جرّب صيغاً مثل:":"Try questions like:"}</div>
+    <div class="ai-chips">${[
+      ar?"كم ساعة عمل هذا الشهر؟":"total hours this month",
+      ar?"الأكثر إنتاجية هذا الشهر":"top employee this month",
+      ar?"الصيانة المتأخرة":"overdue maintenance",
+      ar?"الطلبات المتأخرة":"SLA breached requests",
+      ar?"من في إجازة اليوم؟":"who is on leave today",
+    ].map(x=>`<button class="ai-chip" onclick="document.getElementById('aiIn').value=this.textContent;document.getElementById('aiIn').focus()">${x}</button>`).join("")}</div>`;
+}
+window.aiSend=function(){
+  const inp=document.getElementById('aiIn'); if(!inp)return;
+  const q=(inp.value||"").trim(); if(!q)return;
+  inp.value="";
+  _aiMsgs.push({u:true,h:escapeHtml(q)});
+  let ans; try{ ans=_aiAnswer(q); }catch(e){ ans=(_aiIsAr(q)?"⚠ حدث خطأ: ":"⚠ Error: ")+escapeHtml(e.message); }
+  _aiMsgs.push({u:false,h:ans});
+  _aiRender();
+};
+function _aiRender(){
+  const box=document.getElementById('aiMsgs'); if(!box)return;
+  box.innerHTML=_aiMsgs.map(m=>`<div class="ai-b ${m.u?'u':'a'}">${m.h}</div>`).join("")
+    ||`<div class="ai-hello">✨ ${_aiIsAr(navigator.language)?"":""}<div class="ai-t">Girêk Assistant</div>
+       <div class="ai-l">اسألني عن بياناتك بكلماتك — بالعربية أو الإنجليزية.<br>Ask me about your data in your own words.</div></div>`;
+  box.scrollTop=box.scrollHeight;
+}
+window.openAssistant=function(){
+  let ov=document.getElementById('aiOv');
+  if(!ov){
+    ov=document.createElement('div'); ov.id='aiOv';
+    ov.innerHTML=`<div class="ai-panel">
+      <div class="al-hd"><span>✨ Girêk Assistant <span style="font-size:9px;background:#1B2C45;color:#8FB4E8;padding:1px 7px;border-radius:8px;font-weight:800;vertical-align:1px">BETA</span></span>
+        <button class="al-x" onclick="document.getElementById('aiOv').classList.remove('open')">${ICN.x}</button></div>
+      <div id="aiMsgs" class="ai-msgs"></div>
+      <div class="ai-bar">
+        <input id="aiIn" placeholder="اكتب سؤالك… / type your question…" onkeydown="if(event.key==='Enter')aiSend()">
+        <button class="ai-send" onclick="aiSend()">➤</button>
+      </div>
+    </div>`;
+    ov.addEventListener('click',e=>{if(e.target===ov)ov.classList.remove('open');});
+    document.body.appendChild(ov);
+  }
+  _aiRender();
+  ov.classList.add('open');
+  setTimeout(()=>{const i=document.getElementById('aiIn');if(i)i.focus();},80);
+};
