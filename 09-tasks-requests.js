@@ -498,14 +498,35 @@ function renderRequests(){
   const newCount = reqs.filter(r=>r.status==="new"||r.status===reqInitialStatus()).length;
 
   const _sla=getSLA();
-  return `${renderDeviceSuggestionsAdmin()}${isAdmin()?`<div class="card" style="padding:12px 16px"><div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
-    <span style="font-size:12px;font-weight:800;color:var(--muted)">⏱ SLA TARGETS</span>
-    <label style="font-size:11px;font-weight:700;display:flex;align-items:center;gap:6px">First response
-      <input type="number" min="1" value="${_sla.responseHrs}" style="width:64px;padding:6px 8px;border:1px solid var(--line);border-radius:6px" onchange="saveSLA('responseHrs',this.value)"> h</label>
-    <label style="font-size:11px;font-weight:700;display:flex;align-items:center;gap:6px">Completion
-      <input type="number" min="1" value="${_sla.completeHrs}" style="width:64px;padding:6px 8px;border:1px solid var(--line);border-radius:6px" onchange="saveSLA('completeHrs',this.value)"> h</label>
-    <span style="font-size:10px;color:var(--muted)">Timers & breach alerts follow these targets</span>
-  </div></div>`:''}<div class="card">
+  return `${renderDeviceSuggestionsAdmin()}${isAdmin()?`<div class="card" style="border-left:4px solid #C9A84C">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+      <span style="font-size:14px;font-weight:800;color:var(--text)">⏱ Service-Level Targets (SLA)</span>
+      <span style="font-size:10px;color:var(--muted)">— your time promise to clients</span>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px;margin-top:8px">
+      <div style="border:1px solid var(--line);border-radius:10px;padding:10px 12px">
+        <div style="font-weight:800;font-size:12px;color:#1565C0">🫱 First Response</div>
+        <div style="font-size:10.5px;color:var(--muted);margin:3px 0 8px;line-height:1.45">Max time to REACT to a new request (its status leaves "New"). Answers the client's "did they even see it?"</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <input type="number" min="1" value="${_sla.responseHrs}" style="width:76px;padding:7px 9px;border:1.5px solid var(--line);border-radius:8px;font-weight:800;font-size:14px" onchange="saveSLA('responseHrs',this.value)">
+          <span style="font-size:12px;font-weight:700">hours</span>
+          <span style="font-size:10px;color:var(--muted)">≈ ${(Math.round(_sla.responseHrs/24*10)/10)} day(s)</span>
+        </div>
+      </div>
+      <div style="border:1px solid var(--line);border-radius:10px;padding:10px 12px">
+        <div style="font-weight:800;font-size:12px;color:#2E7D32">🏁 Completion</div>
+        <div style="font-size:10.5px;color:var(--muted);margin:3px 0 8px;line-height:1.45">Max time to fully CLOSE the request (status becomes Completed). Your delivery promise.</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <input type="number" min="1" value="${_sla.completeHrs}" style="width:76px;padding:7px 9px;border:1.5px solid var(--line);border-radius:8px;font-weight:800;font-size:14px" onchange="saveSLA('completeHrs',this.value)">
+          <span style="font-size:12px;font-weight:700">hours</span>
+          <span style="font-size:10px;color:var(--muted)">≈ ${(Math.round(_sla.completeHrs/24*10)/10)} day(s)</span>
+        </div>
+      </div>
+    </div>
+    <div style="margin-top:10px;padding:8px 12px;background:var(--line);border-radius:8px;font-size:10.5px;color:var(--muted);line-height:1.5">
+      ⚙️ Both timers start when a request is created. Every request card shows a live countdown chip: 🔵 on time → 🟠 &lt;25% left → 🔴 breached — and freezes on ✔/✖ when closed. Breaches also ring the 🔔 bell, and monthly compliance % appears in Analytics.
+    </div>
+  </div>`:''}<div class="card">
     <div class="filter-row">
       <span class="card-title" style="margin:0">📨 Client Task Requests</span>
       <span class="count-pill">${reqs.length}</span>

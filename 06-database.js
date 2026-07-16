@@ -28,7 +28,9 @@ function renderProjects(){
     <div class="form-grid">
       <div class="field"><label>Name <span class="req">*</span></label><input value="${escapeHtml(projForm.name)}" oninput="window.projForm.name=this.value" placeholder="e.g. New Project"></div>
       <div class="field"><label>Estimated Hours <span style="font-size:10px;color:var(--muted)">(for % progress)</span></label>
-        <input type="number" min="0" step="1" value="${projForm.estimatedHours||""}" oninput="window.projForm.estimatedHours=this.value" placeholder="e.g. 200"></div>
+        <input type="number" min="0" step="1" value="${projForm.estimatedHours||""}" oninput="window.projForm.estimatedHours=this.value" onchange="render()" placeholder="e.g. 108"></div>
+      <div class="field"><label>Estimated Days <span style="font-size:10px;color:var(--muted)">(1 day = 9 man-hours, auto-syncs)</span></label>
+        <input type="number" min="0" step="0.5" value="${projForm.estimatedHours?(Math.round(Number(projForm.estimatedHours)/9*10)/10):""}" oninput="window.projForm.estimatedHours=String(Math.round(Number(this.value||0)*9*10)/10)" onchange="render()" placeholder="e.g. 12"></div>
       <div class="field"><label>Department</label><select onchange="window.projForm.dept=this.value;render()">
         ${allDepts.map(d=>`<option ${projForm.dept===d?"selected":""}>${escapeHtml(d)}</option>`).join("")}
       </select></div>
@@ -61,7 +63,7 @@ function renderProjects(){
         <div class="card-title" style="margin:0">${isUncategorized?`<span style="color:#6B7B8F">${d}</span>`:deptBadgeDyn(d)} · ${g[d].length} projects</div>
         ${!isUncategorized?`<button class="btn btn-sm" style="background:#00897B;color:white;border:none;font-weight:700;font-size:11px" onclick="importProjectsForDept('${escapeHtml(d)}')" title="Import projects/sites/equipment from CSV or Excel">📥 Import</button>`:''}
       </div>
-      ${g[d].length===0?`<div class="empty">No projects</div>`:`<div class="proj-chips">${g[d].map(p=>{const areaCount=(p.areas&&p.areas.length)?p.areas.length:((p.sites&&p.sites.length)?1:0);return `<span class="proj-chip" style="border-left:3px solid ${color}">${escapeHtml(p.name)}${areaCount>0?`<span style="font-size:9px;background:#1565C0;color:white;padding:1px 5px;border-radius:8px;margin-left:4px">${areaCount} 🗺️</span>`:''}
+      ${g[d].length===0?`<div class="empty">No projects</div>`:`<div class="proj-chips">${g[d].map(p=>{const areaCount=(p.areas&&p.areas.length)?p.areas.length:((p.sites&&p.sites.length)?1:0);return `<span class="proj-chip" style="border-left:3px solid ${color}"><span style="cursor:pointer" title="Tap to edit" onclick="editProj('${p.id}')">${escapeHtml(p.name)}</span>${areaCount>0?`<span style="font-size:9px;background:#1565C0;color:white;padding:1px 5px;border-radius:8px;margin-left:4px">${areaCount} 🗺️</span>`:''}
         <button class="btn btn-sm" style="padding:2px 6px;background:#1565C0;color:white;border:none" onclick="openSitesModal('${p.id}')" title="Manage areas & sites">🗺️</button>
         <button class="btn btn-sm btn-secondary" onclick="editProj('${p.id}')" style="padding:2px 6px">✎</button>
         <button class="btn btn-sm btn-danger" onclick="delProj('${p.id}')" style="padding:2px 6px">🗑</button></span>`}).join("")}</div>`}
@@ -89,11 +91,11 @@ async function saveProj(){
     areas, codes,
   });
   toast(projEditId?"Project updated ✓":"Project added ✓");
-  projForm=null; projEditId=null; render();
+  projForm=null; projEditId=null; window._projView='list'; render();
 }
-function editProj(id){const r=state.projects.find(p=>p.id===id);if(r){projForm={...r};projEditId=id;render();window.scrollTo(0,0);}}
+function editProj(id){const r=state.projects.find(p=>p.id===id);if(r){projForm={...r};projEditId=id;window._projView='add';render();window.scrollTo(0,0);}}
 async function delProj(id){if(confirm("Delete?")){await fbDelete("projects",id);toast("Deleted");}}
-function cancelProj(){projForm=null;projEditId=null;render();}
+function cancelProj(){projForm=null;projEditId=null;window._projView='list';render();}
 Object.assign(window,{saveProj,editProj,delProj,cancelProj});
 Object.defineProperty(window,'projForm',{get:()=>projForm,set:v=>projForm=v});
 
