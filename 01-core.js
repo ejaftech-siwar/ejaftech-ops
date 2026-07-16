@@ -215,18 +215,46 @@ const _svg=(p)=>`<svg class="nvic" viewBox="0 0 24 24" fill="none" stroke="curre
 // places (top group bar + bottom nav). The duplicate/unresolved reference left the
 // plate unpainted, so only the white glyph showed. Solid colors cannot fail; a
 // translucent gloss shape keeps the same dimensional feel.
-const _ICO=(bg,glyph)=>`<svg class="nvic nvic2" viewBox="0 0 32 32" aria-hidden="true">`+
-  `<rect x="2" y="2" width="28" height="28" rx="9" fill="${bg}"/>`+
-  `<path d="M2 11a9 9 0 0 1 9-9h10a9 9 0 0 1 9 9v1c-4-3-8-4-14-4S6 9 2 12z" fill="#ffffff" opacity="0.13"/>`+
-  `<g fill="#ffffff" transform="translate(6,6) scale(0.833)">${glyph}</g></svg>`;
+// ── Girêk icon set v4 — PREMIUM GLOSS (safe gradients) ──
+// v81 lesson: a gradient defined once broke when its <defs> lived inside the
+// hidden top bar (display:none defs don't render → url(#id) painted nothing).
+// v4 fix: NAV_ICONS uses GETTERS — every access mints a UNIQUE gradient id,
+// so each rendered instance carries its own defs. Nothing shared, nothing breaks.
+let _icoSeq=0;
+const _ICO=(c1,c2,c3,glyph)=>{
+  const g='ig'+(++_icoSeq);
+  return `<svg class="nvic nvic2" viewBox="0 0 32 32" aria-hidden="true">`
+  +`<defs><linearGradient id="${g}" x1="0" y1="0" x2="0" y2="1">`
+  +`<stop offset="0" stop-color="${c1}"/><stop offset="0.55" stop-color="${c2}"/><stop offset="1" stop-color="${c3}"/></linearGradient></defs>`
+  // plate: gradient body + soft inner rim
+  +`<rect x="2" y="2" width="28" height="28" rx="9" fill="${c3}"/>`                             // solid fallback base (paints even if gradient fails)
+  +`<rect x="2" y="2" width="28" height="28" rx="9" fill="url(#${g})"/>`
+  +`<rect x="3" y="3" width="26" height="26" rx="8" fill="none" stroke="#ffffff" stroke-opacity="0.28" stroke-width="1"/>`
+  // glass highlight (top curve) + depth shade (bottom)
+  +`<path d="M4 12c0-5 3-8 8-8h8c5 0 8 3 8 8v1.6C24 10 20 9 16 9s-8 1-12 4.6z" fill="#ffffff" opacity="0.30"/>`
+  +`<path d="M4 24c4 3 8 4 12 4s8-1 12-4v-2c-4 2.6-8 3.8-12 3.8S8 24.6 4 22z" fill="#000000" opacity="0.14"/>`
+  // glyph: dark echo underneath for lift, then crisp white
+  +`<g fill="#0B1A30" opacity="0.28" transform="translate(6,6.9) scale(0.833)">${glyph}</g>`
+  +`<g fill="#ffffff" transform="translate(6,6) scale(0.833)">${glyph}</g></svg>`;
+};
+const _GLY={
+  Dashboard:'<rect x="3" y="13" width="4" height="8" rx="1.2"/><rect x="10" y="6" width="4" height="15" rx="1.2"/><rect x="17" y="10" width="4" height="11" rx="1.2"/>',
+  Logs:'<path d="M5 2h8l5 5v6.2l-2 2V9h-4V4H6v16h6l-2 2H5a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z"/><path d="M18.9 12.6l2.5 2.5-6.6 6.6-2.5-.1-.1-2.4 6.7-6.6z"/>',
+  Reports:'<path d="M4 19h16v2H4z"/><path d="M4.6 16.7l5.6-5.6 3.6 3.6 6.1-6.1V6h-3.5V4H21v6.6h-2V9.1l-6.9 6.9-3.6-3.6-4 4-1.5-1.5z"/>',
+  Database:'<ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 10.5c1.8 1.4 4.9 2 8 2s6.2-.6 8-2v3c-1.8 1.4-4.9 2-8 2s-6.2-.6-8-2z" opacity="0.82"/><path d="M4 16c1.8 1.4 4.9 2 8 2s6.2-.6 8-2v2.6c0 1.7-3.6 3-8 3s-8-1.3-8-3z" opacity="0.64"/>',
+  Clients:'<circle cx="9" cy="8" r="3.7"/><path d="M2.6 20.8c0-3.4 2.9-5.9 6.4-5.9s6.4 2.5 6.4 5.9v0.6H2.6z"/><circle cx="17.6" cy="9.2" r="2.7" opacity="0.75"/><path d="M15 15.3c3-0.7 6.4 0.9 6.4 4.2v1.9h-3.6v-0.6c0-2.2-1-4.1-2.8-5.5z" opacity="0.75"/>',
+  Settings:'<path d="M12 8.6a3.4 3.4 0 1 0 0 6.8 3.4 3.4 0 0 0 0-6.8zm0 5a1.6 1.6 0 1 1 0-3.2 1.6 1.6 0 0 1 0 3.2z"/><path d="M19.9 12c0-0.5-0.1-1-0.2-1.4l1.8-1.4-1.9-3.2-2.1 0.9c-0.7-0.6-1.5-1-2.4-1.3L14.7 3.4h-3.4L11 5.6c-0.9 0.3-1.7 0.7-2.4 1.3l-2.1-0.9-1.9 3.2 1.8 1.4c-0.1 0.5-0.2 0.9-0.2 1.4s0.1 1 0.2 1.4l-1.8 1.4 1.9 3.2 2.1-0.9c0.7 0.6 1.5 1 2.4 1.3l0.3 2.2h3.4l0.3-2.2c0.9-0.3 1.7-0.7 2.4-1.3l2.1 0.9 1.9-3.2-1.8-1.4c0.1-0.4 0.2-0.9 0.2-1.4z" opacity="0.58"/>',
+  Help:'<path d="M12 3a9 9 0 1 1 0 18 9 9 0 0 1 0-18zm0 2.1a6.9 6.9 0 1 0 0 13.8 6.9 6.9 0 0 0 0-13.8z" opacity="0.58"/><path d="M11 16.2h2.1v2.2H11z"/><path d="M12.1 6.2c-2.1 0-3.6 1.4-3.7 3.4h2.1c0.1-0.9 0.7-1.6 1.6-1.6 0.9 0 1.5 0.5 1.5 1.3 0 0.6-0.3 1-1.2 1.7-1.1 0.8-1.5 1.5-1.5 2.7v0.5h2.1v-0.4c0-0.7 0.2-1 1.1-1.7 1.1-0.8 1.6-1.6 1.6-2.9 0-1.8-1.5-3-3.6-3z"/>',
+};
+// getters: fresh gradient id on EVERY access → safe in any number of places
 const NAV_ICONS={
-  Dashboard:_ICO('#2E5FA3','<rect x="3" y="13" width="4" height="8" rx="1.2"/><rect x="10" y="6" width="4" height="15" rx="1.2"/><rect x="17" y="10" width="4" height="11" rx="1.2"/>'),
-  Logs:_ICO('#C9A84C','<path d="M5 2h8l5 5v6.2l-2 2V9h-4V4H6v16h6l-2 2H5a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z"/><path d="M18.9 12.6l2.5 2.5-6.6 6.6-2.5-.1-.1-2.4 6.7-6.6z"/>'),
-  Reports:_ICO('#2E9E58','<path d="M4 19h16v2H4z"/><path d="M4.6 16.7l5.6-5.6 3.6 3.6 6.1-6.1V6h-3.5V4H21v6.6h-2V9.1l-6.9 6.9-3.6-3.6-4 4-1.5-1.5z"/>'),
-  Database:_ICO('#1F8C86','<ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 10.5c1.8 1.4 4.9 2 8 2s6.2-.6 8-2v3c-1.8 1.4-4.9 2-8 2s-6.2-.6-8-2z" opacity="0.8"/><path d="M4 16c1.8 1.4 4.9 2 8 2s6.2-.6 8-2v2.6c0 1.7-3.6 3-8 3s-8-1.3-8-3z" opacity="0.62"/>'),
-  Clients:_ICO('#8046C0','<circle cx="9" cy="8" r="3.7"/><path d="M2.6 20.8c0-3.4 2.9-5.9 6.4-5.9s6.4 2.5 6.4 5.9v0.6H2.6z"/><circle cx="17.6" cy="9.2" r="2.7" opacity="0.72"/><path d="M15 15.3c3-0.7 6.4 0.9 6.4 4.2v1.9h-3.6v-0.6c0-2.2-1-4.1-2.8-5.5z" opacity="0.72"/>'),
-  Settings:_ICO('#5B6C86','<path d="M12 8.6a3.4 3.4 0 1 0 0 6.8 3.4 3.4 0 0 0 0-6.8zm0 5a1.6 1.6 0 1 1 0-3.2 1.6 1.6 0 0 1 0 3.2z"/><path d="M19.9 12c0-0.5-0.1-1-0.2-1.4l1.8-1.4-1.9-3.2-2.1 0.9c-0.7-0.6-1.5-1-2.4-1.3L14.7 3.4h-3.4L11 5.6c-0.9 0.3-1.7 0.7-2.4 1.3l-2.1-0.9-1.9 3.2 1.8 1.4c-0.1 0.5-0.2 0.9-0.2 1.4s0.1 1 0.2 1.4l-1.8 1.4 1.9 3.2 2.1-0.9c0.7 0.6 1.5 1 2.4 1.3l0.3 2.2h3.4l0.3-2.2c0.9-0.3 1.7-0.7 2.4-1.3l2.1 0.9 1.9-3.2-1.8-1.4c0.1-0.4 0.2-0.9 0.2-1.4z" opacity="0.55"/>'),
-  Help:_ICO('#C85B4A','<path d="M12 3a9 9 0 1 1 0 18 9 9 0 0 1 0-18zm0 2.1a6.9 6.9 0 1 0 0 13.8 6.9 6.9 0 0 0 0-13.8z" opacity="0.55"/><path d="M11 16.2h2.1v2.2H11z"/><path d="M12.1 6.2c-2.1 0-3.6 1.4-3.7 3.4h2.1c0.1-0.9 0.7-1.6 1.6-1.6 0.9 0 1.5 0.5 1.5 1.3 0 0.6-0.3 1-1.2 1.7-1.1 0.8-1.5 1.5-1.5 2.7v0.5h2.1v-0.4c0-0.7 0.2-1 1.1-1.7 1.1-0.8 1.6-1.6 1.6-2.9 0-1.8-1.5-3-3.6-3z"/>'),
+  get Dashboard(){ return _ICO('#5E9BFF','#2E5FA3','#173A6E',_GLY.Dashboard); },
+  get Logs(){      return _ICO('#F5D97E','#C9A84C','#8F6E22',_GLY.Logs); },
+  get Reports(){   return _ICO('#57E094','#2E9E58','#176B39',_GLY.Reports); },
+  get Database(){  return _ICO('#3FE0D2','#1F8C86','#0E5B57',_GLY.Database); },
+  get Clients(){   return _ICO('#C08BF0','#8046C0','#54258C',_GLY.Clients); },
+  get Settings(){  return _ICO('#9FB4D0','#5B6C86','#3B4A61',_GLY.Settings); },
+  get Help(){      return _ICO('#F09A80','#C85B4A','#93362A',_GLY.Help); },
 };
 const ICON_BELL=_svg('<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>');
 const ICON_SUN=_svg('<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>');

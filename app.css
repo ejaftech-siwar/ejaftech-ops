@@ -535,3 +535,12 @@ body.has-bnav #updBar{bottom:calc(78px + env(safe-area-inset-bottom,0px))}
 .upd-go{background:#C9A84C;color:#1B3A6B;border:none;border-radius:9px;padding:8px 14px;font-weight:800;font-size:12px;cursor:pointer;font-family:inherit}
 .upd-go:disabled{opacity:.6}
 .upd-x{background:rgba(255,255,255,.12);color:#B8CFE8;border:none;border-radius:8px;width:28px;height:28px;cursor:pointer;font-size:13px}
+
+/* ═══ Icon set v4 — premium gloss polish ═══ */
+.nvic2{width:26px;height:26px;filter:drop-shadow(0 2px 3px rgba(8,16,32,.35)) saturate(1.08)}
+.gtab .nvic2{width:24px;height:24px}
+.bnav-it .nvic2,.msheet-it .nvic2{width:28px;height:28px}
+.gtab.active .nvic2{filter:drop-shadow(0 0 8px rgba(201,168,76,.65)) drop-shadow(0 2px 3px rgba(8,16,32,.3)) saturate(1.15);transform:translateY(-1px)}
+.bnav-it.on .nvic2,.msheet-it.on .nvic2{filter:drop-shadow(0 0 9px rgba(201,168,76,.7)) drop-shadow(0 2px 3px rgba(8,16,32,.3)) saturate(1.15);transform:translateY(-2px) scale(1.06)}
+[data-theme="dark"] .nvic2{filter:drop-shadow(0 2px 4px rgba(0,0,0,.6)) saturate(1.12)}
+[data-theme="dark"] .gtab.active .nvic2,[data-theme="dark"] .bnav-it.on .nvic2{filter:drop-shadow(0 0 10px rgba(201,168,76,.75)) drop-shadow(0 2px 4px rgba(0,0,0,.5)) saturate(1.2)}
