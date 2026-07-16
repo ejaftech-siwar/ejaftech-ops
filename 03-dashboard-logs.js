@@ -288,7 +288,7 @@ function renderDailyLog(){
   // Active jump-filter banner (set by Smart Alerts)
   const _jumpBanner = window._logEmpFilter ? `<div class="card" style="border-left:4px solid #E65100;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
       <span style="font-size:13px;font-weight:700;color:var(--text)">🔎 Showing entries for: <span style="color:#E65100">${escapeHtml(window._logEmpFilter)}</span> <span style="font-size:11px;color:var(--muted)">(${rows.length} entr${rows.length===1?'y':'ies'})</span></span>
-      <button class="btn btn-sm" style="background:#C62828;color:white;border:none;font-weight:700" onclick="window._logEmpFilter='';render()">✕ Clear filter</button>
+      <button class="btn btn-sm" style="background:#C62828;color:white;border:none;font-weight:700" onclick="window._logEmpFilter='';render()">${ICN.x} Clear filter</button>
     </div>` : "";
   // Project options for filter
   const projOptions = [...new Set(state.daily.map(r=>r.project).filter(Boolean))].sort();
@@ -558,7 +558,7 @@ function renderDailyLog(){
           <input type="number" min="1" placeholder="e.g. 12" value="${dailyEntryNo}"
             onchange="window.dailyEntryNo=this.value;render()"
             style="width:64px;border:none;background:transparent;font-size:11px;padding:5px 2px;outline:none">
-          ${dailyEntryNo?`<button onclick="window.dailyEntryNo='';render()" style="border:none;background:none;cursor:pointer;color:#c62828;font-size:12px;padding:0 2px">✕</button>`:""}
+          ${dailyEntryNo?`<button onclick="window.dailyEntryNo='';render()" style="border:none;background:none;cursor:pointer;color:#c62828;font-size:12px;padding:0 2px">${ICN.x}</button>`:""}
         </div>
         
       </div>
@@ -579,8 +579,8 @@ function renderDailyLog(){
           <td>${r.location?`<span style="background:#E3F2FD;color:#1565C0;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600">📍 ${escapeHtml(r.location)}</span>`:'<span style="color:#bbb;font-style:italic;font-size:11px">—</span>'} ${gpsBadgeHTML(r)}</td>
           <td><strong style="color:#2E7D32">${fmtHM(r.duration)}</strong></td>
           <td>${hasRes?`<button class="btn btn-sm" style="background:#FFF8E1;border:1px solid #C9A84C;color:#7F6000;font-weight:700" onclick="viewResolution('${r.id}')" title="View resolution">📷 ${imgs.length}</button>`:'<span style="color:#bbb;font-style:italic;font-size:11px">—</span>'}</td>
-          <td>${canEdit?`<button class="btn btn-sm btn-secondary" onclick="editDaily('${r.id}')">✎</button>
-              <button class="btn btn-sm btn-danger" onclick="delDaily('${r.id}')">🗑</button>`:""}${canUseWhatsApp() && (waGetSettings().triggers||[]).includes("daily")?`<button class="btn btn-sm" style="background:#25D366;color:white;border:none;font-weight:700;margin-left:4px" onclick="openWaShareById('${r.id}')" title="Share to WhatsApp">📲</button>`:""}${canUseEmail() && (emailGetSettings().triggers||[]).includes("daily")?`<button class="btn btn-sm" style="background:#03308B;color:white;border:none;font-weight:700;margin-left:4px" onclick="openEmailShareById('${r.id}')" title="Send Email">📧</button>`:""}</td>
+          <td>${canEdit?`<button class="btn btn-sm btn-secondary" onclick="editDaily('${r.id}')">${ICN.edit}</button>
+              <button class="btn btn-sm btn-danger" onclick="delDaily('${r.id}')">${ICN.del}</button>`:""}${canUseWhatsApp() && (waGetSettings().triggers||[]).includes("daily")?`<button class="btn btn-sm" style="background:#25D366;color:white;border:none;font-weight:700;margin-left:4px" onclick="openWaShareById('${r.id}')" title="Share to WhatsApp">📲</button>`:""}${canUseEmail() && (emailGetSettings().triggers||[]).includes("daily")?`<button class="btn btn-sm" style="background:#03308B;color:white;border:none;font-weight:700;margin-left:4px" onclick="openEmailShareById('${r.id}')" title="Send Email">📧</button>`:""}</td>
         </tr>`;}).join("")}</tbody>
     </table></div>
     ${rows.length>50 && !window._dailyShowAll?`<div style="text-align:center;margin-top:10px"><button class="btn btn-ghost" style="background:#E3F2FD;border:1px solid #90CAF9;color:#1565C0;font-weight:700" onclick="window._dailyShowAll=true;render()">▼ Show all ${rows.length} entries (showing 50)</button></div>`:''}
@@ -1058,8 +1058,8 @@ function renderOvertime(){
           <td>${fmtDate(r.date)}${r.start&&r.end?`<br><span style="font-size:10px;color:#888">${r.start}–${r.end}</span>`:""}</td><td style="color:#2E7D32;font-weight:700">${r.day||""}</td>
           <td><strong style="color:#E65100">${fmtHM(r.hours)}</strong></td>
           <td>${escapeHtml(r.project||"—")}</td><td>${escapeHtml(r.location||"—")}</td>
-          <td>${canEdit?`<button class="btn btn-sm btn-secondary" onclick="editOT('${r.id}')">✎</button>
-              <button class="btn btn-sm btn-danger" onclick="delOT('${r.id}')">🗑</button>`:""}</td>
+          <td>${canEdit?`<button class="btn btn-sm btn-secondary" onclick="editOT('${r.id}')">${ICN.edit}</button>
+              <button class="btn btn-sm btn-danger" onclick="delOT('${r.id}')">${ICN.del}</button>`:""}</td>
         </tr>`;}).join("")}</tbody>
     </table></div>
   </div>`;
@@ -1166,8 +1166,8 @@ function renderTravel(){
           <td>${escapeHtml(r.project||"—")}</td><td>${escapeHtml(r.location||"—")}</td>
           <td><strong style="color:#7F6000">${fmtMoney(r.perDiem)}</strong></td>
           <td><span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:${pdRec?'#E8F5E9':'#FFEBEE'};color:${pdRec?'#2E7D32':'#C62828'}">${pdRec?'✅ Received':'❌ Not Received'}</span></td>
-          <td>${canEdit?`<button class="btn btn-sm btn-secondary" onclick="editTr('${r.id}')">✎</button>
-              <button class="btn btn-sm btn-danger" onclick="delTr('${r.id}')">🗑</button>`:""}</td>
+          <td>${canEdit?`<button class="btn btn-sm btn-secondary" onclick="editTr('${r.id}')">${ICN.edit}</button>
+              <button class="btn btn-sm btn-danger" onclick="delTr('${r.id}')">${ICN.del}</button>`:""}</td>
         </tr>`;}).join("")}</tbody>
     </table></div>
   </div>`;
@@ -1441,8 +1441,8 @@ function renderLeaves(){
             <td style="font-weight:700;color:${leaveTypeInfo(l.type).color}">${amt.days.toFixed(2)}</td>
             <td style="font-size:11px;color:var(--muted);max-width:150px;overflow:hidden;text-overflow:ellipsis">${escapeHtml(l.notes||'')}</td>
             <td>
-              <button class="btn btn-sm btn-secondary" onclick="editLeave('${l.id}')">✎</button>
-              ${(isHR()||l.employee===state.profile.employeeName)?`<button class="btn btn-sm btn-danger" onclick="delLeave('${l.id}')">🗑</button>`:''}
+              <button class="btn btn-sm btn-secondary" onclick="editLeave('${l.id}')">${ICN.edit}</button>
+              ${(isHR()||l.employee===state.profile.employeeName)?`<button class="btn btn-sm btn-danger" onclick="delLeave('${l.id}')">${ICN.del}</button>`:''}
             </td>
           </tr>`;
         }).join("")}

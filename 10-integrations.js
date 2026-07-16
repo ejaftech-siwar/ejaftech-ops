@@ -55,8 +55,8 @@ function renderWhatsApp(){
           </div>
         </div>
         <div style="display:flex;gap:5px;flex-shrink:0">
-          <button class="btn btn-sm btn-secondary" onclick="editWaContact('${c.id}')">✎</button>
-          <button class="btn btn-sm btn-danger" onclick="delWaContact('${c.id}')">🗑</button>
+          <button class="btn btn-sm btn-secondary" onclick="editWaContact('${c.id}')">${ICN.edit}</button>
+          <button class="btn btn-sm btn-danger" onclick="delWaContact('${c.id}')">${ICN.del}</button>
         </div>
       </div>`).join("")}
     </div>`}
@@ -450,7 +450,7 @@ function renderScheduledReportsCard(){
       <div style="border:1px solid #B3D4FF;border-radius:12px;padding:14px;margin-top:10px;background:#F7FAFF">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px">
           <input value="${escapeHtml(g.name||'')}" onchange="setSchedGroupField(${gi},'name',this.value)" placeholder="Group name (e.g. Erbil Branch Manager)" style="flex:1;font-weight:700;color:#03308B;padding:7px 10px;border:1px solid #B3D4FF;border-radius:7px;font-size:13px">
-          <button class="btn btn-sm btn-danger" onclick="delSchedGroup(${gi})" title="Remove group">🗑</button>
+          <button class="btn btn-sm btn-danger" onclick="delSchedGroup(${gi})" title="Remove group">${ICN.del}</button>
         </div>
 
         <!-- Filters for this group -->
@@ -824,8 +824,8 @@ function renderEmailTab(){
           </div>
         </div>
         <div style="display:flex;gap:5px;flex-shrink:0">
-          <button class="btn btn-sm btn-secondary" onclick="editEmailContact('${c.id}')">✎</button>
-          <button class="btn btn-sm btn-danger" onclick="delEmailContact('${c.id}')">🗑</button>
+          <button class="btn btn-sm btn-secondary" onclick="editEmailContact('${c.id}')">${ICN.edit}</button>
+          <button class="btn btn-sm btn-danger" onclick="delEmailContact('${c.id}')">${ICN.del}</button>
         </div>
       </div>`).join("")}
     </div>`}
@@ -884,7 +884,7 @@ function renderEmailTab(){
       : `<div style="display:flex;flex-direction:column;gap:6px">
           ${(s.requestRecipients||[]).map((em,idx)=>`<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 12px;background:#FCE4EC;border:1px solid #F8BBD0;border-radius:8px">
             <div style="display:flex;align-items:center;gap:8px;min-width:0"><span style="font-size:16px">✉️</span><span style="font-size:12px;color:#880E4F;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(em)}</span></div>
-            <button class="btn btn-sm btn-danger" onclick="removeRequestRecipient(${idx})">🗑</button>
+            <button class="btn btn-sm btn-danger" onclick="removeRequestRecipient(${idx})">${ICN.del}</button>
           </div>`).join("")}
         </div>`}
   </div>`;

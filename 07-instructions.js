@@ -76,7 +76,7 @@ function renderWorkInstructions(){
       </div>
       ${canEdit ? `
         <div style="display:flex;gap:6px;font-size:11px;flex-wrap:wrap">
-          ${cats.map(c=>`<div style="display:flex;gap:4px"><button class="btn btn-sm btn-secondary" onclick="editWICategory('${c.id}')">✎ ${escapeHtml(c.name)}</button><button class="btn btn-sm btn-danger" onclick="delWICategory('${c.id}')">🗑</button></div>`).join("")}
+          ${cats.map(c=>`<div style="display:flex;gap:4px"><button class="btn btn-sm btn-secondary" onclick="editWICategory('${c.id}')">✎ ${escapeHtml(c.name)}</button><button class="btn btn-sm btn-danger" onclick="delWICategory('${c.id}')">${ICN.del}</button></div>`).join("")}
         </div>
       ` : ''}
     `}
@@ -130,8 +130,8 @@ function renderWorkInstructions(){
                 </div>
                 ${canEdit ? `
                   <div style="display:flex;gap:4px">
-                    <button class="btn btn-sm btn-secondary" onclick="editWITask('${t.id}')" title="Edit">✎</button>
-                    <button class="btn btn-sm btn-danger" onclick="delWITask('${t.id}')" title="Admin: Delete">🗑</button>
+                    <button class="btn btn-sm btn-secondary" onclick="editWITask('${t.id}')" title="Edit">${ICN.edit}</button>
+                    <button class="btn btn-sm btn-danger" onclick="delWITask('${t.id}')" title="Admin: Delete">${ICN.del}</button>
                   </div>
                 ` : ''}
               </div>

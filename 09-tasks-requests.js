@@ -53,7 +53,7 @@ window.openNotifPanel=function(){
     <div onclick="openNotif('${n.id}')" style="padding:10px 12px;border-bottom:1px solid #eee;cursor:pointer;background:${n.read?'#fff':'#EEF4FF'}">
       <div style="display:flex;justify-content:space-between;gap:8px">
         <strong style="font-size:12.5px;color:#03308B">${n.read?'':'🔵 '}${escapeHtml(n.title||'')}</strong>
-        <span style="display:flex;align-items:center;gap:6px;white-space:nowrap"><span style="font-size:10px;color:#999">${escapeHtml(fmtLastSeen(n.createdAt)||'')}</span><button onclick="event.stopPropagation();deleteNotif('${n.id}')" title="Delete" style="background:#FFEBEE;color:#C62828;border:none;width:18px;height:18px;border-radius:9px;font-size:10px;font-weight:800;cursor:pointer;line-height:1">✕</button></span>
+        <span style="display:flex;align-items:center;gap:6px;white-space:nowrap"><span style="font-size:10px;color:#999">${escapeHtml(fmtLastSeen(n.createdAt)||'')}</span><button onclick="event.stopPropagation();deleteNotif('${n.id}')" title="Delete" style="background:#FFEBEE;color:#C62828;border:none;width:18px;height:18px;border-radius:9px;font-size:10px;font-weight:800;cursor:pointer;line-height:1">${ICN.x}</button></span>
       </div>
       <div style="font-size:11.5px;color:#444;margin-top:3px;line-height:1.5">${escapeHtml(n.body||'')}</div>
 
@@ -64,7 +64,7 @@ window.openNotifPanel=function(){
       <div style="display:flex;gap:6px">
         ${unreadNotifCount()?`<button onclick="markAllNotifsRead()" style="background:rgba(255,255,255,0.15);color:#fff;border:none;padding:4px 10px;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer">Mark all read</button>`:''}
         ${list.length?`<button onclick="clearAllNotifs()" style="background:rgba(198,40,40,0.9);color:#fff;border:none;padding:4px 10px;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer">🗑 Clear all</button>`:''}
-        <button onclick="closeNotifPanel()" style="background:rgba(255,255,255,0.15);color:#fff;border:none;width:26px;height:26px;border-radius:6px;font-weight:700;cursor:pointer">✕</button>
+        <button onclick="closeNotifPanel()" style="background:rgba(255,255,255,0.15);color:#fff;border:none;width:26px;height:26px;border-radius:6px;font-weight:700;cursor:pointer">${ICN.x}</button>
       </div>
     </div>
     <div style="overflow-y:auto">${(typeof alertsHTML==="function"?alertsHTML():"")}${items}</div>
@@ -184,7 +184,7 @@ function _renderAssignModal(){
   ov.innerHTML=`<div style="background:#fff;border-radius:12px;max-width:420px;width:100%;max-height:85vh;overflow-y:auto;box-shadow:0 10px 40px rgba(0,0,0,0.3)">
     <div style="background:linear-gradient(135deg,#03308B,#2E5FA3);color:#fff;padding:12px 14px;display:flex;justify-content:space-between;align-items:center;border-radius:12px 12px 0 0">
       <strong style="font-size:14px">👤 Assign Task</strong>
-      <button onclick="closeAssignModal()" style="background:rgba(255,255,255,0.15);color:#fff;border:none;width:26px;height:26px;border-radius:6px;font-weight:700;cursor:pointer">✕</button>
+      <button onclick="closeAssignModal()" style="background:rgba(255,255,255,0.15);color:#fff;border:none;width:26px;height:26px;border-radius:6px;font-weight:700;cursor:pointer">${ICN.x}</button>
     </div>
     <div style="padding:14px;display:flex;flex-direction:column;gap:10px">
       ${req
@@ -308,7 +308,7 @@ function taskAssignBlockHTML(r){
   const t=(state.tasks||[]).find(x=>x.requestId===r.id);
   if(t){
     return `<div style="margin-top:8px;background:#F0F7F0;border:1px solid #C8E6C9;border-radius:8px;padding:7px 10px;font-size:11px;display:flex;justify-content:space-between;align-items:center;gap:6px;flex-wrap:wrap">
-      <span>👤 Assigned to <strong>${escapeHtml(t.assignedTo||"")}</strong> · by ${escapeHtml(t.assignedBy||"")}</span><span style="display:flex;gap:5px;align-items:center">${taskStatusChip(t)}${(isAdmin()||t.assignedByUid===(state.profile&&state.profile.uid))?`<button onclick="deleteTask('${t.id}')" title="Delete task" style="background:#FFEBEE;color:#C62828;border:none;width:22px;height:22px;border-radius:11px;font-weight:800;cursor:pointer;font-size:11px">🗑</button>`:""}</span></div>`;
+      <span>👤 Assigned to <strong>${escapeHtml(t.assignedTo||"")}</strong> · by ${escapeHtml(t.assignedBy||"")}</span><span style="display:flex;gap:5px;align-items:center">${taskStatusChip(t)}${(isAdmin()||t.assignedByUid===(state.profile&&state.profile.uid))?`<button onclick="deleteTask('${t.id}')" title="Delete task" style="background:#FFEBEE;color:#C62828;border:none;width:22px;height:22px;border-radius:11px;font-weight:800;cursor:pointer;font-size:11px">${ICN.del}</button>`:""}</span></div>`;
   }
   if(canAssignTasks()){
     return `<div style="margin-top:8px"><button onclick="openAssignTask('${r.id}')" style="background:#03308B;color:#C9A84C;border:none;padding:7px 14px;border-radius:8px;font-weight:800;font-size:11px;cursor:pointer">👤 Assign Task</button></div>`;
@@ -357,7 +357,7 @@ function _taskCard(t, mineView){
         : `${miniAvatar(t.assignedToUid,t.assignedTo)} To: <strong>${escapeHtml(t.assignedTo||"")}</strong>`} · 📅 ${escapeHtml(fmtDate((t.createdAt||"").slice(0,10)))}${(t.status==="confirmed"&&t.confirmedAt)?` · ✅ ${escapeHtml(fmtLastSeen(t.confirmedAt)||"")}`:""}</span>
       <div style="display:flex;gap:6px;align-items:center">
         ${(mineView&&t.status==="pending")?`<button onclick="confirmTask('${t.id}')" style="background:#2E7D32;color:#fff;border:none;padding:8px 18px;border-radius:8px;font-weight:800;font-size:12px;cursor:pointer">✅ Confirm</button>`:""}
-        ${(isAdmin()||t.assignedByUid===(state.profile&&state.profile.uid))?`<button onclick="deleteTask('${t.id}')" title="Delete task" style="background:#FFEBEE;color:#C62828;border:1px solid #EF9A9A;padding:8px 12px;border-radius:8px;font-weight:800;font-size:12px;cursor:pointer">🗑</button>`:""}
+        ${(isAdmin()||t.assignedByUid===(state.profile&&state.profile.uid))?`<button onclick="deleteTask('${t.id}')" title="Delete task" style="background:#FFEBEE;color:#C62828;border:1px solid #EF9A9A;padding:8px 12px;border-radius:8px;font-weight:800;font-size:12px;cursor:pointer">${ICN.del}</button>`:""}
       </div>
     </div>
   </div>`;
@@ -552,7 +552,7 @@ function renderRequests(){
               ${isAdmin()||isHR()?`<select onchange="updateRequestStatus('${r.id}',this.value)" style="padding:5px 10px;border:1px solid var(--line);border-radius:6px;font-size:12px;font-weight:600">
                 ${(()=>{const opts=getReqStatusList();const has=opts.some(o=>o.value===r.status);const all=has?opts:[{value:r.status,label:prettyStatus(r.status)},...opts];return all.map(o=>`<option value="${escapeHtml(o.value)}" ${r.status===o.value?"selected":""}>${o.label}</option>`).join("");})()}
               </select>`:""}
-              ${isAdmin()?`<button class="btn btn-sm btn-danger" onclick="delRequest('${r.id}')">🗑</button>`:""}
+              ${isAdmin()?`<button class="btn btn-sm btn-danger" onclick="delRequest('${r.id}')">${ICN.del}</button>`:""}
               ${canUseWhatsApp() && (waGetSettings().triggers||[]).includes("clientRequests")?`<button class="btn btn-sm" style="background:#25D366;color:white;border:none;font-weight:700" onclick='openWaShare(${JSON.stringify({employee:r.clientName,project:r.project,date:(r.createdAt||"").slice(0,10),resolutionText:r.title+" — "+r.description,description:r.title+" — "+r.description}).replace(/'/g,"&#39;")})'>📲</button>`:""}${canUseEmail() && (emailGetSettings().triggers||[]).includes("clientRequests")?`<button class="btn btn-sm" style="background:#03308B;color:white;border:none;font-weight:700" onclick='openEmailShare(${JSON.stringify({employee:r.clientName,project:r.project,date:(r.createdAt||"").slice(0,10),resolutionText:r.title+" — "+r.description,description:r.title+" — "+r.description}).replace(/'/g,"&#39;")})'>📧</button>`:""}
             </div>
           </div>

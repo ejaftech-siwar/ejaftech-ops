@@ -257,6 +257,21 @@ const NAV_ICONS={
   get Settings(){  return _ICO('#9FB4D0','#5B6C86','#3B4A61',_GLY.Settings); },
   get Help(){      return _ICO('#F09A80','#C85B4A','#93362A',_GLY.Help); },
 };
+// ── ICN: unified inline action icons (SVG, currentColor — identical on every OS) ──
+const _icn=(p)=>`<svg class="icn" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="${p}"/></svg>`;
+const ICN={
+  edit:_icn("M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"),
+  del:_icn("M9 3h6l1 2h5v2H3V5h5l1-2zm-3 6h12l-1 12H7L6 9zm4 2v8h1.6v-8H10zm3.4 0v8H15v-8h-1.6z"),
+  check:_icn("M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"),
+  pause:_icn("M6 5h4v14H6zM14 5h4v14h-4z"),
+  play:_icn("M8 5v14l11-7z"),
+  hist:_icn("M13 3a9 9 0 1 0 8.95 10h-2.02A7 7 0 1 1 13 5v3l4.5-4L13 0v3zm-1 5v5.2l4.3 2.5.8-1.3-3.5-2.1V8H12z"),
+  pin:_icn("M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 14.5 9 2.5 2.5 0 0 1 12 11.5z"),
+  x:_icn("M18.3 5.71 12 12.01l-6.29-6.3-1.42 1.42 6.3 6.29-6.3 6.29 1.42 1.42 6.29-6.3 6.29 6.3 1.42-1.42-6.3-6.29 6.3-6.29z"),
+  clock:_icn("M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm1 5h-2v6l5 3 1-1.72-4-2.3z"),
+};
+window.ICN=ICN;
+
 const ICON_BELL=_svg('<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>');
 const ICON_SUN=_svg('<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>');
 const ICON_MOON=_svg('<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>');
@@ -2252,7 +2267,7 @@ window.alertsHTML=function(){
           <span style="font-size:10.5px;color:#8A7530">${escapeHtml(a.meta||'')}</span>
         </span>
       </span>
-      <button onclick="event.stopPropagation();snoozeAlert(this.dataset.k)" data-k="${escapeHtml(a.key)}" title="Snooze 7 days" style="background:#F0E2B8;color:#7F6000;border:none;border-radius:6px;padding:4px 8px;font-size:10px;font-weight:800;cursor:pointer;flex:0 0 auto">⏰ 7d</button>
+      <button onclick="event.stopPropagation();snoozeAlert(this.dataset.k)" data-k="${escapeHtml(a.key)}" title="Snooze 7 days" style="background:#F0E2B8;color:#7F6000;border:none;border-radius:6px;padding:4px 8px;font-size:10px;font-weight:800;cursor:pointer;flex:0 0 auto">${ICN.clock} 7d</button>
     </div>`).join("")}
   </div>`;
 };
@@ -2264,7 +2279,7 @@ window._openAlertsLegacy=function(){
   const A=window._alertsCache;
   const sevc={high:"#C62828",med:"#E65100",low:"#2E5FA3"};
   ov.innerHTML=`<div class="al-box">
-    <div class="al-hd"><span>🔔 Smart Alerts</span><button onclick="document.getElementById('alertsPanel').classList.remove('open')" class="al-x">✕</button></div>
+    <div class="al-hd"><span>🔔 Smart Alerts</span><button onclick="document.getElementById('alertsPanel').classList.remove('open')" class="al-x">${ICN.x}</button></div>
     <div class="al-list">${A.length?A.map((a,i)=>`<div class="al-it" onclick="_alertGo(${i})">
       <span class="al-dot" style="background:${sevc[a.sev]}"></span>
       <span class="al-ic">${a.icon}</span>

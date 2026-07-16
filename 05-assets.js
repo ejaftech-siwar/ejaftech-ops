@@ -273,7 +273,7 @@ function renderSitesModal(){
               <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;flex-wrap:wrap">
                 <div style="font-weight:800;color:#03308B;font-size:14px;flex:1;min-width:120px">🗺️ ${escapeHtml(a.name)}</div>
                 ${statusPill(a.active!==false, `toggleAreaStatus(${ai})`)}
-                <button class="btn btn-sm btn-danger" onclick="delArea(${ai})">🗑</button>
+                <button class="btn btn-sm btn-danger" onclick="delArea(${ai})">${ICN.del}</button>
               </div>
               <!-- Sites list -->
               <div style="font-size:11px;font-weight:700;color:#64748B;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px">Sites</div>
@@ -999,12 +999,12 @@ function renderAssets(){
         <span style="font-size:13px;font-weight:700;color:#E65100">✓ ${selShown.length} device(s) selected</span>
         <div style="display:flex;gap:6px">
           <button class="btn btn-sm" style="background:#fff;border:1px solid #FFB74D;color:#E65100;font-weight:700" onclick="clearDeviceSelection()">Clear</button>
-          <button class="btn btn-sm btn-danger" style="font-weight:700" onclick="deleteSelectedDevices()">🗑 Delete Selected (${selShown.length})</button>
+          <button class="btn btn-sm btn-danger" style="font-weight:700" onclick="deleteSelectedDevices()">${ICN.del} Delete Selected (${selShown.length})</button>
         </div>
       </div>`;
     })()}
     <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
-      <button class="btn btn-sm" style="background:#FFEBEE;border:1px solid #EF9A9A;color:#C62828;font-weight:700;font-size:11px" onclick="deleteAllShownDevices()" title="Delete all devices currently shown by the filters">🗑 Delete All Shown (${shown.length})</button>
+      <button class="btn btn-sm" style="background:#FFEBEE;border:1px solid #EF9A9A;color:#C62828;font-weight:700;font-size:11px" onclick="deleteAllShownDevices()" title="Delete all devices currently shown by the filters">${ICN.del} Delete All Shown (${shown.length})</button>
     </div>
     <div style="overflow-x:auto">
       <table class="data-table rsp">
@@ -1023,9 +1023,9 @@ function renderAssets(){
             <td data-l="Model" style="font-size:12px">${escapeHtml(d.model||"—")}</td>
             <td data-l="Status">${deviceStatusBadge(d.status)}</td>
             <td class="rsp-actions">
-              <button class="btn btn-sm" style="background:#1F8C86;color:#fff;border:none" title="Device timeline" onclick="openDeviceTimeline('${d.id}')">📜</button>
-              <button class="btn btn-sm btn-secondary" onclick="editDevice('${d.id}')">✎</button>
-              <button class="btn btn-sm btn-danger" onclick="delDevice('${d.id}')">🗑</button>
+              <button class="btn btn-sm" style="background:#1F8C86;color:#fff;border:none" title="Device timeline" onclick="openDeviceTimeline('${d.id}')">${ICN.hist}</button>
+              <button class="btn btn-sm btn-secondary" onclick="editDevice('${d.id}')">${ICN.edit}</button>
+              <button class="btn btn-sm btn-danger" onclick="delDevice('${d.id}')">${ICN.del}</button>
             </td>
           </tr>`).join("")}
         </tbody>
@@ -1172,7 +1172,7 @@ window.openScanner=function(targetSetter){
   let ov=document.getElementById('scanOv');
   if(!ov){ov=document.createElement('div');ov.id='scanOv';document.body.appendChild(ov);}
   ov.innerHTML=`<div class="scan-box">
-    <div class="scan-hd"><span>📷 Scan barcode / QR</span><button class="al-x" onclick="closeScanner()">✕</button></div>
+    <div class="scan-hd"><span>📷 Scan barcode / QR</span><button class="al-x" onclick="closeScanner()">${ICN.x}</button></div>
     <div class="scan-vidwrap"><video id="scanVid" playsinline></video><div class="scan-frame"></div></div>
     <div class="scan-hint" id="scanHint">Point the camera at the device barcode…</div>
     <div class="scan-ft"><input id="scanManual" placeholder="…or type it manually" oninput="0"><button class="btn btn-sm" style="background:#03308B;color:#C9A84C;border:none;font-weight:700" onclick="scanManualApply()">Use</button></div>
@@ -1308,7 +1308,7 @@ function renderMaintenance(){
         <div style="font-weight:800;font-size:13px;color:var(--text)">${od?'🔴':'🟠'} ${escapeHtml(s.title)}${_pmProgBadge(s)}</div>
         <div style="font-size:11px;color:var(--muted)">${escapeHtml(_pmTargetLabel(s))} · due ${fmtDate(pmNextDue(s))} · <strong style="color:${od?'#C62828':'#E65100'}">${od?Math.abs(dl)+"d overdue":(dl===0?"today":"in "+dl+"d")}</strong></div>
       </div>
-      <button class="btn btn-sm" style="background:#2E7D32;color:#fff;border:none;font-weight:800" onclick="markPMDone('${s.id}')">✔ Done</button>
+      <button class="btn btn-sm" style="background:#2E7D32;color:#fff;border:none;font-weight:800" onclick="markPMDone('${s.id}')">${ICN.check} Done</button>
     </div>`;};
 
   // grouped table (by site/area) when a project is selected — professional detail view
@@ -1322,10 +1322,10 @@ function renderMaintenance(){
       <td data-l="Last done" style="font-size:11px">${s.lastDone?fmtDate(s.lastDone):'—'}</td>
       <td data-l="Next due" style="font-weight:800;color:${col}">${fmtDate(pmNextDue(s))}${off?' (paused)':dl<0?` · ${Math.abs(dl)}d late`:''}</td>
       <td class="rsp-actions">
-        <button class="btn btn-sm" style="background:#2E7D32;color:#fff;border:none" title="Mark done today" onclick="markPMDone('${s.id}')">✔</button>
-        <button class="btn btn-sm btn-secondary" onclick="editPM('${s.id}')">✎</button>
-        <button class="btn btn-sm" style="background:${off?'#2E5FA3':'#8496AC'};color:#fff;border:none" title="${off?'Resume':'Pause'}" onclick="togglePM('${s.id}')">${off?'▶':'⏸'}</button>
-        <button class="btn btn-sm btn-danger" onclick="delPM('${s.id}')">🗑</button>
+        <button class="btn btn-sm" style="background:#2E7D32;color:#fff;border:none" title="Mark done today" onclick="markPMDone('${s.id}')">${ICN.check}</button>
+        <button class="btn btn-sm btn-secondary" onclick="editPM('${s.id}')">${ICN.edit}</button>
+        <button class="btn btn-sm" style="background:${off?'#2E5FA3':'#8496AC'};color:#fff;border:none" title="${off?'Resume':'Pause'}" onclick="togglePM('${s.id}')">${off?ICN.play:ICN.pause}</button>
+        <button class="btn btn-sm btn-danger" onclick="delPM('${s.id}')">${ICN.del}</button>
       </td></tr>`;}).join("");
   let tableBody;
   if(pmProjFilter){
@@ -1357,7 +1357,7 @@ function renderMaintenance(){
         <option value="">— All projects —</option>
         ${projsWithPM.map(p=>{const c=_pmProjCodes(p);return `<option value="${escapeHtml(p)}" ${pmProjFilter===p?"selected":""}>${escapeHtml(p)}${c.length?` [${escapeHtml(c.join(", "))}]`:""}</option>`}).join("")}
       </select>
-      ${pmProjFilter?`<button class="btn btn-sm" style="background:#C62828;color:#fff;border:none;font-weight:700" onclick="window.pmProjFilter='';render()">✕ Clear</button>`:""}
+      ${pmProjFilter?`<button class="btn btn-sm" style="background:#C62828;color:#fff;border:none;font-weight:700" onclick="window.pmProjFilter='';render()">${ICN.x} Clear</button>`:""}
     </div>
     ${pmProjFilter?`<div style="margin-top:10px;padding:10px 14px;background:linear-gradient(135deg,#1B3A6B,#2E5FA3);border-radius:10px;color:#fff;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
       <div><div style="font-weight:800;font-size:14px">📁 ${escapeHtml(pmProjFilter)}</div>
@@ -1529,7 +1529,7 @@ window.openDeviceTimeline=function(id){
     ov.addEventListener('click',e=>{if(e.target===ov)ov.classList.remove('open');});}
   ov.innerHTML=`<div class="dtl-box">
     <div class="al-hd"><span>📜 ${escapeHtml(d.deviceName||d.model||"Device")} <span style="font-size:11px;color:var(--muted)">· SN:${escapeHtml(d.serialNumber||"—")}${d.model?` · ${escapeHtml(d.model)}`:""}</span></span>
-      <button class="al-x" onclick="document.getElementById('dtlOv').classList.remove('open')">✕</button></div>
+      <button class="al-x" onclick="document.getElementById('dtlOv').classList.remove('open')">${ICN.x}</button></div>
     <div class="dtl-list">${ev.length?ev.map(e=>`<div class="dtl-it ${e.future?'fut':''}">
         <span class="dtl-dot"></span>
         <div class="dtl-body">

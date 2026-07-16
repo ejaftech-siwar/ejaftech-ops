@@ -77,8 +77,8 @@ function renderClients(){
               </div>
             </div>
             <div style="display:flex;gap:5px;margin-top:10px;justify-content:flex-end">
-              <button class="btn btn-sm btn-secondary" onclick="editClient('${c.id}')">✎ Edit</button>
-              <button class="btn btn-sm btn-danger" onclick="delClient('${c.id}')">🗑 Delete</button>
+              <button class="btn btn-sm btn-secondary" onclick="editClient('${c.id}')">${ICN.edit} Edit</button>
+              <button class="btn btn-sm btn-danger" onclick="delClient('${c.id}')">${ICN.del} Delete</button>
             </div>
           </div>`;
         }).join("")}
@@ -255,7 +255,7 @@ function renderClientPortal(){
       </select>
       <input value="${escapeHtml(F.serial)}" oninput="window._cpf.serial=this.value" onchange="render()" placeholder="🔢 Serial Number" style="flex:1;min-width:120px;padding:7px 10px;border:1px solid #6A1B9A;border-radius:6px;font-size:12px">
       <input value="${escapeHtml(F.model)}" oninput="window._cpf.model=this.value" onchange="render()" placeholder="📱 Model" style="flex:1;min-width:110px;padding:7px 10px;border:1px solid #6A1B9A;border-radius:6px;font-size:12px">
-      ${fActive?`<button onclick="window._cpf={project:'',area:'',site:'',device:'',serial:'',model:''};render()" style="background:#C62828;color:white;border:none;padding:7px 14px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer">✕ Clear</button>`:""}
+      ${fActive?`<button onclick="window._cpf={project:'',area:'',site:'',device:'',serial:'',model:''};render()" style="background:#C62828;color:white;border:none;padding:7px 14px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer">${ICN.x} Clear</button>`:""}
     </div>
   </div>`:""}
 
@@ -398,7 +398,7 @@ function renderDeviceSuggestionsAdmin(){
           </div>
           <div style="display:flex;flex-direction:column;gap:6px">
             <button class="btn btn-sm" style="background:#2E7D32;color:white;border:none;font-weight:700" onclick="approveDeviceSuggestion('${s.id}')">✓ Approve</button>
-            <button class="btn btn-sm" style="background:#C62828;color:white;border:none;font-weight:700" onclick="rejectDeviceSuggestion('${s.id}')">✕ Reject</button>
+            <button class="btn btn-sm" style="background:#C62828;color:white;border:none;font-weight:700" onclick="rejectDeviceSuggestion('${s.id}')">${ICN.x} Reject</button>
           </div>
         </div>
       </div>`).join("")}

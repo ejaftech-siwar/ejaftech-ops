@@ -64,9 +64,9 @@ function renderProjects(){
         ${!isUncategorized?`<button class="btn btn-sm" style="background:#00897B;color:white;border:none;font-weight:700;font-size:11px" onclick="importProjectsForDept('${escapeHtml(d)}')" title="Import projects/sites/equipment from CSV or Excel">📥 Import</button>`:''}
       </div>
       ${g[d].length===0?`<div class="empty">No projects</div>`:`<div class="proj-chips">${g[d].map(p=>{const areaCount=(p.areas&&p.areas.length)?p.areas.length:((p.sites&&p.sites.length)?1:0);return `<span class="proj-chip" style="border-left:3px solid ${color}"><span style="cursor:pointer" title="Tap to edit" onclick="editProj('${p.id}')">${escapeHtml(p.name)}</span>${areaCount>0?`<span style="font-size:9px;background:#1565C0;color:white;padding:1px 5px;border-radius:8px;margin-left:4px">${areaCount} 🗺️</span>`:''}
-        <button class="btn btn-sm" style="padding:2px 6px;background:#1565C0;color:white;border:none" onclick="openSitesModal('${p.id}')" title="Manage areas & sites">🗺️</button>
-        <button class="btn btn-sm btn-secondary" onclick="editProj('${p.id}')" style="padding:2px 6px">✎</button>
-        <button class="btn btn-sm btn-danger" onclick="delProj('${p.id}')" style="padding:2px 6px">🗑</button></span>`}).join("")}</div>`}
+        <button class="btn btn-sm" style="padding:2px 6px;background:#1565C0;color:white;border:none" onclick="openSitesModal('${p.id}')" title="Manage areas & sites">${ICN.pin}</button>
+        <button class="btn btn-sm btn-secondary" onclick="editProj('${p.id}')" style="padding:2px 6px">${ICN.edit}</button>
+        <button class="btn btn-sm btn-danger" onclick="delProj('${p.id}')" style="padding:2px 6px">${ICN.del}</button></span>`}).join("")}</div>`}
     </div>`;
   }).join("")}`;
   return h;
@@ -117,8 +117,8 @@ function renderLocations(){
   <div class="card">
     <div class="card-title">Locations · ${state.locations.length}</div>
     <div class="proj-chips">${state.locations.map(l=>`<span class="proj-chip">📍 ${escapeHtml(l.name)}
-      <button class="btn btn-sm btn-secondary" onclick="editLoc('${l.id}')" style="padding:2px 6px">✎</button>
-      <button class="btn btn-sm btn-danger" onclick="delLoc('${l.id}')" style="padding:2px 6px">🗑</button></span>`).join("")}</div>
+      <button class="btn btn-sm btn-secondary" onclick="editLoc('${l.id}')" style="padding:2px 6px">${ICN.edit}</button>
+      <button class="btn btn-sm btn-danger" onclick="delLoc('${l.id}')" style="padding:2px 6px">${ICN.del}</button></span>`).join("")}</div>
   </div>`;
 }
 async function saveLoc(){
@@ -265,8 +265,8 @@ function renderUsers(){
           ${hasActiveSession?`<div style="font-size:10px;color:#2E7D32;margin-top:3px">🟢 Active on: ${escapeHtml(u.activeSessionLabel||"a device")}</div>`:`<div style="font-size:10px;color:#999;margin-top:3px">⚪ Not signed in</div>`}
           ${(u.showLastSeen!==false && u.activeSessionAt)?`<div style="font-size:10px;color:#1565C0;margin-top:2px">🕐 Last seen: ${escapeHtml(fmtLastSeen(u.activeSessionAt))}</div>`:''}
         </div>
-        ${u.id!==state.profile.uid?`<button class="btn btn-sm btn-secondary" onclick="editUser('${u.id}')">✎</button>
-        <button class="btn btn-sm btn-danger" onclick="delUser('${u.id}')">🗑</button>`:`<button class="btn btn-sm btn-secondary" onclick="editUser('${u.id}')">✎</button><span style="font-size:10px;color:var(--muted);margin-left:4px">YOU</span>`}
+        ${u.id!==state.profile.uid?`<button class="btn btn-sm btn-secondary" onclick="editUser('${u.id}')">${ICN.edit}</button>
+        <button class="btn btn-sm btn-danger" onclick="delUser('${u.id}')">${ICN.del}</button>`:`<button class="btn btn-sm btn-secondary" onclick="editUser('${u.id}')">${ICN.edit}</button><span style="font-size:10px;color:var(--muted);margin-left:4px">YOU</span>`}
         <div style="flex-basis:100%;display:flex;align-items:center;gap:10px;margin-top:8px;padding-top:8px;border-top:1px solid #eee;flex-wrap:wrap">
           ${isAdminUser
             ? `<span style="font-size:11px;color:#6A1B9A;font-weight:600">👑 Admin — multiple devices always allowed</span>`
@@ -356,8 +356,8 @@ function renderUsers(){
                 </div>
               </div>
               <div style="display:flex;gap:4px">
-                <button class="btn btn-sm btn-secondary" onclick="editNametagEmp('${e.id}')" title="Edit">✎</button>
-                <button class="btn btn-sm btn-danger" onclick="delNametagEmp('${e.id}')" title="Delete (Admin)">🗑</button>
+                <button class="btn btn-sm btn-secondary" onclick="editNametagEmp('${e.id}')" title="Edit">${ICN.edit}</button>
+                <button class="btn btn-sm btn-danger" onclick="delNametagEmp('${e.id}')" title="Delete (Admin)">${ICN.del}</button>
               </div>
             </div>`;
           }).join("")}
@@ -773,8 +773,8 @@ function renderBranches(){
                 ${b.empCount} employee${b.empCount===1?'':'s'} · ${b.dailyCount} work entr${b.dailyCount===1?'y':'ies'}
               </div>
             </div>
-            <button class="btn btn-sm btn-secondary" onclick="editBranch('${b.id}')">✎</button>
-            <button class="btn btn-sm btn-danger" onclick="delBranch('${b.id}')">🗑</button>
+            <button class="btn btn-sm btn-secondary" onclick="editBranch('${b.id}')">${ICN.edit}</button>
+            <button class="btn btn-sm btn-danger" onclick="delBranch('${b.id}')">${ICN.del}</button>
           </div>
         </div>
       `).join("")}
@@ -977,8 +977,8 @@ function renderDepartments(){
                 ${d.projCount} project${d.projCount===1?'':'s'} · ${d.dailyCount} entr${d.dailyCount===1?'y':'ies'} · ${fmtHM(d.hours)} hrs
               </div>
             </div>
-            <button class="btn btn-sm btn-secondary" onclick="editDept('${d.id}')">✎</button>
-            <button class="btn btn-sm btn-danger" onclick="delDept('${d.id}')">🗑</button>
+            <button class="btn btn-sm btn-secondary" onclick="editDept('${d.id}')">${ICN.edit}</button>
+            <button class="btn btn-sm btn-danger" onclick="delDept('${d.id}')">${ICN.del}</button>
           </div>
         </div>
       `).join("")}

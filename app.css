@@ -645,3 +645,8 @@ input,select,textarea,button{font-variant-numeric:tabular-nums}
 @media (min-width:761px){
   table.data-table.rsp{min-width:940px}   /* desktop keeps its wide layout */
 }
+
+/* ═══ (7) Unified action icons ═══ */
+.icn{width:1.05em;height:1.05em;vertical-align:-0.18em;display:inline-block;pointer-events:none}
+.btn .icn{margin-right:2px}
+.btn-sm .icn{width:1.15em;height:1.15em;margin:0}

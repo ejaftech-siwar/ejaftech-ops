@@ -1089,7 +1089,7 @@ if('serviceWorker' in navigator){
           bar.id='updBar';
           bar.innerHTML='<span class="upd-t">🚀 New version available</span>'
             +'<button class="upd-go" id="updGo">↻ Update now</button>'
-            +'<button class="upd-x" id="updX" title="Later">✕</button>';
+            +'<button class="upd-x" id="updX" title="Later">${ICN.x}</button>';
           document.body.appendChild(bar);
           document.getElementById('updGo').addEventListener('click',function(){
             try{
@@ -1124,7 +1124,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v101';"
+      var swCode = "const CACHE='ejaftech-v102';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
