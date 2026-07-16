@@ -2103,6 +2103,7 @@ function computeAlerts(){
   // 2) Project health: over budget / near budget (needs estimatedHours)
   const projHrs={}; daily.forEach(r=>{const p=(r.project||"").trim(); if(p)projHrs[p]=(projHrs[p]||0)+Number(r.duration||0);});
   projects.filter(p=>Number(p.estimatedHours||0)>0).forEach(p=>{
+    if(REQ_FINAL_RE.test(p.status||"")) return;   // completed/closed projects need no budget watching
     const est=Number(p.estimatedHours), used=projHrs[(p.name||"").trim()]||0, pct=Math.round(used/est*100);   // HOURS on both sides
     if(pct>100) out.push({sev:"high",icon:"🏗️",title:`${p.name} is over budget (${pct}%)`,meta:`${fmtHM(used)} of ${fmtHM(est)}`,go:()=>{window.assetFilterProject=p.name;switchTab("Analytics");}});
     else if(pct>=90) out.push({sev:"med",icon:"🏗️",title:`${p.name} near budget (${pct}%)`,meta:"Watch closely",go:()=>switchTab("Analytics")});

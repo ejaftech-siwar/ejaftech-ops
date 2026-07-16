@@ -513,8 +513,8 @@ function renderAnalytics(){
   const projHrs={}; daily.forEach(r=>{const p=(r.project||"").trim(); if(p)projHrs[p]=(projHrs[p]||0)+Number(r.duration||0);});
   const health=projects.filter(p=>Number(p.estimatedHours||0)>0).map(p=>{
     const est=Number(p.estimatedHours), used=projHrs[(p.name||"").trim()]||0;   // both in HOURS (duration is hours; fmtHM expects hours)
-    return {name:p.name,used,est,pct:Math.round(used/est*100),status:p.status||""};
-  }).sort((a,b)=>b.pct-a.pct);
+    return {name:p.name,used,est,pct:Math.round(used/est*100),status:p.status||"",fin:REQ_FINAL_RE.test(p.status||"")};
+  }).sort((a,b)=>(a.fin-b.fin)||(b.pct-a.pct));   // active first, closed at the bottom
 
   // 6) Requests
   const rCur=reqs.filter(r=>String(r.createdAt||"").slice(0,7)===todayK).length;
@@ -575,8 +575,8 @@ function renderAnalytics(){
     <div class="card">
       <div class="card-title">🏗️ Project Health — consumed vs estimated</div>
       ${health.length?health.map(p=>{
-        const col=p.pct>100?"#C62828":p.pct>=80?"#E65100":"#2E7D32";
-        const flag=p.pct>100?"&#9888; Over budget":p.pct>=80?"Watch":"On track";
+        const col=p.fin?"#8496AC":(p.pct>100?"#C62828":p.pct>=80?"#E65100":"#2E7D32");
+        const flag=p.fin?"&#10003; Closed":(p.pct>100?"&#9888; Over budget":p.pct>=80?"Watch":"On track");
         return `<div class="an-row"><div class="an-rl"><span>${escapeHtml(p.name)}${p.status?` <span style="font-size:9px;background:#F0F4FF;color:#03308B;border:1px solid #C9A84C;padding:1px 7px;border-radius:9px;font-weight:800">${escapeHtml(p.status)}</span>`:""}</span>
           <span class="an-rm" style="color:${col};font-weight:800">${p.pct}% · ${flag}</span></div>
           <div class="an-tr"><div class="an-fl" style="width:${Math.min(p.pct,100)}%;background:${col}"></div></div>
