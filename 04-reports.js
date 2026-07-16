@@ -642,7 +642,8 @@ function renderAnalytics(){
 // ═══════════════════════════════════════════════════════════════════════
 let _aiMsgs=[];
 function _aiNorm(s){
-  return String(s||"").toLowerCase()
+  s=String(s||"").replace(/[\u0660-\u0669]/g,d=>String(d.charCodeAt(0)-0x0660));
+  return s.toLowerCase()
     .replace(/[\u064B-\u0652\u0640]/g,"")
     .replace(/[أإآ]/g,"ا").replace(/ة/g,"ه").replace(/ى/g,"ي").replace(/ؤ/g,"و").replace(/ئ/g,"ي")
     .replace(/[؟?!.,،:;"'()\[\]{}]/g," ").replace(/\s+/g," ").trim();
@@ -652,6 +653,25 @@ function _aiIsAr(q){ return /[\u0600-\u06FF]/.test(q); }
 function _aiPeriod(qn){
   const t=new Date(); t.setHours(0,0,0,0);
   const iso=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+  // ── explicit dates: "25-05 to 24-06" · "من 25/5 الى 24/6" · "2026-05-25 .. 2026-06-24" ──
+  {
+    const found=[];
+    for(const m of qn.matchAll(/(\d{4})-(\d{1,2})-(\d{1,2})/g))
+      found.push(new Date(+m[1], +m[2]-1, +m[3]));
+    if(found.length<2)
+      for(const m of qn.matchAll(/(?<!\d)(\d{1,2})[\/\-](\d{1,2})(?![\/\-]?\d)/g)){
+        const dd=+m[1], mm=+m[2];
+        if(dd>=1&&dd<=31&&mm>=1&&mm<=12) found.push(new Date(t.getFullYear(), mm-1, dd));
+      }
+    if(found.length>=2){
+      let [a,b]=found; if(a>b){ if(b.getTime()===found[1].getTime()) a=new Date(a.getFullYear()-1,a.getMonth(),a.getDate()); else [a,b]=[b,a]; }
+      const lbl=`${fmtDate(iso(a))} ← ${fmtDate(iso(b))}`, lblEn=`${fmtDate(iso(a))} → ${fmtDate(iso(b))}`;
+      return {from:iso(a), to:iso(b), label:lblEn, labelEn:lblEn};
+    }
+    if(found.length===1 && _aiHas(qn,["يوم","بتاريخ"," on ","في "])){
+      const d1=iso(found[0]); return {from:d1,to:d1,label:fmtDate(d1),labelEn:fmtDate(d1)};
+    }
+  }
   const mk=(f,l,le)=>({from:iso(f),to:iso(t),label:l,labelEn:le});
   if(_aiHas(qn,["اليوم","today"])) return mk(t,"اليوم","today");
   if(_aiHas(qn,["امس","yesterday"])){const y=new Date(t);y.setDate(y.getDate()-1);return {from:iso(y),to:iso(y),label:"أمس",labelEn:"yesterday"};}
