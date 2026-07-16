@@ -512,7 +512,7 @@ function renderAnalytics(){
   // 5) Project health
   const projHrs={}; daily.forEach(r=>{const p=(r.project||"").trim(); if(p)projHrs[p]=(projHrs[p]||0)+Number(r.duration||0);});
   const health=projects.filter(p=>Number(p.estimatedHours||0)>0).map(p=>{
-    const est=Number(p.estimatedHours)*60, used=projHrs[(p.name||"").trim()]||0;
+    const est=Number(p.estimatedHours), used=projHrs[(p.name||"").trim()]||0;   // both in HOURS (duration is hours; fmtHM expects hours)
     return {name:p.name,used,est,pct:Math.round(used/est*100),status:p.status||""};
   }).sort((a,b)=>b.pct-a.pct);
 
