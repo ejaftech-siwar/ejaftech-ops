@@ -989,7 +989,7 @@ function renderAssets(){
         </select>
       </div>
     </div>
-    ${shown.length===0?`<div class="empty">No devices match. Add your first device above.</div>`:`
+    ${shown.length===0?`<div class="empty empty2"><span class="e-ic">📟</span><div class="e-t">No devices here</div><div class="e-m">Adjust the filters above — or register your first device with the form</div></div>`:`
     ${(()=>{
       // Count how many of the currently shown devices are selected
       const shownIds = shown.map(d=>d.id);
@@ -1007,22 +1007,22 @@ function renderAssets(){
       <button class="btn btn-sm" style="background:#FFEBEE;border:1px solid #EF9A9A;color:#C62828;font-weight:700;font-size:11px" onclick="deleteAllShownDevices()" title="Delete all devices currently shown by the filters">🗑 Delete All Shown (${shown.length})</button>
     </div>
     <div style="overflow-x:auto">
-      <table class="data-table" style="min-width:940px">
+      <table class="data-table rsp">
         <thead><tr>
           <th style="width:36px;text-align:center"><input type="checkbox" ${shown.length>0 && shown.every(d=>selectedDevices.has(d.id))?'checked':''} onchange="toggleSelectAllDevices(this.checked)" style="cursor:pointer;width:16px;height:16px" title="Select all shown"></th>
           <th>Serial</th><th>Name</th><th>Project</th><th>Site</th><th>IP</th><th>Model</th><th>Status</th><th></th>
         </tr></thead>
         <tbody>
           ${shown.map(d=>`<tr style="${selectedDevices.has(d.id)?'background:#FFF8E1':''}">
-            <td style="text-align:center"><input type="checkbox" ${selectedDevices.has(d.id)?'checked':''} onchange="toggleDeviceSelect('${d.id}')" style="cursor:pointer;width:16px;height:16px"></td>
-            <td style="font-weight:700;color:#03308B;font-size:12px">${escapeHtml(d.serialNumber||"—")}</td>
-            <td style="font-size:12px">${escapeHtml(d.deviceName||"—")}</td>
-            <td style="font-size:12px">${escapeHtml(d.project||"—")}${d.projectCode?`<br><span style="font-size:9px;color:#888">${escapeHtml(d.projectCode)}</span>`:''}</td>
-            <td style="font-size:12px">${escapeHtml(d.site||"—")}${d.area?`<br><span style="font-size:9px;color:#888">${escapeHtml(d.area)}</span>`:''}</td>
-            <td style="font-size:11px;font-family:monospace">${escapeHtml(d.ipAddress||"—")}</td>
-            <td style="font-size:12px">${escapeHtml(d.model||"—")}</td>
-            <td>${deviceStatusBadge(d.status)}</td>
-            <td style="white-space:nowrap">
+            <td class="rsp-check" style="text-align:center"><input type="checkbox" ${selectedDevices.has(d.id)?'checked':''} onchange="toggleDeviceSelect('${d.id}')" style="cursor:pointer;width:16px;height:16px"></td>
+            <td data-l="Serial" style="font-weight:700;color:#03308B;font-size:12px">${escapeHtml(d.serialNumber||"—")}</td>
+            <td data-l="Name" style="font-size:12px">${escapeHtml(d.deviceName||"—")}</td>
+            <td data-l="Project" style="font-size:12px">${escapeHtml(d.project||"—")}${d.projectCode?`<br><span style="font-size:9px;color:#888">${escapeHtml(d.projectCode)}</span>`:''}</td>
+            <td data-l="Site" style="font-size:12px">${escapeHtml(d.site||"—")}${d.area?`<br><span style="font-size:9px;color:#888">${escapeHtml(d.area)}</span>`:''}</td>
+            <td data-l="IP" style="font-size:11px;font-family:monospace">${escapeHtml(d.ipAddress||"—")}</td>
+            <td data-l="Model" style="font-size:12px">${escapeHtml(d.model||"—")}</td>
+            <td data-l="Status">${deviceStatusBadge(d.status)}</td>
+            <td class="rsp-actions">
               <button class="btn btn-sm" style="background:#1F8C86;color:#fff;border:none" title="Device timeline" onclick="openDeviceTimeline('${d.id}')">📜</button>
               <button class="btn btn-sm btn-secondary" onclick="editDevice('${d.id}')">✎</button>
               <button class="btn btn-sm btn-danger" onclick="delDevice('${d.id}')">🗑</button>
@@ -1316,12 +1316,12 @@ function renderMaintenance(){
     const dl=pmDaysLeft(s), off=s.active===false;
     const col=off?'var(--muted)':dl<0?'#C62828':dl<=7?'#E65100':'#2E7D32';
     return `<tr style="${off?'opacity:.5':''}">
-      <td style="font-weight:700">${escapeHtml(s.title)}${_pmProgBadge(s)}</td>
-      <td style="font-size:11px">${escapeHtml(_pmTargetLabel(s))}</td>
-      <td>${s.freqDays}d</td>
-      <td style="font-size:11px">${s.lastDone?fmtDate(s.lastDone):'—'}</td>
-      <td style="font-weight:800;color:${col}">${fmtDate(pmNextDue(s))}${off?' (paused)':dl<0?` · ${Math.abs(dl)}d late`:''}</td>
-      <td style="white-space:nowrap">
+      <td data-l="Title" style="font-weight:700">${escapeHtml(s.title)}${_pmProgBadge(s)}</td>
+      <td data-l="Target" style="font-size:11px">${escapeHtml(_pmTargetLabel(s))}</td>
+      <td data-l="Every">${s.freqDays}d</td>
+      <td data-l="Last done" style="font-size:11px">${s.lastDone?fmtDate(s.lastDone):'—'}</td>
+      <td data-l="Next due" style="font-weight:800;color:${col}">${fmtDate(pmNextDue(s))}${off?' (paused)':dl<0?` · ${Math.abs(dl)}d late`:''}</td>
+      <td class="rsp-actions">
         <button class="btn btn-sm" style="background:#2E7D32;color:#fff;border:none" title="Mark done today" onclick="markPMDone('${s.id}')">✔</button>
         <button class="btn btn-sm btn-secondary" onclick="editPM('${s.id}')">✎</button>
         <button class="btn btn-sm" style="background:${off?'#2E5FA3':'#8496AC'};color:#fff;border:none" title="${off?'Resume':'Pause'}" onclick="togglePM('${s.id}')">${off?'▶':'⏸'}</button>
@@ -1395,9 +1395,22 @@ function renderMaintenance(){
           <option value="">— No specific device —</option>${devOpts}
         </select></div>
       <div class="field"><label>Repeat every <span class="req">*</span></label>
-        <select onchange="window.pmForm.freqDays=Number(this.value)">
-          ${[["7","Week"],["14","2 Weeks"],["30","Month"],["90","3 Months"],["180","6 Months"],["365","Year"]].map(([v,l])=>`<option value="${v}" ${Number(pmForm.freqDays)===Number(v)?"selected":""}>${l} (${v}d)</option>`).join("")}
-        </select></div>
+        ${(()=>{
+          const presets=[["7","Week"],["14","2 Weeks"],["30","Month"],["60","2 Months"],["90","3 Months"],["120","4 Months"],["180","6 Months"],["365","Year"]];
+          const isPreset=presets.some(([v])=>Number(v)===Number(pmForm.freqDays));
+          const customOn=pmForm.freqCustom===true || !isPreset;
+          return `<select onchange="if(this.value==='custom'){window.pmForm.freqCustom=true;}else{window.pmForm.freqCustom=false;window.pmForm.freqDays=Number(this.value);}render()">
+            ${presets.map(([v,l])=>`<option value="${v}" ${!customOn&&Number(pmForm.freqDays)===Number(v)?"selected":""}>${l} (${v}d)</option>`).join("")}
+            <option value="custom" ${customOn?"selected":""}>⚙ Custom…</option>
+          </select>
+          ${customOn?`<div style="display:flex;align-items:center;gap:8px;margin-top:8px">
+            <input type="number" min="1" max="1095" value="${Number(pmForm.freqDays)||""}" placeholder="e.g. 120"
+              oninput="window.pmForm.freqDays=Number(this.value)||0" onchange="render()"
+              style="width:100px;padding:8px 10px;border:1.5px solid #C9A84C;border-radius:8px;font-weight:800;font-size:14px">
+            <span style="font-size:12px;font-weight:700">days</span>
+            <span style="font-size:10.5px;color:var(--muted)">${Number(pmForm.freqDays)>0?`≈ ${(Math.round(Number(pmForm.freqDays)/30*10)/10)} month(s)`:"enter contract interval"}</span>
+          </div>`:""}`;
+        })()}</div>
       <div class="field"><label>📅 Date</label>
         <input type="date" value="${pmForm.startDate}" onchange="window.pmForm.startDate=this.value"></div>
       <div class="field"><label>This date means <span class="req">*</span></label>
@@ -1419,8 +1432,8 @@ function renderMaintenance(){
 
   <div class="card">
     <div class="card-title">📋 ${pmProjFilter?`Schedules — ${escapeHtml(pmProjFilter)}`:"All Schedules"} (${list.length})</div>
-    ${list.length===0?'<div class="empty">No maintenance schedules here yet.</div>':`
-    <div class="tbl-wrap"><table class="tbl">
+    ${list.length===0?`<div class="empty empty2"><span class="e-ic">🛠️</span><div class="e-t">No maintenance schedules${pmProjFilter?" for this project":""}</div><div class="e-m">Create the first one in the form above — never miss a service again</div></div>`:`
+    <div class="tbl-wrap"><table class="tbl rsp">
       <thead><tr><th>Title</th><th>Target</th><th>Every</th><th>Last done</th><th>Next due</th><th></th></tr></thead>
       <tbody>${tableBody}</tbody></table></div>`}
   </div>`;
@@ -1459,7 +1472,7 @@ async function savePM(){
 }
 function editPM(id){ const s=(state.pmSchedules||[]).find(x=>x.id===id); if(!s)return;
   const _mode = s.lastDone ? "done" : "due";
-  pmEditId=id; pmForm={title:s.title,project:s.project||"",area:s.area||"",site:s.site||"",deviceSerial:s.deviceSerial||"",freqDays:s.freqDays,startDate:(_mode==="done"?s.lastDone:(s.startDate||today())),dateMode:_mode,notes:s.notes||""};
+  pmEditId=id; pmForm={title:s.title,project:s.project||"",area:s.area||"",site:s.site||"",deviceSerial:s.deviceSerial||"",freqDays:s.freqDays,freqCustom:![7,14,30,60,90,120,180,365].includes(Number(s.freqDays)),startDate:(_mode==="done"?s.lastDone:(s.startDate||today())),dateMode:_mode,notes:s.notes||""};
   render(); window.scrollTo({top:0,behavior:'smooth'}); }
 async function delPM(id){ if(!confirm("Delete this maintenance schedule?"))return;
   await fbDelete("pmSchedules", id); toast("Deleted"); render(); }

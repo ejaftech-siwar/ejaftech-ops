@@ -617,3 +617,31 @@ body.has-bnav #updBar{bottom:calc(78px + env(safe-area-inset-bottom,0px))}
 .hm-ll{display:flex;align-items:center;gap:3px}
 .hm-ll i{width:11px;height:11px;border-radius:3px;display:inline-block}
 @media (prefers-reduced-motion: reduce){ .ring-arc{animation:none} }
+
+/* ═══ (8) Tabular numerals — accounting-grade column alignment ═══ */
+body{font-variant-numeric:tabular-nums}
+input,select,textarea,button{font-variant-numeric:tabular-nums}
+
+/* ═══ (5) Smart empty states ═══ */
+.empty2{display:flex;flex-direction:column;align-items:center;gap:6px;padding:34px 16px !important;text-align:center}
+.e-ic{font-size:40px;line-height:1;opacity:.9;filter:grayscale(.15)}
+.e-t{font-size:14px;font-weight:800;color:var(--text)}
+.e-m{font-size:11.5px;color:var(--muted);max-width:340px;line-height:1.55}
+
+/* ═══ (3) Responsive tables → cards on mobile ═══ */
+@media (max-width:760px){
+  table.rsp{min-width:0 !important;width:100%}
+  table.rsp thead{display:none}
+  table.rsp,table.rsp tbody{display:block}
+  table.rsp tbody tr{display:block;border:1px solid var(--line);border-radius:13px;margin-bottom:10px;padding:9px 13px;background:var(--card);box-shadow:0 1px 4px rgba(15,30,60,.06)}
+  [data-theme="dark"] table.rsp tbody tr{box-shadow:0 1px 4px rgba(0,0,0,.3)}
+  table.rsp td{display:flex;justify-content:space-between;align-items:center;gap:12px;border:none !important;padding:5px 0 !important;text-align:right;white-space:normal !important}
+  table.rsp td[data-l]::before{content:attr(data-l);font-size:9.5px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;flex:0 0 auto;text-align:left}
+  table.rsp td.rsp-actions{justify-content:flex-end;flex-wrap:wrap;gap:6px;padding-top:9px !important;margin-top:4px;border-top:1px dashed var(--line) !important}
+  table.rsp td.rsp-check{justify-content:flex-start;padding-bottom:0 !important}
+  table.rsp td.empty2{display:flex}
+  table.rsp tr[style*="background:#FFF8E1"]{border-color:#C9A84C}
+}
+@media (min-width:761px){
+  table.data-table.rsp{min-width:940px}   /* desktop keeps its wide layout */
+}

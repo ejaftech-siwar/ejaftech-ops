@@ -381,7 +381,7 @@ function renderMyTasks(){
     </div></div>`;
   if(canAsg) h += _pills('_myTasksView',[{id:"inbox",ic:"📥",lb:`Inbox${pend?` (${pend})`:""}`},{id:"assigned",ic:"📤",lb:`Assigned by Me${pendBy?` (${pendBy})`:""}`}]);
   if(mv==="inbox"){
-    h += mine.length ? mine.map(t=>_taskCard(t,true)).join("") : `<div class="card"><div class="empty">No tasks assigned to you yet</div></div>`;
+    h += mine.length ? mine.map(t=>_taskCard(t,true)).join("") : `<div class="card"><div class="empty empty2"><span class="e-ic">✅</span><div class="e-t">Nothing assigned to you</div><div class="e-m">New task assignments will land here — with a bell notification</div></div></div>`;
   } else {
     h += byMe.length ? byMe.map(t=>_taskCard(t,false)).join("") : `<div class="card"><div class="empty">You haven't assigned any tasks yet</div></div>`;
   }
@@ -475,7 +475,7 @@ function renderRequests(){
 
     <div class="card">
       <div class="filter-row"><span class="card-title" style="margin:0">My Requests</span><span class="count-pill">${myReqs.length}</span></div>
-      ${myReqs.length===0?`<div class="empty">No requests yet</div>`:
+      ${myReqs.length===0?`<div class="empty empty2"><span class="e-ic">📨</span><div class="e-t">No requests yet</div><div class="e-m">Submit your first request above — we track it against our SLA</div></div>`:
       `<div style="display:flex;flex-direction:column;gap:8px">
         ${myReqs.map(r=>`<div style="border:1px solid var(--line);border-left:4px solid ${reqStatusColor(r.status)};border-radius:8px;padding:12px">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap">

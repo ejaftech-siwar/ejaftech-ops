@@ -566,7 +566,7 @@ function renderDailyLog(){
     ${!isEmployee()?renderEmployeeFilterUI("Filter Work Log"):""}
     <div class="tbl-wrap"><table class="tbl">
       <thead><tr><th style="width:48px;text-align:center">#</th><th>Date</th>${!isEmployee()?"<th>Employee</th>":""}<th>Project</th><th>Dept</th><th>Location</th><th>Hrs</th><th>Resolution</th><th></th></tr></thead>
-      <tbody>${rows.length===0?`<tr><td colspan="8" class="empty">No entries yet</td></tr>`:(window._dailyShowAll?rows:rows.slice(0,50)).map(r=>{
+      <tbody>${rows.length===0?`<tr><td colspan="8" class="empty empty2"><span class="e-ic">🔧</span><div class="e-t">No work entries in this period</div><div class="e-m">Widen the date range — or add your first entry above</div></td></tr>`:(window._dailyShowAll?rows:rows.slice(0,50)).map(r=>{
         const canEdit=isHR()||r.employee===state.profile.employeeName;
         const imgs = (r.resolutionImages||[]);
         const hasRes = imgs.length > 0 || (r.resolutionText||"").length > 0;
@@ -1051,7 +1051,7 @@ function renderOvertime(){
     <div class="filter-row"><span class="card-title" style="margin:0">Overtime Log</span><span class="count-pill">${rows.length}</span></div>
     <div class="tbl-wrap"><table class="tbl">
       <thead><tr>${!isEmployee()?"<th>Employee</th>":""}<th>Date</th><th>Day</th><th>Hrs</th><th>Project</th><th>Location</th><th></th></tr></thead>
-      <tbody>${rows.length===0?`<tr><td colspan="7" class="empty">No overtime entries</td></tr>`:rows.map(r=>{
+      <tbody>${rows.length===0?`<tr><td colspan="7" class="empty empty2"><span class="e-ic">⏰</span><div class="e-t">No overtime recorded</div><div class="e-m">Overtime you log will appear here</div></td></tr>`:rows.map(r=>{
         const canEdit=isHR()||r.employee===state.profile.employeeName;
         return `<tr>
           ${!isEmployee()?`<td>${employeeBadge(r.employee)}</td>`:""}
@@ -1157,7 +1157,7 @@ function renderTravel(){
     <div class="filter-row"><span class="card-title" style="margin:0">Travel Log</span><span class="count-pill">${rows.length}</span></div>
     <div class="tbl-wrap"><table class="tbl">
       <thead><tr>${!isEmployee()?"<th>Employee</th>":""}<th>Date</th><th>Days</th><th>Project</th><th>Location</th><th>Per Diem</th><th>Status</th><th></th></tr></thead>
-      <tbody>${rows.length===0?`<tr><td colspan="8" class="empty">No travel entries</td></tr>`:rows.map(r=>{
+      <tbody>${rows.length===0?`<tr><td colspan="8" class="empty empty2"><span class="e-ic">✈️</span><div class="e-t">No trips recorded</div><div class="e-m">Travel entries with per-diem will appear here</div></td></tr>`:rows.map(r=>{
         const canEdit=isHR()||r.employee===state.profile.employeeName;
         const pdRec=(r.perDiemStatus||"received")==="received";
         return `<tr>
@@ -1415,7 +1415,7 @@ function renderLeaves(){
 
   <div class="card">
     <div class="card-title">Leave Log · ${visibleLeaves.length}</div>
-    ${visibleLeaves.length===0?`<div class="empty">No leaves recorded</div>`:`
+    ${visibleLeaves.length===0?`<div class="empty empty2"><span class="e-ic">🌴</span><div class="e-t">No leaves recorded</div><div class="e-m">Approved leaves will show up here</div></div>`:`
     <div class="tbl-wrap"><table class="tbl">
       <thead><tr>
         <th>Employee</th><th>Type</th><th>Kind</th><th>Date</th><th>Detail</th><th>Hours</th><th>Days Eq.</th><th>Notes</th><th></th>
