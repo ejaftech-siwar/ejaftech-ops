@@ -1268,7 +1268,11 @@ function _pmProjCodes(name){
 }
 function _pmTargetLabel(s){
   const parts=[];
-  if(s.project){ const c=_pmProjCodes(s.project); parts.push(s.project+(c.length?` [${c[0]}]`:"")); }
+  // NOTE: PM has no "project code" (work-stream/contract) of its own — it always
+  // targets the whole project (or a narrower Area/Site/Device below it). Showing
+  // one of the project's Daily-Log codes here was misleading (looked like PM was
+  // scoped to just that one work-stream, when it applies to the entire project).
+  if(s.project) parts.push(s.project);
   if(s.area) parts.push(s.area);
   if(s.site) parts.push(s.site);
   if(s.deviceSerial){
@@ -1336,7 +1340,6 @@ function renderMaintenance(){
     ).join("");
   } else tableBody=tableRows(list);
 
-  const filterCodes=pmProjFilter?_pmProjCodes(pmProjFilter):[];
   return `
   <div class="card" style="background:linear-gradient(135deg,#1B3A6B,#2E5FA3);border:none;color:#fff">
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
@@ -1355,13 +1358,13 @@ function renderMaintenance(){
       <span style="font-size:12px;font-weight:800;color:var(--muted)">🔎 PROJECT FILTER</span>
       <select onchange="window.pmProjFilter=this.value;render()" style="flex:1;min-width:180px;padding:8px 12px;border:1.5px solid ${pmProjFilter?'#C9A84C':'var(--line)'};border-radius:8px;font-weight:${pmProjFilter?'800':'400'}">
         <option value="">— All projects —</option>
-        ${projsWithPM.map(p=>{const c=_pmProjCodes(p);return `<option value="${escapeHtml(p)}" ${pmProjFilter===p?"selected":""}>${escapeHtml(p)}${c.length?` [${escapeHtml(c.join(", "))}]`:""}</option>`}).join("")}
+        ${projsWithPM.map(p=>`<option value="${escapeHtml(p)}" ${pmProjFilter===p?"selected":""}>${escapeHtml(p)}</option>`).join("")}
       </select>
       ${pmProjFilter?`<button class="btn btn-sm" style="background:#C62828;color:#fff;border:none;font-weight:700" onclick="window.pmProjFilter='';render()">${ICN.x} Clear</button>`:""}
     </div>
     ${pmProjFilter?`<div style="margin-top:10px;padding:10px 14px;background:linear-gradient(135deg,#1B3A6B,#2E5FA3);border-radius:10px;color:#fff;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
       <div><div style="font-weight:800;font-size:14px">📁 ${escapeHtml(pmProjFilter)}</div>
-      ${filterCodes.length?`<div style="margin-top:3px">${filterCodes.map(c=>`<span style="font-size:10px;background:rgba(201,168,76,.25);color:#F0D68A;padding:1px 8px;border-radius:9px;font-weight:800;margin-right:4px">${escapeHtml(c)}</span>`).join("")}</div>`:""}</div>
+</div>
       <div style="font-size:11px;opacity:.85">${list.length} schedule(s) · ${overdue.length} overdue · ${(state.devices||[]).filter(d=>(d.project||"").trim()===pmProjFilter).length} devices in project</div>
     </div>`:""}
   </div>`:""}
@@ -1378,7 +1381,7 @@ function renderMaintenance(){
       <div class="field"><label>📁 Project <span style="font-size:10px;color:var(--muted)">(empty = general task)</span></label>
         <select onchange="window.pmForm.project=this.value;window.pmForm.area='';window.pmForm.site='';window.pmForm.deviceSerial='';render()">
           <option value="">— General / company-wide —</option>
-          ${projSel.map(p=>{const n=(p.name||"").trim();const c=Array.isArray(p.codes)&&p.codes.length?` [${p.codes[0]}]`:"";return `<option value="${escapeHtml(n)}" ${n===(pmForm.project||"").trim()?"selected":""}>${escapeHtml(n)}${escapeHtml(c)}</option>`}).join("")}
+          ${projSel.map(p=>{const n=(p.name||"").trim();return `<option value="${escapeHtml(n)}" ${n===(pmForm.project||"").trim()?"selected":""}>${escapeHtml(n)}</option>`}).join("")}
         </select></div>
       ${pmForm.project&&areas.length?`<div class="field"><label>🗺️ Area <span style="font-size:10px;color:var(--muted)">(optional)</span></label>
         <select onchange="window.pmForm.area=this.value;window.pmForm.site='';window.pmForm.deviceSerial='';render()">
