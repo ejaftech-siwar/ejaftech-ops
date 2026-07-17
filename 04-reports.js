@@ -755,3 +755,31 @@ window.setCap=async function(uid,cap,val){
   await fbSave("users",{...u, id:uid, [cap]:!!val});
   toast(`🔐 ${val?"Granted":"Revoked"} ✓`);
 };
+
+// Reusable matrix (no admin-gate wrapper) — embedded inside the Users tab.
+function permsMatrixHTML(){
+  const users=(state.users||[]).filter(u=>["employee","support","hr"].includes(u.role||"employee")&&u.role!=="client");
+  return `
+  <div class="card" style="border-left:4px solid #C9A84C">
+    <div class="card-title">🔐 Permissions</div>
+    <p style="font-size:11.5px;color:var(--muted);margin:4px 0 0;line-height:1.6">Grant extra capabilities to specific people without changing their role. Admins always have everything; HR keeps its built-in access. Changes apply the moment the person's app refreshes.</p>
+  </div>
+  <div class="card">
+    <div class="tbl-wrap"><table class="tbl">
+      <thead><tr><th>User</th><th>Role</th>${CAPS.map(c=>`<th title="${c[2]}" style="text-align:center">${c[1]}</th>`).join("")}</tr></thead>
+      <tbody>${users.map(u=>`<tr>
+        <td style="font-weight:700">${escapeHtml(u.employeeName||u.name||u.email||"—")}</td>
+        <td><span style="font-size:9px;background:#F0F4FF;color:#03308B;padding:1px 8px;border-radius:8px;font-weight:800">${escapeHtml(u.role||"employee")}</span></td>
+        ${CAPS.map(c=>{
+          const hrAuto=(u.role==="hr")&&["canViewReports","canAnalytics","canAssets","canExport"].includes(c[0]);
+          const on=hrAuto||!!u[c[0]];
+          return `<td style="text-align:center">${hrAuto
+            ?`<span title="Built into the HR role" style="color:#2E7D32;font-weight:800">✓</span>`
+            :`<input type="checkbox" ${on?"checked":""} style="width:17px;height:17px;accent-color:#C9A84C;cursor:pointer" onchange="setCap('${u.id}','${c[0]}',this.checked)">`}</td>`;
+        }).join("")}
+      </tr>`).join("")}</tbody>
+    </table></div>
+    ${users.length===0?'<div class="empty empty2"><span class="e-ic">👥</span><div class="e-t">No staff accounts yet</div><div class="e-m">Employee / support accounts will appear here for granting</div></div>':""}
+  </div>`;
+}
+window.permsMatrixHTML=permsMatrixHTML;

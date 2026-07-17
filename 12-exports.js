@@ -1076,7 +1076,7 @@ if('serviceWorker' in navigator){
   // Android requires a REAL same-origin sw.js file (not a Blob) to offer full "Install app".
   // Try the real file first; if it's missing (e.g. local single-file use), fall back to Blob.
   window.addEventListener('load', function(){
-    navigator.serviceWorker.register('sw.js', {scope: './'}).then(function(reg){
+    navigator.serviceWorker.register('sw.js', {scope: './', updateViaCache: 'none'}).then(function(reg){
       // ── "New version available" flow (v90) ──
       // 1) A newer sw.js installs in the background and WAITS (no skipWaiting).
       // 2) We show a banner; the user taps Update whenever convenient.
@@ -1141,12 +1141,12 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v106';"
+      var swCode = "const CACHE='ejaftech-v107';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
         + "if(e.request.url.includes('firebase')||e.request.url.includes('googleapis')||e.request.url.includes('gstatic'))return;"
-        + "if(e.request.mode==='navigate'||e.request.destination==='document'){e.respondWith(fetch(e.request).then(resp=>{const c=resp.clone();caches.open(CACHE).then(ca=>ca.put(e.request,c));return resp;}).catch(()=>caches.match(e.request).then(r=>r||caches.match('./'))));return;}"
+        + "if(e.request.mode==='navigate'||e.request.destination==='document'){e.respondWith(fetch(e.request,{cache:'no-store'}).then(resp=>{const c=resp.clone();caches.open(CACHE).then(ca=>ca.put(e.request,c));return resp;}).catch(()=>caches.match(e.request).then(r=>r||caches.match('./'))));return;}"
         + "e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request).then(resp=>{"
         + "if(e.request.url.startsWith(self.location.origin)){const c=resp.clone();caches.open(CACHE).then(ca=>ca.put(e.request,c));}"
         + "return resp;}).catch(()=>caches.match('./'))));"

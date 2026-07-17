@@ -3,7 +3,7 @@
 // This file MUST sit next to index.html on the server (same folder),
 // alongside: theme.css, app.css, pwa-manifest.js, firebase-init.js, app.js
 
-const CACHE = 'ejaftech-v106';
+const CACHE = 'ejaftech-v107';
 
 self.addEventListener('install', (e) => {
   // NOTE (v90): no skipWaiting here anymore. The new version WAITS until the
@@ -36,7 +36,12 @@ self.addEventListener('fetch', (e) => {
       url.includes('index.html') ||
       isAppAsset) {
     e.respondWith(
-      fetch(e.request).then(resp => {
+      // cache:'no-store' bypasses the BROWSER's own HTTP cache (not just the
+      // Cache API) — without this, GitHub Pages' Cache-Control headers let the
+      // browser serve a stale file straight from disk, so "network-first"
+      // wasn't actually reaching the network. This is why Update-now needed a
+      // manual cache clear before.
+      fetch(e.request, {cache: 'no-store'}).then(resp => {
         const c = resp.clone();
         caches.open(CACHE).then(ca => ca.put(e.request, c));
         return resp;

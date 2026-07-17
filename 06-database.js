@@ -166,7 +166,7 @@ function renderUsers(){
   if(!userForm)userForm={name:"",email:"",password:"",role:"employee",employeeName:"",branch:"",userDept:"",jobTitle:"",supervisorName:"",isSupervisor:false};
   const uv = window._usersView || "team";
   const _up=(id,ic,lb)=>`<button onclick="window._usersView='${id}';window.__navFade=true;render()" style="flex:1;padding:10px 6px;border:none;border-radius:9px;font-weight:800;font-size:12px;cursor:pointer;background:${uv===id?'#03308B':'#E8EEF7'};color:${uv===id?'#C9A84C':'#1B3A6B'}">${ic} ${lb}</button>`;
-  let h = `<div style="display:flex;gap:6px;margin-bottom:14px">${_up("team","👥","Team Members")}${_up("add","➕","Add User")}${_up("tags","🏷️","Nametags")}</div>`;
+  let h = `<div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap">${_up("team","👥","Team Members")}${_up("add","➕","Add User")}${_up("tags","🏷️","Nametags")}${_up("perms","🔐","Permissions")}</div>`;
   if(uv==="add")  h += `<div class="card">
     <div class="sec-hdr">${userEditId?"Edit":"Add"} User</div>
     ${!userEditId?`<div style="background:#FFF8E1;border:1px solid #FFE082;border-radius:8px;padding:10px;font-size:12px;color:#7F6000;margin-bottom:14px">
@@ -291,6 +291,7 @@ function renderUsers(){
       </div>`;
     }).join("")}
   </div>`;
+  if(uv==="perms") h += permsMatrixHTML();
   if(uv==="tags") h += `  <!-- ═══ NAMETAG EMPLOYEES (no auth account) ═══ -->
   <div class="card" style="border-top:4px solid #D4AF37">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">

@@ -1,3 +1,17 @@
+const TZ_OPTIONS=[
+  ["Asia/Baghdad","🇮🇶 Iraq / Kurdistan Region — Baghdad (UTC+3)"],
+  ["Asia/Riyadh","🇸🇦 Saudi Arabia — Riyadh (UTC+3)"],
+  ["Asia/Kuwait","🇰🇼 Kuwait (UTC+3)"],
+  ["Asia/Dubai","🇦🇪 UAE — Dubai (UTC+4)"],
+  ["Europe/Istanbul","🇹🇷 Turkey — Istanbul (UTC+3)"],
+  ["Asia/Amman","🇯🇴 Jordan — Amman (UTC+3/+2)"],
+  ["Europe/London","🇬🇧 UK — London"],
+  ["UTC","🌐 UTC"]
+];
+window.saveAppTZ=async function(tz){
+  await fbSave("settings",{id:"dateTime",tz});
+  toast("🌍 Timezone updated — applies to the whole app ✓");
+};
 function renderProfile(){
   const p = state.profile || {};
   const u = state.user || {};
@@ -20,7 +34,13 @@ function renderProfile(){
       ${_sn?`<button class="btn btn-sm btn-secondary" onclick="disableSysNotifs()">Turn off</button>`
            :`<button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:800;border:none" onclick="enableSysNotifs()">🔔 Enable</button>`}
     </div>
-  </div><div class="card" style="background:linear-gradient(135deg,#1B3A6B 0%,#2E5FA3 100%);color:white;border:2px solid #C9A84C">
+  </div>${isAdmin()?`<div class="card" style="border-left:4px solid #2E5FA3">
+    <div class="card-title">🌍 Date & Time</div>
+    <p style="font-size:11.5px;color:var(--muted);margin:4px 0 10px;line-height:1.6">The business timezone used for "today" everywhere in the app — Daily Log, Preventive Maintenance, backups. Every device uses this timezone regardless of its own local clock, so the whole team always shares the same "today" and the day rolls over at real local midnight, not the phone's.</p>
+    <select onchange="saveAppTZ(this.value)" style="width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;background:var(--card,#fff);color:var(--text)">
+      ${TZ_OPTIONS.map(([v,l])=>`<option value="${v}" ${getAppTZ()===v?"selected":""}>${l}</option>`).join("")}
+    </select>
+  </div>`:""}<div class="card" style="background:linear-gradient(135deg,#1B3A6B 0%,#2E5FA3 100%);color:white;border:2px solid #C9A84C">
     <div style="display:flex;align-items:center;gap:14px">
       <div onclick="document.getElementById('profilePhotoInput').click()" title="Tap to change photo" style="position:relative;width:64px;height:64px;border:2px solid #C9A84C;border-radius:12px;display:flex;align-items:center;justify-content:center;background:#1B3A6B;flex-shrink:0;cursor:pointer;overflow:hidden">
         ${p.photoData?`<img src="${p.photoData}" alt="Profile photo" style="width:100%;height:100%;object-fit:cover">`:`<span style="font-family:'DM Serif Display',serif;font-size:20px;color:#C9A84C;font-weight:700">${escapeHtml((p.name||'?').charAt(0).toUpperCase())}</span>`}
