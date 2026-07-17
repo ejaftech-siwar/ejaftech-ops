@@ -827,7 +827,7 @@ window.exportAssetExcel = async function(){
 
 
 function renderAssets(){
-  if(!isHR()) return `<div class="card"><div class="empty">Access denied — HR/Admin only</div></div>`;
+  if(!(isHR()||hasCap("canAssets"))) return `<div class="card"><div class="empty">Access denied — HR/Admin only</div></div>`;
   if(!deviceForm) deviceForm = blankDevice();
 
   const devices = state.devices || [];
@@ -1278,7 +1278,7 @@ function _pmTargetLabel(s){
   return parts.length?parts.join(" › "):"General";
 }
 function renderMaintenance(){
-  if(!isAdmin()) return `<div class="card"><div class="empty">Admin only.</div></div>`;
+  if(!(isAdmin()||hasCap("canMaintenance"))) return `<div class="card"><div class="empty">Admin only.</div></div>`;
   if(!pmForm) pmForm={title:"",project:"",area:"",site:"",deviceSerial:"",freqDays:90,startDate:today(),dateMode:"done",notes:""};
   const all=(state.pmSchedules||[]).slice().sort((a,b)=>pmNextDue(a).localeCompare(pmNextDue(b)));
   const list = pmProjFilter ? all.filter(s=>(s.project||"")===pmProjFilter) : all;

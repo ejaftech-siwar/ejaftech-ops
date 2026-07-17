@@ -469,7 +469,7 @@ function _anDelta(cur,prev){
   return d>0?`<span class="an-up">▲ ${d}%</span>`:`<span class="an-dn">▼ ${Math.abs(d)}%</span>`;
 }
 function renderAnalytics(){
-  if(!(isAdmin()||isHR())) return `<div class="card"><div class="empty">Admin / HR only.</div></div>`;
+  if(!(isAdmin()||isHR()||hasCap("canAnalytics"))) return `<div class="card"><div class="empty">Admin / HR only.</div></div>`;
   const daily=state.daily||[], devices=state.devices||[], projects=state.projects||[], reqs=state.clientRequests||[];
   const now=new Date(), todayK=now.toISOString().slice(0,7);
   const months=_anMonths(12), prevK=months[months.length-2];
@@ -635,3 +635,123 @@ function renderAnalytics(){
     </div>
   </div>`;
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+//  👑 EXECUTIVE VIEW — one screen for leadership decisions (admin only)
+// ═══════════════════════════════════════════════════════════════════════
+function renderExecutive(){
+  if(!isAdmin()) return `<div class="card"><div class="empty">Admin only.</div></div>`;
+  const now=new Date();
+  const mNow=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
+  const pv=new Date(now.getFullYear(),now.getMonth()-1,1);
+  const mPrev=`${pv.getFullYear()}-${String(pv.getMonth()+1).padStart(2,"0")}`;
+  const daily=state.daily||[];
+  const hrs=(m)=>daily.filter(r=>(r.date||"").startsWith(m)).reduce((a,b)=>a+Number(b.duration||0),0);
+  const hNow=hrs(mNow), hPrev=hrs(mPrev);
+  const delta=hPrev>0?Math.round((hNow-hPrev)/hPrev*100):null;
+  const activeStaff=new Set(daily.filter(r=>(r.date||"").startsWith(mNow)).map(r=>r.employee).filter(Boolean)).size;
+  const projActive=(state.projects||[]).filter(p=>!REQ_FINAL_RE.test(p.status||""));
+  const projClosed=(state.projects||[]).length-projActive.length;
+  const reqs=state.clientRequests||[];
+  const init=(typeof reqInitialStatus==="function")?reqInitialStatus():"new";
+  const openReq=reqs.filter(r=>!REQ_FINAL_RE.test(r.status||"")).length;
+  const fin=reqs.filter(r=>r.completedAt&&r.createdAt);
+  const sla=(typeof getSLA==="function")?getSLA():{completeHrs:72};
+  const slaOK=fin.filter(r=>(new Date(r.completedAt)-new Date(r.createdAt))<=sla.completeHrs*36e5).length;
+  const slaPct=fin.length?Math.round(slaOK/fin.length*100):null;
+  const pc=(typeof pmStatusCounts==="function")?pmStatusCounts():{overdue:0,soon:0};
+  const alerts=(typeof computeAlerts==="function")?computeAlerts().slice(0,6):[];
+  // portfolio: active projects with monthly hours + budget pct
+  const projHrsAll={}, projHrsM={};
+  daily.forEach(r=>{const k=(r.project||"").trim();if(!k)return;
+    projHrsAll[k]=(projHrsAll[k]||0)+Number(r.duration||0);
+    if((r.date||"").startsWith(mNow)) projHrsM[k]=(projHrsM[k]||0)+Number(r.duration||0);});
+  const port=projActive.map(p=>{const n=(p.name||"").trim();
+    const est=Number(p.estimatedHours||0), used=projHrsAll[n]||0;
+    return {n, code:(Array.isArray(p.codes)&&p.codes[0])||"", st:p.status||"", est, used,
+      pct:est>0?Math.round(used/est*100):null, m:projHrsM[n]||0};
+  }).sort((x,y)=>(y.pct||0)-(x.pct||0));
+  const by={}; daily.filter(r=>(r.date||"").startsWith(mNow)).forEach(r=>{if(r.employee)by[r.employee]=(by[r.employee]||0)+Number(r.duration||0);});
+  const top3=Object.entries(by).sort((a,b)=>b[1]-a[1]).slice(0,3);
+  const kpi=(v,l,c2,sub)=>`<div class="ex-k" style="border-top:3px solid ${c2}"><div class="ex-kv" style="color:${c2}">${v}</div><div class="ex-kl">${l}</div>${sub?`<div class="ex-ks">${sub}</div>`:""}</div>`;
+  const sevc={high:"#C62828",med:"#E65100",low:"#2E5FA3"};
+  return `
+  <div class="card" style="background:linear-gradient(135deg,#101F3C,#1B3A6B);border:1px solid #C9A84C;color:#fff">
+    <div style="font-size:17px;font-weight:800">👑 Executive View</div>
+    <div style="font-size:11px;opacity:.72;margin-top:2px">${now.toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long",year:"numeric"})} · live company snapshot</div>
+  </div>
+  <div class="ex-grid">
+    ${kpi(projActive.length,"Active projects","#2E5FA3",projClosed?`+ ${projClosed} closed`:"")}
+    ${kpi(fmtHM(hNow),"Man-hours this month","#C9A84C",delta===null?"":`<span style="color:${delta>=0?'#7BD98A':'#FF9B9B'}">${delta>=0?"▲":"▼"} ${Math.abs(delta)}%</span> vs last`)}
+    ${kpi(activeStaff,"Active staff","#1F8C86","logged this month")}
+    ${kpi(openReq,"Open requests","#6A1B9A",`${reqs.filter(r=>(r.status||init)===init).length} new`)}
+    ${kpi(slaPct===null?"—":slaPct+"%","SLA compliance",slaPct===null?"#8496AC":slaPct>=80?"#2E7D32":"#C62828","completed on promise")}
+    ${kpi(pc.overdue,"Maintenance overdue",pc.overdue?"#C62828":"#2E7D32",`${pc.soon} due ≤7d`)}
+  </div>
+  ${alerts.length?`<div class="card" style="border-left:4px solid #C9A84C">
+    <div class="card-title">⚡ Needs leadership attention</div>
+    ${alerts.map((al,i)=>`<button class="ex-al" onclick="(window._alertsCache=computeAlerts())&&_alertGo(${i})">
+      <span style="width:7px;height:7px;border-radius:4px;background:${sevc[al.sev]};flex:0 0 auto"></span>
+      <span style="font-size:15px">${al.icon}</span>
+      <span style="flex:1;text-align:left"><span style="font-weight:800;font-size:12.5px;display:block">${escapeHtml(al.title)}</span><span style="font-size:10.5px;color:var(--muted)">${escapeHtml(al.meta||"")}</span></span>
+      <span style="color:#C9A84C;font-weight:800">›</span></button>`).join("")}
+  </div>`:`<div class="card"><div class="empty empty2"><span class="e-ic">✅</span><div class="e-t">All clear</div><div class="e-m">Nothing needs leadership intervention right now</div></div></div>`}
+  <div class="card">
+    <div class="card-title">🏗️ Portfolio — active projects</div>
+    ${port.length?port.map(p=>`<div class="ex-p">
+      <div class="ex-pt"><span style="font-weight:800">${escapeHtml(p.n)}</span>
+        ${p.code?`<span class="ex-code">${escapeHtml(p.code)}</span>`:""}
+        ${p.st?`<span class="ex-st">${escapeHtml(p.st)}</span>`:""}
+        <span style="margin-left:auto;font-size:11px;color:var(--muted)">${fmtHM(p.m)} this month</span></div>
+      ${p.pct!==null?`<div class="ex-bar"><div style="width:${Math.min(p.pct,100)}%;background:${p.pct>100?"#C62828":p.pct>=80?"#E65100":"#2E7D32"}"></div></div>
+      <div class="ex-ph"><span>${fmtHM(p.used)} of ${fmtHM(p.est)}</span><strong style="color:${p.pct>100?"#C62828":p.pct>=80?"#E65100":"#2E7D32"}">${p.pct}%</strong></div>`
+      :`<div class="ex-ph"><span>${fmtHM(p.used)} logged</span><span style="color:var(--muted)">no estimate set</span></div>`}
+    </div>`).join(""):'<div class="empty">No active projects.</div>'}
+  </div>
+  <div class="card">
+    <div class="card-title">🏆 Top performers — ${now.toLocaleDateString("en-GB",{month:"long"})}</div>
+    ${top3.length?top3.map(([n,h],i)=>`<div class="ai-r"><span>${["🥇","🥈","🥉"][i]} ${escapeHtml(n)}</span><strong>${fmtHM(h)}</strong></div>`).join(""):'<div class="empty">No entries yet this month.</div>'}
+  </div>`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  🔐 PERMISSIONS MATRIX — capability grants per user (admin only)
+// ═══════════════════════════════════════════════════════════════════════
+const CAPS=[
+  ["canViewReports","📄 Reports","See report tabs"],
+  ["canAnalytics","📊 Analytics","See the Analytics tab"],
+  ["canAssets","📟 Assets","Open & manage devices"],
+  ["canMaintenance","🛠️ Maintenance","Open PM schedules"],
+  ["canExport","⬇ Export","PDF / Excel buttons"],
+];
+function renderPermissions(){
+  if(!isAdmin()) return `<div class="card"><div class="empty">Admin only.</div></div>`;
+  const users=(state.users||[]).filter(u=>["employee","support","hr"].includes(u.role||"employee")&&u.role!=="client");
+  return `
+  <div class="card" style="border-left:4px solid #C9A84C">
+    <div class="card-title">🔐 Permissions</div>
+    <p style="font-size:11.5px;color:var(--muted);margin:4px 0 0;line-height:1.6">Grant extra capabilities to specific people without changing their role. Admins always have everything; HR keeps its built-in access. Changes apply the moment the person's app refreshes.</p>
+  </div>
+  <div class="card">
+    <div class="tbl-wrap"><table class="tbl">
+      <thead><tr><th>User</th><th>Role</th>${CAPS.map(c=>`<th title="${c[2]}" style="text-align:center">${c[1]}</th>`).join("")}</tr></thead>
+      <tbody>${users.map(u=>`<tr>
+        <td style="font-weight:700">${escapeHtml(u.employeeName||u.name||u.email||"—")}</td>
+        <td><span style="font-size:9px;background:#F0F4FF;color:#03308B;padding:1px 8px;border-radius:8px;font-weight:800">${escapeHtml(u.role||"employee")}</span></td>
+        ${CAPS.map(c=>{
+          const hrAuto=(u.role==="hr")&&["canViewReports","canAnalytics","canAssets","canExport"].includes(c[0]);
+          const on=hrAuto||!!u[c[0]];
+          return `<td style="text-align:center">${hrAuto
+            ?`<span title="Built into the HR role" style="color:#2E7D32;font-weight:800">✓</span>`
+            :`<input type="checkbox" ${on?"checked":""} style="width:17px;height:17px;accent-color:#C9A84C;cursor:pointer" onchange="setCap('${u.id}','${c[0]}',this.checked)">`}</td>`;
+        }).join("")}
+      </tr>`).join("")}</tbody>
+    </table></div>
+    ${users.length===0?'<div class="empty empty2"><span class="e-ic">👥</span><div class="e-t">No staff accounts yet</div><div class="e-m">Employee / support accounts will appear here for granting</div></div>':""}
+  </div>`;
+}
+window.setCap=async function(uid,cap,val){
+  const u=(state.users||[]).find(x=>x.id===uid); if(!u)return;
+  await fbSave("users",{...u, id:uid, [cap]:!!val});
+  toast(`🔐 ${val?"Granted":"Revoked"} ✓`);
+};

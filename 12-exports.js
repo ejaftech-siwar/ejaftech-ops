@@ -255,8 +255,8 @@ function renderFlexReports(){
     }
   }
 
-  // ═══════ EXPORT BUTTONS ═══════
-  h+=`<div class="card" style="background:linear-gradient(135deg,#1B3A6B 0%,#2E5FA3 100%);color:white;border:2px solid #C9A84C">
+  // ═══════ EXPORT BUTTONS (admin/HR, or granted canExport) ═══════
+  if(isAdmin()||isHR()||hasCap("canExport")) h+=`<div class="card" style="background:linear-gradient(135deg,#1B3A6B 0%,#2E5FA3 100%);color:white;border:2px solid #C9A84C">
     <div class="sec-hdr" style="color:#C9A84C;border:none;display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">📤</span> Export Options</div>
     <p style="font-size:12px;color:#B8CFE8;margin:0 0 12px">Export this filtered period in various formats — all with unified professional styling.</p>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -1092,11 +1092,28 @@ if('serviceWorker' in navigator){
             +'<button class="upd-x" id="updX" title="Later">${ICN.x}</button>';
           document.body.appendChild(bar);
           document.getElementById('updGo').addEventListener('click',function(){
+            var btn=this;
             try{
-              this.textContent='Updating…'; this.disabled=true;
-              if(reg.waiting){ reg.waiting.postMessage('SKIP_WAITING'); }
-              // Fallback: if control doesn't change quickly, hard-reload anyway
-              setTimeout(function(){ window.location.reload(); }, 2500);
+              btn.textContent='Updating…'; btn.disabled=true;
+              var fired=false;
+              function go(){ if(fired)return; fired=true; window.location.reload(); }
+              navigator.serviceWorker.addEventListener('controllerchange', go);
+              function poke(){ try{
+                var w=reg.waiting||reg.installing;
+                if(!w){ reg.update(); return; }
+                if(w.state==='installed') w.postMessage('SKIP_WAITING');
+                else w.addEventListener('statechange',function(){ if(w.state==='installed') w.postMessage('SKIP_WAITING'); });
+              }catch(err){} }
+              poke(); setTimeout(poke,1600);
+              // LAST RESORT (~5s): programmatic cache wipe = the manual "clear cache",
+              // done by the button itself. Network-first then guarantees fresh files.
+              setTimeout(function(){
+                if(fired)return;
+                var wipe=(typeof caches!=='undefined'&&caches.keys)?caches.keys().then(function(ks){
+                  return Promise.all(ks.map(function(k){ return caches.delete(k); }));
+                }):Promise.resolve();
+                wipe.catch(function(){}).then(go);
+              },5000);
             }catch(err){ window.location.reload(); }
           });
           document.getElementById('updX').addEventListener('click',function(){ bar.remove(); });
@@ -1124,7 +1141,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v105';"
+      var swCode = "const CACHE='ejaftech-v106';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
