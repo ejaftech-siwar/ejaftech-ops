@@ -1,16 +1,79 @@
-const TZ_OPTIONS=[
-  ["Asia/Baghdad","🇮🇶 Iraq / Kurdistan Region — Baghdad (UTC+3)"],
-  ["Asia/Riyadh","🇸🇦 Saudi Arabia — Riyadh (UTC+3)"],
-  ["Asia/Kuwait","🇰🇼 Kuwait (UTC+3)"],
-  ["Asia/Dubai","🇦🇪 UAE — Dubai (UTC+4)"],
-  ["Europe/Istanbul","🇹🇷 Turkey — Istanbul (UTC+3)"],
-  ["Asia/Amman","🇯🇴 Jordan — Amman (UTC+3/+2)"],
-  ["Europe/London","🇬🇧 UK — London"],
-  ["UTC","🌐 UTC"]
+const TZ_GROUPS=[
+  ["🕌 Middle East",[
+    ["Asia/Baghdad","🇮🇶 Iraq / Kurdistan Region — Baghdad (UTC+3)"],
+    ["Asia/Damascus","🇸🇾 Syria — Damascus (UTC+3)"],
+    ["Asia/Riyadh","🇸🇦 Saudi Arabia — Riyadh (UTC+3)"],
+    ["Asia/Kuwait","🇰🇼 Kuwait (UTC+3)"],
+    ["Asia/Dubai","🇦🇪 UAE — Dubai (UTC+4)"],
+    ["Asia/Amman","🇯🇴 Jordan — Amman (UTC+3/+2)"],
+    ["Asia/Beirut","🇱🇧 Lebanon — Beirut (UTC+3/+2)"],
+    ["Europe/Istanbul","🇹🇷 Turkey — Istanbul (UTC+3)"],
+  ]],
+  ["🌎 Americas",[
+    ["America/New_York","🇺🇸 USA — New York, Eastern (UTC-5/-4)"],
+    ["America/Chicago","🇺🇸 USA — Chicago, Central (UTC-6/-5)"],
+    ["America/Denver","🇺🇸 USA — Denver, Mountain (UTC-7/-6)"],
+    ["America/Los_Angeles","🇺🇸 USA — Los Angeles, Pacific (UTC-8/-7)"],
+  ]],
+  ["🌍 Europe",[
+    ["Europe/London","🇬🇧 UK — London"],
+    ["Europe/Paris","🇫🇷 France / Central Europe — Paris"],
+  ]],
+  ["🌏 Asia-Pacific & World",[
+    ["Asia/Kolkata","🇮🇳 India — Kolkata"],
+    ["Asia/Shanghai","🇨🇳 China — Shanghai"],
+    ["Asia/Tokyo","🇯🇵 Japan — Tokyo"],
+    ["Australia/Sydney","🇦🇺 Australia — Sydney"],
+    ["UTC","🌐 UTC — Coordinated Universal Time"],
+  ]],
 ];
 window.saveAppTZ=async function(tz){
   await fbSave("settings",{id:"dateTime",tz});
   toast("🌍 Timezone updated — applies to the whole app ✓");
+};
+// ── Dedicated Date & Time tab (Settings) ──────────────────────────────
+function renderDateTime(){
+  if(!isAdmin()) return `<div class="card"><div class="empty">Admin only.</div></div>`;
+  const tz=getAppTZ();
+  return `
+  <div class="card" style="background:linear-gradient(135deg,#1B3A6B 0%,#2E5FA3 100%);color:#fff;text-align:center;padding:28px 16px">
+    <div style="font-size:10.5px;letter-spacing:1.5px;opacity:.75;text-transform:uppercase">Business Time</div>
+    <div id="dtClock" style="font-family:'DM Serif Display',serif;font-size:46px;font-weight:700;color:#C9A84C;margin:8px 0 4px;letter-spacing:1px;line-height:1">--:--:--</div>
+    <div id="dtDate" style="font-size:13px;opacity:.9">—</div>
+    <div style="font-size:10.5px;opacity:.65;margin-top:8px">${escapeHtml(tz)}</div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">🌍 Business Timezone</div>
+    <p style="font-size:11.5px;color:var(--muted);margin:4px 0 14px;line-height:1.6">Used for "today" everywhere in the app — Daily Log, Preventive Maintenance, backups. Every device follows this timezone regardless of its own local clock, so the whole team always shares the same "today", and the day rolls over at real local midnight here, not on each phone.</p>
+    ${TZ_GROUPS.map(([region,list])=>`
+      <div style="margin-bottom:16px">
+        <div style="font-size:10.5px;font-weight:800;color:var(--muted);letter-spacing:.6px;text-transform:uppercase;margin-bottom:7px">${region}</div>
+        <div style="display:grid;gap:6px">
+          ${list.map(([v,l])=>`<label style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1.5px solid ${tz===v?'#C9A84C':'var(--line)'};border-radius:9px;cursor:pointer;background:${tz===v?'#FFF8E1':'transparent'}">
+            <input type="radio" name="dtTz" value="${v}" ${tz===v?"checked":""} onchange="saveAppTZ(this.value)" style="width:16px;height:16px;accent-color:#C9A84C;flex:0 0 auto">
+            <span style="font-size:13px;font-weight:${tz===v?'800':'500'};color:${tz===v?'#7A5A00':'var(--text)'}">${l}</span>
+          </label>`).join("")}
+        </div>
+      </div>`).join("")}
+  </div>`;
+}
+// Ticking clock — updates two DOM nodes directly (not a full re-render) once a
+// second while this tab is open, and stops itself the moment it isn't.
+window._dtInit=function(){
+  clearInterval(window._dtClockTimer);
+  function tick(){
+    if(state.tab!=="Date & Time"){ clearInterval(window._dtClockTimer); return; }
+    const timeEl=document.getElementById('dtClock'), dateEl=document.getElementById('dtDate');
+    if(!timeEl){ clearInterval(window._dtClockTimer); return; }
+    try{
+      const tz=getAppTZ(), now=new Date();
+      timeEl.textContent=new Intl.DateTimeFormat('en-GB',{timeZone:tz,hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).format(now);
+      dateEl.textContent=new Intl.DateTimeFormat('en-GB',{timeZone:tz,weekday:'long',day:'numeric',month:'long',year:'numeric'}).format(now);
+    }catch(e){}
+  }
+  tick();
+  window._dtClockTimer=setInterval(tick,1000);
 };
 function renderProfile(){
   const p = state.profile || {};
@@ -25,22 +88,7 @@ function renderProfile(){
   if(!profileForm) profileForm = { current:"", newPass:"", confirm:"", showOldPass:false, showNewPass:false };
 
   const _sn=(typeof sysNotifEnabled==="function")&&sysNotifEnabled();
-  return `<div class="card" style="border-left:4px solid ${_sn?'#2E7D32':'#C9A84C'};padding:14px 16px">
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
-      <div style="flex:1;min-width:200px">
-        <div style="font-weight:800;font-size:14px;color:var(--text)">🔔 Device Notifications ${_sn?'<span style="font-size:10px;background:#E8F5E9;color:#2E7D32;padding:2px 8px;border-radius:9px;font-weight:800">ON</span>':''}</div>
-        <div style="font-size:11px;color:var(--muted);margin-top:3px">Task assignments & alerts appear in your phone's notification tray with sound — while the app is open or in the background.</div>
-      </div>
-      ${_sn?`<button class="btn btn-sm btn-secondary" onclick="disableSysNotifs()">Turn off</button>`
-           :`<button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:800;border:none" onclick="enableSysNotifs()">🔔 Enable</button>`}
-    </div>
-  </div>${isAdmin()?`<div class="card" style="border-left:4px solid #2E5FA3">
-    <div class="card-title">🌍 Date & Time</div>
-    <p style="font-size:11.5px;color:var(--muted);margin:4px 0 10px;line-height:1.6">The business timezone used for "today" everywhere in the app — Daily Log, Preventive Maintenance, backups. Every device uses this timezone regardless of its own local clock, so the whole team always shares the same "today" and the day rolls over at real local midnight, not the phone's.</p>
-    <select onchange="saveAppTZ(this.value)" style="width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;background:var(--card,#fff);color:var(--text)">
-      ${TZ_OPTIONS.map(([v,l])=>`<option value="${v}" ${getAppTZ()===v?"selected":""}>${l}</option>`).join("")}
-    </select>
-  </div>`:""}<div class="card" style="background:linear-gradient(135deg,#1B3A6B 0%,#2E5FA3 100%);color:white;border:2px solid #C9A84C">
+  return `<div class="card" style="background:linear-gradient(135deg,#1B3A6B 0%,#2E5FA3 100%);color:white;border:2px solid #C9A84C">
     <div style="display:flex;align-items:center;gap:14px">
       <div onclick="document.getElementById('profilePhotoInput').click()" title="Tap to change photo" style="position:relative;width:64px;height:64px;border:2px solid #C9A84C;border-radius:12px;display:flex;align-items:center;justify-content:center;background:#1B3A6B;flex-shrink:0;cursor:pointer;overflow:hidden">
         ${p.photoData?`<img src="${p.photoData}" alt="Profile photo" style="width:100%;height:100%;object-fit:cover">`:`<span style="font-family:'DM Serif Display',serif;font-size:20px;color:#C9A84C;font-weight:700">${escapeHtml((p.name||'?').charAt(0).toUpperCase())}</span>`}
@@ -133,6 +181,13 @@ function renderProfile(){
     <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">04</span> 🚪 Sign Out</div>
     <p style="font-size:12px;color:var(--muted);margin:0 0 12px">Sign out from this device. You'll need to enter your credentials again to sign back in.</p>
     <button class="btn btn-danger" onclick="if(confirm('Sign out from this device?')) doSignOut()">Sign Out</button>
+  </div>
+
+  <div class="card" style="border-left:4px solid ${_sn?'#2E7D32':'#C9A84C'}">
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">05</span> 🔔 Device Notifications ${_sn?'<span style="font-size:10px;background:#E8F5E9;color:#2E7D32;padding:2px 8px;border-radius:9px;font-weight:800">ON</span>':''}</div>
+    <p style="font-size:12px;color:var(--muted);margin:8px 0 12px">Task assignments & alerts appear in your phone's notification tray with sound — while the app is open or in the background.</p>
+    ${_sn?`<button class="btn btn-secondary" onclick="disableSysNotifs()">Turn off</button>`
+         :`<button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:800;border:none" onclick="enableSysNotifs()">🔔 Enable</button>`}
   </div>
 
   <div class="card" style="background:#F5F8FC;border:1px dashed var(--line)">
