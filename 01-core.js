@@ -1769,8 +1769,17 @@ function renderTab(){
   try{
     c.innerHTML=fn();
     // ── polish hooks: animated count-ups + soft view transition ──
-    try{ c.classList.remove("view-in"); void c.offsetWidth; c.classList.add("view-in"); }catch(e){}
-    try{ if(typeof window._runCountUps==="function") window._runCountUps(c); }catch(e){}
+    // Animate ONLY on a real tab change — during the initial data sync every
+    // arriving collection re-renders, and restarting the animation each time
+    // produced a rapid visible shake on first load. Data refreshes now repaint
+    // silently; the soft entrance plays once per tab visit.
+    try{
+      if(window._lastViewTab!==state.tab){
+        window._lastViewTab=state.tab;
+        c.classList.remove("view-in"); void c.offsetWidth; c.classList.add("view-in");
+        if(typeof window._runCountUps==="function") window._runCountUps(c);
+      }
+    }catch(e){}
   }
   catch(err){
     console.error("Render failed:", state.tab, err);
