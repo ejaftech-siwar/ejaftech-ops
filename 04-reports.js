@@ -726,29 +726,7 @@ const CAPS=[
 ];
 function renderPermissions(){
   if(!isAdmin()) return `<div class="card"><div class="empty">Admin only.</div></div>`;
-  const users=(state.users||[]).filter(u=>["employee","support","hr"].includes(u.role||"employee")&&u.role!=="client");
-  return `
-  <div class="card" style="border-left:4px solid #C9A84C">
-    <div class="card-title">🔐 Permissions</div>
-    <p style="font-size:11.5px;color:var(--muted);margin:4px 0 0;line-height:1.6">Grant extra capabilities to specific people without changing their role. Admins always have everything; HR keeps its built-in access. Changes apply the moment the person's app refreshes.</p>
-  </div>
-  <div class="card">
-    <div class="tbl-wrap"><table class="tbl">
-      <thead><tr><th>User</th><th>Role</th>${CAPS.map(c=>`<th title="${c[2]}" style="text-align:center">${c[1]}</th>`).join("")}</tr></thead>
-      <tbody>${users.map(u=>`<tr>
-        <td style="font-weight:700">${escapeHtml(u.employeeName||u.name||u.email||"—")}</td>
-        <td><span style="font-size:9px;background:#F0F4FF;color:#03308B;padding:1px 8px;border-radius:8px;font-weight:800">${escapeHtml(u.role||"employee")}</span></td>
-        ${CAPS.map(c=>{
-          const hrAuto=(u.role==="hr")&&["canViewReports","canAnalytics","canAssets","canExport"].includes(c[0]);
-          const on=hrAuto||!!u[c[0]];
-          return `<td style="text-align:center">${hrAuto
-            ?`<span title="Built into the HR role" style="color:#2E7D32;font-weight:800">✓</span>`
-            :`<input type="checkbox" ${on?"checked":""} style="width:17px;height:17px;accent-color:#C9A84C;cursor:pointer" onchange="setCap('${u.id}','${c[0]}',this.checked)">`}</td>`;
-        }).join("")}
-      </tr>`).join("")}</tbody>
-    </table></div>
-    ${users.length===0?'<div class="empty empty2"><span class="e-ic">👥</span><div class="e-t">No staff accounts yet</div><div class="e-m">Employee / support accounts will appear here for granting</div></div>':""}
-  </div>`;
+  return permsMatrixHTML();
 }
 window.setCap=async function(uid,cap,val){
   const u=(state.users||[]).find(x=>x.id===uid); if(!u)return;
@@ -758,7 +736,9 @@ window.setCap=async function(uid,cap,val){
 
 // Reusable matrix (no admin-gate wrapper) — embedded inside the Users tab.
 function permsMatrixHTML(){
-  const users=(state.users||[]).filter(u=>["employee","support","hr"].includes(u.role||"employee")&&u.role!=="client");
+  const _RO={admin:0,hr:1,support:2,employee:3,client:4};
+  const _nm=u=>u.employeeName||u.name||u.email||"";
+  const users=(state.users||[]).slice().sort((a,b)=>((_RO[a.role||"employee"]??3)-(_RO[b.role||"employee"]??3))||_nm(a).localeCompare(_nm(b)));
   return `
   <div class="card" style="border-left:4px solid #C9A84C">
     <div class="card-title">🔐 Permissions</div>
@@ -767,19 +747,27 @@ function permsMatrixHTML(){
   <div class="card">
     <div class="tbl-wrap"><table class="tbl">
       <thead><tr><th>User</th><th>Role</th>${CAPS.map(c=>`<th title="${c[2]}" style="text-align:center">${c[1]}</th>`).join("")}</tr></thead>
-      <tbody>${users.map(u=>`<tr>
-        <td style="font-weight:700">${escapeHtml(u.employeeName||u.name||u.email||"—")}</td>
-        <td><span style="font-size:9px;background:#F0F4FF;color:#03308B;padding:1px 8px;border-radius:8px;font-weight:800">${escapeHtml(u.role||"employee")}</span></td>
-        ${CAPS.map(c=>{
-          const hrAuto=(u.role==="hr")&&["canViewReports","canAnalytics","canAssets","canExport"].includes(c[0]);
-          const on=hrAuto||!!u[c[0]];
-          return `<td style="text-align:center">${hrAuto
-            ?`<span title="Built into the HR role" style="color:#2E7D32;font-weight:800">✓</span>`
-            :`<input type="checkbox" ${on?"checked":""} style="width:17px;height:17px;accent-color:#C9A84C;cursor:pointer" onchange="setCap('${u.id}','${c[0]}',this.checked)">`}</td>`;
-        }).join("")}
-      </tr>`).join("")}</tbody>
+      <tbody>${users.map(u=>{
+        const role=u.role||"employee";
+        const badge=`<span style="font-size:9px;background:${role==="admin"?"#FFF3D6":role==="client"?"#F3E8FF":"#F0F4FF"};color:${role==="admin"?"#8F6E22":role==="client"?"#6A1B9A":"#03308B"};padding:1px 8px;border-radius:8px;font-weight:800">${escapeHtml(role)}</span>`;
+        let cells;
+        if(role==="admin"){
+          cells=CAPS.map(()=>`<td style="text-align:center"><span title="Built into the Admin role — full access always" style="color:#2E7D32;font-weight:800">✓</span></td>`).join("");
+        } else if(role==="client"){
+          cells=`<td colspan="${CAPS.length}" style="text-align:center"><button class="btn btn-sm btn-secondary" style="font-size:11px" onclick="switchTab('Clients')">Managed in Clients ↗</button></td>`;
+        } else {
+          cells=CAPS.map(c=>{
+            const hrAuto=(role==="hr")&&["canViewReports","canAnalytics","canAssets","canExport"].includes(c[0]);
+            const on=hrAuto||!!u[c[0]];
+            return `<td style="text-align:center">${hrAuto
+              ?`<span title="Built into the HR role" style="color:#2E7D32;font-weight:800">✓</span>`
+              :`<input type="checkbox" ${on?"checked":""} style="width:17px;height:17px;accent-color:#C9A84C;cursor:pointer" onchange="setCap('${u.id}','${c[0]}',this.checked)">`}</td>`;
+          }).join("");
+        }
+        return `<tr><td style="font-weight:700">${escapeHtml(_nm(u)||"—")}</td><td>${badge}</td>${cells}</tr>`;
+      }).join("")}</tbody>
     </table></div>
-    ${users.length===0?'<div class="empty empty2"><span class="e-ic">👥</span><div class="e-t">No staff accounts yet</div><div class="e-m">Employee / support accounts will appear here for granting</div></div>':""}
+    ${users.length===0?'<div class="empty empty2"><span class="e-ic">👥</span><div class="e-t">No accounts yet</div><div class="e-m">User accounts will appear here for granting</div></div>':""}
   </div>`;
 }
 window.permsMatrixHTML=permsMatrixHTML;
