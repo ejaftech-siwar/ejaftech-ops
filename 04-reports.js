@@ -55,6 +55,12 @@ function activeTechCols(){
 
 function renderTechReport(){
   if(isClient()) return `<div class="card"><div class="empty">Access denied</div></div>`;
+  // ── Technical Reports hub: Technical · PM · Incident · FM-200 ──
+  const trv = window._techRptView || "tech";
+  let hub = _pills('_techRptView',[{id:"tech",ic:"🔧",lb:"Technical"},{id:"pm",ic:"🛠️",lb:"PM Report"},{id:"inc",ic:"🚨",lb:"Incident"},{id:"fm200",ic:"🧯",lb:"FM-200"}]);
+  if(trv==="pm")    return hub + renderPMReportTab();
+  if(trv==="inc")   return hub + renderIncidentReportTab();
+  if(trv==="fm200") return hub + renderFM200Section();
 
   // Apply the unified filters to Daily Log only
   const rows = applyReportFilters(visibleRows(state.daily)).sort((a,b)=>{
@@ -81,7 +87,7 @@ function renderTechReport(){
 
   const catColors = {Network:"#1565C0",CCTV:"#6A1B9A",System:"#2E7D32",Maintenance:"#E65100","Onsite Survey":"#00838F",Deployment:"#AD1457",General:"#5D4037",CR:"#C62828"};
 
-  let h = `<div class="card">
+  let h = hub + `<div class="card">
     <div class="card-title">🔧 Technical Report</div>
     <p style="font-size:12px;color:var(--muted);margin-bottom:8px">Technical breakdown of Daily Log: classifications, hours, and work days. Uses the filters below.</p>
   </div>`;

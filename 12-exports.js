@@ -1141,7 +1141,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v118';"
+      var swCode = "const CACHE='ejaftech-v120';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
@@ -1593,3 +1593,282 @@ async function _generateIncManual(){
   toast("Incident Report ready!");
 }
 Object.assign(window,{_pmManualLayout,_incManualLayout,_generatePMManual,_generateIncManual});
+
+// ═══════════════════════════════════════════════════════════════════════
+//  FM-200 REPORTS (clean agent HFC-227ea) — Refilling · Inspection/Test
+//  Layout & criteria per NFPA 2001 and ISO 14520 (weight ±5% / pressure
+//  ±10% adjusted for temperature → recharge or replace). Manual entry —
+//  nothing is stored; everything is typed at generation time.
+// ═══════════════════════════════════════════════════════════════════════
+window._fmView=window._fmView||"refill";
+window._fm=window._fm||{client:"",clientOther:false,project:"",site:"",date:"",system:"FM-200 (HFC-227ea)",technician:"",notes:"",
+  time:"",reference:"",representative:"",panelMfr:"",panelModel:"",cylModel:"",agentWt:"",installDate:"",
+  resultText:"",engName:"",repName:"",repTitle:"IT Manager"};
+window._fmCyls=window._fmCyls||[];
+window._fmPhotos=window._fmPhotos||[];
+// Checklist items — verbatim from EJAF's delivered FM200 Test Report format
+const FM_CHK_ITEMS=[
+  ["c01","Cylinder tight mounted to the wall"],
+  ["c02","Cylinder's pressure within the normal range"],
+  ["c03","Cylinder & pipes inspection for damage or leakage areas"],
+  ["c04","Detectors status — exposed to dust or moisture"],
+  ["c05","Mains fail test"],
+  ["c06","Battery fail test"],
+  ["c07","Zone 1 detectors test"],
+  ["c08","Zone 2 detectors test"],
+  ["c09","Manual release test"],
+  ["c10","Manual abort test"],
+  ["c11","Alarm sounders test"],
+  ["c12","Cylinder valve activation test"],
+];
+window._fmChk=window._fmChk||{};
+FM_CHK_ITEMS.forEach(([k])=>{ if(!window._fmChk[k]) window._fmChk[k]={s:"Pass",r:""}; });
+
+window.fmAddCyl=function(){ window._fmCyls.push({serial:"",type:"",capL:"",tare:"",gross:"",press:"",mfg:"",hydro:"",result:"Refilled"}); render(); };
+window.fmDelCyl=function(i){ window._fmCyls.splice(i,1); render(); };
+window.fmAddPhotos=async function(input){
+  try{
+    const files=Array.from(input.files||[]); input.value="";
+    for(const f of files){
+      if(window._fmPhotos.length>=12){ toast("Max 12 photos"); break; }
+      const b64=await compressImage(f,1024,0.6); const kb=base64SizeKB(b64);
+      if(kb>500){ toast(`Image too large (${kb} KB). Skipped.`); continue; }
+      window._fmPhotos.push({data:b64,sizeKB:kb});
+    }
+    render();
+  }catch(e){ toast("Photo error: "+(e.message||"failed")); }
+};
+window.fmDelPhoto=function(i){ window._fmPhotos.splice(i,1); render(); };
+
+const _fmNet=c=>{const g=parseFloat(c.gross),t=parseFloat(c.tare);return (isFinite(g)&&isFinite(t))?+(g-t).toFixed(2):"";};
+const _fmDens=c=>{const n=parseFloat(_fmNet(c)),v=parseFloat(c.capL);return (isFinite(n)&&isFinite(v)&&v>0)?+(n/v).toFixed(3):"";};
+
+function _fmCylsEditor(){
+  const cyls=window._fmCyls;
+  return `<div class="card">
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">02</span> Cylinders <span style="font-size:10px;color:var(--muted);font-weight:500">(${cyls.length}) · net agent & fill density auto-computed</span></div>
+    ${cyls.map((c,i)=>`<div style="border:1px solid var(--line);border-radius:10px;padding:10px;margin-top:10px;background:var(--card,#fff)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <span style="font-size:11px;font-weight:800;color:#B71C1C">🧯 CYLINDER ${i+1}${_fmNet(c)!==""?` · net ${_fmNet(c)} kg${_fmDens(c)!==""?` · ${_fmDens(c)} kg/L`:""}`:""}</span>
+        <button class="btn btn-sm" style="background:#FDECEA;color:#C62828;border:none" onclick="fmDelCyl(${i})">×</button>
+      </div>
+      <div class="form-grid">
+        <div class="field"><label>Serial No.</label><input value="${escapeHtml(c.serial||"")}" oninput="window._fmCyls[${i}].serial=this.value"></div>
+        <div class="field"><label>Type / Model</label><input value="${escapeHtml(c.type||"")}" oninput="window._fmCyls[${i}].type=this.value" placeholder="e.g. 106L welded"></div>
+        <div class="field"><label>Capacity (L)</label><input type="number" step="0.1" value="${c.capL||""}" oninput="window._fmCyls[${i}].capL=this.value"></div>
+        <div class="field"><label>Tare wt (kg)</label><input type="number" step="0.01" value="${c.tare||""}" onchange="window._fmCyls[${i}].tare=this.value;render()"></div>
+        <div class="field"><label>Gross wt (kg)</label><input type="number" step="0.01" value="${c.gross||""}" onchange="window._fmCyls[${i}].gross=this.value;render()"></div>
+        <div class="field"><label>Pressure @20°C (bar)</label><input type="number" step="0.1" value="${c.press||""}" oninput="window._fmCyls[${i}].press=this.value" placeholder="e.g. 25"></div>
+        <div class="field"><label>Mfg date</label><input type="date" value="${c.mfg||""}" onchange="window._fmCyls[${i}].mfg=this.value"></div>
+        <div class="field"><label>Hydro test date</label><input type="date" value="${c.hydro||""}" onchange="window._fmCyls[${i}].hydro=this.value"></div>
+        <div class="field"><label>Result</label><select onchange="window._fmCyls[${i}].result=this.value">
+          ${["Refilled","Topped up","Pressure adjusted","Passed — no action","Replaced","Sent for hydro test"].map(o=>`<option ${c.result===o?"selected":""}>${o}</option>`).join("")}
+        </select></div>
+      </div>
+    </div>`).join("")}
+    <button class="btn btn-sm btn-secondary" style="margin-top:10px" onclick="fmAddCyl()">+ Add cylinder</button>
+  </div>`;
+}
+
+function renderFM200Section(){
+  const m=window._fm, fv=window._fmView;
+  const clientOpts=(state.clients||[]).map(c=>c.name).filter(Boolean).sort();
+  const photos=window._fmPhotos;
+  return `
+  ${_rptHero("🧯","FM-200 Reports","Clean agent (HFC-227ea) — per NFPA 2001 & ISO 14520","linear-gradient(135deg,#B71C1C 0%,#7F0000 100%)")}
+  <div class="card" style="padding:10px 12px"><div style="display:flex;gap:6px">
+    <button class="btn ${fv==="refill"?"btn-primary":"btn-secondary"}" style="flex:1" onclick="window._fmView='refill';render()">⛽ Refilling Report</button>
+    <button class="btn ${fv==="test"?"btn-primary":"btn-secondary"}" style="flex:1" onclick="window._fmView='test';render()">🧪 Test Report</button>
+  </div></div>
+
+  <div class="card">
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">01</span> General Information</div>
+    <div class="form-grid" style="margin-top:10px">
+      <div class="field"><label>👤 Client</label>
+        ${m.clientOther
+          ?`<div style="display:flex;gap:6px"><input value="${escapeHtml(m.client||"")}" oninput="window._fm.client=this.value" placeholder="Client name…" style="flex:1"><button class="btn btn-sm btn-secondary" onclick="window._fm.clientOther=false;window._fm.client='';render()">↩</button></div>`
+          :`<select onchange="if(this.value==='__other'){window._fm.clientOther=true;window._fm.client='';}else{window._fm.client=this.value;}render()">
+              <option value="">— Select —</option>
+              ${clientOpts.map(n=>`<option ${m.client===n?"selected":""}>${escapeHtml(n)}</option>`).join("")}
+              <option value="__other">✍️ Other — type manually…</option>
+            </select>`}
+      </div>
+      <div class="field"><label>📁 Project / Facility</label><input value="${escapeHtml(m.project||"")}" oninput="window._fm.project=this.value"></div>
+      <div class="field"><label>📍 Site / Room</label><input value="${escapeHtml(m.site||"")}" oninput="window._fm.site=this.value" placeholder="e.g. Server Room B1"></div>
+      <div class="field"><label>📅 Date</label><input type="date" value="${m.date||""}" onchange="window._fm.date=this.value"></div>
+      <div class="field"><label>🧯 System</label><input value="${escapeHtml(m.system||"")}" oninput="window._fm.system=this.value"></div>
+      <div class="field"><label>👷 Technician</label><input value="${escapeHtml(m.technician||"")}" oninput="window._fm.technician=this.value"></div>
+    </div>
+  </div>
+
+  ${_fmCylsEditor()}
+
+  ${fv==="test"?`<div class="card">
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">03</span> System Information</div>
+    <div class="form-grid" style="margin-top:10px">
+      <div class="field"><label>Panel Manufacturer</label><input value="${escapeHtml(m.panelMfr||"")}" oninput="window._fm.panelMfr=this.value" placeholder="e.g. UK"></div>
+      <div class="field"><label>Model</label><input value="${escapeHtml(m.panelModel||"")}" oninput="window._fm.panelModel=this.value" placeholder="e.g. Zeta premier EX Pro"></div>
+      <div class="field"><label>Cylinder Model</label><input value="${escapeHtml(m.cylModel||"")}" oninput="window._fm.cylModel=this.value" placeholder="e.g. AKRONEX"></div>
+      <div class="field"><label>FM200 Clean Agent Weight</label><input value="${escapeHtml(m.agentWt||"")}" oninput="window._fm.agentWt=this.value" placeholder="e.g. 20 Kg"></div>
+      <div class="field"><label>Installation Date</label><input type="date" value="${m.installDate||""}" onchange="window._fm.installDate=this.value"></div>
+      <div class="field"><label>Reference</label><input value="${escapeHtml(m.reference||"")}" oninput="window._fm.reference=this.value" placeholder="e.g. #S03890"></div>
+      <div class="field"><label>🕐 Test Time</label><input type="time" value="${m.time||""}" onchange="window._fm.time=this.value"></div>
+      <div class="field"><label>👤 Client Representative</label><input value="${escapeHtml(m.representative||"")}" oninput="window._fm.representative=this.value"></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">04</span> Check List Report</div>
+    ${FM_CHK_ITEMS.map(([k,label],i)=>`<div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap">
+      <div style="width:26px;font-size:11px;font-weight:800;color:var(--muted)">${String(i+1).padStart(2,"0")}</div>
+      <div style="flex:2;min-width:180px;font-size:12px">${label}</div>
+      <div style="display:flex;gap:4px">
+        <button class="btn btn-sm ${window._fmChk[k].s==="Pass"?"":"btn-secondary"}" style="${window._fmChk[k].s==="Pass"?"background:#2E7D32;color:#fff;border:none;":""}font-weight:800" onclick="window._fmChk['${k}'].s='Pass';render()">PASS</button>
+        <button class="btn btn-sm ${window._fmChk[k].s==="Fail"?"":"btn-secondary"}" style="${window._fmChk[k].s==="Fail"?"background:#C62828;color:#fff;border:none;":""}font-weight:800" onclick="window._fmChk['${k}'].s='Fail';render()">FAIL</button>
+      </div>
+    </div>`).join("")}
+  </div>
+  <div class="card">
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">05</span> Result of Test</div>
+    <textarea rows="4" oninput="window._fm.resultText=this.value" placeholder="e.g. System health for the FM200 infrastructure is verified as optimal. No trouble states, discharge events, or system degradation have been logged…" style="width:100%;margin-top:8px">${escapeHtml(m.resultText||"")}</textarea>
+  </div>
+  <div class="card">
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">06</span> Report Approval</div>
+    <div class="form-grid" style="margin-top:10px">
+      <div class="field"><label>EJAF Engineer name</label><input value="${escapeHtml(m.engName||"")}" oninput="window._fm.engName=this.value" placeholder="Eng. …"></div>
+      <div class="field"><label>Client approver name</label><input value="${escapeHtml(m.repName||"")}" oninput="window._fm.repName=this.value" placeholder="Mr. …"></div>
+      <div class="field"><label>Client approver title</label><input value="${escapeHtml(m.repTitle||"")}" oninput="window._fm.repTitle=this.value" placeholder="e.g. IT Manager"></div>
+    </div>
+  </div>`:""}
+
+  <div class="card">
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">${fv==="test"?"07":"03"}</span> Notes / Recommendations</div>
+    <textarea rows="3" oninput="window._fm.notes=this.value" placeholder="Observations, recommendations… (appears in the PDF)" style="width:100%;margin-top:8px">${escapeHtml(m.notes||"")}</textarea>
+  </div>
+
+  <div class="card">
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">${fv==="test"?"08":"04"}</span> Photos <span style="font-size:10px;color:var(--muted);font-weight:500">(max 12)</span></div>
+    <input type="file" accept="image/*" multiple onchange="fmAddPhotos(this)" style="margin-top:8px">
+    ${photos.length?`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+      ${photos.map((p,i)=>`<div style="position:relative"><img src="${p.data}" style="width:76px;height:76px;object-fit:cover;border-radius:8px;border:1px solid var(--line)"><button onclick="fmDelPhoto(${i})" style="position:absolute;top:-6px;right:-6px;background:#C62828;color:#fff;border:none;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:11px;font-weight:800">×</button></div>`).join("")}
+    </div>`:""}
+  </div>
+
+  <div class="card" style="background:linear-gradient(135deg,#1B3A6B 0%,#2E5FA3 100%);border:2px solid #C9A84C">
+    <button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:800;border:none;width:100%" onclick="${fv==="test"?"generateFM200Test()":"generateFM200Refill()"}">📄 Generate ${fv==="test"?"Test":"Refilling"} Report (PDF)</button>
+  </div>`;
+}
+
+function _fmInfoGrid(m){
+  const cell=(l,v)=>`<td style="border:1px solid #ddd;padding:7px 10px"><div style="font-size:9px;color:#888;text-transform:uppercase;letter-spacing:.6px;font-weight:700">${l}</div><div style="font-size:12px;font-weight:600;color:#1B3A6B">${v||"—"}</div></td>`;
+  return `<table style="border-collapse:collapse;width:100%"><tbody>
+    <tr>${cell("Client",escapeHtml(m.client))}${cell("Project / Facility",escapeHtml(m.project))}${cell("Site / Room",escapeHtml(m.site))}</tr>
+    <tr>${cell("Date",m.date?fmtDate(m.date):"—")}${cell("System",escapeHtml(m.system))}${cell("Technician",escapeHtml(m.technician))}</tr>
+  </tbody></table>`;
+}
+function _fmCylsTable(){
+  const cyls=window._fmCyls.filter(c=>(c.serial||c.type||c.gross));
+  if(!cyls.length) return "";
+  return `<table><thead><tr><th>#</th><th>Serial</th><th>Type</th><th>Cap. (L)</th><th>Tare (kg)</th><th>Gross (kg)</th><th>Net agent (kg)</th><th>Fill density (kg/L)</th><th>Press. @20°C (bar)</th><th>Hydro test</th><th>Result</th></tr></thead>
+  <tbody>${cyls.map((c,i)=>`<tr><td>${i+1}</td><td>${escapeHtml(c.serial||"—")}</td><td>${escapeHtml(c.type||"—")}</td><td>${c.capL||"—"}</td><td>${c.tare||"—"}</td><td>${c.gross||"—"}</td><td><strong>${_fmNet(c)||"—"}</strong></td><td>${_fmDens(c)||"—"}</td><td>${c.press||"—"}</td><td>${c.hydro?fmtDate(c.hydro):"—"}</td><td>${_rptBadge(c.result,"#E8F5E9","#2E7D32")}</td></tr>`).join("")}</tbody></table>`;
+}
+const _fmPrintBar=`<div class="actions no-print" style="padding:10px;background:#FFF8E1;border:1px solid #FFE082;border-radius:8px;margin-bottom:14px;text-align:center;font-size:13px;color:#7F6000">
+  📄 Choose <strong>"Save as PDF"</strong> in the print dialog<br><br>
+  <button onclick="window.print()" style="background:#03308B;color:#C9A84C;border:none;padding:10px 24px;border-radius:6px;font-weight:700;cursor:pointer;font-size:13px">🖨️ Print / Save as PDF</button>
+  <button onclick="window.close()" style="background:#888;color:white;border:none;padding:10px 20px;border-radius:6px;font-weight:700;cursor:pointer;font-size:13px;margin-left:6px">Close</button>
+</div>`;
+const _fmStdBanner=`<div style="background:#FDECEA;border:1px solid #F5C6C0;border-radius:8px;padding:8px 12px;margin:10px 0;font-size:10.5px;color:#7F1D1D">
+  <strong>Standards:</strong> Serviced in accordance with <strong>NFPA 2001</strong> (Standard on Clean Agent Fire Extinguishing Systems) and <strong>ISO 14520</strong>. Acceptance criteria: agent net weight within <strong>−5%</strong> and pressure within <strong>−10%</strong> (temperature-adjusted) of nameplate values — containers outside limits are refilled or replaced.
+</div>`;
+
+window.generateFM200Refill=async function(){
+  const m=window._fm;
+  if(!(m.project||m.client)) return toast("⚠ Enter at least the client or project");
+  const cyls=window._fmCyls.filter(c=>(c.serial||c.type||c.gross));
+  const bodyHTML=`${_fmPrintBar}
+    <div class="ksec"><span class="kbad">01</span><h3>FM-200 Refilling Report</h3></div>
+    ${_fmInfoGrid(m)} ${_fmStdBanner}
+    <div class="ksec"><span class="kbad">02</span><h3>Cylinder Refilling Data (${cyls.length})</h3></div>
+    ${_fmCylsTable()||'<div style="color:#888;font-size:12px">No cylinder data entered.</div>'}
+    ${(m.notes||"").trim()?`<div class="ksec"><span class="kbad">03</span><h3>Notes / Recommendations</h3></div>
+    <div style="font-size:12px;line-height:1.7;white-space:pre-wrap">${escapeHtml(m.notes.trim())}</div>`:""}
+    ${_rptPhotoGrid(window._fmPhotos,"Photos")}
+    <div style="margin-top:26px;display:flex;gap:40px">
+      <div style="flex:1;border-top:1.5px solid #333;padding-top:5px;font-size:10.5px;color:#555">Technician: <strong>${escapeHtml(m.technician||"")}</strong><br>Signature &amp; date</div>
+      <div style="flex:1;border-top:1.5px solid #333;padding-top:5px;font-size:10.5px;color:#555">Client representative<br>Signature &amp; date</div>
+    </div>
+    <script>setTimeout(()=>window.print(),500)<\/script>`;
+  await openReportPDF("FM200_REFILLING",[m.date?fmtDate(m.date):"",m.client,m.project].filter(Boolean).join(" · ")||"Manual",bodyHTML);
+  toast("FM-200 Refilling Report ready!");
+};
+
+window.generateFM200Test=async function(){
+  const m=window._fm;
+  if(!(m.client||m.project)) return toast("⚠ Enter at least the client or project");
+  const box="\u2610", tick="\u2611";
+  const chkRows=FM_CHK_ITEMS.map(([k,label],i)=>{
+    const s=window._fmChk[k].s;
+    return `<tr>
+      <td style="text-align:center;width:34px">${String(i+1).padStart(2,"0")}</td>
+      <td>${label}</td>
+      <td style="text-align:center;width:60px;font-size:15px">${s==="Pass"?tick:box}</td>
+      <td style="text-align:center;width:60px;font-size:15px">${s==="Fail"?tick:box}</td>
+    </tr>`;
+  }).join("");
+  const fails=FM_CHK_ITEMS.filter(([k])=>window._fmChk[k].s==="Fail").length;
+  const infoRow=(l,v)=>`<tr><td style="border:1px solid #ccc;background:#F0F4FA;padding:6px 10px;font-weight:800;font-size:11px;width:42%">${l}</td><td style="border:1px solid #ccc;padding:6px 10px;font-size:12px">${v||"&nbsp;"}</td></tr>`;
+  const bodyHTML=`${_fmPrintBar}
+    <div style="border:1.5px solid #1B3A6B;border-radius:6px;padding:10px 14px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+      <div>
+        <div style="font-family:'DM Serif Display',serif;font-size:19px;color:#03308B">TEST REPORT</div>
+        <div style="font-size:12px;font-weight:800;color:#B71C1C">FM200 FIRE SUPPRESSION SYSTEM</div>
+      </div>
+      <table style="border-collapse:collapse;font-size:11px">
+        ${m.reference?`<tr><td style="padding:2px 8px;font-weight:800;color:#555">Reference</td><td style="padding:2px 8px">${escapeHtml(m.reference)}</td></tr>`:""}
+        <tr><td style="padding:2px 8px;font-weight:800;color:#555">Date of Report</td><td style="padding:2px 8px">${m.date?fmtDate(m.date):"—"}</td></tr>
+        <tr><td style="padding:2px 8px;font-weight:800;color:#555">Test Time</td><td style="padding:2px 8px">${m.time||"—"}</td></tr>
+      </table>
+    </div>
+    <div class="ksec"><span class="kbad">01</span><h3>Client Information</h3></div>
+    <table style="border-collapse:collapse;width:100%">
+      ${infoRow("Company",escapeHtml(m.client))}
+      ${infoRow("Location",escapeHtml(m.site||m.project))}
+      ${infoRow("Representative",escapeHtml(m.representative))}
+    </table>
+    <div class="ksec"><span class="kbad">02</span><h3>System Information</h3></div>
+    <table style="border-collapse:collapse;width:100%">
+      ${infoRow("Panel Manufacturer",escapeHtml(m.panelMfr))}
+      ${infoRow("Model",escapeHtml(m.panelModel))}
+      ${infoRow("Cylinder Model",escapeHtml(m.cylModel))}
+      ${infoRow("FM200 Clean Agent Weight",escapeHtml(m.agentWt))}
+      ${infoRow("Installation Date",m.installDate?fmtDate(m.installDate):"")}
+    </table>
+    <div class="ksec"><span class="kbad">03</span><h3>Check List Report</h3></div>
+    <table><thead><tr><th style="width:34px">No.</th><th>Description</th><th style="width:60px">PASS</th><th style="width:60px">FAIL</th></tr></thead>
+    <tbody>${chkRows}</tbody></table>
+    <div style="margin-top:6px;font-size:11px;font-weight:700;color:${fails?'#C62828':'#2E7D32'}">${fails?fails+" item(s) FAILED — corrective action required":"All 12 items PASSED \u2713"}</div>
+    <div class="ksec"><span class="kbad">04</span><h3>Result of Test</h3></div>
+    <div style="border:1px solid #ccc;border-radius:6px;padding:12px;font-size:12px;line-height:1.8;min-height:64px;white-space:pre-wrap">${escapeHtml((m.resultText||"").trim())||"&nbsp;"}</div>
+    ${cylsBlock()}
+    ${_rptPhotoGrid(window._fmPhotos,"Photos")}
+    <div class="ksec"><span class="kbad">05</span><h3>Report Approval</h3></div>
+    <table style="border-collapse:collapse;width:100%"><tr>
+      <td style="border:1px solid #ccc;padding:14px;width:50%;vertical-align:top;font-size:12px">
+        <strong>${escapeHtml(m.engName||"Eng.")}</strong><br>Technical Engineer<br>EJAF Technology<br><br><span style="color:#888;font-size:10.5px">Date &amp; Signature</span>
+      </td>
+      <td style="border:1px solid #ccc;padding:14px;width:50%;vertical-align:top;font-size:12px">
+        <strong>${escapeHtml(m.repName||"Mr.")}</strong><br>${escapeHtml(m.repTitle||"")}<br>${escapeHtml(m.client||"")}<br><br><span style="color:#888;font-size:10.5px">Date &amp; Signature</span>
+      </td>
+    </tr></table>
+    <div style="margin-top:14px;border:1px solid #ddd;border-radius:6px;padding:10px 12px;display:flex;gap:14px;align-items:center">
+      <div style="flex:1;font-size:10px;font-style:italic;color:#555;line-height:1.7">The test and check report have been conducted by EJAF's competent engineers on the dates mentioned above. This report is made for the purpose of protecting the tangible and intangible components of the FM200 cylinders in compliance with the applicable standards ISO 14520 and NFPA 2001.</div>
+      <div style="font-size:10px;font-style:italic;font-weight:700;color:#333;white-space:nowrap">Reference Standards<br>ISO 14520 · NFPA 2001</div>
+    </div>
+    <script>setTimeout(()=>window.print(),500)<\/script>`;
+  function cylsBlock(){
+    const cyls=window._fmCyls.filter(c=>(c.serial||c.type||c.gross));
+    return cyls.length?`<div class="ksec"><span class="kbad">＋</span><h3>Cylinder Weight &amp; Pressure Verification (${cyls.length})</h3></div>${_fmCylsTable()}`:"";
+  }
+  await openReportPDF("FM200_TEST",[m.date?fmtDate(m.date):"",m.client].filter(Boolean).join(" · ")||"Manual",bodyHTML);
+  toast("FM-200 Test Report ready!");
+};
+Object.assign(window,{renderFM200Section});
