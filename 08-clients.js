@@ -76,6 +76,18 @@ function renderClients(){
                 </div>`:'<div style="font-size:10px;color:#999;margin-top:4px">Set estimated hours in Projects to track %</div>'}
               </div>
             </div>
+            ${(()=>{const sl=(state.publicSharesMeta||[]).find(s=>s.clientId===c.id&&!s.revoked);
+              return sl?`<div style="margin-top:10px;background:#F0FAF4;border:1px solid #C8E6C9;border-radius:9px;padding:9px 10px">
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                  <span style="font-size:11px;font-weight:800;color:#2E7D32">🔗 Live share link active</span>
+                  ${sl.expires?`<span style="font-size:10px;color:#888">expires ${sl.expires}</span>`:""}
+                  <span style="flex:1"></span>
+                  <button class="btn btn-sm btn-secondary" onclick="copyShareLink('${sl.id}')">📋 Copy</button>
+                  <button class="btn btn-sm btn-secondary" onclick="refreshShareNow()">↻ Refresh</button>
+                  <button class="btn btn-sm" style="background:#FDECEA;color:#C62828;border:none" onclick="revokeShareLink('${sl.id}')">Revoke</button>
+                </div>
+              </div>`
+              :`<div style="margin-top:10px"><button class="btn btn-sm" style="background:#E8F5E9;color:#2E7D32;border:1px solid #C8E6C9;font-weight:700" onclick="createShareLink('${c.id}')">🔗 Create live share link</button></div>`;})()}
             <div style="display:flex;gap:5px;margin-top:10px;justify-content:flex-end">
               <button class="btn btn-sm btn-secondary" onclick="editClient('${c.id}')">${ICN.edit} Edit</button>
               <button class="btn btn-sm btn-danger" onclick="delClient('${c.id}')">${ICN.del} Delete</button>
@@ -532,3 +544,90 @@ window.exportClientExcel = function(){
 // ═══════════════════════════════════════════════════════════════════════
 
 // Who may assign tasks: admins, plus anyone the admin granted via Users tab.
+
+// ═══════════════════════════════════════════════════════════════════════
+//  LIVE CLIENT SHARE LINKS (no-login, read-only)
+//  Each link = one doc in publicShares/{token} holding a CURATED snapshot
+//  (project progress, counts, recent activity titles). The public page can
+//  read ONLY that doc — internal collections stay fully protected.
+//  Staff sessions refresh active snapshots automatically (debounced) so the
+//  client view stays live.
+// ═══════════════════════════════════════════════════════════════════════
+function _shareToken(){
+  const a=new Uint8Array(24); crypto.getRandomValues(a);
+  return Array.from(a,b=>b.toString(16).padStart(2,"0")).join("");
+}
+function _shareUrl(t){ return location.origin+location.pathname+"?share="+t; }
+
+function _buildSharePayload(client){
+  const projList=client.projects||[];
+  const projects=projList.map(pn=>{
+    const p=(state.projects||[]).find(x=>(x.name||"").trim()===pn)||{};
+    const entries=(state.daily||[]).filter(r=>(r.project||"").trim()===pn);
+    const hours=entries.reduce((s,r)=>s+Number(r.duration||0),0);
+    const est=Number(p.estimatedHours||0);
+    const devices=(state.devices||[]).filter(d=>(d.project||"").trim()===pn).length;
+    let pmDone=0;
+    (state.pmSchedules||[]).filter(s=>(s.project||"").trim()===pn).forEach(s=>{
+      pmDone+=(s.history||[]).filter(x=>!x.initial).length;
+    });
+    const reqs=(state.clientRequests||[]).filter(r=>r.clientId===client.id&&(!r.project||(r.project||"").trim()===pn));
+    const openReq=reqs.filter(r=>!["done","Resolved","Closed","closed"].includes(r.status||"new")).length;
+    // recent activity: request status changes + PM completions (titles only — no internal notes)
+    const recent=[
+      ...reqs.slice(-6).map(r=>({date:r.createdAt||"",text:"Request: "+(r.title||"—"),status:r.status||"new"})),
+      ...(state.pmSchedules||[]).filter(s=>(s.project||"").trim()===pn).flatMap(s=>(s.history||[]).filter(x=>!x.initial).slice(-3).map(x=>({date:x.date,text:"Preventive maintenance completed — "+s.title,status:"done"})))
+    ].sort((a,b)=>String(b.date).localeCompare(String(a.date))).slice(0,6);
+    return { name:pn, status:p.status||"", hours:+hours.toFixed(1), estHours:est||0,
+      pct:est>0?Math.min(999,Math.round(hours/est*100)):0, sessions:entries.length,
+      devices, pmDone, openReq, recent };
+  });
+  return { clientId:client.id, clientName:client.name||"",
+    projects, updatedAt:new Date().toISOString(),
+    updatedLabel:new Date().toLocaleString("en-GB",{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit"}) };
+}
+
+window.createShareLink=async function(clientId){
+  if(!isAdmin()) return toast("Admin only");
+  const client=(state.clients||[]).find(c=>c.id===clientId); if(!client) return;
+  const token=_shareToken();
+  const payload=_buildSharePayload(client);
+  await fbSave("publicShares",{id:token,...payload,revoked:false,createdAt:new Date().toISOString()});
+  try{ await navigator.clipboard.writeText(_shareUrl(token)); toast("🔗 Link created & copied ✓"); }
+  catch(e){ toast("🔗 Link created ✓"); }
+  render();
+};
+window.copyShareLink=async function(token){
+  try{ await navigator.clipboard.writeText(_shareUrl(token)); toast("📋 Link copied ✓"); }
+  catch(e){ prompt("Copy this link:",_shareUrl(token)); }
+};
+window.revokeShareLink=async function(token){
+  if(!confirm("Revoke this link? The client's page will stop working immediately."))return;
+  const{db,doc,updateDoc}=window.__fb;
+  try{ await updateDoc(doc(db,"publicShares",token),{revoked:true}); toast("Link revoked ✓"); }
+  catch(e){ toast("Revoke failed: "+e.message); }
+  render();
+};
+window.refreshShareNow=async function(){ await _refreshAllShares(true); };
+
+// staff-side auto-refresher: rewrites every active share snapshot (debounced)
+let _shareRefreshBusy=false;
+async function _refreshAllShares(manual){
+  if(_shareRefreshBusy) return; _shareRefreshBusy=true;
+  try{
+    const links=(state.publicSharesMeta||[]).filter(s=>!s.revoked);
+    for(const sl of links){
+      const client=(state.clients||[]).find(c=>c.id===sl.clientId);
+      if(!client) continue;
+      const payload=_buildSharePayload(client);
+      // skip write when nothing visible changed — keeps Firestore writes minimal
+      if(!manual && JSON.stringify(sl.projects||[])===JSON.stringify(payload.projects)) continue;
+      await fbSave("publicShares",{id:sl.id,...sl,...payload});
+    }
+    if(manual) toast("↻ Live view refreshed ✓");
+  }catch(e){ console.error(e); }
+  _shareRefreshBusy=false;
+}
+// refresh on staff app load (after data settles) + every 3 minutes while open
+setTimeout(()=>{ if(state.user&&isAdmin&&isAdmin()) _refreshAllShares(false); }, 15000);
+setInterval(()=>{ if(state.user&&isAdmin&&isAdmin()) _refreshAllShares(false); }, 180000);

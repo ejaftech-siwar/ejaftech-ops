@@ -911,8 +911,83 @@ Object.assign(window, {
 // ═══════════════════════════════════════════════════════════════════════
 window.addEventListener('fb-ready',()=>{
   if(!window.__fb.isConfigured){showSetupNeeded();return;}
+  // ── Public live-share mode: ?share=TOKEN opens a read-only client view
+  //    with NO login. It can only read publicShares/{token} — a curated
+  //    snapshot document — never the internal collections.
+  const _tok=new URLSearchParams(location.search).get("share");
+  if(_tok){ enterShareView(_tok); return; }
   watchAuth();
 });
+
+function enterShareView(token){
+  window._shareMode=true;   // public page: suppress staff-only toasts/timers
+  const{db,doc,onSnapshot}=window.__fb;
+  document.title="EJAF · Live Project View";
+  renderRoot(`<div class="login-bg"><div class="login-card" style="text-align:center"><div style="font-size:34px">📡</div><div class="sub" style="margin-top:10px">Loading live view…</div></div></div>`);
+  try{
+    onSnapshot(doc(db,"publicShares",token),(snap)=>{
+      if(!snap.exists()){ _shareGone(); return; }
+      const d=snap.data();
+      if(d.revoked || (d.expires && today()>d.expires)){ _shareGone(); return; }
+      renderShareView(d);
+    },(err)=>{ console.error(err); _shareGone(); });
+  }catch(e){ _shareGone(); }
+}
+function _shareGone(){
+  renderRoot(`<div class="login-bg"><div class="login-card" style="text-align:center">
+    <div style="font-size:40px">🔗</div>
+    <h2 style="color:#C53030;margin-top:10px">Link unavailable</h2>
+    <div class="sub" style="margin-top:8px">This share link has expired or been revoked.<br>Please ask EJAF Technology for a new one.</div>
+  </div></div>`);
+}
+function renderShareView(d){
+  const P=d.projects||[];
+  const fmtD=(x)=>x?new Date(x).toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"}):"—";
+  const stC={};["Open","#C62828","In Progress","#E65100","new","#C62828","done","#2E7D32","Resolved","#2E7D32","Closed","#5B6C86"].forEach((v,i,a)=>{if(i%2===0)stC[v]=a[i+1];});
+  renderRoot(`
+  <div style="min-height:100vh;background:linear-gradient(160deg,#0E1E3C 0%,#1B3A6B 100%);padding:0 0 40px">
+    <div style="background:rgba(255,255,255,.06);backdrop-filter:blur(8px);border-bottom:1px solid rgba(201,168,76,.35);padding:14px 16px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:5">
+      <div style="width:40px;height:40px;border-radius:10px;background:#03308B;display:flex;align-items:center;justify-content:center;color:#C9A84C;font-weight:900;font-size:13px;border:1.5px solid #C9A84C">EJAF</div>
+      <div style="flex:1">
+        <div style="color:#fff;font-family:'DM Serif Display',serif;font-size:17px">${escapeHtml(d.clientName||"Client")} — Live Project View</div>
+        <div style="color:#9FB6D2;font-size:10.5px">EJAF Technology · Girêk Operations</div>
+      </div>
+      <div style="text-align:right">
+        <span style="display:inline-flex;align-items:center;gap:6px;background:rgba(46,125,50,.25);color:#A5D6A7;font-size:10px;font-weight:800;padding:3px 10px;border-radius:12px;border:1px solid rgba(165,214,167,.4)"><span style="width:7px;height:7px;border-radius:50%;background:#66BB6A;display:inline-block;animation:cfade 1.2s ease-in-out infinite alternate"></span>LIVE</span>
+        <div style="color:#9FB6D2;font-size:9.5px;margin-top:3px">Updated ${escapeHtml(d.updatedLabel||"")}</div>
+      </div>
+    </div>
+    <div style="max-width:680px;margin:0 auto;padding:16px">
+      ${P.length===0?`<div style="background:#fff;border-radius:14px;padding:30px;text-align:center;color:#888">No projects shared yet.</div>`:P.map(p=>`
+      <div style="background:#fff;border-radius:14px;box-shadow:0 6px 24px rgba(0,0,0,.25);margin-bottom:16px;overflow:hidden">
+        <div style="background:linear-gradient(135deg,#1B3A6B,#2E5FA3);padding:14px 16px;display:flex;justify-content:space-between;align-items:center;gap:10px">
+          <div style="color:#fff;font-family:'DM Serif Display',serif;font-size:18px">${escapeHtml(p.name)}</div>
+          ${p.status?`<span style="background:rgba(201,168,76,.25);color:#F0D68A;font-size:10px;font-weight:800;padding:3px 10px;border-radius:12px">${escapeHtml(p.status)}</span>`:""}
+        </div>
+        <div style="padding:14px 16px">
+          ${p.estHours?`
+          <div style="display:flex;justify-content:space-between;font-size:11px;color:#666;font-weight:700;margin-bottom:5px"><span>PROGRESS — WORKED HOURS</span><span>${p.hours} / ${p.estHours} h (${p.pct}%)</span></div>
+          <div style="height:9px;background:#E8EDF5;border-radius:6px;overflow:hidden;margin-bottom:14px"><div style="height:100%;width:${Math.min(100,p.pct)}%;background:linear-gradient(90deg,#C9A84C,#E9CC7A);border-radius:6px"></div></div>`
+          :`<div style="font-size:12px;color:#555;margin-bottom:12px">⏱ <strong>${p.hours}</strong> work hours logged · <strong>${p.sessions}</strong> field sessions</div>`}
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+            <div style="flex:1;min-width:90px;background:#F5F8FC;border-radius:9px;padding:9px;text-align:center"><div style="font-family:'DM Serif Display',serif;font-size:19px;color:#1B3A6B">${p.devices}</div><div style="font-size:9px;color:#888;font-weight:700;text-transform:uppercase">Devices</div></div>
+            <div style="flex:1;min-width:90px;background:#F5F8FC;border-radius:9px;padding:9px;text-align:center"><div style="font-family:'DM Serif Display',serif;font-size:19px;color:#2E7D32">${p.pmDone}</div><div style="font-size:9px;color:#888;font-weight:700;text-transform:uppercase">PM rounds done</div></div>
+            <div style="flex:1;min-width:90px;background:#F5F8FC;border-radius:9px;padding:9px;text-align:center"><div style="font-family:'DM Serif Display',serif;font-size:19px;color:${p.openReq?'#E65100':'#5B6C86'}">${p.openReq}</div><div style="font-size:9px;color:#888;font-weight:700;text-transform:uppercase">Open requests</div></div>
+          </div>
+          ${(p.recent||[]).length?`
+          <div style="font-size:10.5px;color:#888;font-weight:800;text-transform:uppercase;letter-spacing:.5px;margin-bottom:7px">Latest activity</div>
+          ${p.recent.map(r=>`<div style="display:flex;gap:10px;align-items:flex-start;padding:7px 0;border-top:1px solid #F0F2F7">
+            <div style="font-size:10px;color:#999;white-space:nowrap;padding-top:2px">${fmtD(r.date)}</div>
+            <div style="flex:1;font-size:12px;color:#333">${escapeHtml(r.text)}</div>
+            ${r.status?`<span style="font-size:9px;font-weight:800;color:${stC[r.status]||'#888'};background:${(stC[r.status]||'#888')}18;padding:2px 8px;border-radius:8px;white-space:nowrap">${escapeHtml(r.status)}</span>`:""}
+          </div>`).join("")}`:""}
+        </div>
+      </div>`).join("")}
+      <div style="text-align:center;color:#9FB6D2;font-size:10px;margin-top:20px;line-height:1.7">Read-only live view · Powered by <strong style="color:#C9A84C">EJAF Technology — Girêk</strong><br><span style="font-style:italic">Powered by Siwar</span></div>
+    </div>
+  </div>`);
+}
+Object.assign(window,{enterShareView,renderShareView});
 
 // ═══════════════════════════════════════════════════════════════════════
 //  SINGLE-DEVICE SESSION LOCK
@@ -1143,6 +1218,7 @@ async function subscribeData(){
     ["settings","settingsDocs"],
     ["systemTypes","systemTypes"],
     ["incidents","incidents"],
+    ["publicShares","publicSharesMeta"],
     ["trash","trash"],
   ];
   let firstCount=0;
@@ -2164,8 +2240,8 @@ window.toggleTheme = toggleTheme;
 window.addEventListener('scroll',()=>{try{document.body.classList.toggle('hdr-compact',(window.scrollY||0)>40)}catch(e){}} ,{passive:true});
 
 // ── Connection awareness: badge + toasts, so field staff always know ──
-window.addEventListener('offline',()=>{try{const d=document.getElementById('netDot');if(d)d.style.display='inline-flex';toast('⚠ Offline — your changes are saved locally and will sync automatically');}catch(e){}});
-window.addEventListener('online',()=>{try{const d=document.getElementById('netDot');if(d)d.style.display='none';toast('Back online — syncing ✓');}catch(e){}});
+window.addEventListener('offline',()=>{try{if(window._shareMode)return;const d=document.getElementById('netDot');if(d)d.style.display='inline-flex';toast('⚠ Offline — your changes are saved locally and will sync automatically');}catch(e){}});
+window.addEventListener('online',()=>{try{if(window._shareMode)return;const d=document.getElementById('netDot');if(d)d.style.display='none';toast('Back online — syncing ✓');}catch(e){}});
 
 // ═══════════════════════════════════════════════════════════════════════
 //  SMART ALERTS — proactive, computed from state (offline-safe, read-only)
