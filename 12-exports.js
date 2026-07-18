@@ -154,6 +154,38 @@ function renderFlexReports(){
     </div>
   </div>`;
 
+  // ═══════ TECHNICAL REPORT BUILDERS (PM + Incident) ═══════
+  if(isAdmin()||isHR()||hasCap("canExport")){
+    const pmProjs=[...new Set((state.pmSchedules||[]).map(s=>(s.project||"").trim()).filter(Boolean))].sort();
+    const incList=(state.incidents||[]).slice().sort((a,b)=>String(b.date||"").localeCompare(String(a.date||"")));
+    h+=`<div class="card" style="border-left:4px solid #E65100">
+      <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#E65100;color:#fff;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">🛠️</span> Preventive Maintenance Report</div>
+      <div class="form-grid" style="margin-top:10px">
+        <div class="field"><label>📁 Project</label>
+          <select id="pmRptProj"><option value="">— All projects —</option>${pmProjs.map(p=>`<option>${escapeHtml(p)}</option>`).join("")}</select></div>
+        <div class="field"><label>From</label><input type="date" id="pmRptFrom"></div>
+        <div class="field"><label>To</label><input type="date" id="pmRptTo"></div>
+        <div class="field" style="grid-column:1/-1"><label>📷 Attach photos <span style="font-size:10px;color:var(--muted)">(optional · max 12 · embedded in the PDF)</span></label>
+          <input type="file" accept="image/*" multiple onchange="pmRptAddPhotos(this)">
+          ${(window._pmRptPhotos||[]).length?`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+            ${window._pmRptPhotos.map((p,i)=>`<div style="position:relative"><img src="${p.data}" style="width:70px;height:70px;object-fit:cover;border-radius:8px;border:1px solid var(--line)"><button onclick="pmRptDelPhoto(${i})" style="position:absolute;top:-6px;right:-6px;background:#C62828;color:#fff;border:none;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:11px;font-weight:800">×</button></div>`).join("")}
+          </div>`:""}
+        </div>
+      </div>
+      <button class="btn btn-primary" style="margin-top:10px" onclick="generatePMReport()">📄 Generate PM Report (PDF)</button>
+    </div>`;
+    h+=`<div class="card" style="border-left:4px solid #7B1FA2">
+      <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#7B1FA2;color:#fff;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">🚨</span> Incident Report</div>
+      ${incList.length?`<div class="form-grid" style="margin-top:10px">
+        <div class="field" style="grid-column:1/-1"><label>Incident</label>
+          <select id="incRptSel">${incList.map(i=>`<option value="${i.id}">${fmtDate(i.date)} — ${escapeHtml(i.title)}${i.project?" · "+escapeHtml(i.project):""}${i.system?" · "+escapeHtml(i.system):""}</option>`).join("")}</select></div>
+      </div>
+      <button class="btn btn-primary" style="margin-top:10px;background:#7B1FA2;border:none" onclick="generateIncidentReport()">📄 Generate Incident Report (PDF)</button>`
+      :`<p style="font-size:12px;color:var(--muted);margin:10px 0 0">No incidents logged yet — log them in <strong>Database → Incidents</strong> first.</p>`}
+    </div>`;
+  }
+
+
   // ═══════ GLOBAL EMPLOYEE FILTER ═══════
   h += renderEmployeeFilterUI("Filter by Employees");
 
@@ -253,37 +285,6 @@ function renderFlexReports(){
       <p style="font-size:10px;color:var(--muted);margin-top:6px">Sessions = number of work-log entries tagged with the code — e.g. how many visits a maintenance round took.</p>
       </div>`;
     }
-  }
-
-  // ═══════ TECHNICAL REPORT BUILDERS (PM + Incident) ═══════
-  if(isAdmin()||isHR()||hasCap("canExport")){
-    const pmProjs=[...new Set((state.pmSchedules||[]).map(s=>(s.project||"").trim()).filter(Boolean))].sort();
-    const incList=(state.incidents||[]).slice().sort((a,b)=>String(b.date||"").localeCompare(String(a.date||"")));
-    h+=`<div class="card" style="border-left:4px solid #E65100">
-      <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#E65100;color:#fff;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">🛠️</span> Preventive Maintenance Report</div>
-      <div class="form-grid" style="margin-top:10px">
-        <div class="field"><label>📁 Project</label>
-          <select id="pmRptProj"><option value="">— All projects —</option>${pmProjs.map(p=>`<option>${escapeHtml(p)}</option>`).join("")}</select></div>
-        <div class="field"><label>From</label><input type="date" id="pmRptFrom"></div>
-        <div class="field"><label>To</label><input type="date" id="pmRptTo"></div>
-        <div class="field" style="grid-column:1/-1"><label>📷 Attach photos <span style="font-size:10px;color:var(--muted)">(optional · max 12 · embedded in the PDF)</span></label>
-          <input type="file" accept="image/*" multiple onchange="pmRptAddPhotos(this)">
-          ${(window._pmRptPhotos||[]).length?`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
-            ${window._pmRptPhotos.map((p,i)=>`<div style="position:relative"><img src="${p.data}" style="width:70px;height:70px;object-fit:cover;border-radius:8px;border:1px solid var(--line)"><button onclick="pmRptDelPhoto(${i})" style="position:absolute;top:-6px;right:-6px;background:#C62828;color:#fff;border:none;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:11px;font-weight:800">×</button></div>`).join("")}
-          </div>`:""}
-        </div>
-      </div>
-      <button class="btn btn-primary" style="margin-top:10px" onclick="generatePMReport()">📄 Generate PM Report (PDF)</button>
-    </div>`;
-    h+=`<div class="card" style="border-left:4px solid #7B1FA2">
-      <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#7B1FA2;color:#fff;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">🚨</span> Incident Report</div>
-      ${incList.length?`<div class="form-grid" style="margin-top:10px">
-        <div class="field" style="grid-column:1/-1"><label>Incident</label>
-          <select id="incRptSel">${incList.map(i=>`<option value="${i.id}">${fmtDate(i.date)} — ${escapeHtml(i.title)}${i.project?" · "+escapeHtml(i.project):""}${i.system?" · "+escapeHtml(i.system):""}</option>`).join("")}</select></div>
-      </div>
-      <button class="btn btn-primary" style="margin-top:10px;background:#7B1FA2;border:none" onclick="generateIncidentReport()">📄 Generate Incident Report (PDF)</button>`
-      :`<p style="font-size:12px;color:var(--muted);margin:10px 0 0">No incidents logged yet — log them in <strong>Database → Incidents</strong> first.</p>`}
-    </div>`;
   }
 
   // ═══════ EXPORT BUTTONS (admin/HR, or granted canExport) ═══════
@@ -1172,7 +1173,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v113';"
+      var swCode = "const CACHE='ejaftech-v114';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"

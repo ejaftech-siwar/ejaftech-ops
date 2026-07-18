@@ -1081,14 +1081,21 @@ async function saveDevice(){
     updatedAt: new Date().toISOString(),
   };
 
+  const wasEdit = !!deviceEditId;
   await fbSave("devices", {id: deviceEditId||undefined, ...data});
-  toast(deviceEditId?"Device updated ✓":"Device added ✓");
+  toast(wasEdit?"Device updated ✓":"Device added ✓");
+  if(wasEdit) window._assetView = "devices";   // done editing — back to the list
   deviceForm = blankDevice();
   deviceEditId = null;
 }
 function editDevice(id){
   const d = (state.devices||[]).find(x=>x.id===id);
-  if(d){ deviceForm = {...blankDevice(), ...d, installDate: toDateStr(d.installDate), warrantyExp: toDateStr(d.warrantyExp)}; deviceEditId = id; render(); window.scrollTo(0,0); }
+  if(d){
+    deviceForm = {...blankDevice(), ...d, installDate: toDateStr(d.installDate), warrantyExp: toDateStr(d.warrantyExp)};
+    deviceEditId = id;
+    window._assetView = "manage";   // the form lives in the Manage segment — jump straight to it
+    render(); window.scrollTo(0,0);
+  }
 }
 async function delDevice(id){
   if(!isHR()) return toast("HR/Admin only");
@@ -1097,7 +1104,7 @@ async function delDevice(id){
   await fbDelete("devices", id);
   toast("Device deleted");
 }
-function cancelDevice(){ deviceForm = blankDevice(); deviceEditId = null; render(); }
+function cancelDevice(){ deviceForm = blankDevice(); deviceEditId = null; window._assetView = "devices"; render(); }
 
 // ── Multi-select + bulk delete ──
 // Recompute the currently filtered/shown devices (mirror of the logic in renderAssets)
