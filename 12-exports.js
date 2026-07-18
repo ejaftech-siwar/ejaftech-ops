@@ -1141,7 +1141,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v117';"
+      var swCode = "const CACHE='ejaftech-v118';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
@@ -1192,6 +1192,7 @@ function _pmSysOf(s){
   return "";
 }
 window.generatePMReport=async function(){
+  if((window._pmRptMode||"records")==="manual") return _generatePMManual();
   const proj=window._pmRptProj||"";
   const sys =window._pmRptSys||"";
   const from=window._pmRptFrom||"";
@@ -1249,6 +1250,7 @@ window.generatePMReport=async function(){
 };
 
 window.generateIncidentReport=async function(){
+  if((window._incRptMode||"records")==="manual") return _generateIncManual();
   const id=window._incRptSel||"";
   if(!id) return toast("⚠ Pick an incident first");
   const i=(state.incidents||[]).find(x=>x.id===id);
@@ -1300,8 +1302,16 @@ function _rptHero(icon,title,sub,grad){
   </div>`;
 }
 
+function _rptModeSeg(varName,mode){
+  return `<div class="card" style="padding:10px 12px"><div style="display:flex;gap:6px">
+    <button class="btn ${mode!=="manual"?"btn-primary":"btn-secondary"}" style="flex:1" onclick="window.${varName}='records';render()">📊 From records</button>
+    <button class="btn ${mode==="manual"?"btn-primary":"btn-secondary"}" style="flex:1" onclick="window.${varName}='manual';render()">✍️ Manual entry</button>
+  </div></div>`;
+}
 function renderPMReportTab(){
   if(!(isAdmin()||isHR()||hasCap("canExport"))) return `<div class="card"><div class="empty">No access.</div></div>`;
+  const _mode=window._pmRptMode||"records";
+  if(_mode==="manual") return _rptHero("🛠️","Preventive Maintenance Report","Manual report — type everything yourself, no records needed","linear-gradient(135deg,#E65100 0%,#BF360C 100%)")+_rptModeSeg("_pmRptMode",_mode)+_pmManualLayout();
   const pmProjs=[...new Set((state.pmSchedules||[]).map(s=>(s.project||"").trim()).filter(Boolean))].sort();
   const systems=(state.systemTypes||[]).slice().sort((a,b)=>(a.order||0)-(b.order||0));
   // live scope preview
@@ -1320,6 +1330,7 @@ function renderPMReportTab(){
 
   return `
   ${_rptHero("🛠️","Preventive Maintenance Report","Branded PDF — scope, completed rounds, work description & photos","linear-gradient(135deg,#E65100 0%,#BF360C 100%)")}
+  ${_rptModeSeg("_pmRptMode",_mode)}
 
   <div class="card">
     <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">01</span> Scope</div>
@@ -1364,6 +1375,8 @@ function renderPMReportTab(){
 
 function renderIncidentReportTab(){
   if(!(isAdmin()||isHR()||hasCap("canExport"))) return `<div class="card"><div class="empty">No access.</div></div>`;
+  const _mode=window._incRptMode||"records";
+  if(_mode==="manual") return _rptHero("🚨","Incident Report","Manual report — type everything yourself, no logged incident needed","linear-gradient(135deg,#7B1FA2 0%,#4A148C 100%)")+_rptModeSeg("_incRptMode",_mode)+_incManualLayout();
   let list=(state.incidents||[]).slice().sort((a,b)=>String(b.date||"").localeCompare(String(a.date||"")));
   const projs=[...new Set(list.map(i=>(i.project||"").trim()).filter(Boolean))].sort();
   const systems=[...new Set(list.map(i=>(i.system||"").trim()).filter(Boolean))].sort();
@@ -1376,6 +1389,7 @@ function renderIncidentReportTab(){
 
   return `
   ${_rptHero("🚨","Incident Report","Detailed branded PDF for any logged incident — info grid, actions & photos","linear-gradient(135deg,#7B1FA2 0%,#4A148C 100%)")}
+  ${_rptModeSeg("_incRptMode",_mode)}
 
   ${(state.incidents||[]).length===0?`<div class="card"><div class="empty empty2"><span class="e-ic">🚨</span><div class="e-t">No incidents logged yet</div><div class="e-m">Log them in <strong>Database → Incidents</strong> first</div></div></div>`:`
   <div class="card">
@@ -1413,3 +1427,169 @@ function renderIncidentReportTab(){
   </div>`}`;
 }
 Object.assign(window,{renderPMReportTab,renderIncidentReportTab});
+
+// ═══════════════════════════════════════════════════════════════════════
+//  MANUAL REPORT BUILDERS — no records required, everything typed by hand
+// ═══════════════════════════════════════════════════════════════════════
+window._pmRptMode=window._pmRptMode||"records";
+window._incRptMode=window._incRptMode||"records";
+window._pmMan=window._pmMan||{project:"",system:"",from:"",to:"",desc:""};
+window._pmManItems=window._pmManItems||[];
+window._incMan=window._incMan||{title:"",date:"",time:"",project:"",area:"",site:"",system:"",device:"",severity:"Medium",status:"Resolved",startDate:"",endDate:"",reportedBy:"",description:"",actionTaken:""};
+window._incManPhotos=window._incManPhotos||[];
+
+window.pmManAddItem=function(){ window._pmManItems.push({date:today(),text:"",by:""}); render(); };
+window.pmManDelItem=function(i){ window._pmManItems.splice(i,1); render(); };
+window.incManAddPhotos=async function(input){
+  try{
+    const files=Array.from(input.files||[]); input.value="";
+    for(const f of files){
+      if(window._incManPhotos.length>=6){ toast("Max 6 photos"); break; }
+      const b64=await compressImage(f,1024,0.6); const kb=base64SizeKB(b64);
+      if(kb>500){ toast(`Image too large (${kb} KB). Skipped.`); continue; }
+      window._incManPhotos.push({data:b64,sizeKB:kb});
+    }
+    render();
+  }catch(e){ toast("Photo error: "+(e.message||"failed")); }
+};
+window.incManDelPhoto=function(i){ window._incManPhotos.splice(i,1); render(); };
+
+const _mfield=(label,path,val,ph,type)=>`<div class="field"><label>${label}</label>
+  <input type="${type||"text"}" value="${escapeHtml(val||"")}" ${type?'onchange':'oninput'}="${path}=this.value${type?';render()':''}" placeholder="${ph||""}"></div>`;
+
+function _pmManualLayout(){
+  const m=window._pmMan, items=window._pmManItems, photos=window._pmRptPhotos||[];
+  return `
+  <div class="card">
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">01</span> Details</div>
+    <div class="form-grid" style="margin-top:10px">
+      ${_mfield("📁 Project","window._pmMan.project",m.project,"e.g. Asiacell SLA")}
+      ${_mfield("🧩 System","window._pmMan.system",m.system,"e.g. CCTV")}
+      ${_mfield("From","window._pmMan.from",m.from,"","date")}
+      ${_mfield("To","window._pmMan.to",m.to,"","date")}
+    </div>
+  </div>
+  <div class="card">
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">02</span> Maintenance Works <span style="font-size:10px;color:var(--muted);font-weight:500">(${items.length})</span></div>
+    ${items.map((it,i)=>`<div style="display:flex;gap:6px;margin-top:8px;align-items:center;flex-wrap:wrap">
+      <input type="date" value="${it.date||""}" onchange="window._pmManItems[${i}].date=this.value" style="width:135px">
+      <input value="${escapeHtml(it.text||"")}" oninput="window._pmManItems[${i}].text=this.value" placeholder="Work performed…" style="flex:2;min-width:150px">
+      <input value="${escapeHtml(it.by||"")}" oninput="window._pmManItems[${i}].by=this.value" placeholder="By" style="flex:1;min-width:90px">
+      <button class="btn btn-sm" style="background:#FDECEA;color:#C62828;border:none" onclick="pmManDelItem(${i})">×</button>
+    </div>`).join("")}
+    <button class="btn btn-sm btn-secondary" style="margin-top:10px" onclick="pmManAddItem()">+ Add work item</button>
+  </div>
+  <div class="card">
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">03</span> Description</div>
+    <textarea rows="4" oninput="window._pmMan.desc=this.value" placeholder="Overall summary — findings, recommendations… (appears in the PDF)" style="width:100%;margin-top:8px">${escapeHtml(m.desc||"")}</textarea>
+  </div>
+  <div class="card">
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">04</span> Photos <span style="font-size:10px;color:var(--muted);font-weight:500">(max 12)</span></div>
+    <input type="file" accept="image/*" multiple onchange="pmRptAddPhotos(this)" style="margin-top:8px">
+    ${photos.length?`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+      ${photos.map((p,i)=>`<div style="position:relative"><img src="${p.data}" style="width:76px;height:76px;object-fit:cover;border-radius:8px;border:1px solid var(--line)"><button onclick="pmRptDelPhoto(${i})" style="position:absolute;top:-6px;right:-6px;background:#C62828;color:#fff;border:none;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:11px;font-weight:800">×</button></div>`).join("")}
+    </div>`:""}
+  </div>
+  <div class="card" style="background:linear-gradient(135deg,#1B3A6B 0%,#2E5FA3 100%);border:2px solid #C9A84C">
+    <button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:800;border:none;width:100%" onclick="generatePMReport()">📄 Generate PM Report (PDF)</button>
+  </div>`;
+}
+
+async function _generatePMManual(){
+  const m=window._pmMan, items=(window._pmManItems||[]).filter(x=>(x.text||"").trim());
+  if(!m.project.trim()) return toast("⚠ Project name is required");
+  const bodyHTML=`
+    <div class="actions no-print" style="padding:10px;background:#FFF8E1;border:1px solid #FFE082;border-radius:8px;margin-bottom:14px;text-align:center;font-size:13px;color:#7F6000">
+      📄 Choose <strong>"Save as PDF"</strong> in the print dialog<br><br>
+      <button onclick="window.print()" style="background:#03308B;color:#C9A84C;border:none;padding:10px 24px;border-radius:6px;font-weight:700;cursor:pointer;font-size:13px">🖨️ Print / Save as PDF</button>
+      <button onclick="window.close()" style="background:#888;color:white;border:none;padding:10px 20px;border-radius:6px;font-weight:700;cursor:pointer;font-size:13px;margin-left:6px">Close</button>
+    </div>
+    <div class="ksec"><span class="kbad">01</span><h3>Summary — ${escapeHtml(m.project)}${m.system?` · ${escapeHtml(m.system)}`:""}</h3></div>
+    <div class="kr">
+      <div class="kc kb"><div class="kl">Project</div><div class="kv" style="font-size:15px">${escapeHtml(m.project)}</div><div class="ks">${escapeHtml(m.system||"—")}</div></div>
+      <div class="kc kg"><div class="kl">Works Performed</div><div class="kv">${items.length}</div><div class="ks">maintenance items</div></div>
+      <div class="kc ko"><div class="kl">Period</div><div class="kv" style="font-size:13px">${m.from||"—"}</div><div class="ks">→ ${m.to||"—"}</div></div>
+    </div>
+    ${items.length?`<div class="ksec"><span class="kbad">02</span><h3>Maintenance Works</h3></div>
+    <table><thead><tr><th>Date</th><th>Work performed</th><th>By</th></tr></thead>
+    <tbody>${items.map(it=>`<tr><td style="white-space:nowrap">${it.date?fmtDate(it.date):"—"}</td><td>${escapeHtml(it.text)}</td><td>${escapeHtml(it.by||"—")}</td></tr>`).join("")}</tbody></table>`:""}
+    ${(m.desc||"").trim()?`<div class="ksec"><span class="kbad">03</span><h3>Description</h3></div>
+    <div style="font-size:12px;line-height:1.7;white-space:pre-wrap">${escapeHtml(m.desc.trim())}</div>`:""}
+    ${_rptPhotoGrid(window._pmRptPhotos,"Maintenance Photos")}
+    <script>setTimeout(()=>window.print(),500)<\/script>`;
+  const period=(m.from||m.to)?`${m.from||"start"} → ${m.to||"today"}`:"Manual";
+  await openReportPDF("PREVENTIVE_MAINTENANCE",[period,m.project,m.system].filter(Boolean).join(" · "),bodyHTML);
+  toast("PM Report ready!");
+}
+
+function _incManualLayout(){
+  const m=window._incMan, photos=window._incManPhotos;
+  const sevs=["Low","Medium","High","Critical"], sts=["Open","Investigating","Resolved","Closed"];
+  return `
+  <div class="card">
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">01</span> Incident Details</div>
+    <div class="form-grid" style="margin-top:10px">
+      <div class="field" style="grid-column:1/-1"><label>Title <span class="req">*</span></label>
+        <input value="${escapeHtml(m.title||"")}" oninput="window._incMan.title=this.value" placeholder="e.g. CCTV camera 12 offline"></div>
+      ${_mfield("📅 Incident date","window._incMan.date",m.date,"","date")}
+      ${_mfield("🕐 Time","window._incMan.time",m.time,"","time")}
+      ${_mfield("📁 Project","window._incMan.project",m.project,"Project name")}
+      ${_mfield("🧩 System","window._incMan.system",m.system,"e.g. Fire Alarm")}
+      ${_mfield("🗺️ Area","window._incMan.area",m.area,"optional")}
+      ${_mfield("📍 Site","window._incMan.site",m.site,"optional")}
+      ${_mfield("📟 Device","window._incMan.device",m.device,"name / model / serial — optional")}
+      <div class="field"><label>⚠️ Severity</label>
+        <select onchange="window._incMan.severity=this.value">${sevs.map(s=>`<option ${m.severity===s?"selected":""}>${s}</option>`).join("")}</select></div>
+      <div class="field"><label>📊 Status</label>
+        <select onchange="window._incMan.status=this.value">${sts.map(s=>`<option ${m.status===s?"selected":""}>${s}</option>`).join("")}</select></div>
+      ${_mfield("▶️ Work started","window._incMan.startDate",m.startDate,"","date")}
+      ${_mfield("⏹ Work finished","window._incMan.endDate",m.endDate,"","date")}
+      ${_mfield("👤 Reported by","window._incMan.reportedBy",m.reportedBy,"optional")}
+      <div class="field" style="grid-column:1/-1"><label>📝 Description</label>
+        <textarea rows="3" oninput="window._incMan.description=this.value" placeholder="What happened…">${escapeHtml(m.description||"")}</textarea></div>
+      <div class="field" style="grid-column:1/-1"><label>🛠️ Action taken</label>
+        <textarea rows="3" oninput="window._incMan.actionTaken=this.value" placeholder="Diagnosis, fix…">${escapeHtml(m.actionTaken||"")}</textarea></div>
+      <div class="field" style="grid-column:1/-1"><label>📷 Photos <span style="font-size:10px;color:var(--muted)">(max 6)</span></label>
+        <input type="file" accept="image/*" multiple onchange="incManAddPhotos(this)">
+        ${photos.length?`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+          ${photos.map((p,i)=>`<div style="position:relative"><img src="${p.data}" style="width:76px;height:76px;object-fit:cover;border-radius:8px;border:1px solid var(--line)"><button onclick="incManDelPhoto(${i})" style="position:absolute;top:-6px;right:-6px;background:#C62828;color:#fff;border:none;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:11px;font-weight:800">×</button></div>`).join("")}
+        </div>`:""}
+      </div>
+    </div>
+  </div>
+  <div class="card" style="background:linear-gradient(135deg,#1B3A6B 0%,#2E5FA3 100%);border:2px solid #C9A84C">
+    <button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:800;border:none;width:100%" onclick="generateIncidentReport()">📄 Generate Incident Report (PDF)</button>
+  </div>`;
+}
+
+async function _generateIncManual(){
+  const m=window._incMan;
+  if(!(m.title||"").trim()) return toast("⚠ Title is required");
+  const i={...m, deviceSerial:"", photos:window._incManPhotos, notes:""};
+  const sev={Low:["#E8F5E9","#2E7D32"],Medium:["#FFF3E0","#E65100"],High:["#FDECEA","#C62828"],Critical:["#F3E5F5","#7B1FA2"]}[i.severity]||["#EEE","#555"];
+  const st={Open:["#FDECEA","#C62828"],Investigating:["#FFF3E0","#E65100"],Resolved:["#E8F5E9","#2E7D32"],Closed:["#ECEFF1","#5B6C86"]}[i.status]||["#EEE","#555"];
+  const cell=(l,v)=>`<td style="border:1px solid #ddd;padding:7px 10px"><div style="font-size:9px;color:#888;text-transform:uppercase;letter-spacing:.6px;font-weight:700">${l}</div><div style="font-size:12px;font-weight:600;color:#1B3A6B">${v||"—"}</div></td>`;
+  const bodyHTML=`
+    <div class="actions no-print" style="padding:10px;background:#FFF8E1;border:1px solid #FFE082;border-radius:8px;margin-bottom:14px;text-align:center;font-size:13px;color:#7F6000">
+      📄 Choose <strong>"Save as PDF"</strong> in the print dialog<br><br>
+      <button onclick="window.print()" style="background:#03308B;color:#C9A84C;border:none;padding:10px 24px;border-radius:6px;font-weight:700;cursor:pointer;font-size:13px">🖨️ Print / Save as PDF</button>
+      <button onclick="window.close()" style="background:#888;color:white;border:none;padding:10px 20px;border-radius:6px;font-weight:700;cursor:pointer;font-size:13px;margin-left:6px">Close</button>
+    </div>
+    <div class="ksec"><span class="kbad">01</span><h3>Incident Overview</h3></div>
+    <div style="font-family:'DM Serif Display',serif;font-size:19px;color:#03308B;margin:4px 0 8px">${escapeHtml(i.title)}</div>
+    <div style="margin-bottom:10px">${_rptBadge(i.severity,sev[0],sev[1])} &nbsp; ${_rptBadge(i.status,st[0],st[1])}</div>
+    <table style="border-collapse:collapse;width:100%"><tbody>
+      <tr>${cell("Incident date",(i.date?fmtDate(i.date):"—")+(i.time?" · "+i.time:""))}${cell("Project",escapeHtml(i.project))}${cell("System",escapeHtml(i.system||"Whole project"))}</tr>
+      <tr>${cell("Area",escapeHtml(i.area))}${cell("Site",escapeHtml(i.site))}${cell("Device",escapeHtml(i.device||"—"))}</tr>
+      <tr>${cell("Work started",i.startDate?fmtDate(i.startDate):"—")}${cell("Work finished",i.endDate?fmtDate(i.endDate):"—")}${cell("Reported by",escapeHtml(i.reportedBy||"—"))}</tr>
+    </tbody></table>
+    <div class="ksec"><span class="kbad">02</span><h3>Description</h3></div>
+    <div style="font-size:12px;line-height:1.7;white-space:pre-wrap">${escapeHtml(i.description||"—")}</div>
+    <div class="ksec"><span class="kbad">03</span><h3>Action Taken</h3></div>
+    <div style="font-size:12px;line-height:1.7;white-space:pre-wrap">${escapeHtml(i.actionTaken||"—")}</div>
+    ${_rptPhotoGrid(i.photos,"Incident Photos")}
+    <script>setTimeout(()=>window.print(),500)<\/script>`;
+  await openReportPDF("INCIDENT",[i.date?fmtDate(i.date):"Manual",i.project,i.system].filter(Boolean).join(" · "),bodyHTML);
+  toast("Incident Report ready!");
+}
+Object.assign(window,{_pmManualLayout,_incManualLayout,_generatePMManual,_generateIncManual});

@@ -578,9 +578,21 @@ function _buildSharePayload(client){
       ...reqs.slice(-6).map(r=>({date:r.createdAt||"",text:"Request: "+(r.title||"—"),status:r.status||"new"})),
       ...(state.pmSchedules||[]).filter(s=>(s.project||"").trim()===pn).flatMap(s=>(s.history||[]).filter(x=>!x.initial).slice(-3).map(x=>({date:x.date,text:"Preventive maintenance completed — "+s.title,status:"done"})))
     ].sort((a,b)=>String(b.date).localeCompare(String(a.date))).slice(0,6);
+    // work hours per location (from daily entries)
+    const locMap={};
+    entries.forEach(r=>{ const L=(r.location||"").trim(); if(!L)return;
+      (locMap[L]=locMap[L]||{name:L,hours:0,sessions:0}); locMap[L].hours+=Number(r.duration||0); locMap[L].sessions++; });
+    const locations=Object.values(locMap).map(l=>({...l,hours:+l.hours.toFixed(1)}))
+      .sort((a,b)=>b.hours-a.hours).slice(0,8);
+    // field sites map (from device records: area › site · device count)
+    const siteMap={};
+    (state.devices||[]).filter(d=>(d.project||"").trim()===pn).forEach(d=>{
+      const k=[(d.area||"").trim(),(d.site||"").trim()].join("›"); if(k==="›")return;
+      (siteMap[k]=siteMap[k]||{area:(d.area||"").trim(),site:(d.site||"").trim(),devices:0}); siteMap[k].devices++; });
+    const sites=Object.values(siteMap).sort((a,b)=>b.devices-a.devices).slice(0,12);
     return { name:pn, status:p.status||"", hours:+hours.toFixed(1), estHours:est||0,
       pct:est>0?Math.min(999,Math.round(hours/est*100)):0, sessions:entries.length,
-      devices, pmDone, openReq, recent };
+      devices, pmDone, openReq, recent, locations, sites };
   });
   return { clientId:client.id, clientName:client.name||"",
     projects, updatedAt:new Date().toISOString(),

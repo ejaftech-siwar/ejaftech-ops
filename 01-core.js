@@ -974,6 +974,19 @@ function renderShareView(d){
             <div style="flex:1;min-width:90px;background:#F5F8FC;border-radius:9px;padding:9px;text-align:center"><div style="font-family:'DM Serif Display',serif;font-size:19px;color:#2E7D32">${p.pmDone}</div><div style="font-size:9px;color:#888;font-weight:700;text-transform:uppercase">PM rounds done</div></div>
             <div style="flex:1;min-width:90px;background:#F5F8FC;border-radius:9px;padding:9px;text-align:center"><div style="font-family:'DM Serif Display',serif;font-size:19px;color:${p.openReq?'#E65100':'#5B6C86'}">${p.openReq}</div><div style="font-size:9px;color:#888;font-weight:700;text-transform:uppercase">Open requests</div></div>
           </div>
+          ${(p.locations||[]).length?(()=>{const mx=Math.max(...p.locations.map(l=>l.hours),0.1);return `
+          <div style="font-size:10.5px;color:#888;font-weight:800;text-transform:uppercase;letter-spacing:.5px;margin:2px 0 7px">Work hours by location</div>
+          ${p.locations.map(l=>`<div style="display:flex;align-items:center;gap:9px;margin-bottom:6px">
+            <div style="width:112px;font-size:11.5px;color:#333;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">📍 ${escapeHtml(l.name)}</div>
+            <div style="flex:1;height:8px;background:#E8EDF5;border-radius:5px;overflow:hidden"><div style="height:100%;width:${Math.max(4,Math.round(l.hours/mx*100))}%;background:linear-gradient(90deg,#2E5FA3,#5E9BFF);border-radius:5px"></div></div>
+            <div style="width:58px;text-align:right;font-size:11px;color:#1B3A6B;font-weight:800">${l.hours} h</div>
+          </div>`).join("")}
+          <div style="margin-bottom:12px"></div>`;})():""}
+          ${(p.sites||[]).length?`
+          <div style="font-size:10.5px;color:#888;font-weight:800;text-transform:uppercase;letter-spacing:.5px;margin-bottom:7px">Field sites</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
+            ${p.sites.map(s=>`<span style="background:#F0F4FF;color:#03308B;border:1px solid #D6E0F5;font-size:10.5px;font-weight:700;padding:4px 10px;border-radius:12px">${escapeHtml([s.area,s.site].filter(Boolean).join(" › "))} · ${s.devices} dev</span>`).join("")}
+          </div>`:""}
           ${(p.recent||[]).length?`
           <div style="font-size:10.5px;color:#888;font-weight:800;text-transform:uppercase;letter-spacing:.5px;margin-bottom:7px">Latest activity</div>
           ${p.recent.map(r=>`<div style="display:flex;gap:10px;align-items:flex-start;padding:7px 0;border-top:1px solid #F0F2F7">
