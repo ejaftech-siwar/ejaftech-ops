@@ -255,6 +255,37 @@ function renderFlexReports(){
     }
   }
 
+  // ═══════ TECHNICAL REPORT BUILDERS (PM + Incident) ═══════
+  if(isAdmin()||isHR()||hasCap("canExport")){
+    const pmProjs=[...new Set((state.pmSchedules||[]).map(s=>(s.project||"").trim()).filter(Boolean))].sort();
+    const incList=(state.incidents||[]).slice().sort((a,b)=>String(b.date||"").localeCompare(String(a.date||"")));
+    h+=`<div class="card" style="border-left:4px solid #E65100">
+      <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#E65100;color:#fff;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">🛠️</span> Preventive Maintenance Report</div>
+      <div class="form-grid" style="margin-top:10px">
+        <div class="field"><label>📁 Project</label>
+          <select id="pmRptProj"><option value="">— All projects —</option>${pmProjs.map(p=>`<option>${escapeHtml(p)}</option>`).join("")}</select></div>
+        <div class="field"><label>From</label><input type="date" id="pmRptFrom"></div>
+        <div class="field"><label>To</label><input type="date" id="pmRptTo"></div>
+        <div class="field" style="grid-column:1/-1"><label>📷 Attach photos <span style="font-size:10px;color:var(--muted)">(optional · max 12 · embedded in the PDF)</span></label>
+          <input type="file" accept="image/*" multiple onchange="pmRptAddPhotos(this)">
+          ${(window._pmRptPhotos||[]).length?`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+            ${window._pmRptPhotos.map((p,i)=>`<div style="position:relative"><img src="${p.data}" style="width:70px;height:70px;object-fit:cover;border-radius:8px;border:1px solid var(--line)"><button onclick="pmRptDelPhoto(${i})" style="position:absolute;top:-6px;right:-6px;background:#C62828;color:#fff;border:none;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:11px;font-weight:800">×</button></div>`).join("")}
+          </div>`:""}
+        </div>
+      </div>
+      <button class="btn btn-primary" style="margin-top:10px" onclick="generatePMReport()">📄 Generate PM Report (PDF)</button>
+    </div>`;
+    h+=`<div class="card" style="border-left:4px solid #7B1FA2">
+      <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#7B1FA2;color:#fff;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">🚨</span> Incident Report</div>
+      ${incList.length?`<div class="form-grid" style="margin-top:10px">
+        <div class="field" style="grid-column:1/-1"><label>Incident</label>
+          <select id="incRptSel">${incList.map(i=>`<option value="${i.id}">${fmtDate(i.date)} — ${escapeHtml(i.title)}${i.project?" · "+escapeHtml(i.project):""}${i.system?" · "+escapeHtml(i.system):""}</option>`).join("")}</select></div>
+      </div>
+      <button class="btn btn-primary" style="margin-top:10px;background:#7B1FA2;border:none" onclick="generateIncidentReport()">📄 Generate Incident Report (PDF)</button>`
+      :`<p style="font-size:12px;color:var(--muted);margin:10px 0 0">No incidents logged yet — log them in <strong>Database → Incidents</strong> first.</p>`}
+    </div>`;
+  }
+
   // ═══════ EXPORT BUTTONS (admin/HR, or granted canExport) ═══════
   if(isAdmin()||isHR()||hasCap("canExport")) h+=`<div class="card" style="background:linear-gradient(135deg,#1B3A6B 0%,#2E5FA3 100%);color:white;border:2px solid #C9A84C">
     <div class="sec-hdr" style="color:#C9A84C;border:none;display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">📤</span> Export Options</div>
@@ -1141,7 +1172,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v112';"
+      var swCode = "const CACHE='ejaftech-v113';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
@@ -1156,3 +1187,119 @@ if('serviceWorker' in navigator){
     });
   });
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+//  PM & INCIDENT REPORTS — EJAF-branded PDFs (same engine as HR reports)
+// ═══════════════════════════════════════════════════════════════════════
+window._pmRptPhotos=[];   // photos attached manually at generation time
+window.pmRptAddPhotos=async function(input){
+  try{
+    const files=Array.from(input.files||[]); input.value="";
+    for(const f of files){
+      if(window._pmRptPhotos.length>=12){ toast("Max 12 photos per report"); break; }
+      const b64=await compressImage(f,1024,0.6);
+      const kb=base64SizeKB(b64);
+      if(kb>500){ toast(`Image too large (${kb} KB). Skipped.`); continue; }
+      window._pmRptPhotos.push({data:b64,sizeKB:kb});
+    }
+    render();
+  }catch(e){ toast("Photo error: "+(e.message||"failed")); }
+};
+window.pmRptDelPhoto=function(i){ window._pmRptPhotos.splice(i,1); render(); };
+
+function _rptPhotoGrid(photos,label){
+  if(!photos||!photos.length) return "";
+  return `<div class="ksec"><span class="kbad">📷</span><h3>${label} (${photos.length})</h3></div>
+    <div style="display:flex;flex-wrap:wrap;gap:10px">
+      ${photos.map((p,i)=>`<div style="page-break-inside:avoid"><img src="${p.data}" style="width:230px;max-height:190px;object-fit:cover;border:1px solid #ccc;border-radius:6px"><div style="font-size:9px;color:#888;text-align:center">Photo ${i+1}</div></div>`).join("")}
+    </div>`;
+}
+const _rptBadge=(t,bg,fg)=>`<span style="background:${bg};color:${fg};padding:2px 10px;border-radius:9px;font-size:10px;font-weight:800">${escapeHtml(t||"—")}</span>`;
+
+window.generatePMReport=async function(){
+  const proj=(document.getElementById('pmRptProj')||{}).value||"";
+  const from=(document.getElementById('pmRptFrom')||{}).value||"";
+  const to  =(document.getElementById('pmRptTo')||{}).value||"";
+  let scheds=(state.pmSchedules||[]).filter(s=>s.active!==false);
+  if(proj) scheds=scheds.filter(s=>(s.project||"").trim()===proj);
+  if(!scheds.length) return toast("No PM schedules match this scope");
+
+  // completion rounds inside the period (from schedule history)
+  const rounds=[];
+  scheds.forEach(s=>(s.history||[]).forEach(h=>{
+    if(h.initial) return;
+    if(from&&String(h.date)<from) return;
+    if(to&&String(h.date)>to) return;
+    rounds.push({s,h});
+  }));
+  rounds.sort((a,b)=>String(b.h.date).localeCompare(String(a.h.date)));
+  const overdue=scheds.filter(s=>pmDaysLeft(s)<0);
+
+  const target=s=>[s.project||"General",s.area,s.site,s.deviceSerial?("Device "+s.deviceSerial):""].filter(Boolean).join(" › ");
+  const schedRows=scheds.map(s=>{
+    const dl=pmDaysLeft(s);
+    return `<tr><td><strong>${escapeHtml(s.title)}</strong></td><td style="font-size:10px">${escapeHtml(target(s))}</td><td>${s.freqDays}d</td><td>${s.lastDone?fmtDate(s.lastDone):"—"}</td><td>${fmtDate(pmNextDue(s))}</td><td>${dl<0?_rptBadge(Math.abs(dl)+"d overdue","#FDECEA","#C62828"):dl<=7?_rptBadge("due in "+dl+"d","#FFF3E0","#E65100"):_rptBadge("on track","#E8F5E9","#2E7D32")}</td></tr>`;
+  }).join("");
+  const roundRows=rounds.map(({s,h})=>`<tr><td>${fmtDate(h.date)}</td><td><strong>${escapeHtml(s.title)}</strong></td><td style="font-size:10px">${escapeHtml(target(s))}</td><td>${escapeHtml(h.by||"—")}</td><td>${h.sessions!=null?h.sessions:"—"}</td></tr>`).join("");
+
+  const bodyHTML=`
+    <div class="actions no-print" style="padding:10px;background:#FFF8E1;border:1px solid #FFE082;border-radius:8px;margin-bottom:14px;text-align:center;font-size:13px;color:#7F6000">
+      📄 Choose <strong>"Save as PDF"</strong> in the print dialog<br><br>
+      <button onclick="window.print()" style="background:#03308B;color:#C9A84C;border:none;padding:10px 24px;border-radius:6px;font-weight:700;cursor:pointer;font-size:13px">🖨️ Print / Save as PDF</button>
+      <button onclick="window.close()" style="background:#888;color:white;border:none;padding:10px 20px;border-radius:6px;font-weight:700;cursor:pointer;font-size:13px;margin-left:6px">Close</button>
+    </div>
+    <div class="ksec"><span class="kbad">01</span><h3>Summary${proj?` — ${escapeHtml(proj)}`:""}</h3></div>
+    <div class="kr">
+      <div class="kc kb"><div class="kl">Schedules</div><div class="kv">${scheds.length}</div><div class="ks">active in scope</div></div>
+      <div class="kc kg"><div class="kl">Rounds Completed</div><div class="kv">${rounds.length}</div><div class="ks">in period</div></div>
+      <div class="kc ko"><div class="kl">Overdue</div><div class="kv">${overdue.length}</div><div class="ks">need attention</div></div>
+    </div>
+    <div class="ksec"><span class="kbad">02</span><h3>Maintenance Schedules</h3></div>
+    <table><thead><tr><th>Schedule</th><th>Target</th><th>Every</th><th>Last done</th><th>Next due</th><th>Status</th></tr></thead>
+    <tbody>${schedRows}</tbody></table>
+    <div class="ksec"><span class="kbad">03</span><h3>Completed Rounds${(from||to)?` — ${from||"start"} → ${to||"today"}`:""}</h3></div>
+    <table><thead><tr><th>Date</th><th>Schedule</th><th>Target</th><th>Completed by</th><th>Sessions</th></tr></thead>
+    <tbody>${roundRows||'<tr><td colspan="5" style="text-align:center;color:#888">No completed rounds in this period</td></tr>'}</tbody></table>
+    ${_rptPhotoGrid(window._pmRptPhotos,"Maintenance Photos")}
+    <script>setTimeout(()=>window.print(),500)<\/script>`;
+
+  const period=(from||to)?`${from||"start"} → ${to||"today"}`:"All time";
+  await openReportPDF("PREVENTIVE_MAINTENANCE", proj?`${period} · ${proj}`:period, bodyHTML);
+  toast("PM Report ready!");
+};
+
+window.generateIncidentReport=async function(){
+  const id=(document.getElementById('incRptSel')||{}).value||"";
+  if(!id) return toast("⚠ Pick an incident first");
+  const i=(state.incidents||[]).find(x=>x.id===id);
+  if(!i) return toast("Incident not found");
+  const sev={Low:["#E8F5E9","#2E7D32"],Medium:["#FFF3E0","#E65100"],High:["#FDECEA","#C62828"],Critical:["#F3E5F5","#7B1FA2"]}[i.severity]||["#EEE","#555"];
+  const st={Open:["#FDECEA","#C62828"],Investigating:["#FFF3E0","#E65100"],Resolved:["#E8F5E9","#2E7D32"],Closed:["#ECEFF1","#5B6C86"]}[i.status]||["#EEE","#555"];
+  const dev=i.deviceSerial?(state.devices||[]).find(d=>d.serialNumber===i.deviceSerial):null;
+
+  const cell=(l,v)=>`<td style="border:1px solid #ddd;padding:7px 10px"><div style="font-size:9px;color:#888;text-transform:uppercase;letter-spacing:.6px;font-weight:700">${l}</div><div style="font-size:12px;font-weight:600;color:#1B3A6B">${v||"—"}</div></td>`;
+  const bodyHTML=`
+    <div class="actions no-print" style="padding:10px;background:#FFF8E1;border:1px solid #FFE082;border-radius:8px;margin-bottom:14px;text-align:center;font-size:13px;color:#7F6000">
+      📄 Choose <strong>"Save as PDF"</strong> in the print dialog<br><br>
+      <button onclick="window.print()" style="background:#03308B;color:#C9A84C;border:none;padding:10px 24px;border-radius:6px;font-weight:700;cursor:pointer;font-size:13px">🖨️ Print / Save as PDF</button>
+      <button onclick="window.close()" style="background:#888;color:white;border:none;padding:10px 20px;border-radius:6px;font-weight:700;cursor:pointer;font-size:13px;margin-left:6px">Close</button>
+    </div>
+    <div class="ksec"><span class="kbad">01</span><h3>Incident Overview</h3></div>
+    <div style="font-family:'DM Serif Display',serif;font-size:19px;color:#03308B;margin:4px 0 8px">${escapeHtml(i.title)}</div>
+    <div style="margin-bottom:10px">${_rptBadge(i.severity,sev[0],sev[1])} &nbsp; ${_rptBadge(i.status,st[0],st[1])}</div>
+    <table style="border-collapse:collapse;width:100%"><tbody>
+      <tr>${cell("Incident date",fmtDate(i.date)+(i.time?" · "+i.time:""))}${cell("Project",escapeHtml(i.project))}${cell("System",escapeHtml(i.system||"Whole project"))}</tr>
+      <tr>${cell("Area",escapeHtml(i.area))}${cell("Site",escapeHtml(i.site))}${cell("Device",dev?escapeHtml([dev.deviceName,dev.model,dev.serialNumber].filter(Boolean).join(" · ")):escapeHtml(i.deviceSerial||"—"))}</tr>
+      <tr>${cell("Work started",i.startDate?fmtDate(i.startDate):"—")}${cell("Work finished",i.endDate?fmtDate(i.endDate):"—")}${cell("Reported by",escapeHtml(i.reportedBy||"—"))}</tr>
+    </tbody></table>
+    <div class="ksec"><span class="kbad">02</span><h3>Description</h3></div>
+    <div style="font-size:12px;line-height:1.7;white-space:pre-wrap">${escapeHtml(i.description||"—")}</div>
+    <div class="ksec"><span class="kbad">03</span><h3>Action Taken</h3></div>
+    <div style="font-size:12px;line-height:1.7;white-space:pre-wrap">${escapeHtml(i.actionTaken||"—")}</div>
+    ${_rptPhotoGrid(i.photos,"Incident Photos")}
+    ${i.notes?`<div class="ksec"><span class="kbad">📝</span><h3>Notes</h3></div><div style="font-size:12px;line-height:1.7;white-space:pre-wrap">${escapeHtml(i.notes)}</div>`:""}
+    <script>setTimeout(()=>window.print(),500)<\/script>`;
+
+  await openReportPDF("INCIDENT", `${fmtDate(i.date)} · ${i.project||""}${i.system?" · "+i.system:""}`, bodyHTML);
+  toast("Incident Report ready!");
+};

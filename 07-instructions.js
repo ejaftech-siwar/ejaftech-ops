@@ -169,7 +169,8 @@ function renderTechClassifications(){
   const statuses  = (state.techStatuses||[]).slice().sort((a,b)=>(a.order||0)-(b.order||0));
   const cats2     = (state.techCategories||[]).slice().sort((a,b)=>(a.order||0)-(b.order||0));
   const tv = window._techView || "types";
-  let h = _pills('_techView',[{id:"types",ic:"🔧",lb:"Work Types"},{id:"statuses",ic:"📊",lb:"Statuses"},{id:"categories",ic:"📁",lb:"Categories"}]);
+  const systems = (state.systemTypes||[]).slice().sort((a,b)=>(a.order||0)-(b.order||0));
+  let h = _pills('_techView',[{id:"types",ic:"🔧",lb:"Work Types"},{id:"statuses",ic:"📊",lb:"Statuses"},{id:"categories",ic:"📁",lb:"Categories"},{id:"systems",ic:"🧩",lb:"Systems"}]);
   h += `
     <div class="card" style="margin-top:16px;border:2px solid #6A1B9A">
       <div class="card-title" style="color:#6A1B9A">⚙️ Technical Classifications (Resolution)</div>
@@ -183,6 +184,21 @@ function renderTechClassifications(){
       </div>`:''}
 
       `;
+  if(tv==="systems") h += `<!-- SYSTEMS -->
+      <div style="margin-bottom:18px">
+        <div style="font-weight:800;color:#00695C;font-size:13px;margin-bottom:8px">🧩 Systems <span style="font-weight:500;font-size:11px;color:var(--muted)">— used by device records & Maintenance / Incident reports (e.g. Fire Alarm, CCTV, ELV)</span></div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">
+          ${systems.length===0?`<span style="font-size:12px;color:#999">None yet — e.g. Fire Alarm · CCTV · ELV · Access Control · Public Address · Networking</span>`:systems.map(w=>`
+            <span style="display:inline-flex;align-items:center;gap:5px;background:#E0F2F1;color:#00695C;padding:5px 8px 5px 12px;border-radius:14px;font-size:12px;font-weight:600">
+              ${escapeHtml(w.name)}
+              <button onclick="delTechItem('systemTypes','${w.id}')" style="background:#B2DFDB;border:none;color:#00695C;width:18px;height:18px;border-radius:50%;cursor:pointer;font-weight:700;font-size:11px">×</button>
+            </span>`).join("")}
+        </div>
+        <div style="display:flex;gap:6px">
+          <input id="newSystemType" placeholder="Add system (e.g. Fire Alarm)" style="flex:1;padding:7px 10px;border:1px solid var(--line);border-radius:7px;font-size:12px">
+          <button class="btn btn-sm" style="background:#00695C;color:white;border:none;font-weight:700" onclick="addTechItem('systemTypes','newSystemType',${systems.length})">+ Add</button>
+        </div>
+      </div>`;
   if(tv==="types")      h += `<!-- WORK TYPES -->
       <div style="margin-bottom:18px">
         <div style="font-weight:800;color:#3949AB;font-size:13px;margin-bottom:8px">🧭 Work Types</div>

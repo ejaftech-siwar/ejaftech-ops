@@ -448,7 +448,7 @@ function blankDevice(){
   return {
     serialNumber:"", deviceName:"", deviceCode:"",
     project:"", projectCode:"", area:"", site:"",
-    ipAddress:"", vendor:"", model:"",
+    ipAddress:"", vendor:"", model:"", system:"",
     installDate:"", warrantyExp:"", stack:"", status:"Active"
   };
 }
@@ -949,6 +949,14 @@ function renderAssets(){
         <input value="${escapeHtml(deviceForm.vendor)}" oninput="window.deviceForm.vendor=this.value" placeholder="e.g. Cisco"></div>
       <div class="field"><label>📱 Model</label>
         <input value="${escapeHtml(deviceForm.model)}" oninput="window.deviceForm.model=this.value" placeholder="e.g. Catalyst 9300"></div>
+      <div class="field"><label>🧩 System</label>
+        ${(state.systemTypes||[]).length
+          ?`<select onchange="window.deviceForm.system=this.value">
+              <option value="">— Not set —</option>
+              ${(state.systemTypes||[]).slice().sort((x,y)=>(x.order||0)-(y.order||0)).map(s=>`<option ${deviceForm.system===s.name?"selected":""}>${escapeHtml(s.name)}</option>`).join("")}
+            </select>`
+          :`<input value="${escapeHtml(deviceForm.system||"")}" oninput="window.deviceForm.system=this.value" placeholder="e.g. CCTV — manage the list in Technical Classifications">`}
+      </div>
       <div class="field"><label>📅 Installation Date</label>
         <input type="date" value="${escapeHtml(deviceForm.installDate)}" onchange="window.deviceForm.installDate=this.value"></div>
       <div class="field"><label>🛡️ Warranty Expiration</label>
@@ -1065,6 +1073,7 @@ async function saveDevice(){
     ipAddress: deviceForm.ipAddress||"",
     vendor: deviceForm.vendor||"",
     model: deviceForm.model||"",
+    system: deviceForm.system||"",
     installDate: deviceForm.installDate||"",
     warrantyExp: deviceForm.warrantyExp||"",
     stack: deviceForm.stack||"",
@@ -1543,3 +1552,189 @@ window.openDeviceTimeline=function(id){
   </div>`;
   ov.classList.add('open');
 };
+
+// ═══════════════════════════════════════════════════════════════════════
+//  INCIDENTS — permanent register (project / system / device scoped)
+//  Photos are compressed client-side (same pipeline as Daily Log) and
+//  stored inline on the incident document, so they travel with backups.
+// ═══════════════════════════════════════════════════════════════════════
+const INC_SEVERITIES=["Low","Medium","High","Critical"];
+const INC_STATUSES=["Open","Investigating","Resolved","Closed"];
+const _incSevColor={Low:"#2E7D32",Medium:"#E65100",High:"#C62828",Critical:"#7B1FA2"};
+const _incStColor={Open:"#C62828",Investigating:"#E65100",Resolved:"#2E7D32",Closed:"#5B6C86"};
+window.incForm=null; window.incEditId=null; window.incProjFilter=""; window.incStatusFilter="";
+
+function _blankIncident(){
+  return { title:"", date:today(), time:"", project:"", area:"", site:"",
+    system:"", deviceSerial:"", severity:"Medium", status:"Open",
+    description:"", actionTaken:"", startDate:today(), endDate:"", photos:[], notes:"" };
+}
+
+window.incAddPhotos=async function(input){
+  try{
+    const files=Array.from(input.files||[]); input.value="";
+    if(!files.length) return;
+    incForm.photos=incForm.photos||[];
+    for(const f of files){
+      if(incForm.photos.length>=6){ toast("Max 6 photos per incident"); break; }
+      const b64=await compressImage(f,1024,0.6);
+      const kb=base64SizeKB(b64);
+      if(kb>500){ toast(`Image too large after compression (${kb} KB). Skipped.`); continue; }
+      incForm.photos.push({data:b64,sizeKB:kb,addedAt:new Date().toISOString()});
+    }
+    render();
+  }catch(e){ toast("Photo error: "+(e.message||"failed")); }
+};
+window.incDelPhoto=function(i){ (incForm.photos||[]).splice(i,1); render(); };
+
+window.saveIncident=async function(){
+  if(!incForm.title)   return toast("⚠ Title is required");
+  if(!incForm.project) return toast("⚠ Project is required");
+  if(!incForm.date)    return toast("⚠ Incident date is required");
+  const by=(state.profile&&(state.profile.name||state.profile.email))||"";
+  const item={ ...incForm, id:incEditId||undefined,
+    reportedBy: incEditId ? (((state.incidents||[]).find(x=>x.id===incEditId)||{}).reportedBy||by) : by,
+    createdAt: incEditId ? (((state.incidents||[]).find(x=>x.id===incEditId)||{}).createdAt||new Date().toISOString()) : new Date().toISOString(),
+    updatedAt:new Date().toISOString() };
+  await fbSave("incidents",item);
+  toast(incEditId?"🚨 Incident updated ✓":"🚨 Incident logged ✓");
+  window.incForm=null; window.incEditId=null; render(); window.scrollTo(0,0);
+};
+window.editIncident=function(id){
+  const x=(state.incidents||[]).find(i=>i.id===id); if(!x)return;
+  window.incEditId=id;
+  window.incForm={..._blankIncident(),...x,photos:(x.photos||[]).slice()};
+  render(); window.scrollTo(0,0);
+};
+window.deleteIncident=async function(id){
+  if(!confirm("Move this incident to the Recycle Bin?"))return;
+  await fbDelete("incidents",id);
+  toast("Moved to Recycle Bin ✓");
+  if(incEditId===id){ window.incForm=null; window.incEditId=null; }
+  render();
+};
+
+function renderIncidents(){
+  if(!(isAdmin()||isHR()||hasCap("canMaintenance"))) return `<div class="card"><div class="empty">No access.</div></div>`;
+  if(!incForm) window.incForm=_blankIncident();
+  const systems=(state.systemTypes||[]).slice().sort((a,b)=>(a.order||0)-(b.order||0));
+  const projSel=(state.projects||[]).slice().sort((a,b)=>(a.name||"").localeCompare(b.name||""));
+  const selProj=(state.projects||[]).find(p=>(p.name||"").trim()===(incForm.project||"").trim());
+  const areas=selProj?getProjectAreas(selProj).filter(a=>a.active!==false):[];
+  const selArea=areas.find(a=>a.name===incForm.area);
+  const sites=(selArea?.sites||[]).filter(x=>x.active!==false);
+  const devPool=(state.devices||[]).filter(d=>
+    (!incForm.project||(d.project||"").trim()===(incForm.project||"").trim())
+    &&(!incForm.area||d.area===incForm.area)
+    &&(!incForm.site||d.site===incForm.site)
+    &&(!incForm.system||!d.system||d.system===incForm.system));
+  const photos=incForm.photos||[];
+
+  let list=(state.incidents||[]).slice().sort((a,b)=>String(b.date||"").localeCompare(String(a.date||""))||String(b.createdAt||"").localeCompare(String(a.createdAt||"")));
+  const projsWithInc=[...new Set(list.map(i=>(i.project||"").trim()).filter(Boolean))].sort();
+  if(incProjFilter)   list=list.filter(i=>(i.project||"").trim()===incProjFilter);
+  if(incStatusFilter) list=list.filter(i=>(i.status||"Open")===incStatusFilter);
+  const openCount=(state.incidents||[]).filter(i=>!["Resolved","Closed"].includes(i.status||"Open")).length;
+
+  return `
+  <div class="card" style="background:linear-gradient(135deg,#7B1FA2 0%,#4A148C 100%);color:#fff;padding:18px 16px">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+      <div><div style="font-family:'DM Serif Display',serif;font-size:22px">🚨 Incidents</div>
+      <div style="font-size:11.5px;opacity:.85">Permanent register — feeds the branded Incident Reports</div></div>
+      <div style="text-align:center"><div style="font-family:'DM Serif Display',serif;font-size:28px;color:${openCount?'#FFD54F':'#A5D6A7'}">${openCount}</div><div style="font-size:10px;letter-spacing:1px;opacity:.8">OPEN</div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="sec-hdr">${incEditId?"Edit":"Log"} Incident</div>
+    <div class="form-grid">
+      <div class="field" style="grid-column:1/-1"><label>Title <span class="req">*</span></label>
+        <input value="${escapeHtml(incForm.title)}" oninput="window.incForm.title=this.value" placeholder="e.g. Fire alarm loop 3 false triggers"></div>
+      <div class="field"><label>📅 Incident date <span class="req">*</span></label>
+        <input type="date" value="${incForm.date}" onchange="window.incForm.date=this.value"></div>
+      <div class="field"><label>🕐 Time</label>
+        <input type="time" value="${incForm.time||""}" onchange="window.incForm.time=this.value"></div>
+      <div class="field"><label>📁 Project <span class="req">*</span></label>
+        <select onchange="window.incForm.project=this.value;window.incForm.area='';window.incForm.site='';window.incForm.deviceSerial='';render()">
+          <option value="">— Select —</option>
+          ${projSel.map(p=>{const n=(p.name||"").trim();return `<option value="${escapeHtml(n)}" ${n===(incForm.project||"").trim()?"selected":""}>${escapeHtml(n)}</option>`}).join("")}
+        </select></div>
+      <div class="field"><label>🧩 System</label>
+        ${systems.length?`<select onchange="window.incForm.system=this.value;window.incForm.deviceSerial='';render()">
+            <option value="">— Whole project / N-A —</option>
+            ${systems.map(s=>`<option ${incForm.system===s.name?"selected":""}>${escapeHtml(s.name)}</option>`).join("")}
+          </select>`
+        :`<input value="${escapeHtml(incForm.system||"")}" oninput="window.incForm.system=this.value" placeholder="e.g. CCTV — manage list in Technical Classifications">`}
+      </div>
+      ${incForm.project&&areas.length?`<div class="field"><label>🗺️ Area</label>
+        <select onchange="window.incForm.area=this.value;window.incForm.site='';window.incForm.deviceSerial='';render()">
+          <option value="">— Whole project —</option>
+          ${areas.map(a=>`<option ${incForm.area===a.name?"selected":""}>${escapeHtml(a.name)}</option>`).join("")}
+        </select></div>`:""}
+      ${incForm.area&&sites.length?`<div class="field"><label>📍 Site</label>
+        <select onchange="window.incForm.site=this.value;window.incForm.deviceSerial='';render()">
+          <option value="">— Whole area —</option>
+          ${sites.map(x=>`<option ${incForm.site===x.name?"selected":""}>${escapeHtml(x.name)}</option>`).join("")}
+        </select></div>`:""}
+      <div class="field" style="grid-column:1/-1"><label>📟 Device <span style="font-size:10px;color:var(--muted)">(optional${incForm.project?`, ${devPool.length} in scope`:""})</span></label>
+        <select onchange="window.incForm.deviceSerial=this.value">
+          <option value="">— No specific device —</option>
+          ${devPool.map(d=>`<option value="${escapeHtml(d.serialNumber||"")}" ${incForm.deviceSerial===d.serialNumber?"selected":""}>${escapeHtml([d.deviceName,d.model,d.serialNumber].filter(Boolean).join(" · "))}</option>`).join("")}
+        </select></div>
+      <div class="field"><label>⚠️ Severity</label>
+        <select onchange="window.incForm.severity=this.value">${INC_SEVERITIES.map(s=>`<option ${incForm.severity===s?"selected":""}>${s}</option>`).join("")}</select></div>
+      <div class="field"><label>📊 Status</label>
+        <select onchange="window.incForm.status=this.value">${INC_STATUSES.map(s=>`<option ${incForm.status===s?"selected":""}>${s}</option>`).join("")}</select></div>
+      <div class="field"><label>▶️ Work started</label>
+        <input type="date" value="${incForm.startDate||""}" onchange="window.incForm.startDate=this.value"></div>
+      <div class="field"><label>⏹ Work finished</label>
+        <input type="date" value="${incForm.endDate||""}" onchange="window.incForm.endDate=this.value"></div>
+      <div class="field" style="grid-column:1/-1"><label>📝 Description</label>
+        <textarea rows="3" oninput="window.incForm.description=this.value" placeholder="What happened, where, impact…">${escapeHtml(incForm.description||"")}</textarea></div>
+      <div class="field" style="grid-column:1/-1"><label>🛠️ Action taken</label>
+        <textarea rows="3" oninput="window.incForm.actionTaken=this.value" placeholder="Diagnosis, fix, parts replaced…">${escapeHtml(incForm.actionTaken||"")}</textarea></div>
+      <div class="field" style="grid-column:1/-1"><label>📷 Photos <span style="font-size:10px;color:var(--muted)">(max 6 · auto-compressed)</span></label>
+        <input type="file" accept="image/*" multiple onchange="incAddPhotos(this)">
+        ${photos.length?`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+          ${photos.map((p,i)=>`<div style="position:relative"><img src="${p.data}" style="width:84px;height:84px;object-fit:cover;border-radius:8px;border:1px solid var(--line)"><button onclick="incDelPhoto(${i})" style="position:absolute;top:-6px;right:-6px;background:#C62828;color:#fff;border:none;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:11px;font-weight:800">×</button><div style="font-size:9px;color:var(--muted);text-align:center">${p.sizeKB} KB</div></div>`).join("")}
+        </div>`:""}
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="btn btn-primary" onclick="saveIncident()">${incEditId?"Update Incident":"Log Incident"}</button>
+      ${incEditId?`<button class="btn btn-ghost" onclick="window.incForm=null;window.incEditId=null;render()">Cancel</button>`:""}
+    </div>
+  </div>
+
+  ${projsWithInc.length?`<div class="card" style="padding:12px 16px">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <span style="font-size:12px;font-weight:800;color:var(--muted)">🔎 FILTER</span>
+      <select onchange="window.incProjFilter=this.value;render()" style="flex:1;min-width:150px;padding:8px 12px;border:1.5px solid ${incProjFilter?'#C9A84C':'var(--line)'};border-radius:8px">
+        <option value="">— All projects —</option>
+        ${projsWithInc.map(p=>`<option value="${escapeHtml(p)}" ${incProjFilter===p?"selected":""}>${escapeHtml(p)}</option>`).join("")}
+      </select>
+      <select onchange="window.incStatusFilter=this.value;render()" style="min-width:130px;padding:8px 12px;border:1.5px solid ${incStatusFilter?'#C9A84C':'var(--line)'};border-radius:8px">
+        <option value="">— All statuses —</option>
+        ${INC_STATUSES.map(s=>`<option ${incStatusFilter===s?"selected":""}>${s}</option>`).join("")}
+      </select>
+    </div>
+  </div>`:""}
+
+  <div class="card">
+    <div class="card-title">📋 Incident Register (${list.length})</div>
+    ${list.length===0?'<div class="empty empty2"><span class="e-ic">🚨</span><div class="e-t">No incidents</div><div class="e-m">Logged incidents will appear here</div></div>':`
+    <div class="tbl-wrap"><table class="tbl">
+      <thead><tr><th>Date</th><th>Title</th><th>Project / Scope</th><th>System</th><th>Severity</th><th>Status</th><th>📷</th><th></th></tr></thead>
+      <tbody>${list.map(i=>`<tr>
+        <td style="white-space:nowrap;font-size:11px">${fmtDate(i.date)}${i.time?`<br><span style="color:var(--muted)">${i.time}</span>`:""}</td>
+        <td style="font-weight:700">${escapeHtml(i.title)}</td>
+        <td style="font-size:11px">${escapeHtml(i.project||"")}${i.area?` · ${escapeHtml(i.area)}`:""}${i.site?` · ${escapeHtml(i.site)}`:""}${i.deviceSerial?`<br><span style="font-size:10px;color:#6A1B9A">📟 ${escapeHtml(i.deviceSerial)}</span>`:""}</td>
+        <td>${i.system?`<span style="font-size:10px;background:#E0F2F1;color:#00695C;padding:2px 8px;border-radius:9px;font-weight:800">${escapeHtml(i.system)}</span>`:"—"}</td>
+        <td><span style="font-size:10px;background:${_incSevColor[i.severity]||'#888'}22;color:${_incSevColor[i.severity]||'#888'};padding:2px 8px;border-radius:9px;font-weight:800">${escapeHtml(i.severity||"—")}</span></td>
+        <td><span style="font-size:10px;background:${_incStColor[i.status]||'#888'}22;color:${_incStColor[i.status]||'#888'};padding:2px 8px;border-radius:9px;font-weight:800">${escapeHtml(i.status||"Open")}</span></td>
+        <td style="font-size:11px">${(i.photos||[]).length||"—"}</td>
+        <td style="white-space:nowrap"><button class="btn btn-sm btn-secondary" onclick="editIncident('${i.id}')" title="Edit">${ICN.edit}</button> <button class="btn btn-sm" style="background:#FDECEA;color:#C62828;border:none" onclick="deleteIncident('${i.id}')" title="Delete">${ICN.del}</button></td>
+      </tr>`).join("")}</tbody>
+    </table></div>`}
+  </div>`;
+}

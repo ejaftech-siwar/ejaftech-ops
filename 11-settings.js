@@ -799,7 +799,7 @@ window.saveBackupInterval=async function(v){
 };
 window.runFullBackup=async function(){
   try{
-    const cols=["daily","overtime","travel","leaves","projects","devices","clients","clientRequests","tasks","pmSchedules","nametagEmployees","locations","branches","departments","workCategories","workTasks","techWorkTypes","techStatuses","techCategories","requestStatuses","projectStatuses","clientPermissions","deviceEditSuggestions","waContacts","emailContacts","settingsDocs","notifications","users"];
+    const cols=["daily","overtime","travel","leaves","projects","devices","clients","clientRequests","tasks","pmSchedules","nametagEmployees","locations","branches","departments","workCategories","workTasks","techWorkTypes","techStatuses","techCategories","requestStatuses","projectStatuses","clientPermissions","deviceEditSuggestions","incidents","systemTypes","waContacts","emailContacts","settingsDocs","notifications","users"];
     const payload={app:"Girêk — EJAF Technology",exportedAt:new Date().toISOString(),by:(state.profile&&(state.profile.name||state.profile.email))||"",collections:{}};
     let total=0;
     cols.forEach(k=>{ const v=state[k]; if(Array.isArray(v)){ payload.collections[k]=v; total+=v.length; } });
