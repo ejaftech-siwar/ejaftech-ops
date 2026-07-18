@@ -1288,7 +1288,7 @@ function _pmTargetLabel(s){
   // targets the whole project (or a narrower Area/Site/Device below it). Showing
   // one of the project's Daily-Log codes here was misleading (looked like PM was
   // scoped to just that one work-stream, when it applies to the entire project).
-  if(s.project) parts.push(s.project);
+  if(s.project) parts.push(s.project + (s.system?` [${s.system}]`:""));
   if(s.area) parts.push(s.area);
   if(s.site) parts.push(s.site);
   if(s.deviceSerial){
@@ -1299,7 +1299,7 @@ function _pmTargetLabel(s){
 }
 function renderMaintenance(){
   if(!(isAdmin()||hasCap("canMaintenance"))) return `<div class="card"><div class="empty">Admin only.</div></div>`;
-  if(!pmForm) pmForm={title:"",project:"",area:"",site:"",deviceSerial:"",freqDays:90,startDate:today(),dateMode:"done",notes:""};
+  if(!pmForm) pmForm={title:"",project:"",area:"",site:"",deviceSerial:"",system:"",freqDays:90,startDate:today(),dateMode:"done",notes:""};
   const all=(state.pmSchedules||[]).slice().sort((a,b)=>pmNextDue(a).localeCompare(pmNextDue(b)));
   const list = pmProjFilter ? all.filter(s=>(s.project||"")===pmProjFilter) : all;
   const act=list.filter(s=>s.active!==false);
@@ -1399,6 +1399,13 @@ function renderMaintenance(){
           <option value="">— General / company-wide —</option>
           ${projSel.map(p=>{const n=(p.name||"").trim();return `<option value="${escapeHtml(n)}" ${n===(pmForm.project||"").trim()?"selected":""}>${escapeHtml(n)}</option>`}).join("")}
         </select></div>
+      <div class="field"><label>🧩 System <span style="font-size:10px;color:var(--muted)">(optional — e.g. CCTV)</span></label>
+        ${(state.systemTypes||[]).length?`<select onchange="window.pmForm.system=this.value">
+            <option value="">— Whole project / N-A —</option>
+            ${(state.systemTypes||[]).slice().sort((x,y)=>(x.order||0)-(y.order||0)).map(s=>`<option ${pmForm.system===s.name?"selected":""}>${escapeHtml(s.name)}</option>`).join("")}
+          </select>`
+        :`<input value="${escapeHtml(pmForm.system||"")}" oninput="window.pmForm.system=this.value" placeholder="e.g. CCTV — manage list in Technical Classifications">`}
+      </div>
       ${pmForm.project&&areas.length?`<div class="field"><label>🗺️ Area <span style="font-size:10px;color:var(--muted)">(optional)</span></label>
         <select onchange="window.pmForm.area=this.value;window.pmForm.site='';window.pmForm.deviceSerial='';render()">
           <option value="">— Whole project —</option>
@@ -1461,7 +1468,7 @@ async function savePM(){
   if(!pmForm.title.trim()) return toast("⚠ Title is required");
   if(!Number(pmForm.freqDays)) return toast("⚠ Repeat interval is required");
   const item={ ...(pmEditId?{id:pmEditId}:{}) , title:pmForm.title.trim(),
-    project:pmForm.project||"", area:pmForm.area||"", site:pmForm.site||"", deviceSerial:pmForm.deviceSerial||"",
+    project:pmForm.project||"", area:pmForm.area||"", site:pmForm.site||"", deviceSerial:pmForm.deviceSerial||"", system:pmForm.system||"",
     freqDays:Number(pmForm.freqDays), notes:pmForm.notes||"",
     active:true, ...(pmEditId?{}:{history:[]}) };
   const _d=pmForm.startDate||today();

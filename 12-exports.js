@@ -154,38 +154,6 @@ function renderFlexReports(){
     </div>
   </div>`;
 
-  // ═══════ TECHNICAL REPORT BUILDERS (PM + Incident) ═══════
-  if(isAdmin()||isHR()||hasCap("canExport")){
-    const pmProjs=[...new Set((state.pmSchedules||[]).map(s=>(s.project||"").trim()).filter(Boolean))].sort();
-    const incList=(state.incidents||[]).slice().sort((a,b)=>String(b.date||"").localeCompare(String(a.date||"")));
-    h+=`<div class="card" style="border-left:4px solid #E65100">
-      <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#E65100;color:#fff;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">🛠️</span> Preventive Maintenance Report</div>
-      <div class="form-grid" style="margin-top:10px">
-        <div class="field"><label>📁 Project</label>
-          <select id="pmRptProj"><option value="">— All projects —</option>${pmProjs.map(p=>`<option>${escapeHtml(p)}</option>`).join("")}</select></div>
-        <div class="field"><label>From</label><input type="date" id="pmRptFrom"></div>
-        <div class="field"><label>To</label><input type="date" id="pmRptTo"></div>
-        <div class="field" style="grid-column:1/-1"><label>📷 Attach photos <span style="font-size:10px;color:var(--muted)">(optional · max 12 · embedded in the PDF)</span></label>
-          <input type="file" accept="image/*" multiple onchange="pmRptAddPhotos(this)">
-          ${(window._pmRptPhotos||[]).length?`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
-            ${window._pmRptPhotos.map((p,i)=>`<div style="position:relative"><img src="${p.data}" style="width:70px;height:70px;object-fit:cover;border-radius:8px;border:1px solid var(--line)"><button onclick="pmRptDelPhoto(${i})" style="position:absolute;top:-6px;right:-6px;background:#C62828;color:#fff;border:none;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:11px;font-weight:800">×</button></div>`).join("")}
-          </div>`:""}
-        </div>
-      </div>
-      <button class="btn btn-primary" style="margin-top:10px" onclick="generatePMReport()">📄 Generate PM Report (PDF)</button>
-    </div>`;
-    h+=`<div class="card" style="border-left:4px solid #7B1FA2">
-      <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#7B1FA2;color:#fff;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">🚨</span> Incident Report</div>
-      ${incList.length?`<div class="form-grid" style="margin-top:10px">
-        <div class="field" style="grid-column:1/-1"><label>Incident</label>
-          <select id="incRptSel">${incList.map(i=>`<option value="${i.id}">${fmtDate(i.date)} — ${escapeHtml(i.title)}${i.project?" · "+escapeHtml(i.project):""}${i.system?" · "+escapeHtml(i.system):""}</option>`).join("")}</select></div>
-      </div>
-      <button class="btn btn-primary" style="margin-top:10px;background:#7B1FA2;border:none" onclick="generateIncidentReport()">📄 Generate Incident Report (PDF)</button>`
-      :`<p style="font-size:12px;color:var(--muted);margin:10px 0 0">No incidents logged yet — log them in <strong>Database → Incidents</strong> first.</p>`}
-    </div>`;
-  }
-
-
   // ═══════ GLOBAL EMPLOYEE FILTER ═══════
   h += renderEmployeeFilterUI("Filter by Employees");
 
@@ -1173,7 +1141,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v114';"
+      var swCode = "const CACHE='ejaftech-v115';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
@@ -1217,12 +1185,20 @@ function _rptPhotoGrid(photos,label){
 }
 const _rptBadge=(t,bg,fg)=>`<span style="background:${bg};color:${fg};padding:2px 10px;border-radius:9px;font-size:10px;font-weight:800">${escapeHtml(t||"—")}</span>`;
 
+// PM schedule → effective system: its own field, else its target device's.
+function _pmSysOf(s){
+  if(s.system) return s.system;
+  if(s.deviceSerial){ const d=(state.devices||[]).find(x=>x.serialNumber===s.deviceSerial); if(d&&d.system) return d.system; }
+  return "";
+}
 window.generatePMReport=async function(){
-  const proj=(document.getElementById('pmRptProj')||{}).value||"";
-  const from=(document.getElementById('pmRptFrom')||{}).value||"";
-  const to  =(document.getElementById('pmRptTo')||{}).value||"";
+  const proj=window._pmRptProj||"";
+  const sys =window._pmRptSys||"";
+  const from=window._pmRptFrom||"";
+  const to  =window._pmRptTo||"";
   let scheds=(state.pmSchedules||[]).filter(s=>s.active!==false);
   if(proj) scheds=scheds.filter(s=>(s.project||"").trim()===proj);
+  if(sys)  scheds=scheds.filter(s=>_pmSysOf(s)===sys);
   if(!scheds.length) return toast("No PM schedules match this scope");
 
   // completion rounds inside the period (from schedule history)
@@ -1237,9 +1213,10 @@ window.generatePMReport=async function(){
   const overdue=scheds.filter(s=>pmDaysLeft(s)<0);
 
   const target=s=>[s.project||"General",s.area,s.site,s.deviceSerial?("Device "+s.deviceSerial):""].filter(Boolean).join(" › ");
+  const sysBadge=s=>{const v=_pmSysOf(s);return v?_rptBadge(v,"#E0F2F1","#00695C"):"—";};
   const schedRows=scheds.map(s=>{
     const dl=pmDaysLeft(s);
-    return `<tr><td><strong>${escapeHtml(s.title)}</strong></td><td style="font-size:10px">${escapeHtml(target(s))}</td><td>${s.freqDays}d</td><td>${s.lastDone?fmtDate(s.lastDone):"—"}</td><td>${fmtDate(pmNextDue(s))}</td><td>${dl<0?_rptBadge(Math.abs(dl)+"d overdue","#FDECEA","#C62828"):dl<=7?_rptBadge("due in "+dl+"d","#FFF3E0","#E65100"):_rptBadge("on track","#E8F5E9","#2E7D32")}</td></tr>`;
+    return `<tr><td><strong>${escapeHtml(s.title)}</strong></td><td style="font-size:10px">${escapeHtml(target(s))}</td><td>${sysBadge(s)}</td><td>${s.freqDays}d</td><td>${s.lastDone?fmtDate(s.lastDone):"—"}</td><td>${fmtDate(pmNextDue(s))}</td><td>${dl<0?_rptBadge(Math.abs(dl)+"d overdue","#FDECEA","#C62828"):dl<=7?_rptBadge("due in "+dl+"d","#FFF3E0","#E65100"):_rptBadge("on track","#E8F5E9","#2E7D32")}</td></tr>`;
   }).join("");
   const roundRows=rounds.map(({s,h})=>`<tr><td>${fmtDate(h.date)}</td><td><strong>${escapeHtml(s.title)}</strong></td><td style="font-size:10px">${escapeHtml(target(s))}</td><td>${escapeHtml(h.by||"—")}</td><td>${h.sessions!=null?h.sessions:"—"}</td></tr>`).join("");
 
@@ -1249,28 +1226,30 @@ window.generatePMReport=async function(){
       <button onclick="window.print()" style="background:#03308B;color:#C9A84C;border:none;padding:10px 24px;border-radius:6px;font-weight:700;cursor:pointer;font-size:13px">🖨️ Print / Save as PDF</button>
       <button onclick="window.close()" style="background:#888;color:white;border:none;padding:10px 20px;border-radius:6px;font-weight:700;cursor:pointer;font-size:13px;margin-left:6px">Close</button>
     </div>
-    <div class="ksec"><span class="kbad">01</span><h3>Summary${proj?` — ${escapeHtml(proj)}`:""}</h3></div>
+    <div class="ksec"><span class="kbad">01</span><h3>Summary${proj?` — ${escapeHtml(proj)}`:""}${sys?` · ${escapeHtml(sys)}`:""}</h3></div>
     <div class="kr">
       <div class="kc kb"><div class="kl">Schedules</div><div class="kv">${scheds.length}</div><div class="ks">active in scope</div></div>
       <div class="kc kg"><div class="kl">Rounds Completed</div><div class="kv">${rounds.length}</div><div class="ks">in period</div></div>
       <div class="kc ko"><div class="kl">Overdue</div><div class="kv">${overdue.length}</div><div class="ks">need attention</div></div>
     </div>
     <div class="ksec"><span class="kbad">02</span><h3>Maintenance Schedules</h3></div>
-    <table><thead><tr><th>Schedule</th><th>Target</th><th>Every</th><th>Last done</th><th>Next due</th><th>Status</th></tr></thead>
+    <table><thead><tr><th>Schedule</th><th>Target</th><th>System</th><th>Every</th><th>Last done</th><th>Next due</th><th>Status</th></tr></thead>
     <tbody>${schedRows}</tbody></table>
     <div class="ksec"><span class="kbad">03</span><h3>Completed Rounds${(from||to)?` — ${from||"start"} → ${to||"today"}`:""}</h3></div>
     <table><thead><tr><th>Date</th><th>Schedule</th><th>Target</th><th>Completed by</th><th>Sessions</th></tr></thead>
     <tbody>${roundRows||'<tr><td colspan="5" style="text-align:center;color:#888">No completed rounds in this period</td></tr>'}</tbody></table>
+    ${(window._pmRptDesc||"").trim()?`<div class="ksec"><span class="kbad">04</span><h3>Work Performed — Description</h3></div>
+    <div style="font-size:12px;line-height:1.7;white-space:pre-wrap">${escapeHtml(window._pmRptDesc.trim())}</div>`:""}
     ${_rptPhotoGrid(window._pmRptPhotos,"Maintenance Photos")}
     <script>setTimeout(()=>window.print(),500)<\/script>`;
 
   const period=(from||to)?`${from||"start"} → ${to||"today"}`:"All time";
-  await openReportPDF("PREVENTIVE_MAINTENANCE", proj?`${period} · ${proj}`:period, bodyHTML);
+  await openReportPDF("PREVENTIVE_MAINTENANCE", [period,proj,sys].filter(Boolean).join(" · "), bodyHTML);
   toast("PM Report ready!");
 };
 
 window.generateIncidentReport=async function(){
-  const id=(document.getElementById('incRptSel')||{}).value||"";
+  const id=window._incRptSel||"";
   if(!id) return toast("⚠ Pick an incident first");
   const i=(state.incidents||[]).find(x=>x.id===id);
   if(!i) return toast("Incident not found");
@@ -1304,3 +1283,133 @@ window.generateIncidentReport=async function(){
   await openReportPDF("INCIDENT", `${fmtDate(i.date)} · ${i.project||""}${i.system?" · "+i.system:""}`, bodyHTML);
   toast("Incident Report ready!");
 };
+
+// ═══════════════════════════════════════════════════════════════════════
+//  STANDALONE REPORT TABS — PM Report · Incident Report
+//  State-backed inputs (survive live data re-renders).
+// ═══════════════════════════════════════════════════════════════════════
+window._pmRptProj=window._pmRptProj||""; window._pmRptSys=window._pmRptSys||"";
+window._pmRptFrom=window._pmRptFrom||""; window._pmRptTo=window._pmRptTo||"";
+window._pmRptDesc=window._pmRptDesc||""; window._incRptSel=window._incRptSel||"";
+window._incRptProj=window._incRptProj||""; window._incRptSys=window._incRptSys||"";
+
+function _rptHero(icon,title,sub,grad){
+  return `<div class="card" style="background:${grad};color:#fff;padding:18px 16px">
+    <div style="font-family:'DM Serif Display',serif;font-size:22px">${icon} ${title}</div>
+    <div style="font-size:11.5px;opacity:.85">${sub}</div>
+  </div>`;
+}
+
+function renderPMReportTab(){
+  if(!(isAdmin()||isHR()||hasCap("canExport"))) return `<div class="card"><div class="empty">No access.</div></div>`;
+  const pmProjs=[...new Set((state.pmSchedules||[]).map(s=>(s.project||"").trim()).filter(Boolean))].sort();
+  const systems=(state.systemTypes||[]).slice().sort((a,b)=>(a.order||0)-(b.order||0));
+  // live scope preview
+  let scope=(state.pmSchedules||[]).filter(s=>s.active!==false);
+  if(window._pmRptProj) scope=scope.filter(s=>(s.project||"").trim()===window._pmRptProj);
+  if(window._pmRptSys)  scope=scope.filter(s=>_pmSysOf(s)===window._pmRptSys);
+  let rounds=0;
+  scope.forEach(s=>(s.history||[]).forEach(h=>{
+    if(h.initial)return;
+    if(window._pmRptFrom&&String(h.date)<window._pmRptFrom)return;
+    if(window._pmRptTo&&String(h.date)>window._pmRptTo)return;
+    rounds++;
+  }));
+  const overdue=scope.filter(s=>pmDaysLeft(s)<0).length;
+  const photos=window._pmRptPhotos||[];
+
+  return `
+  ${_rptHero("🛠️","Preventive Maintenance Report","Branded PDF — scope, completed rounds, work description & photos","linear-gradient(135deg,#E65100 0%,#BF360C 100%)")}
+
+  <div class="card">
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">01</span> Scope</div>
+    <div class="form-grid" style="margin-top:10px">
+      <div class="field"><label>📁 Project</label>
+        <select onchange="window._pmRptProj=this.value;render()">
+          <option value="">— All projects —</option>
+          ${pmProjs.map(p=>`<option ${window._pmRptProj===p?"selected":""}>${escapeHtml(p)}</option>`).join("")}
+        </select></div>
+      <div class="field"><label>🧩 System</label>
+        <select onchange="window._pmRptSys=this.value;render()">
+          <option value="">— All systems —</option>
+          ${systems.map(s=>`<option ${window._pmRptSys===s.name?"selected":""}>${escapeHtml(s.name)}</option>`).join("")}
+        </select></div>
+      <div class="field"><label>From</label><input type="date" value="${window._pmRptFrom}" onchange="window._pmRptFrom=this.value;render()"></div>
+      <div class="field"><label>To</label><input type="date" value="${window._pmRptTo}" onchange="window._pmRptTo=this.value;render()"></div>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px">
+      <div style="flex:1;min-width:110px;border:1px solid var(--line);border-left:4px solid #2E5FA3;border-radius:8px;padding:10px;background:var(--card,#fff)"><div style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase">Schedules</div><div style="font-family:'DM Serif Display',serif;font-size:20px;color:#2E5FA3">${scope.length}</div></div>
+      <div style="flex:1;min-width:110px;border:1px solid var(--line);border-left:4px solid #2E7D32;border-radius:8px;padding:10px;background:var(--card,#fff)"><div style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase">Rounds in period</div><div style="font-family:'DM Serif Display',serif;font-size:20px;color:#2E7D32">${rounds}</div></div>
+      <div style="flex:1;min-width:110px;border:1px solid var(--line);border-left:4px solid #C62828;border-radius:8px;padding:10px;background:var(--card,#fff)"><div style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase">Overdue</div><div style="font-family:'DM Serif Display',serif;font-size:20px;color:#C62828">${overdue}</div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">02</span> Work Description</div>
+    <textarea rows="4" oninput="window._pmRptDesc=this.value" placeholder="What was performed in this maintenance round — cleaning, tests, replaced parts, findings… (appears in the PDF)" style="width:100%;margin-top:8px">${escapeHtml(window._pmRptDesc)}</textarea>
+  </div>
+
+  <div class="card">
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">03</span> Photos <span style="font-size:10px;color:var(--muted);font-weight:500">(optional · max 12 · embedded in the PDF)</span></div>
+    <input type="file" accept="image/*" multiple onchange="pmRptAddPhotos(this)" style="margin-top:8px">
+    ${photos.length?`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+      ${photos.map((p,i)=>`<div style="position:relative"><img src="${p.data}" style="width:76px;height:76px;object-fit:cover;border-radius:8px;border:1px solid var(--line)"><button onclick="pmRptDelPhoto(${i})" style="position:absolute;top:-6px;right:-6px;background:#C62828;color:#fff;border:none;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:11px;font-weight:800">×</button></div>`).join("")}
+    </div>`:""}
+  </div>
+
+  <div class="card" style="background:linear-gradient(135deg,#1B3A6B 0%,#2E5FA3 100%);border:2px solid #C9A84C">
+    <button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:800;border:none;width:100%" onclick="generatePMReport()">📄 Generate PM Report (PDF)</button>
+  </div>`;
+}
+
+function renderIncidentReportTab(){
+  if(!(isAdmin()||isHR()||hasCap("canExport"))) return `<div class="card"><div class="empty">No access.</div></div>`;
+  let list=(state.incidents||[]).slice().sort((a,b)=>String(b.date||"").localeCompare(String(a.date||"")));
+  const projs=[...new Set(list.map(i=>(i.project||"").trim()).filter(Boolean))].sort();
+  const systems=[...new Set(list.map(i=>(i.system||"").trim()).filter(Boolean))].sort();
+  if(window._incRptProj) list=list.filter(i=>(i.project||"").trim()===window._incRptProj);
+  if(window._incRptSys)  list=list.filter(i=>(i.system||"").trim()===window._incRptSys);
+  if(window._incRptSel && !list.some(i=>i.id===window._incRptSel)) window._incRptSel="";
+  const sel=list.find(i=>i.id===window._incRptSel)||null;
+  const sev={Low:["#E8F5E9","#2E7D32"],Medium:["#FFF3E0","#E65100"],High:["#FDECEA","#C62828"],Critical:["#F3E5F5","#7B1FA2"]};
+  const st={Open:["#FDECEA","#C62828"],Investigating:["#FFF3E0","#E65100"],Resolved:["#E8F5E9","#2E7D32"],Closed:["#ECEFF1","#5B6C86"]};
+
+  return `
+  ${_rptHero("🚨","Incident Report","Detailed branded PDF for any logged incident — info grid, actions & photos","linear-gradient(135deg,#7B1FA2 0%,#4A148C 100%)")}
+
+  ${(state.incidents||[]).length===0?`<div class="card"><div class="empty empty2"><span class="e-ic">🚨</span><div class="e-t">No incidents logged yet</div><div class="e-m">Log them in <strong>Database → Incidents</strong> first</div></div></div>`:`
+  <div class="card">
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">01</span> Pick Incident</div>
+    <div class="form-grid" style="margin-top:10px">
+      <div class="field"><label>📁 Project</label>
+        <select onchange="window._incRptProj=this.value;render()">
+          <option value="">— All —</option>
+          ${projs.map(p=>`<option ${window._incRptProj===p?"selected":""}>${escapeHtml(p)}</option>`).join("")}
+        </select></div>
+      <div class="field"><label>🧩 System</label>
+        <select onchange="window._incRptSys=this.value;render()">
+          <option value="">— All —</option>
+          ${systems.map(s=>`<option ${window._incRptSys===s?"selected":""}>${escapeHtml(s)}</option>`).join("")}
+        </select></div>
+      <div class="field" style="grid-column:1/-1"><label>Incident (${list.length})</label>
+        <select onchange="window._incRptSel=this.value;render()">
+          <option value="">— Select —</option>
+          ${list.map(i=>`<option value="${i.id}" ${window._incRptSel===i.id?"selected":""}>${fmtDate(i.date)} — ${escapeHtml(i.title)}${i.project?" · "+escapeHtml(i.project):""}</option>`).join("")}
+        </select></div>
+    </div>
+    ${sel?`<div style="margin-top:12px;border:1.5px solid #C9A84C;border-radius:10px;padding:12px;background:var(--card,#fff)">
+      <div style="font-weight:800;font-size:14px;color:#1B3A6B">${escapeHtml(sel.title)}</div>
+      <div style="margin:6px 0">
+        <span style="background:${(sev[sel.severity]||["#EEE","#555"])[0]};color:${(sev[sel.severity]||["#EEE","#555"])[1]};padding:2px 10px;border-radius:9px;font-size:10px;font-weight:800">${escapeHtml(sel.severity||"—")}</span>
+        <span style="background:${(st[sel.status]||["#EEE","#555"])[0]};color:${(st[sel.status]||["#EEE","#555"])[1]};padding:2px 10px;border-radius:9px;font-size:10px;font-weight:800">${escapeHtml(sel.status||"Open")}</span>
+        ${sel.system?`<span style="background:#E0F2F1;color:#00695C;padding:2px 10px;border-radius:9px;font-size:10px;font-weight:800">${escapeHtml(sel.system)}</span>`:""}
+      </div>
+      <div style="font-size:11.5px;color:var(--muted)">${fmtDate(sel.date)}${sel.time?" · "+sel.time:""} · ${escapeHtml(sel.project||"")}${sel.area?" › "+escapeHtml(sel.area):""}${sel.site?" › "+escapeHtml(sel.site):""}${sel.deviceSerial?" · 📟 "+escapeHtml(sel.deviceSerial):""} · 📷 ${(sel.photos||[]).length}</div>
+    </div>`:""}
+  </div>
+
+  <div class="card" style="background:linear-gradient(135deg,#1B3A6B 0%,#2E5FA3 100%);border:2px solid #C9A84C">
+    <button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:800;border:none;width:100%" onclick="generateIncidentReport()">📄 Generate Incident Report (PDF)</button>
+  </div>`}`;
+}
+Object.assign(window,{renderPMReportTab,renderIncidentReportTab});
