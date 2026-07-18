@@ -127,16 +127,23 @@ const $=id=>document.getElementById(id);
 // (default Asia/Baghdad), NOT the device's own clock/timezone. This way every
 // employee's phone — wherever it's configured — agrees on the same "today",
 // and the day genuinely rolls over at local midnight in that timezone.
-function getAppTZ(){
-  const d=(state.settingsDocs||[]).find(x=>x.id==="dateTime")||{};
-  return d.tz || "Asia/Baghdad";
-}
+function _dtDoc(){ return (state.settingsDocs||[]).find(x=>x.id==="dateTime")||{}; }
+function getAppTZ(){ return _dtDoc().tz || "Asia/Baghdad"; }
 window.getAppTZ=getAppTZ;
+// Business "now": in Manual mode the admin pins the clock to a chosen date/time;
+// we store the difference from real time (offsetMs) so the manual clock keeps
+// TICKING forward from the chosen moment instead of standing still.
+function appNow(){
+  const d=_dtDoc();
+  const off=(d.mode==="manual"&&Number.isFinite(d.offsetMs))?d.offsetMs:0;
+  return new Date(Date.now()+off);
+}
+window.appNow=appNow;
 const today=(d)=>{
   try{
-    return new Intl.DateTimeFormat('en-CA',{timeZone:getAppTZ(),year:'numeric',month:'2-digit',day:'2-digit'}).format(d||new Date());
+    return new Intl.DateTimeFormat('en-CA',{timeZone:getAppTZ(),year:'numeric',month:'2-digit',day:'2-digit'}).format(d||appNow());
   }catch(e){
-    const x=d||new Date();
+    const x=d||appNow();
     return `${x.getFullYear()}-${String(x.getMonth()+1).padStart(2,"0")}-${String(x.getDate()).padStart(2,"0")}`;
   }
 };
@@ -1819,6 +1826,8 @@ function renderTab(){
         window._lastViewTab=state.tab;
         c.classList.remove("view-in"); void c.offsetWidth; c.classList.add("view-in");
         if(typeof window._runCountUps==="function") window._runCountUps(c);
+      } else if(typeof _cntFmt==="function"){
+        c.querySelectorAll(".cnt").forEach(el=>{ if(!el.dataset.done){ el.dataset.done="1"; el.textContent=_cntFmt(el); } });
       }
       if(state.tab==="Date & Time" && typeof window._dtInit==="function") window._dtInit();
     }catch(e){}

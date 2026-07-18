@@ -28,8 +28,20 @@ const TZ_GROUPS=[
   ]],
 ];
 window.saveAppTZ=async function(tz){
-  await fbSave("settings",{id:"dateTime",tz});
-  toast("🌍 Timezone updated — applies to the whole app ✓");
+  await fbSave("settings",{..._dtDoc(),id:"dateTime",tz});   // merge: keep manual mode/offset
+  toast("🌍 Timezone updated ✓");
+};
+window.applyManualDT=async function(){
+  const el=document.getElementById("dtManual");
+  if(!el||!el.value) return toast("⚠ Pick a date & time first");
+  const chosen=new Date(el.value);
+  if(isNaN(chosen)) return toast("⚠ Invalid date/time");
+  await fbSave("settings",{..._dtDoc(),id:"dateTime",mode:"manual",offsetMs:chosen.getTime()-Date.now()});
+  toast("🕐 Manual date & time applied ✓");
+};
+window.clearManualDT=async function(){
+  await fbSave("settings",{..._dtDoc(),id:"dateTime",mode:"auto",offsetMs:0});
+  toast("🕐 Back to automatic time ✓");
 };
 // ── Dedicated Date & Time tab (Settings) ──────────────────────────────
 function renderDateTime(){
@@ -40,12 +52,23 @@ function renderDateTime(){
     <div style="font-size:10.5px;letter-spacing:1.5px;opacity:.75;text-transform:uppercase">Business Time</div>
     <div id="dtClock" style="font-family:'DM Serif Display',serif;font-size:46px;font-weight:700;color:#C9A84C;margin:8px 0 4px;letter-spacing:1px;line-height:1">--:--:--</div>
     <div id="dtDate" style="font-size:13px;opacity:.9">—</div>
-    <div style="font-size:10.5px;opacity:.65;margin-top:8px">${escapeHtml(tz)}</div>
+    <div style="font-size:10.5px;opacity:.65;margin-top:8px">${escapeHtml(tz)}${_dtDoc().mode==="manual"?' · <span style="color:#F0D68A;font-weight:800">MANUAL</span>':''}</div>
   </div>
 
   <div class="card">
-    <div class="card-title">🌍 Business Timezone</div>
-    <p style="font-size:11.5px;color:var(--muted);margin:4px 0 14px;line-height:1.6">Used for "today" everywhere in the app — Daily Log, Preventive Maintenance, backups. Every device follows this timezone regardless of its own local clock, so the whole team always shares the same "today", and the day rolls over at real local midnight here, not on each phone.</p>
+    <div class="card-title">🕐 Set Date & Time</div>
+    <div style="display:flex;gap:6px;margin:10px 0 12px">
+      <button class="btn ${_dtDoc().mode!=="manual"?"btn-primary":"btn-secondary"}" style="flex:1" onclick="clearManualDT()">⚡ Automatic</button>
+      <button class="btn ${_dtDoc().mode==="manual"?"btn-primary":"btn-secondary"}" style="flex:1" onclick="(function(){const x=document.getElementById('dtManualRow');if(x)x.style.display='flex';})()">✍️ Manual</button>
+    </div>
+    <div id="dtManualRow" style="display:${_dtDoc().mode==="manual"?"flex":"none"};gap:8px;flex-wrap:wrap;align-items:center">
+      <input type="datetime-local" id="dtManual" value="${(()=>{const n=appNow();return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-${String(n.getDate()).padStart(2,"0")}T${String(n.getHours()).padStart(2,"0")}:${String(n.getMinutes()).padStart(2,"0")}`})()}" style="flex:1;min-width:190px;padding:9px 10px;border:1.5px solid var(--line);border-radius:9px;font-size:13px;background:var(--card,#fff);color:var(--text)">
+      <button class="btn btn-primary" onclick="applyManualDT()">Apply</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">🌍 Timezone</div>
     ${TZ_GROUPS.map(([region,list])=>`
       <div style="margin-bottom:16px">
         <div style="font-size:10.5px;font-weight:800;color:var(--muted);letter-spacing:.6px;text-transform:uppercase;margin-bottom:7px">${region}</div>
@@ -67,7 +90,7 @@ window._dtInit=function(){
     const timeEl=document.getElementById('dtClock'), dateEl=document.getElementById('dtDate');
     if(!timeEl){ clearInterval(window._dtClockTimer); return; }
     try{
-      const tz=getAppTZ(), now=new Date();
+      const tz=getAppTZ(), now=appNow();
       timeEl.textContent=new Intl.DateTimeFormat('en-GB',{timeZone:tz,hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).format(now);
       dateEl.textContent=new Intl.DateTimeFormat('en-GB',{timeZone:tz,weekday:'long',day:'numeric',month:'long',year:'numeric'}).format(now);
     }catch(e){}
