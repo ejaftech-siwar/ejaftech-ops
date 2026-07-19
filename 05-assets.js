@@ -1247,6 +1247,12 @@ function _pmScopeMatch(s,r){
 function pmOpenSessions(s){
   return (state.daily||[]).filter(r=>_isPMCode(r.projectCode)&&_pmScopeMatch(s,r)&&(!s.lastDone||String(r.date)>String(s.lastDone)));
 }
+// The "units" a round must cover before the due date renews:
+// sites if the schedule targets sites, else areas, else a single implicit unit.
+function _pmUnitsOf(s){ const S=_pmSitesOf(s); if(S.length) return S; const A=_pmAreasOf(s); if(A.length) return A; return []; }
+function _pmUnitOfRec(s,rec){ return _pmSitesOf(s).length ? (rec.site||"") : (rec.area||""); }
+function _pmRoundDone(s){ const u=_pmUnitsOf(s); return (s.roundDone||[]).filter(x=>u.includes(x)); }
+
 // Called from Daily Log after saving a PM-coded entry
 window.pmOnDailySaved=function(rec,isFinal,isNew){
   try{
@@ -1255,19 +1261,42 @@ window.pmOnDailySaved=function(rec,isFinal,isNew){
     const score=s=>(s.deviceSerial?8:0)+(_pmSitesOf(s).length?4:0)+(_pmAreasOf(s).length?2:0)+1;    // most specific wins
     const s=cands.sort((x,y)=>score(y)-score(x)||pmNextDue(x).localeCompare(pmNextDue(y)))[0];
     let sessions=pmOpenSessions(s).length; if(sessions<1) sessions=1;   // local snapshot may lag by one
-    if(isFinal){ _pmCloseRound(s, rec.date||today(), sessions); return; }
+    if(isFinal){
+      const units=_pmUnitsOf(s);
+      if(units.length>1){
+        // MULTI-SITE round: this final entry completes ONE unit only.
+        // The due date renews ONLY when every unit is complete.
+        const u=_pmUnitOfRec(s,rec);
+        const done=[...new Set([..._pmRoundDone(s), u].filter(Boolean))];
+        if(done.length>=units.length){
+          _pmCloseRound(s, rec.date||today(), sessions, units);
+        } else {
+          fbSave("pmSchedules",{...s, roundDone:done});
+          const left=units.filter(x=>!done.includes(x));
+          setTimeout(()=>toast(`📍 ${u} complete — ${done.length}/${units.length} sites done. Remaining: ${left.join(", ")}. Due date renews when ALL are complete.`),400);
+        }
+      } else {
+        _pmCloseRound(s, rec.date||today(), sessions);
+      }
+      return;
+    }
     const started=(sessions===1&&isNew);
     setTimeout(()=>toast(started?`🛠 Maintenance STARTED — ${s.title}`:`🛠 Maintenance session #${sessions} — ${s.title}`),400);
   }catch(e){}
 };
-async function _pmCloseRound(s,endDate,sessions){
+async function _pmCloseRound(s,endDate,sessions,units){
   const by=(state.profile&&(state.profile.name||state.profile.email))||"";
-  const history=[{date:endDate,by,sessions},...(s.history||[])].slice(0,20);
-  await fbSave("pmSchedules",{...s,lastDone:endDate,history});
-  setTimeout(()=>toast(`🏁 Round closed — ${sessions} session(s) · next due ${fmtDate(_pmAddDays(endDate,s.freqDays))}`),400);
+  const entry={date:endDate,by,sessions,...(units&&units.length?{sites:units}:{})};
+  const history=[entry,...(s.history||[])].slice(0,20);
+  await fbSave("pmSchedules",{...s,lastDone:endDate,history,roundDone:[]});
+  const scope=units&&units.length>1?` · all ${units.length} sites`:"";
+  setTimeout(()=>toast(`🏁 Round closed${scope} — ${sessions} session(s) · next due ${fmtDate(_pmAddDays(endDate,s.freqDays))}`),400);
 }
 const _pmProgBadge=(s)=>{const n=pmOpenSessions(s).length;
-  return n?` <span style="font-size:9px;background:#1B2C45;color:#8FB4E8;padding:1px 7px;border-radius:8px;font-weight:800;vertical-align:1px">⏳ IN PROGRESS · ${n}</span>`:"";};
+  let h=n?` <span style="font-size:9px;background:#1B2C45;color:#8FB4E8;padding:1px 7px;border-radius:8px;font-weight:800;vertical-align:1px">⏳ IN PROGRESS · ${n}</span>`:"";
+  const units=_pmUnitsOf(s), done=_pmRoundDone(s);
+  if(units.length>1&&done.length) h+=` <span title="${done.join(", ")} complete — remaining: ${units.filter(x=>!done.includes(x)).join(", ")}" style="font-size:9px;background:#E8F5E9;color:#2E7D32;padding:1px 7px;border-radius:8px;font-weight:800;vertical-align:1px">📍 ${done.length}/${units.length} SITES</span>`;
+  return h;};
 
 function _pmAddDays(ds,n){ const d=new Date(ds); d.setDate(d.getDate()+Number(n||0));
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; }
@@ -1336,7 +1365,15 @@ function renderMaintenance(){
         <div style="font-size:11px;color:var(--muted)">${escapeHtml(_pmTargetLabel(s))} · due ${fmtDate(pmNextDue(s))} · <strong style="color:${od?'#C62828':'#E65100'}">${od?Math.abs(dl)+"d overdue":(dl===0?"today":"in "+dl+"d")}</strong></div>
       </div>
       <button class="btn btn-sm" style="background:#2E7D32;color:#fff;border:none;font-weight:800" onclick="markPMDone('${s.id}')">${ICN.check} Done</button>
-    </div>`;};
+    </div>
+    ${(()=>{const u=_pmUnitsOf(s); if(u.length<2) return "";
+      const dn=_pmRoundDone(s);
+      return `<div style="padding:2px 12px 10px;margin-top:-6px">
+        <div style="font-size:10px;color:var(--muted);font-weight:800;letter-spacing:.4px;margin-bottom:5px">SITE PROGRESS — tap to mark complete (${dn.length}/${u.length})</div>
+        <div style="display:flex;gap:5px;flex-wrap:wrap">
+          ${u.map(x=>{const on=dn.includes(x);
+            return `<button type="button" class="btn btn-sm ${on?"":"btn-secondary"}" style="${on?"background:#2E7D32;color:#fff;border:none;":""}font-weight:700;font-size:11px" onclick="pmToggleUnitDone('${s.id}','${escapeHtml(x).replace(/'/g,"\\'")}')">${on?"✓ ":""}${escapeHtml(x)}</button>`;}).join("")}
+        </div></div>`;})()}`;};
 
   // grouped table (by site/area) when a project is selected — professional detail view
   const tableRows=(rows)=>rows.map(s=>{
@@ -1489,6 +1526,7 @@ async function savePM(){
   }
   if(pmEditId){ const old=(state.pmSchedules||[]).find(x=>x.id===pmEditId);
     if(old){ item.history=old.history||[]; item.active=old.active!==false;
+      item.roundDone=(old.roundDone||[]).filter(u=>_pmUnitsOf(item).includes(u));   // keep in-flight progress across edits
       if(pmForm.dateMode==="due" && old.lastDone) item.lastDone=null;   // explicit reset to first-due
     } }
   await fbSave("pmSchedules", item);
@@ -1503,6 +1541,26 @@ async function savePM(){
   }
   pmForm=null; pmEditId=null; toast("Schedule saved ✓"); render();
 }
+// Mark one site of a multi-site round complete (or undo it). Completing the
+// last outstanding site closes the round and renews the due date.
+window.pmToggleUnitDone=async function(id,unit){
+  const s=(state.pmSchedules||[]).find(x=>x.id===id); if(!s) return;
+  const units=_pmUnitsOf(s); if(units.length<2) return;
+  const done=_pmRoundDone(s);
+  if(done.includes(unit)){
+    await fbSave("pmSchedules",{...s, roundDone:done.filter(x=>x!==unit)});
+    toast(`↩ ${unit} reopened`);
+  } else {
+    const next=[...done,unit];
+    if(next.length>=units.length){
+      await _pmCloseRound(s, today(), Math.max(1,pmOpenSessions(s).length), units);
+    } else {
+      await fbSave("pmSchedules",{...s, roundDone:next});
+      toast(`📍 ${unit} complete — ${next.length}/${units.length} · remaining: ${units.filter(x=>!next.includes(x)).join(", ")}`);
+    }
+  }
+  render();
+};
 window.pmToggleArea=function(name){
   const A=pmForm.areas=pmForm.areas||[];
   const i=A.indexOf(name);
@@ -1530,9 +1588,14 @@ async function togglePM(id){ const s=(state.pmSchedules||[]).find(x=>x.id===id);
   await fbSave("pmSchedules",{...s, active: s.active===false}); render(); }
 async function markPMDone(id){
   const s=(state.pmSchedules||[]).find(x=>x.id===id); if(!s)return;
+  const units=_pmUnitsOf(s);
+  if(units.length>1){
+    const left=units.filter(x=>!_pmRoundDone(s).includes(x));
+    if(left.length && !confirm(`This schedule covers ${units.length} sites and ${left.length} are not marked complete yet:\n\n• ${left.join("\n• ")}\n\nMark the WHOLE round done anyway? (renews the due date for all sites)`)) return;
+  }
   const by=(state.profile&&(state.profile.name||state.profile.email))||"";
-  const history=[{date:today(),by},...(s.history||[])].slice(0,20);
-  await fbSave("pmSchedules",{...s,lastDone:today(),history});
+  const history=[{date:today(),by,...(units.length>1?{sites:units}:{})},...(s.history||[])].slice(0,20);
+  await fbSave("pmSchedules",{...s,lastDone:today(),history,roundDone:[]});
   toast(`✔ ${s.title} — done today. Next due ${fmtDate(_pmAddDays(today(),s.freqDays))}`);
   // Bridge to Daily Log: offer a prefilled work entry tagged with the PM code
   if(confirm("Log a Daily Log work entry for this maintenance now?")){
