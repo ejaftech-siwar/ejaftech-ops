@@ -57,10 +57,11 @@ function renderTechReport(){
   if(isClient()) return `<div class="card"><div class="empty">Access denied</div></div>`;
   // ── Technical Reports hub: Technical · PM · Incident · FM-200 ──
   const trv = window._techRptView || "tech";
-  let hub = _pills('_techRptView',[{id:"tech",ic:"🔧",lb:"Technical"},{id:"pm",ic:"🛠️",lb:"PM Report"},{id:"inc",ic:"🚨",lb:"Incident"},{id:"fm200",ic:"🧯",lb:"FM-200"}]);
+  let hub = _pills('_techRptView',[{id:"tech",ic:"🔧",lb:"Technical"},{id:"pm",ic:"🛠️",lb:"PM Report"},{id:"inc",ic:"🚨",lb:"Incident"},{id:"fm200",ic:"🧯",lb:"FM-200"},{id:"sys",ic:"📋",lb:"System Reports"}]);
   if(trv==="pm")    return hub + renderPMReportTab();
   if(trv==="inc")   return hub + renderIncidentReportTab();
   if(trv==="fm200") return hub + renderFM200Section();
+  if(trv==="sys")   return hub + renderSystemReports();
 
   // Apply the unified filters to Daily Log only
   const rows = applyReportFilters(visibleRows(state.daily)).sort((a,b)=>{

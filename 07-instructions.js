@@ -170,7 +170,7 @@ function renderTechClassifications(){
   const cats2     = (state.techCategories||[]).slice().sort((a,b)=>(a.order||0)-(b.order||0));
   const tv = window._techView || "types";
   const systems = (state.systemTypes||[]).slice().sort((a,b)=>(a.order||0)-(b.order||0));
-  let h = _pills('_techView',[{id:"types",ic:"🔧",lb:"Work Types"},{id:"statuses",ic:"📊",lb:"Statuses"},{id:"categories",ic:"📁",lb:"Categories"},{id:"systems",ic:"🧩",lb:"Systems"}]);
+  let h = _pills('_techView',[{id:"types",ic:"🔧",lb:"Work Types"},{id:"statuses",ic:"📊",lb:"Statuses"},{id:"categories",ic:"📁",lb:"Categories"},{id:"systems",ic:"🧩",lb:"Systems"},{id:"checks",ic:"📋",lb:"Check Lists"}]);
   h += `
     <div class="card" style="margin-top:16px;border:2px solid #6A1B9A">
       <div class="card-title" style="color:#6A1B9A">⚙️ Technical Classifications (Resolution)</div>
@@ -184,6 +184,40 @@ function renderTechClassifications(){
       </div>`:''}
 
       `;
+  if(tv==="checks"){
+    const ct=window._chkTpl||"cctv";
+    const tpl=sysTemplate(ct);
+    const items=getSysCheckItems(ct);
+    const custom=(state.systemChecks||[]).filter(x=>x.template===ct).slice().sort((a,b)=>(a.order||0)-(b.order||0));
+    h += `<!-- SYSTEM CHECK LISTS -->
+      <div style="margin-bottom:14px">
+        <div style="font-weight:800;color:#1B3A6B;font-size:13px;margin-bottom:8px">📋 Inspection Check Lists <span style="font-weight:500;font-size:11px;color:var(--muted)">— used by Technical Report → System Reports</span></div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
+          ${SYS_TEMPLATES.map(t=>`<button class="btn btn-sm ${ct===t.id?"":"btn-secondary"}" style="${ct===t.id?`background:${t.color};color:#fff;border:none;`:""}font-weight:700" onclick="window._chkTpl='${t.id}';render()">${t.icon} ${escapeHtml(t.name.split(" ")[0])}</button>`).join("")}
+        </div>
+        <div style="background:#F5F8FC;border-left:3px solid ${tpl.color};border-radius:8px;padding:10px 12px;margin-bottom:10px">
+          <div style="font-size:12px;font-weight:800;color:#1B3A6B">${tpl.icon} ${escapeHtml(tpl.name)}</div>
+          <div style="font-size:10.5px;color:var(--muted);margin-top:4px;line-height:1.6">📐 ${escapeHtml(tpl.standards)}</div>
+          <div style="font-size:10.5px;margin-top:6px;color:${custom.length?"#00695C":"#8A6D00"};font-weight:700">${custom.length?`✏️ Customised — ${custom.length} item(s)`:`📘 Using the ${tpl.checks.length} standards defaults`}</div>
+        </div>
+        <div style="display:grid;gap:5px;margin-bottom:10px">
+          ${items.map((it,i)=>{
+            const rec=custom[i];
+            return `<div style="display:flex;align-items:center;gap:8px;background:var(--card,#fff);border:1px solid var(--line);border-radius:8px;padding:7px 10px">
+              <span style="font-size:10px;font-weight:800;color:var(--muted);min-width:20px">${String(i+1).padStart(2,"0")}</span>
+              <span style="flex:1;font-size:12px">${escapeHtml(it)}</span>
+              ${rec?`<button onclick="delTechItem('systemChecks','${rec.id}')" style="background:#FDECEA;border:none;color:#C62828;width:20px;height:20px;border-radius:50%;cursor:pointer;font-weight:800;font-size:11px">×</button>`:""}
+            </div>`;}).join("")}
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <input id="newSysCheck" placeholder="Add a check item…" style="flex:1;min-width:170px;padding:7px 10px;border:1px solid var(--line);border-radius:7px;font-size:12px">
+          <button class="btn btn-sm" style="background:${tpl.color};color:#fff;border:none;font-weight:700" onclick="addSysCheck('${ct}',${items.length})">+ Add</button>
+          ${custom.length?`<button class="btn btn-sm btn-secondary" onclick="resetSysChecks('${ct}')">↺ Restore defaults</button>`
+                         :`<button class="btn btn-sm btn-secondary" onclick="cloneSysDefaults('${ct}')">✏️ Edit defaults</button>`}
+        </div>
+        <p style="font-size:10.5px;color:var(--muted);margin-top:8px;line-height:1.6">Leave untouched to keep the standards-based defaults. "Edit defaults" copies them in so you can add, remove or reword any item; "Restore defaults" clears your copy.</p>
+      </div>`;
+  }
   if(tv==="systems") h += `<!-- SYSTEMS -->
       <div style="margin-bottom:18px">
         <div style="font-weight:800;color:#00695C;font-size:13px;margin-bottom:8px">🧩 Systems <span style="font-weight:500;font-size:11px;color:var(--muted)">— used by device records & Maintenance / Incident reports (e.g. Fire Alarm, CCTV, ELV)</span></div>
@@ -472,3 +506,30 @@ window.importBackup = importBackup;
 // ═══════════════════════════════════════════════════════════════════════
 /* client state hoisted to top (TDZ fix) */
 
+
+// ── System check-list editing (Technical Classifications → Check Lists) ──
+window.addSysCheck=async function(tpl,order){
+  const el=document.getElementById("newSysCheck");
+  const name=(el&&el.value||"").trim();
+  if(!name) return toast("⚠ Type the check item first");
+  await fbSave("systemChecks",{template:tpl,name,order:order||0});
+  if(el) el.value="";
+  toast("✓ Check item added");
+  render();
+};
+// Copy the standards defaults into editable records so they can be reworded
+window.cloneSysDefaults=async function(tpl){
+  const defs=sysTemplate(tpl).checks||[];
+  if(!confirm(`Copy the ${defs.length} standard items for editing?\n\nYou can then reword or delete any of them.`)) return;
+  for(let i=0;i<defs.length;i++) await fbSave("systemChecks",{template:tpl,name:defs[i],order:i});
+  toast("✏️ Defaults copied — edit freely");
+  render();
+};
+window.resetSysChecks=async function(tpl){
+  const mine=(state.systemChecks||[]).filter(x=>x.template===tpl);
+  if(!mine.length) return;
+  if(!confirm(`Remove your ${mine.length} custom item(s) and go back to the standards defaults?`)) return;
+  for(const r of mine) await fbDelete("systemChecks",r.id);
+  toast("↺ Standards defaults restored");
+  render();
+};

@@ -27,6 +27,199 @@ function getTaskStatuses(){
   return fromDb.length ? fromDb : TASK_STATUSES;
 }
 // ═══════════════════════════════════════════════════════════════════════
+//  SYSTEM REPORT TEMPLATES — v126
+//  Each ELV discipline is DATA, not code: its info fields, its default
+//  inspection checklist (written against the governing standards) and the
+//  standards line printed in the PDF. Adding a seventh system later is a
+//  data block, never new logic.
+//  Checklists are defaults only — Technical Classifications → Check Lists
+//  overrides them per system (stored in the `systemChecks` collection).
+// ═══════════════════════════════════════════════════════════════════════
+const SYS_TEMPLATES = [
+  {
+    id:"cctv", name:"CCTV / Video Surveillance", icon:"📹", color:"#1565C0",
+    match:["cctv","camera","video","surveillance"],
+    standards:"IEC/EN 62676-4 (planning, installation, testing, commissioning & maintenance of video surveillance systems) · IEC 62676-1-1 & 1-2 (system and transmission performance) · BS 7958 (management & operation)",
+    fields:[
+      {k:"nvr",   l:"NVR / VMS make & model"},
+      {k:"cams",  l:"Number of cameras"},
+      {k:"ret",   l:"Recording retention (days)"},
+      {k:"stor",  l:"Storage capacity / free space"},
+    ],
+    checks:[
+      "Camera housings, brackets and mountings secure and undamaged",
+      "Field of view unobstructed and matching the design intent",
+      "Image quality, focus and resolution verified against DORI category",
+      "Day/night switching and IR illumination verified after dark",
+      "Recording continuity verified — no gaps in the review period",
+      "Retention period meets the agreed policy",
+      "Recorder / VMS health: disks, RAID status and temperature",
+      "Storage capacity and free space adequate",
+      "System date and time synchronised (NTP) across all devices",
+      "Motion detection / video analytics rules verified",
+      "Video export and playback test performed",
+      "PoE switches, power supplies and UPS verified",
+      "Cabling, connectors and terminations inspected",
+      "Remote and mobile access verified",
+      "User accounts and access rights reviewed",
+      "Firmware versions recorded and update status assessed",
+    ],
+  },
+  {
+    id:"fire", name:"Fire Alarm System", icon:"🔥", color:"#C62828",
+    match:["fire","alarm","fire alarm"],
+    standards:"NFPA 72 (National Fire Alarm and Signaling Code) · EN 54 series (fire detection and fire alarm systems) · ISO 7240",
+    fields:[
+      {k:"panel", l:"Panel manufacturer & model"},
+      {k:"zones", l:"Zones / loops"},
+      {k:"dets",  l:"Number of detectors"},
+      {k:"batt",  l:"Standby battery (Ah)"},
+    ],
+    checks:[
+      "Control panel in normal state — no fault, fire or disablement indications",
+      "Standby batteries: voltage, terminals and load test",
+      "Mains supply and charger output verified",
+      "Smoke detectors functionally tested per the sampling schedule",
+      "Heat detectors functionally tested",
+      "Manual call points operated and reset",
+      "Sounders and voice alarm audibility verified",
+      "Visual alarm devices (beacons / strobes) verified",
+      "Zone and loop indication correct at panel and repeaters",
+      "Cause & effect matrix verified",
+      "Interfaces tested: HVAC shutdown, door release, lift homing, suppression release",
+      "Fault and disablement indication test",
+      "Event log reviewed and printed",
+      "Remote monitoring / ARC signal transmission test",
+      "Zone charts, documentation and spare parts available on site",
+    ],
+  },
+  {
+    id:"acs", name:"Access Control System", icon:"🚪", color:"#00695C",
+    match:["access","acs","access control"],
+    standards:"EN/IEC 60839-11-1 (electronic access control — system and component requirements) · EN/IEC 60839-11-2 (application guidelines) · life-safety egress requirements",
+    fields:[
+      {k:"ctrl",  l:"Controller make & model"},
+      {k:"doors", l:"Number of doors"},
+      {k:"rdrs",  l:"Number of readers"},
+      {k:"cred",  l:"Credential type"},
+      {k:"srv",   l:"Server / software version"},
+    ],
+    checks:[
+      "Controllers, power supplies and enclosures inspected",
+      "Readers operational — credential read range and user feedback",
+      "Door contacts and request-to-exit devices functional",
+      "Locking devices (maglocks / electric strikes) operating correctly",
+      "Fail-safe / fail-secure behaviour verified against the fire strategy",
+      "Emergency release and break-glass units tested",
+      "Interface with fire alarm verified — doors release on alarm",
+      "Door forced-open and held-open alarms verified",
+      "Anti-passback and interlock rules verified",
+      "Time schedules and access levels verified",
+      "Battery backup autonomy verified",
+      "Credential enrolment and revocation audit performed",
+      "Event log and audit trail reviewed",
+      "Server / controller database backup verified",
+      "Tamper detection tested",
+    ],
+  },
+  {
+    id:"ids", name:"Intrusion / Hold-up System", icon:"🚨", color:"#7B1FA2",
+    match:["intrusion","intruder","burglar","ids"],
+    standards:"EN 50131-1 (intrusion and hold-up systems — system requirements, security Grades 1–4) · IEC 62642 · EN 50131-6 (power supplies) · EN 50130-5 (environmental classes)",
+    fields:[
+      {k:"grade", l:"Security grade (1–4)"},
+      {k:"envc",  l:"Environmental class (I–IV)"},
+      {k:"panel", l:"Panel make & model"},
+      {k:"zones", l:"Number of zones"},
+      {k:"arc",   l:"ARC / monitoring centre"},
+      {k:"paths", l:"Communication paths"},
+    ],
+    checks:[
+      "Control and indicating equipment inspected — no fault conditions",
+      "Keypads and arming devices operational",
+      "Movement detectors walk-tested (PIR / dual-technology)",
+      "Magnetic and opening contacts verified",
+      "Glass-break and shock detectors tested",
+      "Hold-up and panic devices tested",
+      "Internal and external sounders / strobes verified",
+      "Tamper circuits on all devices and enclosures tested",
+      "Standby battery autonomy verified for the declared grade",
+      "Entry / exit timers and zone programming verified",
+      "Communication paths tested (IP / GSM — dual path where fitted)",
+      "Signal transmission to the alarm receiving centre confirmed",
+      "Set and unset (arming) sequence verified",
+      "Event log reviewed",
+      "Declared security grade still appropriate to the assessed risk",
+    ],
+  },
+  {
+    id:"net", name:"Network / Structured Cabling", icon:"🌐", color:"#2E5FA3",
+    match:["network","networking","lan","cabling","it"],
+    standards:"ANSI/TIA-568 (balanced twisted-pair and optical cabling) · TIA-606 (administration & labelling) · TIA-607 (bonding & grounding) · TIA-569 (pathways & spaces) · ISO/IEC 11801 · TIA-942 (data centres)",
+    fields:[
+      {k:"cat",   l:"Cable category / fibre type"},
+      {k:"links", l:"Number of links tested"},
+      {k:"sw",    l:"Switch models"},
+      {k:"tester",l:"Tester model & calibration date"},
+    ],
+    checks:[
+      "Permanent-link certification: wire map, length, insertion loss, NEXT / PS-NEXT, return loss (TIA-568)",
+      "Fibre links tested: insertion loss, OTDR trace and connector end-face inspection",
+      "Labelling and administration records per TIA-606",
+      "Bonding and grounding verified per TIA-607",
+      "Pathways, bend radius and cable dressing inspected (TIA-569)",
+      "Patch panels and outlets secure and correctly terminated",
+      "Rack / cabinet condition, airflow and cable management",
+      "Switch health: port errors, CRC counters, utilisation and temperature",
+      "Configuration backups taken and stored securely",
+      "Firmware versions recorded and update status assessed",
+      "UPS runtime and battery health verified",
+      "Environmental conditions within limits (TIA-942)",
+      "IP addressing and VLAN documentation current",
+      "Redundancy and failover paths verified",
+      "Remote management access and credentials reviewed",
+    ],
+  },
+  {
+    id:"elv", name:"ELV Systems (General)", icon:"⚡", color:"#E65100",
+    match:["elv","extra low voltage","pa","public address","bms"],
+    standards:"EN 50130-4 (EMC immunity — product family standard covering fire, intruder, hold-up, CCTV, access control and social alarm components) · EN 50130-5 (environmental) · discipline standards per sub-system",
+    fields:[
+      {k:"subs",  l:"Sub-systems covered"},
+      {k:"integ", l:"Integration platform"},
+    ],
+    checks:[
+      "All ELV sub-system panels inspected and in normal state",
+      "Power supplies, UPS and battery autonomy verified",
+      "Earthing and bonding verified",
+      "Containment, trunking and cable routes inspected",
+      "Labelling and as-built documentation current",
+      "Integration and interfaces between sub-systems verified",
+      "EMC and environmental conditions acceptable (EN 50130-4 / -5)",
+      "Public address / voice evacuation audibility verified",
+      "Time synchronisation across sub-systems",
+      "Operator training records and O&M manuals available",
+      "Spare parts inventory verified",
+      "Outstanding defects from the previous visit closed",
+    ],
+  },
+];
+const sysTemplate = (id)=> SYS_TEMPLATES.find(t=>t.id===id) || SYS_TEMPLATES[0];
+// Effective checklist: admin-edited items for this template, else the standards defaults
+function getSysCheckItems(tplId){
+  const custom=(state.systemChecks||[]).filter(x=>x.template===tplId)
+    .slice().sort((a,b)=>(a.order||0)-(b.order||0)).map(x=>x.name).filter(Boolean);
+  return custom.length ? custom : sysTemplate(tplId).checks;
+}
+// Best-guess mapping from a device's System field to a report template
+function sysTemplateForName(name){
+  const n=String(name||"").trim().toLowerCase();
+  if(!n) return null;
+  return SYS_TEMPLATES.find(t=>t.match.some(m=>n.includes(m))) || null;
+}
+Object.assign(window,{SYS_TEMPLATES,sysTemplate,getSysCheckItems,sysTemplateForName});
+
+// ═══════════════════════════════════════════════════════════════════════
 //  WORK ITEMS (threads) — v125
 //  A daily entry is an EVENT (one visit/session). Several entries about the
 //  same job form ONE work item whose CURRENT status is the status of its
@@ -1334,6 +1527,7 @@ async function subscribeData(){
     ["emailContacts","emailContacts"],
     ["settings","settingsDocs"],
     ["systemTypes","systemTypes"],
+    ["systemChecks","systemChecks"],
     ["incidents","incidents"],
     ["publicShares","publicSharesMeta"],
     ["trash","trash"],

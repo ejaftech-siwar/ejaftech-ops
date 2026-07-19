@@ -5,11 +5,15 @@ const REF_PREFIX = {
   HR_REPORT:"HR", DAILY_LOG:"DL", TECHNICAL_REPORT:"TR", PERIOD_REPORT:"RPT",
   PREVENTIVE_MAINTENANCE:"PM", INCIDENT:"INC",
   FM200_REFILLING:"FMR", FM200_TEST:"FMT",
+  CCTV_REPORT:"CCTV", FIRE_ALARM_REPORT:"FA", ACCESS_CONTROL_REPORT:"ACS",
+  INTRUSION_REPORT:"IDS", NETWORK_REPORT:"NET", ELV_REPORT:"ELV", SYSTEM_REPORT:"SYS",
   ASSET_REPORT:"AST", CLIENT_REPORT:"CLR", DASHBOARD:"DSH", GENERAL:"RPT",
 };
 const REF_TYPE_LABEL = {
   HR:"HR Report", DL:"Daily Log Report", TR:"Technical Report", RPT:"Flexible Report",
   PM:"PM Report", INC:"Incident Report", FMR:"FM-200 Refilling", FMT:"FM-200 Test",
+  CCTV:"CCTV Report", FA:"Fire Alarm Report", ACS:"Access Control Report",
+  IDS:"Intrusion Report", NET:"Network Report", ELV:"ELV Report", SYS:"System Report",
   AST:"Asset Report", CLR:"Client Report", DSH:"Dashboard Export",
 };
 window.REF_PREFIX=REF_PREFIX; window.REF_TYPE_LABEL=REF_TYPE_LABEL;

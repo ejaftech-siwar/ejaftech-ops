@@ -1141,7 +1141,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v125';"
+      var swCode = "const CACHE='ejaftech-v126';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
@@ -1919,3 +1919,265 @@ window.generateFM200Test=async function(){
   toast("FM-200 Test Report ready!");
 };
 Object.assign(window,{renderFM200Section});
+
+// ═══════════════════════════════════════════════════════════════════════
+//  SYSTEM REPORTS — one engine, six disciplines (v126)
+//  Auto mode pulls the device inventory straight from Assets (filtered by
+//  project + the System field added in v113); manual mode types everything.
+//  Checklists come from Technical Classifications when customised.
+// ═══════════════════════════════════════════════════════════════════════
+window._srTpl=window._srTpl||"";
+window._srMode=window._srMode||"records";
+window._sr=window._sr||{client:"",clientOther:false,project:"",projectOther:false,site:"",siteOther:false,
+  date:"",time:"",reference:"",representative:"",technician:"",engName:"",repName:"",repTitle:"",
+  resultText:"",notes:"",fields:{}};
+window._srDevs=window._srDevs||[];   // [{name,model,serial,location,result,remark}]
+window._srChk=window._srChk||{};     // {tplId: {idx: {s,r}}}
+window._srPhotos=window._srPhotos||[];
+
+function _srChkState(tpl,i){
+  window._srChk[tpl]=window._srChk[tpl]||{};
+  if(!window._srChk[tpl][i]) window._srChk[tpl][i]={s:"Pass",r:""};
+  return window._srChk[tpl][i];
+}
+window.srSetChk=function(tpl,i,v){ _srChkState(tpl,i).s=v; render(); };
+window.srSetChkRemark=function(tpl,i,v){ _srChkState(tpl,i).r=v; };
+window.srAddDev=function(){ window._srDevs.push({name:"",model:"",serial:"",location:"",result:"Pass",remark:""}); render(); };
+window.srDelDev=function(i){ window._srDevs.splice(i,1); render(); };
+window.srAddPhotos=async function(input){
+  try{
+    const files=Array.from(input.files||[]); input.value="";
+    for(const f of files){
+      if(window._srPhotos.length>=12){ toast("Max 12 photos"); break; }
+      const b64=await compressImage(f,1024,0.6); const kb=base64SizeKB(b64);
+      if(kb>500){ toast(`Image too large (${kb} KB). Skipped.`); continue; }
+      window._srPhotos.push({data:b64,sizeKB:kb});
+    }
+    render();
+  }catch(e){ toast("Photo error: "+(e.message||"failed")); }
+};
+window.srDelPhoto=function(i){ window._srPhotos.splice(i,1); render(); };
+
+// Pull the matching devices out of Assets for the chosen project + discipline
+window.srLoadDevices=function(){
+  const tpl=sysTemplate(window._srTpl);
+  const proj=(window._sr.project||"").trim();
+  if(!proj) return toast("⚠ Pick the project first");
+  const pool=(state.devices||[]).filter(d=>{
+    if((d.project||"").trim()!==proj) return false;
+    if(window._sr.site && ![d.site,d.area].includes(window._sr.site) &&
+       [d.area,d.site].filter(Boolean).join(" › ")!==window._sr.site) return false;
+    const t=sysTemplateForName(d.system);
+    return t ? t.id===tpl.id : false;
+  });
+  if(!pool.length) return toast(`No devices tagged "${tpl.name.split(" ")[0]}" in this project — tag them in Assets → System, or add rows manually`);
+  window._srDevs=pool.map(d=>({name:d.deviceName||"",model:d.model||"",serial:d.serialNumber||"",
+    location:[d.area,d.site].filter(Boolean).join(" › "),result:"Pass",remark:""}));
+  toast(`✓ ${pool.length} device(s) loaded from Assets`);
+  render();
+};
+
+function renderSystemReports(){
+  if(!(isAdmin()||isHR()||hasCap("canExport"))) return `<div class="card"><div class="empty">No access.</div></div>`;
+  // ── template picker ──
+  if(!window._srTpl){
+    return `${_rptHero("📋","System Reports","Standards-based inspection & test reports for every ELV discipline","linear-gradient(135deg,#37474F 0%,#1B2A33 100%)")}
+    <div class="card">
+      <div class="card-title">Choose a system</div>
+      <div style="display:grid;gap:8px;margin-top:10px">
+        ${SYS_TEMPLATES.map(t=>`<button class="btn btn-secondary" style="text-align:left;padding:12px 14px;border-left:4px solid ${t.color}" onclick="window._srTpl='${t.id}';render()">
+          <div style="font-size:14px;font-weight:800;color:${t.color}">${t.icon} ${escapeHtml(t.name)}</div>
+          <div style="font-size:10.5px;color:var(--muted);margin-top:3px;line-height:1.5;white-space:normal">📐 ${escapeHtml(t.standards.split("·")[0].trim())}</div>
+        </button>`).join("")}
+      </div>
+    </div>`;
+  }
+
+  const tpl=sysTemplate(window._srTpl), m=window._sr, mode=window._srMode;
+  const items=getSysCheckItems(tpl.id);
+  const clientOpts=(state.clients||[]).map(c=>c.name).filter(Boolean).sort();
+  const projOpts=(state.projects||[]).map(p=>(p.name||"").trim()).filter(Boolean).sort();
+  const pr=(state.projects||[]).find(p=>(p.name||"").trim()===m.project);
+  const siteOpts=pr?getProjectAreas(pr).filter(a=>a.active!==false).flatMap(a=>{
+    const ss=(a.sites||[]).filter(x=>x.active!==false);
+    return ss.length?ss.map(x=>[a.name,x.name].filter(Boolean).join(" › ")):[a.name];
+  }):[];
+  const fails=items.filter((_,i)=>_srChkState(tpl.id,i).s==="Fail").length;
+
+  return `
+  ${_rptHero(tpl.icon,tpl.name,"Inspection & Test Report — "+tpl.standards.split("·")[0].trim(),`linear-gradient(135deg,${tpl.color} 0%,#1B2A33 100%)`)}
+  <div class="card" style="padding:10px 12px">
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <button class="btn btn-secondary" style="flex:0 0 auto" onclick="window._srTpl='';render()">↩ Systems</button>
+      <button class="btn ${mode!=="manual"?"btn-primary":"btn-secondary"}" style="flex:1" onclick="window._srMode='records';render()">📊 From records</button>
+      <button class="btn ${mode==="manual"?"btn-primary":"btn-secondary"}" style="flex:1" onclick="window._srMode='manual';render()">✍️ Manual</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">01</span> General Information</div>
+    <div class="form-grid" style="margin-top:10px">
+      ${_syncSel("👤 Client",clientOpts,"window._sr.client","window._sr.clientOther",m.client,m.clientOther,"Client name")}
+      ${mode==="manual"
+        ? `<div class="field"><label>📁 Project / Facility</label><input value="${escapeHtml(m.project||"")}" oninput="window._sr.project=this.value"></div>
+           <div class="field"><label>📍 Site / Room</label><input value="${escapeHtml(m.site||"")}" oninput="window._sr.site=this.value"></div>`
+        : _syncSel("📁 Project / Facility",projOpts,"window._sr.project","window._sr.projectOther",m.project,m.projectOther,"Project","window._sr.site='';")
+          + (siteOpts.length&&!m.projectOther
+              ? _syncSel("📍 Site / Room",siteOpts,"window._sr.site","window._sr.siteOther",m.site,m.siteOther,"Site")
+              : `<div class="field"><label>📍 Site / Room</label><input value="${escapeHtml(m.site||"")}" oninput="window._sr.site=this.value"></div>`)}
+      <div class="field"><label>📅 Date</label><input type="date" value="${m.date||""}" onchange="window._sr.date=this.value"></div>
+      <div class="field"><label>🕐 Time</label><input type="time" value="${m.time||""}" onchange="window._sr.time=this.value"></div>
+      <div class="field"><label>Reference</label><input value="${escapeHtml(m.reference||"")}" oninput="window._sr.reference=this.value" placeholder="e.g. #S03890"></div>
+      <div class="field"><label>👤 Client Representative</label><input value="${escapeHtml(m.representative||"")}" oninput="window._sr.representative=this.value"></div>
+      <div class="field"><label>👷 Technician</label><input value="${escapeHtml(m.technician||"")}" oninput="window._sr.technician=this.value"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">02</span> System Information</div>
+    <div class="form-grid" style="margin-top:10px">
+      ${tpl.fields.map(f=>`<div class="field"><label>${escapeHtml(f.l)}</label>
+        <input value="${escapeHtml((m.fields||{})[f.k]||"")}" oninput="window._sr.fields['${f.k}']=this.value"></div>`).join("")}
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">03</span> Device Inventory & Results <span style="font-size:10px;color:var(--muted);font-weight:500">(${window._srDevs.length})</span></div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin:10px 0">
+      ${mode!=="manual"?`<button class="btn btn-sm" style="background:${tpl.color};color:#fff;border:none;font-weight:700" onclick="srLoadDevices()">⬇ Load from Assets</button>`:""}
+      <button class="btn btn-sm btn-secondary" onclick="srAddDev()">+ Add device</button>
+      ${window._srDevs.length?`<button class="btn btn-sm btn-secondary" onclick="window._srDevs=[];render()">Clear</button>`:""}
+    </div>
+    ${window._srDevs.map((d,i)=>`<div style="border:1px solid var(--line);border-radius:9px;padding:9px;margin-bottom:8px;background:var(--card,#fff)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <span style="font-size:10.5px;font-weight:800;color:${tpl.color}">${tpl.icon} DEVICE ${i+1}</span>
+        <div style="display:flex;gap:4px;align-items:center">
+          ${["Pass","Fail","N/A"].map(o=>`<button class="btn btn-sm ${d.result===o?"":"btn-secondary"}" style="${d.result===o?`background:${o==="Pass"?"#2E7D32":o==="Fail"?"#C62828":"#5B6C86"};color:#fff;border:none;`:""}font-size:10px;font-weight:800" onclick="window._srDevs[${i}].result='${o}';render()">${o}</button>`).join("")}
+          <button class="btn btn-sm" style="background:#FDECEA;color:#C62828;border:none" onclick="srDelDev(${i})">×</button>
+        </div>
+      </div>
+      <div class="form-grid">
+        <div class="field"><label>Name</label><input value="${escapeHtml(d.name||"")}" oninput="window._srDevs[${i}].name=this.value"></div>
+        <div class="field"><label>Model</label><input value="${escapeHtml(d.model||"")}" oninput="window._srDevs[${i}].model=this.value"></div>
+        <div class="field"><label>Serial</label><input value="${escapeHtml(d.serial||"")}" oninput="window._srDevs[${i}].serial=this.value"></div>
+        <div class="field"><label>Location</label><input value="${escapeHtml(d.location||"")}" oninput="window._srDevs[${i}].location=this.value"></div>
+        <div class="field" style="grid-column:1/-1"><label>Remarks</label><input value="${escapeHtml(d.remark||"")}" oninput="window._srDevs[${i}].remark=this.value"></div>
+      </div>
+    </div>`).join("")}
+  </div>
+
+  <div class="card">
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">04</span> Inspection Check List <span style="font-size:10px;color:var(--muted);font-weight:500">(${items.length}${fails?` · ${fails} failed`:""})</span></div>
+    ${items.map((it,i)=>{const st=_srChkState(tpl.id,i);
+      return `<div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap;padding-bottom:8px;border-bottom:1px solid var(--line)">
+        <span style="font-size:10px;font-weight:800;color:var(--muted);min-width:22px">${String(i+1).padStart(2,"0")}</span>
+        <span style="flex:2;min-width:170px;font-size:12px">${escapeHtml(it)}</span>
+        <div style="display:flex;gap:4px">
+          ${["Pass","Fail","N/A"].map(o=>`<button class="btn btn-sm ${st.s===o?"":"btn-secondary"}" style="${st.s===o?`background:${o==="Pass"?"#2E7D32":o==="Fail"?"#C62828":"#5B6C86"};color:#fff;border:none;`:""}font-size:10px;font-weight:800" onclick="srSetChk('${tpl.id}',${i},'${o}')">${o}</button>`).join("")}
+        </div>
+        <input value="${escapeHtml(st.r||"")}" oninput="srSetChkRemark('${tpl.id}',${i},this.value)" placeholder="Remarks" style="flex:1;min-width:120px">
+      </div>`;}).join("")}
+    <p style="font-size:10.5px;color:var(--muted);margin-top:10px">Items follow ${escapeHtml(tpl.standards.split("·")[0].trim())}. Edit them in <strong>Technical Classifications → Check Lists</strong>.</p>
+  </div>
+
+  <div class="card">
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">05</span> Result of Test</div>
+    <textarea rows="4" oninput="window._sr.resultText=this.value" placeholder="Overall condition, findings and recommendations…" style="width:100%;margin-top:8px">${escapeHtml(m.resultText||"")}</textarea>
+  </div>
+
+  <div class="card">
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">06</span> Photos <span style="font-size:10px;color:var(--muted);font-weight:500">(max 12)</span></div>
+    <input type="file" accept="image/*" multiple onchange="srAddPhotos(this)" style="margin-top:8px">
+    ${window._srPhotos.length?`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+      ${window._srPhotos.map((p,i)=>`<div style="position:relative"><img src="${p.data}" style="width:76px;height:76px;object-fit:cover;border-radius:8px;border:1px solid var(--line)"><button onclick="srDelPhoto(${i})" style="position:absolute;top:-6px;right:-6px;background:#C62828;color:#fff;border:none;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:11px;font-weight:800">×</button></div>`).join("")}
+    </div>`:""}
+  </div>
+
+  <div class="card">
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">07</span> Report Approval</div>
+    <div class="form-grid" style="margin-top:10px">
+      <div class="field"><label>EJAF Engineer</label><input value="${escapeHtml(m.engName||"")}" oninput="window._sr.engName=this.value" placeholder="Eng. …"></div>
+      <div class="field"><label>Client approver</label><input value="${escapeHtml(m.repName||"")}" oninput="window._sr.repName=this.value" placeholder="Mr. …"></div>
+      <div class="field"><label>Approver title</label><input value="${escapeHtml(m.repTitle||"")}" oninput="window._sr.repTitle=this.value" placeholder="e.g. IT Manager"></div>
+    </div>
+  </div>
+
+  <div class="card" style="background:linear-gradient(135deg,#1B3A6B 0%,#2E5FA3 100%);border:2px solid #C9A84C">
+    <button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:800;border:none;width:100%" onclick="generateSystemReport()">📄 Generate ${escapeHtml(tpl.name.split(" ")[0])} Report (PDF)</button>
+  </div>`;
+}
+
+window.generateSystemReport=async function(){
+  const tpl=sysTemplate(window._srTpl), m=window._sr;
+  if(!(m.client||m.project)) return toast("⚠ Enter at least the client or project");
+  const items=getSysCheckItems(tpl.id);
+  const box="\u2610", tick="\u2611";
+  const devs=window._srDevs.filter(d=>d.name||d.serial||d.model);
+  const devFail=devs.filter(d=>d.result==="Fail").length;
+  const chkFail=items.filter((_,i)=>_srChkState(tpl.id,i).s==="Fail").length;
+  const infoRow=(l,v)=>`<tr><td style="border:1px solid #ccc;background:#F0F4FA;padding:6px 10px;font-weight:800;font-size:11px;width:42%">${l}</td><td style="border:1px solid #ccc;padding:6px 10px;font-size:12px">${v||"&nbsp;"}</td></tr>`;
+
+  const bodyHTML=`${_fmPrintBar}
+    <div style="border:1.5px solid #1B3A6B;border-radius:6px;padding:10px 14px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+      <div>
+        <div style="font-family:'DM Serif Display',serif;font-size:19px;color:#03308B">INSPECTION &amp; TEST REPORT</div>
+        <div style="font-size:12px;font-weight:800;color:${tpl.color}">${tpl.icon} ${escapeHtml(tpl.name.toUpperCase())}</div>
+      </div>
+      <table style="border-collapse:collapse;font-size:11px">
+        ${m.reference?`<tr><td style="padding:2px 8px;font-weight:800;color:#555">Reference</td><td style="padding:2px 8px">${escapeHtml(m.reference)}</td></tr>`:""}
+        <tr><td style="padding:2px 8px;font-weight:800;color:#555">Date of Report</td><td style="padding:2px 8px">${m.date?fmtDate(m.date):"—"}</td></tr>
+        <tr><td style="padding:2px 8px;font-weight:800;color:#555">Test Time</td><td style="padding:2px 8px">${m.time||"—"}</td></tr>
+      </table>
+    </div>
+    <div class="ksec"><span class="kbad">01</span><h3>Client Information</h3></div>
+    <table style="border-collapse:collapse;width:100%">
+      ${infoRow("Company",escapeHtml(m.client))}
+      ${infoRow("Location",escapeHtml([m.project,m.site].filter(Boolean).join(" — ")))}
+      ${infoRow("Representative",escapeHtml(m.representative))}
+    </table>
+    ${tpl.fields.length?`<div class="ksec"><span class="kbad">02</span><h3>System Information</h3></div>
+    <table style="border-collapse:collapse;width:100%">
+      ${tpl.fields.map(f=>infoRow(escapeHtml(f.l),escapeHtml((m.fields||{})[f.k]||""))).join("")}
+    </table>`:""}
+    ${devs.length?`<div class="ksec"><span class="kbad">03</span><h3>Device Inventory &amp; Test Results (${devs.length})</h3></div>
+    <table><thead><tr><th style="width:32px">No.</th><th>Device</th><th>Model</th><th>Serial</th><th>Location</th><th style="width:48px">PASS</th><th style="width:48px">FAIL</th><th>Remarks</th></tr></thead>
+    <tbody>${devs.map((d,i)=>`<tr>
+      <td style="text-align:center">${String(i+1).padStart(2,"0")}</td>
+      <td><strong>${escapeHtml(d.name||"—")}</strong></td><td style="font-size:10px">${escapeHtml(d.model||"—")}</td>
+      <td style="font-size:10px">${escapeHtml(d.serial||"—")}</td><td style="font-size:10px">${escapeHtml(d.location||"—")}</td>
+      <td style="text-align:center;font-size:15px">${d.result==="Pass"?tick:box}</td>
+      <td style="text-align:center;font-size:15px">${d.result==="Fail"?tick:box}</td>
+      <td style="font-size:10px">${escapeHtml(d.remark||(d.result==="N/A"?"N/A":"—"))}</td></tr>`).join("")}</tbody></table>
+    <div style="margin-top:5px;font-size:11px;font-weight:700;color:${devFail?"#C62828":"#2E7D32"}">${devFail?`${devFail} device(s) FAILED`:`All ${devs.length} device(s) passed \u2713`}</div>`:""}
+    <div class="ksec"><span class="kbad">${devs.length?"04":"03"}</span><h3>Inspection Check List</h3></div>
+    <table><thead><tr><th style="width:32px">No.</th><th>Description</th><th style="width:48px">PASS</th><th style="width:48px">FAIL</th><th>Remarks</th></tr></thead>
+    <tbody>${items.map((it,i)=>{const st=_srChkState(tpl.id,i);
+      return `<tr><td style="text-align:center">${String(i+1).padStart(2,"0")}</td>
+        <td style="font-size:11px">${escapeHtml(it)}</td>
+        <td style="text-align:center;font-size:15px">${st.s==="Pass"?tick:box}</td>
+        <td style="text-align:center;font-size:15px">${st.s==="Fail"?tick:box}</td>
+        <td style="font-size:10px">${escapeHtml(st.r||(st.s==="N/A"?"N/A":"—"))}</td></tr>`;}).join("")}</tbody></table>
+    <div style="margin-top:5px;font-size:11px;font-weight:700;color:${chkFail?"#C62828":"#2E7D32"}">Overall: ${chkFail?`${chkFail} item(s) FAILED — corrective action required`:`all ${items.length} items PASSED \u2713`}</div>
+    <div class="ksec"><span class="kbad">${devs.length?"05":"04"}</span><h3>Result of Test</h3></div>
+    <div style="border:1px solid #ccc;border-radius:6px;padding:12px;font-size:12px;line-height:1.8;min-height:60px;white-space:pre-wrap">${escapeHtml((m.resultText||"").trim())||"&nbsp;"}</div>
+    ${_rptPhotoGrid(window._srPhotos,"Photos")}
+    <div class="ksec"><span class="kbad">${devs.length?"06":"05"}</span><h3>Report Approval</h3></div>
+    <table style="border-collapse:collapse;width:100%"><tr>
+      <td style="border:1px solid #ccc;padding:14px;width:50%;vertical-align:top;font-size:12px">
+        <strong>${escapeHtml(m.engName||m.technician||"Eng.")}</strong><br>Technical Engineer<br>EJAF Technology<br><br><span style="color:#888;font-size:10.5px">Date &amp; Signature</span>
+      </td>
+      <td style="border:1px solid #ccc;padding:14px;width:50%;vertical-align:top;font-size:12px">
+        <strong>${escapeHtml(m.repName||m.representative||"Mr.")}</strong><br>${escapeHtml(m.repTitle||"")}<br>${escapeHtml(m.client||"")}<br><br><span style="color:#888;font-size:10.5px">Date &amp; Signature</span>
+      </td>
+    </tr></table>
+    <div style="margin-top:14px;border:1px solid #ddd;border-radius:6px;padding:10px 12px;display:flex;gap:14px;align-items:center">
+      <div style="flex:1;font-size:10px;font-style:italic;color:#555;line-height:1.7">This inspection and test report has been carried out by EJAF's competent engineers on the date stated above, in accordance with the applicable international standards for this system.</div>
+      <div style="font-size:9.5px;font-style:italic;font-weight:700;color:#333;max-width:200px;line-height:1.6">Reference Standards<br><span style="font-weight:500">${escapeHtml(tpl.standards)}</span></div>
+    </div>
+    <script>setTimeout(()=>window.print(),500)<\/script>`;
+
+  const type={cctv:"CCTV_REPORT",fire:"FIRE_ALARM_REPORT",acs:"ACCESS_CONTROL_REPORT",ids:"INTRUSION_REPORT",net:"NETWORK_REPORT",elv:"ELV_REPORT"}[tpl.id]||"SYSTEM_REPORT";
+  await openReportPDF(type,[m.date?fmtDate(m.date):"",m.client,m.project].filter(Boolean).join(" · ")||"Manual",bodyHTML);
+  toast(`${tpl.name.split(" ")[0]} report ready!`);
+};
+Object.assign(window,{renderSystemReports});
