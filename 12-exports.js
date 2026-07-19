@@ -1141,7 +1141,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v120';"
+      var swCode = "const CACHE='ejaftech-v121';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
@@ -1454,6 +1454,23 @@ window.incManAddPhotos=async function(input){
 };
 window.incManDelPhoto=function(i){ window._incManPhotos.splice(i,1); render(); };
 
+// Synced select bound to app data, with an "✍️ Other" escape hatch that
+// swaps to a free-text input (↩ returns to the list). `flagPath` stores the
+// other-mode boolean on the same state object.
+function _syncSel(label,opts,path,flagPath,val,isOther,ph,extraOnChange){
+  const oc=extraOnChange||"";
+  if(isOther) return `<div class="field"><label>${label}</label>
+    <div style="display:flex;gap:6px"><input value="${escapeHtml(val||"")}" oninput="${path}=this.value" placeholder="${ph||"Type manually…"}" style="flex:1">
+    <button class="btn btn-sm btn-secondary" onclick="${flagPath}=false;${path}='';${oc}render()">↩</button></div></div>`;
+  return `<div class="field"><label>${label}</label>
+    <select onchange="if(this.value==='__other'){${flagPath}=true;${path}='';}else{${path}=this.value;}${oc}render()">
+      <option value="">— Select —</option>
+      ${opts.map(o=>`<option value="${escapeHtml(o)}" ${val===o?"selected":""}>${escapeHtml(o)}</option>`).join("")}
+      <option value="__other">✍️ Other — type manually…</option>
+    </select></div>`;
+}
+const _projNames=()=> (state.projects||[]).map(p=>(p.name||"").trim()).filter(Boolean).sort();
+const _sysNames=()=> (state.systemTypes||[]).slice().sort((a,b)=>(a.order||0)-(b.order||0)).map(s=>s.name);
 const _mfield=(label,path,val,ph,type)=>`<div class="field"><label>${label}</label>
   <input type="${type||"text"}" value="${escapeHtml(val||"")}" ${type?'onchange':'oninput'}="${path}=this.value${type?';render()':''}" placeholder="${ph||""}"></div>`;
 
@@ -1463,8 +1480,8 @@ function _pmManualLayout(){
   <div class="card">
     <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">01</span> Details</div>
     <div class="form-grid" style="margin-top:10px">
-      ${_mfield("📁 Project","window._pmMan.project",m.project,"e.g. Asiacell SLA")}
-      ${_mfield("🧩 System","window._pmMan.system",m.system,"e.g. CCTV")}
+      ${_syncSel("📁 Project",_projNames(),"window._pmMan.project","window._pmMan.projectOther",m.project,m.projectOther,"e.g. Asiacell SLA")}
+      ${_syncSel("🧩 System",_sysNames(),"window._pmMan.system","window._pmMan.systemOther",m.system,m.systemOther,"e.g. CCTV")}
       ${_mfield("From","window._pmMan.from",m.from,"","date")}
       ${_mfield("To","window._pmMan.to",m.to,"","date")}
     </div>
@@ -1533,11 +1550,28 @@ function _incManualLayout(){
         <input value="${escapeHtml(m.title||"")}" oninput="window._incMan.title=this.value" placeholder="e.g. CCTV camera 12 offline"></div>
       ${_mfield("📅 Incident date","window._incMan.date",m.date,"","date")}
       ${_mfield("🕐 Time","window._incMan.time",m.time,"","time")}
-      ${_mfield("📁 Project","window._incMan.project",m.project,"Project name")}
-      ${_mfield("🧩 System","window._incMan.system",m.system,"e.g. Fire Alarm")}
-      ${_mfield("🗺️ Area","window._incMan.area",m.area,"optional")}
-      ${_mfield("📍 Site","window._incMan.site",m.site,"optional")}
-      ${_mfield("📟 Device","window._incMan.device",m.device,"name / model / serial — optional")}
+      ${_syncSel("📁 Project",_projNames(),"window._incMan.project","window._incMan.projectOther",m.project,m.projectOther,"Project name","window._incMan.area='';window._incMan.site='';window._incMan.device='';")}
+      ${_syncSel("🧩 System",_sysNames(),"window._incMan.system","window._incMan.systemOther",m.system,m.systemOther,"e.g. Fire Alarm","window._incMan.device='';")}
+      ${(()=>{
+        if(m.projectOther||!m.project){
+          return _mfield("🗺️ Area","window._incMan.area",m.area,"optional")+_mfield("📍 Site","window._incMan.site",m.site,"optional")+_mfield("📟 Device","window._incMan.device",m.device,"name / model / serial — optional");
+        }
+        const pr=(state.projects||[]).find(p=>(p.name||"").trim()===m.project);
+        const areas=pr?getProjectAreas(pr).filter(a=>a.active!==false):[];
+        const selArea=areas.find(a=>a.name===m.area);
+        const sites=(selArea?.sites||[]).filter(x=>x.active!==false);
+        const devPool=(state.devices||[]).filter(d=>(d.project||"").trim()===m.project
+          &&(!m.area||d.area===m.area)&&(!m.site||d.site===m.site)
+          &&(!m.system||!d.system||d.system===m.system));
+        let h="";
+        h+=areas.length?_syncSel("🗺️ Area",areas.map(a=>a.name),"window._incMan.area","window._incMan.areaOther",m.area,m.areaOther,"optional","window._incMan.site='';window._incMan.device='';")
+                       :_mfield("🗺️ Area","window._incMan.area",m.area,"optional");
+        h+=(!m.areaOther&&sites.length)?_syncSel("📍 Site",sites.map(x=>x.name),"window._incMan.site","window._incMan.siteOther",m.site,m.siteOther,"optional","window._incMan.device='';")
+                       :_mfield("📍 Site","window._incMan.site",m.site,"optional");
+        h+=devPool.length?_syncSel("📟 Device ("+devPool.length+" in scope)",devPool.map(d=>[d.deviceName,d.model,d.serialNumber].filter(Boolean).join(" · ")),"window._incMan.device","window._incMan.deviceOther",m.device,m.deviceOther,"name / model / serial")
+                       :_mfield("📟 Device","window._incMan.device",m.device,"name / model / serial — optional");
+        return h;
+      })()}
       <div class="field"><label>⚠️ Severity</label>
         <select onchange="window._incMan.severity=this.value">${sevs.map(s=>`<option ${m.severity===s?"selected":""}>${s}</option>`).join("")}</select></div>
       <div class="field"><label>📊 Status</label>
@@ -1693,8 +1727,20 @@ function renderFM200Section(){
               <option value="__other">✍️ Other — type manually…</option>
             </select>`}
       </div>
-      <div class="field"><label>📁 Project / Facility</label><input value="${escapeHtml(m.project||"")}" oninput="window._fm.project=this.value"></div>
-      <div class="field"><label>📍 Site / Room</label><input value="${escapeHtml(m.site||"")}" oninput="window._fm.site=this.value" placeholder="e.g. Server Room B1"></div>
+      ${_syncSel("📁 Project / Facility",_projNames(),"window._fm.project","window._fm.projectOther",m.project,m.projectOther,"Project / facility name","window._fm.site='';")}
+      ${(()=>{
+        if(m.projectOther||!m.project)
+          return `<div class="field"><label>📍 Site / Room</label><input value="${escapeHtml(m.site||"")}" oninput="window._fm.site=this.value" placeholder="e.g. Server Room B1"></div>`;
+        const pr=(state.projects||[]).find(p=>(p.name||"").trim()===m.project);
+        const areas=pr?getProjectAreas(pr).filter(a=>a.active!==false):[];
+        const combos=areas.flatMap(a=>{
+          const ss=(a.sites||[]).filter(x=>x.active!==false);
+          return ss.length?ss.map(x=>[a.name,x.name].filter(Boolean).join(" › ")):[a.name];
+        });
+        return combos.length
+          ?_syncSel("📍 Site / Room",combos,"window._fm.site","window._fm.siteOther",m.site,m.siteOther,"e.g. Server Room B1")
+          :`<div class="field"><label>📍 Site / Room</label><input value="${escapeHtml(m.site||"")}" oninput="window._fm.site=this.value" placeholder="e.g. Server Room B1"></div>`;
+      })()}
       <div class="field"><label>📅 Date</label><input type="date" value="${m.date||""}" onchange="window._fm.date=this.value"></div>
       <div class="field"><label>🧯 System</label><input value="${escapeHtml(m.system||"")}" oninput="window._fm.system=this.value"></div>
       <div class="field"><label>👷 Technician</label><input value="${escapeHtml(m.technician||"")}" oninput="window._fm.technician=this.value"></div>
