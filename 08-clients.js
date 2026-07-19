@@ -590,9 +590,21 @@ function _buildSharePayload(client){
       const k=[(d.area||"").trim(),(d.site||"").trim()].join("›"); if(k==="›")return;
       (siteMap[k]=siteMap[k]||{area:(d.area||"").trim(),site:(d.site||"").trim(),devices:0}); siteMap[k].devices++; });
     const sites=Object.values(siteMap).sort((a,b)=>b.devices-a.devices).slice(0,12);
+    // Work items: one entry per JOB with its status journey (never raw internal notes)
+    let workItems=[], openJobs=0;
+    try{
+      const wis=(typeof buildWorkItems==="function")?buildWorkItems(entries):[];
+      openJobs=wis.filter(w=>!w.closed).length;
+      workItems=wis.slice(0,8).map(w=>({
+        title:w.title, scope:[w.area,w.site].filter(Boolean).join(" › "),
+        status:w.status, closed:w.closed, visits:w.visits,
+        first:w.firstDate, last:w.lastDate,
+        journey:w.timeline.map(t=>({s:t.status,d:t.date}))
+      }));
+    }catch(e){}
     return { name:pn, status:p.status||"", hours:+hours.toFixed(1), estHours:est||0,
       pct:est>0?Math.min(999,Math.round(hours/est*100)):0, sessions:entries.length,
-      devices, pmDone, openReq, recent, locations, sites };
+      devices, pmDone, openReq, recent, locations, sites, workItems, openJobs };
   });
   return { clientId:client.id, clientName:client.name||"",
     projects, updatedAt:new Date().toISOString(),

@@ -235,6 +235,25 @@ document.addEventListener('input',  ()=>{ if(state.tab==="Daily Log" && !window.
 document.addEventListener('change', ()=>{ if(state.tab==="Daily Log" && !window._draftSuspend) scheduleDailyDraft(); });
 window.addEventListener('beforeunload', saveDailyDraft);
 
+// Link this entry to an existing open work item. If that item is only held
+// together by its signature (legacy), we mint a real threadId and stamp it on
+// every entry of the item — so the chain survives any later reclassification.
+window.dailyLinkThread=async function(key){
+  const open=openWorkItemsFor(dailyForm);
+  const w=open.find(x=>x.key===key); if(!w) return;
+  let tid=w.entries.map(e=>e.threadId).find(Boolean);
+  if(!tid){
+    tid="wi_"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+    for(const e of w.entries){ if(!e.threadId) await fbSave("daily",{...e,threadId:tid}); }
+  }
+  dailyForm.threadId=tid;
+  if(!dailyForm.taskCategory)    dailyForm.taskCategory=w.taskCategory||"";
+  if(!dailyForm.taskSubcategory) dailyForm.taskSubcategory=w.taskSubcategory||"";
+  toast(`🧵 Linked — visit #${w.visits+1} of this work item`);
+  render();
+};
+window.dailyUnlinkThread=function(){ dailyForm.threadId=""; toast("Starting a NEW work item"); render(); };
+
 function renderDailyLog(){
   if(!dailyForm){
     const _draft=loadDailyDraft();
@@ -252,6 +271,7 @@ function renderDailyLog(){
       site:"",equipment:"",area:"",  // area + site (from project's areas)
       deviceSerial:"",  // optional device reference (Asset Management)
       workType:"",taskStatus:"",taskCategory:"",taskSubcategory:"",  // technical classification
+      threadId:"",  // link to an existing work item (empty = new work item)
       resolutionText:"",  // mandatory text explanation
       resolutionImages:[], // array of base64 compressed images
       notes:""
@@ -444,6 +464,23 @@ function renderDailyLog(){
             <span style="background:#C9A84C;color:#1B3A6B;padding:3px 10px;border-radius:6px;font-size:11px;font-weight:800;letter-spacing:0.5px">RESOLUTION</span>
             <span style="font-size:12px;color:#7F6000;font-weight:600">📋 Required — Document work performed</span>
           </div>
+
+          <!-- ═══ WORK ITEM LINK — continue an open job instead of starting a new one ═══ -->
+          ${(()=>{
+            const open=(typeof openWorkItemsFor==="function")?openWorkItemsFor(dailyForm).filter(w=>!dailyEditId||!w.entries.some(e=>e.id===dailyEditId)):[];
+            const linked=dailyForm.threadId?open.find(w=>w.key===dailyForm.threadId||w.entries.some(e=>e.threadId===dailyForm.threadId)):null;
+            if(!open.length && !dailyForm.threadId) return "";
+            return `<div style="background:#EEF4FF;border:1.5px solid #2E5FA3;border-radius:9px;padding:10px;margin-bottom:12px">
+              <div style="font-size:11px;font-weight:800;color:#1B3A6B;margin-bottom:7px">🧵 WORK ITEM ${linked?`— continuing`:`— ${open.length} open here`}</div>
+              ${linked?`<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                  <span style="flex:1;font-size:12px;color:#03308B;font-weight:700">${escapeHtml(linked.title)} · visit #${linked.visits+1} · since ${fmtDate(linked.firstDate)}</span>
+                  <button type="button" class="btn btn-sm btn-secondary" onclick="dailyUnlinkThread()">✕ New instead</button>
+                </div>`
+              :`<div style="font-size:11px;color:#456;margin-bottom:7px">Is this a follow-up visit? Link it so the job keeps ONE status history instead of counting twice.</div>
+                <div style="display:flex;gap:6px;flex-wrap:wrap">
+                  ${open.slice(0,4).map(w=>`<button type="button" class="btn btn-sm btn-secondary" style="font-size:11px;text-align:left" onclick="dailyLinkThread('${w.key}')">↳ ${escapeHtml(w.title)} <span style="opacity:.7">· ${escapeHtml(w.status)} · ${w.visits} visit${w.visits>1?"s":""}</span></button>`).join("")}
+                </div>`}
+            </div>`;})()}
 
           <!-- Technical Classification: Work Type, Status, Category, Subcategory -->
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
@@ -920,6 +957,24 @@ function viewResolution(recordId){
             ${r.site?`<span style="background:#E3F2FD;color:#1565C0;padding:4px 10px;border-radius:12px;font-size:11px;font-weight:700">📍 ${escapeHtml(r.site)}</span>`:''}
           </div>
         ` : ''}
+        ${(()=>{   // ═══ WORK ITEM JOURNEY — this entry's place in the job's history ═══
+          try{
+            const all=(state.daily||[]).filter(x=>(x.project||"")===(r.project||"")&&(x.area||"")===(r.area||"")&&(x.site||"")===(r.site||""));
+            const w=buildWorkItems(all).find(x=>x.entries.some(e=>e.id===r.id));
+            if(!w||w.visits<2) return "";
+            const idx=w.entries.findIndex(e=>e.id===r.id)+1;
+            return `<div style="margin:0 0 14px;background:#F7F9FF;border:1px solid #DCE6F7;border-radius:9px;padding:10px 12px">
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+                <span style="font-size:10.5px;font-weight:800;color:#1B3A6B;letter-spacing:.4px">🧵 WORK ITEM · VISIT ${idx}/${w.visits}</span>
+                <span style="font-size:10px;background:${w.closed?'#E8F5E9':'#FFF3E0'};color:${w.closed?'#2E7D32':'#E65100'};padding:2px 9px;border-radius:9px;font-weight:800">${escapeHtml(w.status)}</span>
+                <span style="font-size:10px;color:#7A8AA0">${fmtHM(w.hours)} total</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:0;flex-wrap:wrap">
+                ${w.timeline.map((t,i)=>`${i?`<span style="color:#B8C6DC;margin:0 5px;font-size:11px">→</span>`:""}<span title="${escapeHtml(t.by)}" style="font-size:10.5px;background:#fff;border:1px solid #DCE6F7;color:#1B3A6B;padding:3px 9px;border-radius:8px;font-weight:700">${escapeHtml(t.status)} <span style="color:#8A9AB0;font-weight:500">${fmtDate(t.date)}</span></span>`).join("")}
+              </div>
+            </div>`;
+          }catch(e){ return ""; }
+        })()}
         ${txt ? `
           <div style="margin-bottom:16px">
             <div style="font-size:11px;color:#7F6000;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">📋 Description</div>
@@ -1555,7 +1610,7 @@ window.exportTechPDF = async function(){
   const totalHours = rows.reduce((s,r)=>s+Number(r.duration||0),0);
   const workDays = new Set(rows.map(r=>`${r.employee}|${r.date}`)).size;
   const byCat = {}; rows.forEach(r=>{const c=r.taskCategory||"(none)";byCat[c]=(byCat[c]||0)+1;});
-  const byStatus = {}; rows.forEach(r=>{const s=r.taskStatus||"(none)";byStatus[s]=(byStatus[s]||0)+1;});
+  const byStatus = statusCountsByWorkItem(rows);   // v125: count work items, not entries
   const lbl = (typeof reportFilterLabel==="function")?reportFilterLabel():"";
 
   const cellVal = (r,key)=>{
@@ -1584,9 +1639,10 @@ window.exportTechPDF = async function(){
     <div class="ksec"><span class="kbad">02</span><h3>Breakdown</h3></div>
     <table><thead><tr><th>Category</th><th style="text-align:right">Tasks</th></tr></thead>
       <tbody>${Object.keys(byCat).sort((a,b)=>byCat[b]-byCat[a]).map(c=>`<tr><td>${escapeHtml(c)}</td><td style="text-align:right;font-weight:700">${byCat[c]}</td></tr>`).join("")}</tbody></table>
-    <table><thead><tr><th>Status</th><th style="text-align:right">Tasks</th></tr></thead>
+    <table><thead><tr><th>Status (by work item)</th><th style="text-align:right">Work items</th></tr></thead>
       <tbody>${Object.keys(byStatus).sort((a,b)=>byStatus[b]-byStatus[a]).map(s=>`<tr><td>${escapeHtml(s)}</td><td style="text-align:right;font-weight:700">${byStatus[s]}</td></tr>`).join("")}</tbody></table>
-    <div class="ksec"><span class="kbad">03</span><h3>Detailed Tasks (${rows.length})</h3></div>
+    ${(typeof workItemsReportHTML==="function")?workItemsReportHTML(rows,"03"):""}
+    <div class="ksec"><span class="kbad">04</span><h3>Detailed Entries (${rows.length})</h3></div>
     <table><thead><tr>${colDefs.map(c=>`<th>${escapeHtml(c.label)}</th>`).join("")}</tr></thead>
     <tbody>${rows.map(r=>`<tr>${colDefs.map(c=>`<td>${cellVal(r,c.key)}</td>`).join("")}</tr>`).join("")}</tbody></table>
     <script>setTimeout(()=>window.print(),500)<\/script>`;
@@ -1635,7 +1691,8 @@ window.exportTechExcel = async function(){
 
     // Sheet 2: Summary
     const byCat={};rows.forEach(r=>{const c=r.taskCategory||"(none)";byCat[c]=(byCat[c]||0)+1;});
-    const byStatus={};rows.forEach(r=>{const s=r.taskStatus||"(none)";byStatus[s]=(byStatus[s]||0)+1;});
+    const byStatus=statusCountsByWorkItem(rows);   // v125: count work items, not entries
+    const _wis=(typeof buildWorkItems==="function")?buildWorkItems(rows):[];
     const ws2={};
     setC(ws2,'A1','TECHNICAL SUMMARY',{font:{bold:true,sz:14,color:{rgb:GOLD}},fill:{fgColor:{rgb:NAVY}}});
     setC(ws2,'A3','Total Tasks',{font:{bold:true}});setC(ws2,'B3',rows.length);
@@ -1647,6 +1704,23 @@ window.exportTechExcel = async function(){
     Object.keys(byStatus).sort((a,b)=>byStatus[b]-byStatus[a]).forEach(s=>{setC(ws2,`A${rr}`,s);setC(ws2,`B${rr}`,byStatus[s]);rr++;});
     ws2['!ref']=`A1:B${rr}`;ws2['!cols']=[{wch:24},{wch:12}];
     XLSX.utils.book_append_sheet(wb,ws2,"Summary");
+
+    // Sheet 3: Work Items — one row per JOB with its full status journey
+    if(_wis.length){
+      const ws3={};
+      setC(ws3,'A1','WORK ITEMS',{font:{bold:true,sz:14,color:{rgb:GOLD}},fill:{fgColor:{rgb:NAVY}}});
+      setC(ws3,'A2',`${_wis.length} job(s) · ${_wis.filter(w=>!w.closed).length} still open · from ${rows.length} entries`,{font:{italic:true,sz:10,color:{rgb:"6B7B8F"}}});
+      const hdr=['Work item','Scope','First','Last','Status journey','Current status','Visits','Hours','Team'];
+      hdr.forEach((h,i)=>setC(ws3,String.fromCharCode(65+i)+'4',h,{font:{bold:true,color:{rgb:"FFFFFF"}},fill:{fgColor:{rgb:NAVY}}}));
+      _wis.forEach((w,i)=>{
+        const row=5+i;
+        const vals=[w.title,w.scopeLabel,w.firstDate,w.lastDate,w.timeline.map(t=>t.status).join(" → "),w.status,w.visits,fmtHM(w.hours),w.employees.join(", ")];
+        vals.forEach((v,j)=>setC(ws3,String.fromCharCode(65+j)+row,v,{}));
+      });
+      ws3['!ref']=`A1:I${4+_wis.length}`;
+      ws3['!cols']=[{wch:26},{wch:30},{wch:11},{wch:11},{wch:34},{wch:14},{wch:7},{wch:9},{wch:20}];
+      XLSX.utils.book_append_sheet(wb,ws3,"Work Items");
+    }
 
     XLSX.writeFile(wb,`EJAF_Technical_Report_${todayStr()}.xlsx`);
     toast("Excel exported ✓");

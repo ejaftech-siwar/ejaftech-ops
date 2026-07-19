@@ -186,6 +186,23 @@ async function openReportPDF(reportType, periodLabel, bodyHTML){
 // ═══════════════════════════════════════════════════════════════════════
 //  EXPORTS (Excel CSV + PDF)
 // ═══════════════════════════════════════════════════════════════════════
+// Work-items block for branded PDFs: one row per JOB with its status journey
+function workItemsReportHTML(rows,badge){
+  if(typeof buildWorkItems!=="function") return "";
+  const wis=buildWorkItems(rows||[]);
+  if(!wis.length) return "";
+  const open=wis.filter(w=>!w.closed).length;
+  return `<div class="ksec"><span class="kbad">${badge||"WI"}</span><h3>Work Items — ${wis.length} job(s), ${open} still open</h3></div>
+  <table><thead><tr><th>Work item</th><th>Scope</th><th>Status journey</th><th>Current</th><th>Visits</th><th>Hours</th></tr></thead>
+  <tbody>${wis.slice(0,60).map(w=>`<tr>
+    <td><strong>${escapeHtml(w.title)}</strong><br><span style="font-size:9px;color:#888">${fmtDate(w.firstDate)}${w.visits>1?` → ${fmtDate(w.lastDate)}`:""}</span></td>
+    <td style="font-size:10px">${escapeHtml(w.scopeLabel)}</td>
+    <td style="font-size:10px">${w.timeline.map(t=>escapeHtml(t.status)).join(" → ")}</td>
+    <td style="font-size:10px;font-weight:800;color:${w.closed?"#2E7D32":"#E65100"}">${escapeHtml(w.status)}</td>
+    <td>${w.visits}</td><td>${fmtHM(w.hours)}</td></tr>`).join("")}</tbody></table>`;
+}
+window.workItemsReportHTML=workItemsReportHTML;
+
 function csvEscape(v){
   if(v==null) return "";
   const s=String(v);

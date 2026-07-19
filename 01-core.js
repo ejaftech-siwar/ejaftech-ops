@@ -26,6 +26,97 @@ function getTaskStatuses(){
   const fromDb = (state.techStatuses||[]).slice().sort((a,b)=>(a.order||0)-(b.order||0)).map(x=>x.name).filter(Boolean);
   return fromDb.length ? fromDb : TASK_STATUSES;
 }
+// ═══════════════════════════════════════════════════════════════════════
+//  WORK ITEMS (threads) — v125
+//  A daily entry is an EVENT (one visit/session). Several entries about the
+//  same job form ONE work item whose CURRENT status is the status of its
+//  latest entry. Counting entries by status double-counts a job that moved
+//  In Progress → Closed; counting WORK ITEMS is the truth.
+//
+//  Grouping rules, in order:
+//   1. Explicit `threadId` on the entry always wins (set via "continue this
+//      work item" in the form) — lets us merge entries whose classification
+//      differs, or split deliberately.
+//   2. Otherwise entries group by SIGNATURE (project|area|site|device|
+//      category|subcategory) — so every legacy entry threads retroactively
+//      with no data migration at all.
+//   3. A closing status ENDS the thread. A later entry with the same
+//      signature starts a NEW work item — so a fault that recurs months
+//      later is correctly a second job, not a resurrected one.
+// ═══════════════════════════════════════════════════════════════════════
+const CLOSED_STATUS_RE = /(closed|resolved|done|complete|finished|cancel)/i;
+function isClosedStatus(s){ return CLOSED_STATUS_RE.test(String(s||"")); }
+
+function wiSignature(r){
+  return [r.project,r.area,r.site,r.deviceSerial,r.taskCategory,r.taskSubcategory]
+    .map(x=>String(x||"").trim().toLowerCase()).join("|");
+}
+// chronological order key for entries (date, then entry no, then created)
+function _wiOrd(r){ return `${r.date||""}|${String(r.entryNo||0).padStart(6,"0")}|${r.id||""}`; }
+
+// Build work items from a set of daily rows.
+function buildWorkItems(rows){
+  const sorted=(rows||[]).slice().sort((a,b)=>_wiOrd(a).localeCompare(_wiOrd(b)));
+  const items=[]; const openBySig={}; const byThread={};
+  for(const r of sorted){
+    let it;
+    if(r.threadId){
+      it=byThread[r.threadId];
+      if(!it){ it=_wiNew(r,r.threadId); byThread[r.threadId]=it; items.push(it); }
+    } else {
+      const sig=wiSignature(r);
+      it=openBySig[sig];
+      if(!it){ it=_wiNew(r,"sig:"+sig+":"+items.length); openBySig[sig]=it; items.push(it); }
+    }
+    _wiPush(it,r);
+    if(!r.threadId && isClosedStatus(r.taskStatus)) delete openBySig[wiSignature(r)];  // thread ends here
+  }
+  return items.map(_wiFinish).sort((a,b)=>String(b.lastDate).localeCompare(String(a.lastDate)));
+}
+function _wiNew(r,key){
+  return { key, project:r.project||"", area:r.area||"", site:r.site||"", deviceSerial:r.deviceSerial||"",
+    taskCategory:r.taskCategory||"", taskSubcategory:r.taskSubcategory||"", entries:[] };
+}
+function _wiPush(it,r){ it.entries.push(r); }
+function _wiFinish(it){
+  const es=it.entries;
+  const last=es[es.length-1]||{};
+  it.status      = last.taskStatus || "(none)";
+  it.closed      = isClosedStatus(it.status);
+  it.firstDate   = (es[0]||{}).date || "";
+  it.lastDate    = last.date || "";
+  it.visits      = es.length;
+  it.hours       = +es.reduce((s,r)=>s+Number(r.duration||0),0).toFixed(2);
+  it.employees   = [...new Set(es.map(r=>r.employee).filter(Boolean))];
+  it.title       = [it.taskCategory,it.taskSubcategory].filter(Boolean).join(" › ")
+                   || (last.workType||"") || "Work item";
+  it.scopeLabel  = [it.project,it.area,it.site,it.deviceSerial?("📟 "+it.deviceSerial):""].filter(Boolean).join(" › ");
+  // status journey: only the points where the status actually changed
+  const tl=[]; let prev=null;
+  for(const r of es){
+    const s=r.taskStatus||"(none)";
+    if(s!==prev){ tl.push({date:r.date,status:s,by:r.employee||"",entryNo:r.entryNo||null}); prev=s; }
+  }
+  it.timeline=tl;
+  return it;
+}
+// Open work items matching a scope — powers the "continue this work item" card
+function openWorkItemsFor(form){
+  if(!form || !form.project) return [];
+  const scope=(state.daily||[]).filter(r=>
+    (r.project||"")===(form.project||"") &&
+    (!form.area || (r.area||"")===form.area) &&
+    (!form.site || (r.site||"")===form.site));
+  if(!scope.length) return [];
+  return buildWorkItems(scope).filter(w=>!w.closed);
+}
+// Status counts by WORK ITEM (the correct denominator for KPIs/reports)
+function statusCountsByWorkItem(rows){
+  const out={}; buildWorkItems(rows).forEach(w=>{ out[w.status]=(out[w.status]||0)+1; });
+  return out;
+}
+Object.assign(window,{isClosedStatus,wiSignature,buildWorkItems,openWorkItemsFor,statusCountsByWorkItem});
+
 function getTaskCategories(){
   // Returns { categoryName: [subcategories...] }
   const fromDb = (state.techCategories||[]).slice().sort((a,b)=>(a.order||0)-(b.order||0));
@@ -987,6 +1078,19 @@ function renderShareView(d){
           <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
             ${p.sites.map(s=>`<span style="background:#F0F4FF;color:#03308B;border:1px solid #D6E0F5;font-size:10.5px;font-weight:700;padding:4px 10px;border-radius:12px">${escapeHtml([s.area,s.site].filter(Boolean).join(" › "))} · ${s.devices} dev</span>`).join("")}
           </div>`:""}
+          ${(p.workItems||[]).length?`
+          <div style="font-size:10.5px;color:#888;font-weight:800;text-transform:uppercase;letter-spacing:.5px;margin-bottom:7px">Work items${p.openJobs?` — ${p.openJobs} open`:""}</div>
+          ${p.workItems.map(w=>`<div style="border:1px solid #EDF1F7;border-radius:9px;padding:9px 11px;margin-bottom:7px">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+              <span style="font-size:12.5px;font-weight:700;color:#1B3A6B">${escapeHtml(w.title)}${w.scope?` <span style="font-weight:500;color:#8A9AB0">· ${escapeHtml(w.scope)}</span>`:""}</span>
+              <span style="font-size:9.5px;background:${w.closed?'#E8F5E9':'#FFF3E0'};color:${w.closed?'#2E7D32':'#E65100'};padding:2px 9px;border-radius:9px;font-weight:800">${escapeHtml(w.status)}</span>
+            </div>
+            ${(w.journey||[]).length>1?`<div style="margin-top:6px;display:flex;align-items:center;flex-wrap:wrap">
+              ${w.journey.map((j,i)=>`${i?`<span style="color:#C4D0E0;margin:0 4px;font-size:10px">→</span>`:""}<span style="font-size:10px;color:#5A6B80;background:#F5F8FC;padding:2px 7px;border-radius:7px">${escapeHtml(j.s)} <span style="color:#9AAABF">${fmtD(j.d)}</span></span>`).join("")}
+            </div>`:""}
+            <div style="margin-top:5px;font-size:10px;color:#9AAABF">${w.visits} visit${w.visits>1?"s":""} · ${fmtD(w.first)}${w.visits>1?` → ${fmtD(w.last)}`:""}</div>
+          </div>`).join("")}
+          <div style="margin-bottom:10px"></div>`:""}
           ${(p.recent||[]).length?`
           <div style="font-size:10.5px;color:#888;font-weight:800;text-transform:uppercase;letter-spacing:.5px;margin-bottom:7px">Latest activity</div>
           ${p.recent.map(r=>`<div style="display:flex;gap:10px;align-items:flex-start;padding:7px 0;border-top:1px solid #F0F2F7">

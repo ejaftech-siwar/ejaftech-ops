@@ -87,7 +87,22 @@ function renderTechReport(){
 
   const catColors = {Network:"#1565C0",CCTV:"#6A1B9A",System:"#2E7D32",Maintenance:"#E65100","Onsite Survey":"#00838F",Deployment:"#AD1457",General:"#5D4037",CR:"#C62828"};
 
-  let h = hub + `<div class="card">
+  const _wis = (typeof buildWorkItems==="function") ? buildWorkItems(rows) : [];
+  const _wiOpen = _wis.filter(w=>!w.closed).length;
+  let h = hub + (_wis.length?`<div class="card" style="border-left:4px solid #2E5FA3">
+    <div class="card-title">🧵 Work Items <span style="font-size:11px;font-weight:500;color:var(--muted)">— ${_wis.length} job${_wis.length>1?"s":""} across ${rows.length} entr${rows.length>1?"ies":"y"} · ${_wiOpen} still open</span></div>
+    <div class="tbl-wrap"><table class="tbl">
+      <thead><tr><th>Work item</th><th>Scope</th><th>Journey</th><th>Status</th><th>Visits</th><th>Hours</th></tr></thead>
+      <tbody>${_wis.slice(0,80).map(w=>`<tr>
+        <td style="font-weight:700">${escapeHtml(w.title)}<br><span style="font-size:10px;color:var(--muted)">${fmtDate(w.firstDate)}${w.visits>1?` → ${fmtDate(w.lastDate)}`:""}</span></td>
+        <td style="font-size:11px">${escapeHtml(w.scopeLabel)}</td>
+        <td style="font-size:10px;color:#456">${w.timeline.map(t=>escapeHtml(t.status)).join(" → ")}</td>
+        <td><span style="font-size:10px;background:${w.closed?'#E8F5E9':'#FFF3E0'};color:${w.closed?'#2E7D32':'#E65100'};padding:2px 8px;border-radius:9px;font-weight:800">${escapeHtml(w.status)}</span></td>
+        <td>${w.visits}</td><td>${fmtHM(w.hours)}</td>
+      </tr>`).join("")}</tbody>
+    </table></div>
+    ${_wis.length>80?`<div style="font-size:11px;color:var(--muted);margin-top:6px">Showing the 80 most recent work items.</div>`:""}
+  </div>`:"") + `<div class="card">
     <div class="card-title">🔧 Technical Report</div>
     <p style="font-size:12px;color:var(--muted);margin-bottom:8px">Technical breakdown of Daily Log: classifications, hours, and work days. Uses the filters below.</p>
   </div>`;
