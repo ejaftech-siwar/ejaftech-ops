@@ -1231,11 +1231,16 @@ Object.defineProperty(window,'assetFilterWarranty',{get:()=>assetFilterWarranty,
 let pmForm=null, pmEditId=null, pmProjFilter="";
 // ── Live link: Daily Log ⇄ Maintenance ──
 function _isPMCode(c){ return String(c||"").trim().toLowerCase()==="preventive maintenance"; }
+// Multi-scope normalizers (v123): schedules may target SEVERAL areas/sites.
+// Legacy schedules with single `area`/`site` strings read as one-element arrays.
+function _pmAreasOf(s){ return (Array.isArray(s.areas)&&s.areas.length)?s.areas:(s.area?[s.area]:[]); }
+function _pmSitesOf(s){ return (Array.isArray(s.sites)&&s.sites.length)?s.sites:(s.site?[s.site]:[]); }
 function _pmScopeMatch(s,r){
   if((s.project||"").trim()!==(r.project||"").trim()) return false;
   if(s.deviceSerial && r.deviceSerial!==s.deviceSerial) return false;
-  if(s.site && r.site!==s.site) return false;
-  if(s.area && r.area!==s.area) return false;
+  const A=_pmAreasOf(s), S=_pmSitesOf(s);
+  if(S.length && !S.includes(r.site)) return false;
+  if(A.length && !A.includes(r.area)) return false;
   return true;
 }
 // Sessions logged since the round started (after lastDone)
@@ -1247,7 +1252,7 @@ window.pmOnDailySaved=function(rec,isFinal,isNew){
   try{
     const cands=(state.pmSchedules||[]).filter(s=>s.active!==false&&_pmScopeMatch(s,rec));
     if(!cands.length){ if(isFinal) setTimeout(()=>toast("⚠ No matching maintenance schedule for this scope"),400); return; }
-    const score=s=>(s.deviceSerial?8:0)+(s.site?4:0)+(s.area?2:0)+1;    // most specific wins
+    const score=s=>(s.deviceSerial?8:0)+(_pmSitesOf(s).length?4:0)+(_pmAreasOf(s).length?2:0)+1;    // most specific wins
     const s=cands.sort((x,y)=>score(y)-score(x)||pmNextDue(x).localeCompare(pmNextDue(y)))[0];
     let sessions=pmOpenSessions(s).length; if(sessions<1) sessions=1;   // local snapshot may lag by one
     if(isFinal){ _pmCloseRound(s, rec.date||today(), sessions); return; }
@@ -1289,8 +1294,9 @@ function _pmTargetLabel(s){
   // one of the project's Daily-Log codes here was misleading (looked like PM was
   // scoped to just that one work-stream, when it applies to the entire project).
   if(s.project) parts.push(s.project + (s.system?` [${s.system}]`:""));
-  if(s.area) parts.push(s.area);
-  if(s.site) parts.push(s.site);
+  const _A=_pmAreasOf(s), _S=_pmSitesOf(s);
+  if(_A.length) parts.push(_A.length>2?`${_A.length} areas`:_A.join(" + "));
+  if(_S.length) parts.push(_S.length>2?`${_S.length} sites`:_S.join(" + "));
   if(s.deviceSerial){
     const d=(state.devices||[]).find(x=>x.serialNumber===s.deviceSerial);
     parts.push(d?`${d.deviceName||"Device"} (SN:${s.deviceSerial}${d.model?` · ${d.model}`:""})`:`SN:${s.deviceSerial}`);
@@ -1299,7 +1305,7 @@ function _pmTargetLabel(s){
 }
 function renderMaintenance(){
   if(!(isAdmin()||hasCap("canMaintenance"))) return `<div class="card"><div class="empty">Admin only.</div></div>`;
-  if(!pmForm) pmForm={title:"",project:"",area:"",site:"",deviceSerial:"",system:"",freqDays:90,startDate:today(),dateMode:"done",notes:""};
+  if(!pmForm) pmForm={title:"",project:"",areas:[],sites:[],deviceSerial:"",system:"",freqDays:90,startDate:today(),dateMode:"done",notes:""};
   const all=(state.pmSchedules||[]).slice().sort((a,b)=>pmNextDue(a).localeCompare(pmNextDue(b)));
   const list = pmProjFilter ? all.filter(s=>(s.project||"")===pmProjFilter) : all;
   const act=list.filter(s=>s.active!==false);
@@ -1311,11 +1317,12 @@ function renderMaintenance(){
   const projSel=(state.projects||[]).slice().sort((a,b)=>(a.name||"").localeCompare(b.name||""));
   const selProj=projSel.find(p=>(p.name||"").trim()===(pmForm.project||"").trim());
   const areas=selProj?getProjectAreas(selProj).filter(a=>a.active!==false):[];
-  const selArea=areas.find(a=>a.name===pmForm.area);
-  const sites=(selArea?.sites||[]).filter(x=>x.active!==false);
+  const selAreas=areas.filter(a=>(pmForm.areas||[]).includes(a.name));
+  const sites=selAreas.flatMap(a=>(a.sites||[]).filter(x=>x.active!==false).map(x=>({...x,_area:a.name})));
   let devPool=(state.devices||[]);
   if(pmForm.project) devPool=devPool.filter(d=>(d.project||"").trim()===(pmForm.project||"").trim());
-  if(pmForm.site)    devPool=devPool.filter(d=>(d.site||"")===pmForm.site);
+  if((pmForm.sites||[]).length) devPool=devPool.filter(d=>(pmForm.sites||[]).includes(d.site||""));
+  else if((pmForm.areas||[]).length) devPool=devPool.filter(d=>(pmForm.areas||[]).includes(d.area||""));
   devPool=devPool.slice().sort((a,b)=>(a.serialNumber||"").localeCompare(b.serialNumber||""));
   const devOpts=devPool.map(d=>`<option value="${escapeHtml(d.serialNumber||"")}" ${pmForm.deviceSerial===(d.serialNumber||"")?"selected":""}>${escapeHtml(_pmDevLabel(d))}${!pmForm.project?` — ${escapeHtml(d.project||"")}`:""}</option>`).join("");
 
@@ -1350,7 +1357,7 @@ function renderMaintenance(){
   let tableBody;
   if(pmProjFilter){
     const groups={};
-    list.forEach(s=>{const k=s.site||s.area||"Project-wide";(groups[k]=groups[k]||[]).push(s);});
+    list.forEach(s=>{const _S=_pmSitesOf(s),_A=_pmAreasOf(s);const k=_S.length?( _S.length>1?`${_S.length} sites`:_S[0]):(_A.length?(_A.length>1?`${_A.length} areas`:_A[0]):"Project-wide");(groups[k]=groups[k]||[]).push(s);});
     tableBody=Object.entries(groups).map(([g,rows])=>
       `<tr><td colspan="6" style="background:var(--line);font-weight:800;font-size:11px;letter-spacing:.5px;padding:6px 10px">📍 ${escapeHtml(g)} · ${rows.length}</td></tr>`+tableRows(rows)
     ).join("");
@@ -1406,16 +1413,16 @@ function renderMaintenance(){
           </select>`
         :`<input value="${escapeHtml(pmForm.system||"")}" oninput="window.pmForm.system=this.value" placeholder="e.g. CCTV — manage list in Technical Classifications">`}
       </div>
-      ${pmForm.project&&areas.length?`<div class="field"><label>🗺️ Area <span style="font-size:10px;color:var(--muted)">(optional)</span></label>
-        <select onchange="window.pmForm.area=this.value;window.pmForm.site='';window.pmForm.deviceSerial='';render()">
-          <option value="">— Whole project —</option>
-          ${areas.map(a=>`<option ${pmForm.area===a.name?"selected":""}>${escapeHtml(a.name)}</option>`).join("")}
-        </select></div>`:""}
-      ${pmForm.area&&sites.length?`<div class="field"><label>📍 Site <span style="font-size:10px;color:var(--muted)">(optional)</span></label>
-        <select onchange="window.pmForm.site=this.value;window.pmForm.deviceSerial='';render()">
-          <option value="">— Whole area —</option>
-          ${sites.map(x=>`<option ${pmForm.site===x.name?"selected":""}>${escapeHtml(x.name)}</option>`).join("")}
-        </select></div>`:""}
+      ${pmForm.project&&areas.length?`<div class="field" style="grid-column:1/-1"><label>🗺️ Areas <span style="font-size:10px;color:var(--muted)">(tap to select several — none = whole project)</span></label>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">
+          ${areas.map(ar=>{const on=(pmForm.areas||[]).includes(ar.name);
+            return `<button type="button" class="btn btn-sm ${on?"":"btn-secondary"}" style="${on?"background:#1B3A6B;color:#F0D68A;border:none;":""}font-weight:700" onclick="pmToggleArea('${escapeHtml(ar.name).replace(/'/g,"\\'")}')">${on?"✓ ":""}${escapeHtml(ar.name)}</button>`;}).join("")}
+        </div></div>`:""}
+      ${(pmForm.areas||[]).length&&sites.length?`<div class="field" style="grid-column:1/-1"><label>📍 Sites <span style="font-size:10px;color:var(--muted)">(tap to select several — none = whole selected areas)</span></label>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">
+          ${sites.map(x=>{const on=(pmForm.sites||[]).includes(x.name);
+            return `<button type="button" class="btn btn-sm ${on?"":"btn-secondary"}" style="${on?"background:#2E5FA3;color:#fff;border:none;":""}font-weight:700" onclick="pmToggleSite('${escapeHtml(x.name).replace(/'/g,"\\'")}')" title="${escapeHtml(x._area)}">${on?"✓ ":""}${escapeHtml(x.name)}</button>`;}).join("")}
+        </div></div>`:""}
       <div class="field" style="grid-column:1/-1"><label>📟 Device <span style="font-size:10px;color:var(--muted)">(optional — identified by Serial + Model${pmForm.project?`, ${devPool.length} in scope`:""})</span></label>
         <select onchange="window.pmForm.deviceSerial=this.value">
           <option value="">— No specific device —</option>${devOpts}
@@ -1468,7 +1475,7 @@ async function savePM(){
   if(!pmForm.title.trim()) return toast("⚠ Title is required");
   if(!Number(pmForm.freqDays)) return toast("⚠ Repeat interval is required");
   const item={ ...(pmEditId?{id:pmEditId}:{}) , title:pmForm.title.trim(),
-    project:pmForm.project||"", area:pmForm.area||"", site:pmForm.site||"", deviceSerial:pmForm.deviceSerial||"", system:pmForm.system||"",
+    project:pmForm.project||"", areas:(pmForm.areas||[]).slice(), sites:(pmForm.sites||[]).slice(), area:"", site:"", deviceSerial:pmForm.deviceSerial||"", system:pmForm.system||"",
     freqDays:Number(pmForm.freqDays), notes:pmForm.notes||"",
     active:true, ...(pmEditId?{}:{history:[]}) };
   const _d=pmForm.startDate||today();
@@ -1496,9 +1503,26 @@ async function savePM(){
   }
   pmForm=null; pmEditId=null; toast("Schedule saved ✓"); render();
 }
+window.pmToggleArea=function(name){
+  const A=pmForm.areas=pmForm.areas||[];
+  const i=A.indexOf(name);
+  if(i>=0){ A.splice(i,1);
+    // drop sites that belonged only to the removed area
+    const pr=(state.projects||[]).find(p=>(p.name||"").trim()===(pmForm.project||"").trim());
+    const valid=pr?getProjectAreas(pr).filter(x=>A.includes(x.name)).flatMap(x=>(x.sites||[]).map(s=>s.name)):[];
+    pmForm.sites=(pmForm.sites||[]).filter(s=>valid.includes(s));
+  } else A.push(name);
+  pmForm.deviceSerial=""; render();
+};
+window.pmToggleSite=function(name){
+  const S=pmForm.sites=pmForm.sites||[];
+  const i=S.indexOf(name);
+  if(i>=0) S.splice(i,1); else S.push(name);
+  pmForm.deviceSerial=""; render();
+};
 function editPM(id){ const s=(state.pmSchedules||[]).find(x=>x.id===id); if(!s)return;
   const _mode = s.lastDone ? "done" : "due";
-  pmEditId=id; pmForm={title:s.title,project:s.project||"",area:s.area||"",site:s.site||"",deviceSerial:s.deviceSerial||"",freqDays:s.freqDays,freqCustom:![7,14,30,60,90,120,180,365].includes(Number(s.freqDays)),startDate:(_mode==="done"?s.lastDone:(s.startDate||today())),dateMode:_mode,notes:s.notes||""};
+  pmEditId=id; pmForm={title:s.title,project:s.project||"",areas:_pmAreasOf(s).slice(),sites:_pmSitesOf(s).slice(),deviceSerial:s.deviceSerial||"",freqDays:s.freqDays,freqCustom:![7,14,30,60,90,120,180,365].includes(Number(s.freqDays)),startDate:(_mode==="done"?s.lastDone:(s.startDate||today())),dateMode:_mode,notes:s.notes||""};
   render(); window.scrollTo({top:0,behavior:'smooth'}); }
 async function delPM(id){ if(!confirm("Delete this maintenance schedule?"))return;
   await fbDelete("pmSchedules", id); toast("Deleted"); render(); }
@@ -1516,7 +1540,7 @@ async function markPMDone(id){
     window._draftSuspend=true; setTimeout(()=>{window._draftSuspend=false;},900);
     window.dailyForm={date:today(),employee:isEmployee()?state.profile.employeeName:"",
       project:s.project||(dv?dv.project:"")||"", projectCode:"Preventive Maintenance",
-      area:s.area||(dv?dv.area:"")||"", site:s.site||(dv?dv.site:"")||"",
+      area:_pmAreasOf(s)[0]||(dv?dv.area:"")||"", site:_pmSitesOf(s)[0]||(dv?dv.site:"")||"",
       equipment:"", deviceSerial:s.deviceSerial||"", start:"", end:"", location:"",
       workType:"", taskStatus:"", taskCategory:"", taskSubcategory:"",
       resolutionText:`${s.title} — preventive maintenance completed`, resolutionImages:[], notes:s.notes||""};

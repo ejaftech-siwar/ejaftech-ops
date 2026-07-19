@@ -1141,7 +1141,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v122';"
+      var swCode = "const CACHE='ejaftech-v123';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
@@ -1213,7 +1213,8 @@ window.generatePMReport=async function(){
   rounds.sort((a,b)=>String(b.h.date).localeCompare(String(a.h.date)));
   const overdue=scheds.filter(s=>pmDaysLeft(s)<0);
 
-  const target=s=>[s.project||"General",s.area,s.site,s.deviceSerial?("Device "+s.deviceSerial):""].filter(Boolean).join(" › ");
+  const target=s=>{const A=_pmAreasOf(s),S=_pmSitesOf(s);
+    return [s.project||"General",A.join(" + "),S.join(" + "),s.deviceSerial?("Device "+s.deviceSerial):""].filter(Boolean).join(" › ");};
   const sysBadge=s=>{const v=_pmSysOf(s);return v?_rptBadge(v,"#E0F2F1","#00695C"):"—";};
   const schedRows=scheds.map(s=>{
     const dl=pmDaysLeft(s);
