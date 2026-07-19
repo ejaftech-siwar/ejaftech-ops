@@ -1141,7 +1141,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v126';"
+      var swCode = "const CACHE='ejaftech-v127';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
@@ -1926,7 +1926,7 @@ Object.assign(window,{renderFM200Section});
 //  project + the System field added in v113); manual mode types everything.
 //  Checklists come from Technical Classifications when customised.
 // ═══════════════════════════════════════════════════════════════════════
-window._srTpl=window._srTpl||"";
+window._srTpl=window._srTpl||"cctv";
 window._srMode=window._srMode||"records";
 window._sr=window._sr||{client:"",clientOther:false,project:"",projectOther:false,site:"",siteOther:false,
   date:"",time:"",reference:"",representative:"",technician:"",engName:"",repName:"",repTitle:"",
@@ -1979,20 +1979,6 @@ window.srLoadDevices=function(){
 
 function renderSystemReports(){
   if(!(isAdmin()||isHR()||hasCap("canExport"))) return `<div class="card"><div class="empty">No access.</div></div>`;
-  // ── template picker ──
-  if(!window._srTpl){
-    return `${_rptHero("📋","System Reports","Standards-based inspection & test reports for every ELV discipline","linear-gradient(135deg,#37474F 0%,#1B2A33 100%)")}
-    <div class="card">
-      <div class="card-title">Choose a system</div>
-      <div style="display:grid;gap:8px;margin-top:10px">
-        ${SYS_TEMPLATES.map(t=>`<button class="btn btn-secondary" style="text-align:left;padding:12px 14px;border-left:4px solid ${t.color}" onclick="window._srTpl='${t.id}';render()">
-          <div style="font-size:14px;font-weight:800;color:${t.color}">${t.icon} ${escapeHtml(t.name)}</div>
-          <div style="font-size:10.5px;color:var(--muted);margin-top:3px;line-height:1.5;white-space:normal">📐 ${escapeHtml(t.standards.split("·")[0].trim())}</div>
-        </button>`).join("")}
-      </div>
-    </div>`;
-  }
-
   const tpl=sysTemplate(window._srTpl), m=window._sr, mode=window._srMode;
   const items=getSysCheckItems(tpl.id);
   const clientOpts=(state.clients||[]).map(c=>c.name).filter(Boolean).sort();
@@ -2005,10 +1991,10 @@ function renderSystemReports(){
   const fails=items.filter((_,i)=>_srChkState(tpl.id,i).s==="Fail").length;
 
   return `
-  ${_rptHero(tpl.icon,tpl.name,"Inspection & Test Report — "+tpl.standards.split("·")[0].trim(),`linear-gradient(135deg,${tpl.color} 0%,#1B2A33 100%)`)}
+  ${_pills('_srTpl',SYS_TEMPLATES.map(t=>({id:t.id,ic:t.icon,lb:t.short})))}
+  ${_rptHero(tpl.icon,tpl.name,"Inspection & Test Report","linear-gradient(135deg,"+tpl.color+" 0%,#1B2A33 100%)")}
   <div class="card" style="padding:10px 12px">
-    <div style="display:flex;gap:6px;flex-wrap:wrap">
-      <button class="btn btn-secondary" style="flex:0 0 auto" onclick="window._srTpl='';render()">↩ Systems</button>
+    <div style="display:flex;gap:6px">
       <button class="btn ${mode!=="manual"?"btn-primary":"btn-secondary"}" style="flex:1" onclick="window._srMode='records';render()">📊 From records</button>
       <button class="btn ${mode==="manual"?"btn-primary":"btn-secondary"}" style="flex:1" onclick="window._srMode='manual';render()">✍️ Manual</button>
     </div>
@@ -2077,7 +2063,7 @@ function renderSystemReports(){
         </div>
         <input value="${escapeHtml(st.r||"")}" oninput="srSetChkRemark('${tpl.id}',${i},this.value)" placeholder="Remarks" style="flex:1;min-width:120px">
       </div>`;}).join("")}
-    <p style="font-size:10.5px;color:var(--muted);margin-top:10px">Items follow ${escapeHtml(tpl.standards.split("·")[0].trim())}. Edit them in <strong>Technical Classifications → Check Lists</strong>.</p>
+    <p style="font-size:10.5px;color:var(--muted);margin-top:10px">Per ${escapeHtml(tpl.standards.split("·")[0].replace(/\s*\(.*/,"").trim())} — edit in <strong>Technical Classifications → Check Lists</strong>.</p>
   </div>
 
   <div class="card">

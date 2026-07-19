@@ -37,7 +37,7 @@ function getTaskStatuses(){
 // ═══════════════════════════════════════════════════════════════════════
 const SYS_TEMPLATES = [
   {
-    id:"cctv", name:"CCTV / Video Surveillance", icon:"📹", color:"#1565C0",
+    id:"cctv", short:"CCTV", name:"CCTV / Video Surveillance", icon:"📹", color:"#1565C0",
     match:["cctv","camera","video","surveillance"],
     standards:"IEC/EN 62676-4 (planning, installation, testing, commissioning & maintenance of video surveillance systems) · IEC 62676-1-1 & 1-2 (system and transmission performance) · BS 7958 (management & operation)",
     fields:[
@@ -66,7 +66,7 @@ const SYS_TEMPLATES = [
     ],
   },
   {
-    id:"fire", name:"Fire Alarm System", icon:"🔥", color:"#C62828",
+    id:"fire", short:"Fire Alarm", name:"Fire Alarm System", icon:"🔥", color:"#C62828",
     match:["fire","alarm","fire alarm"],
     standards:"NFPA 72 (National Fire Alarm and Signaling Code) · EN 54 series (fire detection and fire alarm systems) · ISO 7240",
     fields:[
@@ -94,7 +94,7 @@ const SYS_TEMPLATES = [
     ],
   },
   {
-    id:"acs", name:"Access Control System", icon:"🚪", color:"#00695C",
+    id:"acs", short:"Access", name:"Access Control System", icon:"🚪", color:"#00695C",
     match:["access","acs","access control"],
     standards:"EN/IEC 60839-11-1 (electronic access control — system and component requirements) · EN/IEC 60839-11-2 (application guidelines) · life-safety egress requirements",
     fields:[
@@ -123,7 +123,7 @@ const SYS_TEMPLATES = [
     ],
   },
   {
-    id:"ids", name:"Intrusion / Hold-up System", icon:"🚨", color:"#7B1FA2",
+    id:"ids", short:"Intrusion", name:"Intrusion / Hold-up System", icon:"🚨", color:"#7B1FA2",
     match:["intrusion","intruder","burglar","ids"],
     standards:"EN 50131-1 (intrusion and hold-up systems — system requirements, security Grades 1–4) · IEC 62642 · EN 50131-6 (power supplies) · EN 50130-5 (environmental classes)",
     fields:[
@@ -153,7 +153,7 @@ const SYS_TEMPLATES = [
     ],
   },
   {
-    id:"net", name:"Network / Structured Cabling", icon:"🌐", color:"#2E5FA3",
+    id:"net", short:"Network", name:"Network / Structured Cabling", icon:"🌐", color:"#2E5FA3",
     match:["network","networking","lan","cabling","it"],
     standards:"ANSI/TIA-568 (balanced twisted-pair and optical cabling) · TIA-606 (administration & labelling) · TIA-607 (bonding & grounding) · TIA-569 (pathways & spaces) · ISO/IEC 11801 · TIA-942 (data centres)",
     fields:[
@@ -181,7 +181,7 @@ const SYS_TEMPLATES = [
     ],
   },
   {
-    id:"elv", name:"ELV Systems (General)", icon:"⚡", color:"#E65100",
+    id:"elv", short:"ELV", name:"ELV Systems (General)", icon:"⚡", color:"#E65100",
     match:["elv","extra low voltage","pa","public address","bms"],
     standards:"EN 50130-4 (EMC immunity — product family standard covering fire, intruder, hold-up, CCTV, access control and social alarm components) · EN 50130-5 (environmental) · discipline standards per sub-system",
     fields:[
