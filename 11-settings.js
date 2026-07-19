@@ -233,14 +233,16 @@ function renderEntryManage(){
       Report Counter Management
     </div>
     <p style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.6">
-      The sequential report number (RPT-YYYY-NNNN) is stored in Firestore.<br>
-      Use this to reset the counter to 0 so next export starts from RPT-YYYY-0001.
+      Every report family runs its <strong>own sequence</strong>: HR-2026-0001 · DL- · TR- · RPT- · PM- · INC- · FMR- · FMT-…<br>
+      Reset zeroes <strong>all sequences</strong> for the current year so each family restarts from 0001.
     </p>
     <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
-      <button class="btn btn-secondary" onclick="viewReportCounter()" style="font-size:12px">👁 View Current Counter</button>
-      <button class="btn btn-danger" onclick="resetReportCounter()" style="font-size:12px">🔄 Reset to 0001</button>
+      <button class="btn btn-secondary" onclick="viewReportCounter()" style="font-size:12px">👁 View All Counters</button>
+      <button class="btn btn-danger" onclick="resetReportCounter()" style="font-size:12px">🔄 Reset ALL to 0001</button>
+      <button class="btn btn-secondary" onclick="viewReportLog()" style="font-size:12px">📜 Report Log</button>
     </div>
     <div id="counterStatus" style="margin-top:10px;font-size:12px;color:#2E7D32;display:none"></div>
+    <div id="reportLogBox" style="margin-top:10px;display:none"></div>
   </div>
 
   <div class="card" style="border-left:4px solid #2E7D32">
@@ -509,45 +511,80 @@ Object.defineProperty(window,'profileForm',{get:()=>profileForm,set:v=>profileFo
 window.viewReportCounter = async function(){
   if(!isAdmin()) return;
   try{
-    const {db, doc, getDoc} = window.__fb;
+    const {db, collection, getDocs} = window.__fb;
     if(!db) return toast("Database not ready");
     const year = new Date().getFullYear();
-    const snap = await getDoc(doc(db, "reportCounters", String(year)));
+    const snap = await getDocs(collection(db, "reportCounters"));
+    const rows=[];
+    snap.forEach(d=>{
+      const x=d.data();
+      if(x.year!==year) return;
+      if(!x.prefix){ rows.push({p:"RPT (legacy shared)",c:x.count||0,next:`RPT-${year}-${String((x.count||0)+1).padStart(4,"0")}`}); return; }
+      rows.push({p:`${x.prefix} — ${(window.REF_TYPE_LABEL||{})[x.prefix]||x.prefix}`,c:x.count||0,next:`${x.prefix}-${year}-${String((x.count||0)+1).padStart(4,"0")}`});
+    });
     const el = document.getElementById("counterStatus");
     if(!el) return;
-    if(snap.exists()){
-      const d = snap.data();
-      el.style.display = "block";
-      el.style.color = "#1B3A6B";
-      el.innerHTML = `✅ Current counter for ${year}: <strong>${d.count || 0}</strong> — Next export will be <strong>RPT-${year}-${String((d.count||0)+1).padStart(4,"0")}</strong>`;
-    } else {
-      el.style.display = "block";
-      el.style.color = "#2E7D32";
-      el.innerHTML = `✅ No counter yet for ${year} — First export will be <strong>RPT-${year}-0001</strong>`;
-    }
-  } catch(e){
-    toast("Error reading counter: " + e.message);
-  }
+    el.style.display = "block"; el.style.color = "#1B3A6B";
+    el.innerHTML = rows.length
+      ? `<strong>Sequences for ${year}:</strong><br>`+rows.sort((a,b)=>a.p.localeCompare(b.p)).map(r=>`• ${r.p}: <strong>${r.c}</strong> → next <strong>${r.next}</strong>`).join("<br>")
+      : `✅ No counters yet for ${year} — each family starts at its own 0001 (e.g. PM-${year}-0001, INC-${year}-0001).`;
+  } catch(e){ toast("Error reading counters: " + e.message); }
 };
 
 window.resetReportCounter = async function(){
   if(!isAdmin()) return;
   const year = new Date().getFullYear();
-  if(!confirm(`Reset the report counter for ${year} to 0?\n\nNext exported report will be RPT-${year}-0001.\n\nThis does not delete any existing reports.`)) return;
+  if(!confirm(`Reset ALL report sequences for ${year} to 0?\n\nEvery family (HR, DL, TR, RPT, PM, INC, FMR, FMT, …) will restart from 0001.\n\nThis does not delete any existing reports or the log.`)) return;
   try{
-    const {db, doc, setDoc} = window.__fb;
+    const {db, doc, setDoc, collection, getDocs} = window.__fb;
     if(!db) return toast("Database not ready");
+    const snap = await getDocs(collection(db, "reportCounters"));
+    let n=0;
+    for(const d of snap.docs){
+      const x=d.data();
+      if(x.year!==year) continue;
+      await setDoc(doc(db,"reportCounters",d.id), {...x, count:0, year});
+      n++;
+    }
+    // legacy shared doc too, in case it exists
     await setDoc(doc(db, "reportCounters", String(year)), { count: 0, year: year });
     const el = document.getElementById("counterStatus");
-    if(el){
-      el.style.display = "block";
-      el.style.color = "#2E7D32";
-      el.innerHTML = `✅ Counter reset! Next export will be <strong>RPT-${year}-0001</strong>`;
-    }
-    toast(`Counter reset ✓ — next report: RPT-${year}-0001`);
-  } catch(e){
-    toast("Error resetting counter: " + e.message);
-  }
+    if(el){ el.style.display="block"; el.style.color="#2E7D32";
+      el.innerHTML=`✅ All sequences reset (${n} counter${n===1?"":"s"}) — every family's next report is its own <strong>0001</strong>.`; }
+    toast(`All report sequences reset ✓`);
+  } catch(e){ toast("Error resetting: " + e.message); }
+};
+
+// ── Report Log: full register of every generated report number ──
+window.viewReportLog = async function(){
+  if(!isAdmin()) return;
+  const box=document.getElementById("reportLogBox");
+  if(!box) return;
+  if(box.style.display==="block"){ box.style.display="none"; return; }
+  box.style.display="block";
+  box.innerHTML=`<div style="font-size:12px;color:var(--muted)">Loading log…</div>`;
+  try{
+    const {db, collection, getDocs} = window.__fb;
+    const snap = await getDocs(collection(db, "reportLog"));
+    const rows=[];
+    snap.forEach(d=>rows.push(d.data()));
+    rows.sort((a,b)=>String(b.at||"").localeCompare(String(a.at||"")));
+    const show=rows.slice(0,150);
+    box.innerHTML = rows.length===0
+      ? `<div class="empty empty2"><span class="e-ic">📜</span><div class="e-t">No reports logged yet</div><div class="e-m">Every generated report number will appear here</div></div>`
+      : `<div style="font-size:11px;color:var(--muted);margin-bottom:6px">📜 <strong>${rows.length}</strong> reports logged${rows.length>150?" — showing latest 150":""}</div>
+        <div class="tbl-wrap" style="max-height:340px;overflow:auto"><table class="tbl">
+        <thead><tr><th>Ref No.</th><th>Type</th><th>By</th><th>Period</th><th>When</th></tr></thead>
+        <tbody>${show.map(r=>{
+          const pfx=r.prefix||String(r.refNo||"").split("-")[0];
+          return `<tr>
+            <td style="font-weight:800;color:#03308B;white-space:nowrap">${escapeHtml(r.refNo||"—")}</td>
+            <td><span style="font-size:9px;background:#F0F4FF;color:#03308B;padding:1px 8px;border-radius:8px;font-weight:800">${escapeHtml((window.REF_TYPE_LABEL||{})[pfx]||r.reportType||"—")}</span></td>
+            <td style="font-size:11px">${escapeHtml(r.exportedByName||r.exportedBy||"—")}</td>
+            <td style="font-size:11px">${escapeHtml(r.period||"—")}</td>
+            <td style="font-size:11px;white-space:nowrap">${r.at?new Date(r.at).toLocaleString("en-GB",{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit"}):"—"}</td>
+          </tr>`;}).join("")}</tbody></table></div>`;
+  }catch(e){ box.innerHTML=`<div style="color:#C62828;font-size:12px">Error loading log: ${escapeHtml(e.message)}</div>`; }
 };
 
 // Daily Entry Numbering tools (exposed for Profile buttons)

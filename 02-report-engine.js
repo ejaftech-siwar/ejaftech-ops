@@ -1,37 +1,55 @@
+// ── Per-type reference sequences ─────────────────────────────────────────
+// Every report family runs its OWN yearly counter (reportCounters/{year}_{PREFIX})
+// so PM, Incident, FM-200, HR, Daily Log… never share or collide in numbering.
+const REF_PREFIX = {
+  HR_REPORT:"HR", DAILY_LOG:"DL", TECHNICAL_REPORT:"TR", PERIOD_REPORT:"RPT",
+  PREVENTIVE_MAINTENANCE:"PM", INCIDENT:"INC",
+  FM200_REFILLING:"FMR", FM200_TEST:"FMT",
+  ASSET_REPORT:"AST", CLIENT_REPORT:"CLR", DASHBOARD:"DSH", GENERAL:"RPT",
+};
+const REF_TYPE_LABEL = {
+  HR:"HR Report", DL:"Daily Log Report", TR:"Technical Report", RPT:"Flexible Report",
+  PM:"PM Report", INC:"Incident Report", FMR:"FM-200 Refilling", FMT:"FM-200 Test",
+  AST:"Asset Report", CLR:"Client Report", DSH:"Dashboard Export",
+};
+window.REF_PREFIX=REF_PREFIX; window.REF_TYPE_LABEL=REF_TYPE_LABEL;
+
 async function generateRefNo(reportType="GENERAL"){
+  const prefix = REF_PREFIX[reportType] || "RPT";
   try{
     const {db, doc, getDoc, setDoc, runTransaction, collection, addDoc} = window.__fb;
     if(!db) throw new Error("db not ready");
 
     const year = new Date().getFullYear();
-    const counterRef = doc(db, "reportCounters", String(year));
+    const counterRef = doc(db, "reportCounters", `${year}_${prefix}`);
 
-    // Use transaction to safely increment
+    // Use transaction to safely increment this type's own sequence
     const n = await runTransaction(db, async(tx) => {
       const snap = await tx.get(counterRef);
       const stored = snap.exists() ? snap.data() : {};
       const storedYear = stored.year || 0;
       const current = (storedYear === year) ? (stored.count || 0) : 0;
       const next = current + 1;
-      tx.set(counterRef, { count: next, year: year });
+      tx.set(counterRef, { count: next, year: year, prefix: prefix });
       return next;
     });
 
-    const refNo = `RPT-${year}-${String(n).padStart(4,"0")}`;
+    const refNo = `${prefix}-${year}-${String(n).padStart(4,"0")}`;
 
     // Log silently — never block export
     addDoc(collection(db, "reportLog"), {
-      refNo, reportType,
+      refNo, reportType, prefix,
       exportedBy:     state.user?.email,
       exportedByName: state.profile?.name || state.profile?.employeeName,
-      period:         getPeriod()
+      period:         getPeriod(),
+      at:             new Date().toISOString()
     }).catch(()=>{});
 
     return refNo;
 
   } catch(e) {
     console.error("generateRefNo failed:", e.message);
-    return `RPT-${new Date().getFullYear()}-T${Date.now().toString().slice(-5)}`;
+    return `${prefix}-${new Date().getFullYear()}-T${Date.now().toString().slice(-5)}`;
   }
 }
 
