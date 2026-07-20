@@ -255,6 +255,17 @@ window.dailyLinkThread=async function(key){
 window.dailyUnlinkThread=function(){ dailyForm.threadId=""; toast("Starting a NEW work item"); render(); };
 
 function renderDailyLog(){
+  rollAutoDate(window.dailyForm);   // stale auto-date? roll it forward now
+  // A forgotten MANUAL date/time override silently shifts every date in the
+  // app — never let it hide. Shown wherever dates actually matter.
+  const _mo=(typeof _dtDoc==="function")&&_dtDoc().mode==="manual"
+    ? `<div class="card" style="background:#FFF3E0;border:1.5px solid #E65100;padding:11px 13px">
+        <div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap">
+          <span style="font-size:12px;font-weight:800;color:#BF360C">🕐 MANUAL DATE &amp; TIME IS ON</span>
+          <span style="flex:1;min-width:150px;font-size:11px;color:#7A4A10">The app is using <strong>${today()}</strong>, not the real clock.</span>
+          <button class="btn btn-sm" style="background:#E65100;color:#fff;border:none;font-weight:700" onclick="clearManualDT()">⚡ Back to automatic</button>
+        </div>
+      </div>` : "";
   if(!dailyForm){
     const _draft=loadDailyDraft();
     if(_draft && !dailyEditId){
@@ -265,7 +276,7 @@ function renderDailyLog(){
   }
   if(!dailyForm){
     dailyForm={
-      date:today(),
+      date:today(), dateAuto:true,   // cleared the moment the user picks a date
       employee:isEmployee()?state.profile.employeeName:"",
       project:"",projectCode:"",pmFinal:false,start:"",end:"",location:"",
       site:"",equipment:"",area:"",  // area + site (from project's areas)
@@ -320,11 +331,11 @@ function renderDailyLog(){
     return {name:l.name, count:items.length, hours};
   }).filter(l=>l.count>0);
 
-  return `${_jumpBanner}<div class="card">
+  return `${_mo}${_jumpBanner}<div class="card">
     <div class="sec-hdr">${dailyEditId?"Edit":"Add"} Work Entry</div>
     <div class="form-grid">
       <div class="field"><label>Date <span class="req">*</span></label>
-        <input type="date" value="${dailyForm.date}" onchange="window.dailyForm.date=this.value;render()"></div>
+        <input type="date" value="${dailyForm.date}" onchange="window.dailyForm.date=this.value;window.dailyForm.dateAuto=false;render()"></div>
       <div class="field"><label>Employee <span class="req">*</span></label>
         ${isEmployee() && !isSupervisor()
           ?(state.profile.employeeName
@@ -1070,8 +1081,9 @@ Object.defineProperty(window,'dailyEntryNo',{get:()=>dailyEntryNo,set:v=>dailyEn
 //  OVERTIME
 // ═══════════════════════════════════════════════════════════════════════
 function renderOvertime(){
+  rollAutoDate(window.otForm);
   if(!otForm){
-    otForm={date:today(),employee:isEmployee()?state.profile.employeeName:"",hours:"",start:"",end:"",project:"",location:"",notes:""};
+    otForm={date:today(),dateAuto:true,employee:isEmployee()?state.profile.employeeName:"",hours:"",start:"",end:"",project:"",location:"",notes:""};
   }
   const dept=projDept(otForm.project),day=dayName(otForm.date);
   const rows=applyReportFilters(visibleRows(state.overtime));
@@ -1082,7 +1094,7 @@ function renderOvertime(){
     <div class="form-grid">
       <div class="field"><label>Employee <span class="req">*</span></label>
         ${isEmployee()?`<select onchange="window.otForm.employee=this.value;render()"><option value="${escapeHtml(state.profile.employeeName||"")}" selected>${escapeHtml(state.profile.employeeName||"")}</option></select>`:`<select onchange="window.otForm.employee=this.value;render()"><option value="">— Select —</option>${empOptions.map(e=>`<option ${e===otForm.employee?"selected":""}>${escapeHtml(e)}</option>`).join("")}</select>`}</div>
-      <div class="field"><label>Date <span class="req">*</span></label><input type="date" value="${otForm.date}" onchange="window.otForm.date=this.value;render()"></div>
+      <div class="field"><label>Date <span class="req">*</span></label><input type="date" value="${otForm.date}" onchange="window.otForm.date=this.value;window.otForm.dateAuto=false;render()"></div>
       <div class="field"><label>Start Time <span class="req">*</span></label>
         <input type="time" value="${otForm.start||''}" onchange="window.otForm.start=this.value;window.updateOTDuration();render()"></div>
       <div class="field"><label>End Time <span class="req">*</span></label>
@@ -1175,8 +1187,9 @@ Object.defineProperty(window,'otForm',{get:()=>otForm,set:v=>otForm=v});
 //  TRAVEL
 // ═══════════════════════════════════════════════════════════════════════
 function renderTravel(){
+  rollAutoDate(window.trForm);
   if(!trForm){
-    trForm={date:today(),employee:isEmployee()?state.profile.employeeName:"",days:"",project:"",location:"",notes:""};
+    trForm={date:today(),dateAuto:true,employee:isEmployee()?state.profile.employeeName:"",days:"",project:"",location:"",notes:""};
   }
   const dept=projDept(trForm.project),pd=trForm.days?Number(trForm.days)*PER_DIEM_RATE:0;
   const rows=applyReportFilters(visibleRows(state.travel));
@@ -1187,7 +1200,7 @@ function renderTravel(){
     <div class="form-grid">
       <div class="field"><label>Employee <span class="req">*</span></label>
         ${isEmployee()?`<select onchange="window.trForm.employee=this.value;render()"><option value="${escapeHtml(state.profile.employeeName||"")}" selected>${escapeHtml(state.profile.employeeName||"")}</option></select>`:`<select onchange="window.trForm.employee=this.value;render()"><option value="">— Select —</option>${empOptions.map(e=>`<option ${e===trForm.employee?"selected":""}>${escapeHtml(e)}</option>`).join("")}</select>`}</div>
-      <div class="field"><label>Date <span class="req">*</span></label><input type="date" value="${trForm.date}" onchange="window.trForm.date=this.value;render()"></div>
+      <div class="field"><label>Date <span class="req">*</span></label><input type="date" value="${trForm.date}" onchange="window.trForm.date=this.value;window.trForm.dateAuto=false;render()"></div>
       <div class="field"><label>Days <span class="req">*</span></label><input type="number" min="1" value="${trForm.days||""}" oninput="window.trForm.days=this.value;render()" placeholder="e.g. 3"></div>
       <div class="field"><label>Per Diem (auto)</label><div class="auto yellow ${pd>0?"":"empty"}">${pd>0?fmtMoney(pd)+" IQD":"—"}</div></div>
       <div class="field full"><label>Project</label><select onchange="window.trForm.project=this.value;render()"><option value="">— Select —</option>${state.projects.map(p=>{const n=(p.name||"").trim();return `<option value="${escapeHtml(n)}" ${n===(trForm.project||"").trim()?"selected":""}>${escapeHtml(n)}</option>`}).join("")}</select></div>

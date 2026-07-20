@@ -435,23 +435,40 @@ const today=(d)=>{
 // left open overnight. Only touches the date if the user hasn't already
 // changed it away from the day the form was opened on — never overwrites a
 // deliberate backfill to a different day.
-window._lastKnownDay = window._lastKnownDay || today();
+// v128 — SELF-HEALING date roll (replaces the v107 "catch the moment" watcher,
+// which only worked if you happened to be standing on the Daily Log tab at
+// midnight, and latched itself shut afterwards).
+//
+// Instead we track INTENT: a date the app filled in carries `dateAuto:true`;
+// the moment the user picks a date themselves the flag is cleared forever.
+// Any auto date that is no longer today gets rolled forward the next time the
+// form renders — so it self-corrects whatever tab you were on, whether the app
+// slept through midnight, was killed, or ran for a week.
+function rollAutoDate(form){
+  try{
+    if(!form || !form.dateAuto) return false;
+    const t=today();
+    if(form.date===t) return false;
+    form.date=t;
+    return true;   // caller decides whether to notify
+  }catch(e){ return false; }
+}
+window.rollAutoDate=rollAutoDate;
 function _checkDayRollover(){
   try{
     const t=today();
-    if(t!==window._lastKnownDay){
-      const prev=window._lastKnownDay;
-      window._lastKnownDay=t;
-      if(state.tab==="Daily Log" && dailyForm && !dailyEditId && dailyForm.date===prev){
-        dailyForm.date=t;
-        toast("📅 New day — date updated automatically");
-        render();
-      }
-    }
+    if(t===window._lastKnownDay) return;
+    window._lastKnownDay=t;
+    let hit=false;
+    [window.dailyForm,window.otForm,window.trForm].forEach(f=>{ if(rollAutoDate(f)) hit=true; });
+    if(hit){ toast("📅 New day — date updated automatically"); }
+    render();
   }catch(e){}
 }
+window._lastKnownDay = window._lastKnownDay || today();
 setInterval(_checkDayRollover, 60000);
 document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) _checkDayRollover(); });
+window.addEventListener('focus', ()=>_checkDayRollover());
 const fmtDate=(d)=>d?new Date(d).toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"2-digit"}):"—";
 const fmtMoney=(n)=>n==null||n===""?"—":Math.round(Number(n)||0).toLocaleString();
 const fmtHM=(hrs)=>{
