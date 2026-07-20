@@ -100,6 +100,242 @@ function donutSVG(slices,total){
     <text x="100" y="115" text-anchor="middle" font-family="Inter" font-size="10" fill="#6B7B8F" letter-spacing="1">TOTAL HOURS</text></svg>`;
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+//  DASHBOARD INTELLIGENCE — v132
+//  Turns the dashboard from "what happened" into "what needs me now".
+//  Every figure below is clickable and lands on the record behind it.
+// ═══════════════════════════════════════════════════════════════════════
+
+// Effective period (falls back to the current month when no range is set)
+const _F=x=>`${x.getFullYear()}-${String(x.getMonth()+1).padStart(2,"0")}-${String(x.getDate()).padStart(2,"0")}`;
+function _dashRange(){
+  const f=getPeriodFrom(), t=getPeriodTo();
+  // filterByPeriod() returns EVERYTHING when no range is set, so the KPIs are
+  // all-time. Pretending otherwise would make the trend chips lie — instead we
+  // flag it unbounded, suppress trends, and spark the last 60 days.
+  if(!f && !t){
+    const n=appNow(), s=new Date(n); s.setDate(s.getDate()-59);
+    return {from:"0000-01-01",to:"9999-12-31",sparkFrom:_F(s),sparkTo:_F(n),unbounded:true};
+  }
+  const n=appNow();
+  return {from:f||"0000-01-01", to:t||_F(n), unbounded:false};
+}
+// The equally-long window immediately before it — the basis for every trend
+function _prevRange(){
+  const R=_dashRange();
+  if(R.unbounded) return null;          // nothing honest to compare against
+  const {from,to}=R;
+  const a=new Date(from+"T00:00:00"), b=new Date(to+"T00:00:00");
+  const days=Math.round((b-a)/864e5)+1;
+  const pb=new Date(a); pb.setDate(pb.getDate()-1);
+  const pa=new Date(pb); pa.setDate(pa.getDate()-days+1);
+  const F=x=>`${x.getFullYear()}-${String(x.getMonth()+1).padStart(2,"0")}-${String(x.getDate()).padStart(2,"0")}`;
+  return {from:F(pa),to:F(pb),days};
+}
+const _inRange=(d,r)=>d && String(d)>=r.from && String(d)<=r.to;
+
+// ── 2 · trend chip + sparkline ────────────────────────────────────────
+function _trendChip(cur,prev){
+  if(prev===null||prev===undefined) return "";        // period unbounded — no baseline
+  if(!prev){ return cur? `<span class="dsh-trend new">new</span>` : ""; }
+  const pct=Math.round(((cur-prev)/prev)*100);
+  if(pct===0) return `<span class="dsh-trend flat">— 0%</span>`;
+  const up=pct>0;
+  return `<span class="dsh-trend ${up?"up":"down"}">${up?"▲":"▼"} ${Math.abs(pct)}%</span>`;
+}
+function _sparkline(vals,color){
+  if(!vals||vals.length<2) return "";
+  const mx=Math.max(...vals,0.0001), n=vals.length;
+  const pts=vals.map((v,i)=>`${(i/(n-1)*100).toFixed(1)},${(26-(v/mx)*22).toFixed(1)}`).join(" ");
+  return `<svg class="dsh-spark" viewBox="0 0 100 28" preserveAspectRatio="none" aria-hidden="true">
+    <polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
+  </svg>`;
+}
+// daily totals across the current range — feeds the sparklines
+function _dailySeries(rows,field,r){
+  const win = r.unbounded ? {from:r.sparkFrom,to:r.sparkTo} : r;
+  const map={}; (rows||[]).forEach(x=>{ if(_inRange(x.date,win)) map[x.date]=(map[x.date]||0)+Number(x[field]||0); });
+  const out=[]; const a=new Date(win.from+"T00:00:00"), b=new Date(win.to+"T00:00:00");
+  for(let d=new Date(a); d<=b; d.setDate(d.getDate()+1)){
+    const k=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+    out.push(map[k]||0);
+  }
+  return out.length>60?out.slice(-60):out;
+}
+
+// ── 1 · extra signals for the attention strip ─────────────────────────
+function dashAlerts(){
+  const out=[];
+  try{   // critical / high incidents still open
+    const crit=(state.incidents||[]).filter(i=>!["Resolved","Closed"].includes(i.status||"Open")
+      && ["Critical","High"].includes(i.severity||""));
+    if(crit.length) out.push({ic:"🚨",t:`${crit.length} critical incident${crit.length>1?"s":""} open`,m:"High or critical severity",go:"Incidents",c:"#C62828"});
+  }catch(e){}
+  try{   // work items nobody has touched for a fortnight
+    if(typeof buildWorkItems==="function"){
+      const cut=new Date(appNow()); cut.setDate(cut.getDate()-14);
+      const C=`${cut.getFullYear()}-${String(cut.getMonth()+1).padStart(2,"0")}-${String(cut.getDate()).padStart(2,"0")}`;
+      const stale=buildWorkItems(state.daily||[]).filter(w=>!w.closed && w.lastDate && w.lastDate<C);
+      if(stale.length) out.push({ic:"🧵",t:`${stale.length} work item${stale.length>1?"s":""} stalled`,m:"Open with no visit for 14+ days",go:"Daily Log",c:"#E65100"});
+    }
+  }catch(e){}
+  try{   // did I log my own work today?
+    const me=(state.profile&&(state.profile.employeeName||state.profile.name))||"";
+    if(me && (isEmployee()||isAdmin())){
+      const mine=(state.daily||[]).some(r=>r.employee===me && r.date===today());
+      if(!mine) out.push({ic:"📝",t:"No work entry logged today",m:"Record today's work before you finish",go:"Daily Log",c:"#2E5FA3"});
+    }
+  }catch(e){}
+  return out;
+}
+
+// ── 4 · today's field picture ─────────────────────────────────────────
+function dashFieldToday(){
+  const t=today();
+  const rows=(state.daily||[]).filter(r=>r.date===t);
+  const roster=(typeof visibleEmployees==="function")?visibleEmployees().filter(Boolean):[];
+  const active={};
+  rows.forEach(r=>{
+    const e=r.employee||"—";
+    (active[e]=active[e]||{emp:e,hrs:0,places:new Set(),projects:new Set()});
+    active[e].hrs+=Number(r.duration||0);
+    const pl=[r.area,r.site].filter(Boolean).join(" › ")||r.location||"";
+    if(pl) active[e].places.add(pl);
+    if(r.project) active[e].projects.add(r.project);
+  });
+  const list=Object.values(active).map(a=>({...a,places:[...a.places],projects:[...a.projects]}))
+    .sort((a,b)=>b.hrs-a.hrs);
+  const silent=roster.filter(e=>!active[e]);
+  if(!list.length && !silent.length) return "";
+  return `<div class="card">
+    <div class="card-title">📍 Today in the field <span style="font-size:11px;font-weight:500;color:var(--muted)">— ${list.length} active${silent.length?` · ${silent.length} not logged yet`:""}</span></div>
+    ${list.length?`<div style="display:grid;gap:7px;margin-top:8px">
+      ${list.map(a=>`<button class="dsh-row" onclick="switchTab('Daily Log')">
+        <span class="dsh-dot" style="background:#2E7D32"></span>
+        <span style="flex:1;min-width:0">
+          <span style="font-weight:700;font-size:13px;color:var(--text)">${escapeHtml(a.emp)}</span>
+          <span style="display:block;font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(a.places.join(" · ")||a.projects.join(" · ")||"—")}</span>
+        </span>
+        <span style="font-weight:800;font-size:12px;color:#2E7D32">${fmtHM(a.hrs)}</span>
+      </button>`).join("")}
+    </div>`:""}
+    ${silent.length?`<div style="margin-top:10px;display:flex;gap:5px;flex-wrap:wrap;align-items:center">
+      <span style="font-size:10.5px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">Not logged yet</span>
+      ${silent.slice(0,10).map(e=>`<span style="font-size:11px;background:#FFF3E0;color:#E65100;padding:3px 9px;border-radius:11px;font-weight:700">${escapeHtml(e)}</span>`).join("")}
+      ${silent.length>10?`<span style="font-size:11px;color:var(--muted)">+${silent.length-10}</span>`:""}
+    </div>`:""}
+  </div>`;
+}
+
+// ── 3 · project health matrix (RAG) ───────────────────────────────────
+function dashProjectHealth(){
+  const r=_dashRange();
+  const projects=(state.projects||[]).filter(p=>(p.name||"").trim());
+  if(!projects.length) return "";
+  const rowsAll=state.daily||[];
+  const cards=projects.map(p=>{
+    const nm=(p.name||"").trim();
+    const mine=rowsAll.filter(x=>(x.project||"").trim()===nm);
+    const hrs=mine.filter(x=>_inRange(x.date,r)).reduce((s,x)=>s+Number(x.duration||0),0);
+    const totalHrs=mine.reduce((s,x)=>s+Number(x.duration||0),0);
+    const est=Number(p.estimatedHours||0);
+    const pct=est>0?Math.round(totalHrs/est*100):null;
+    const last=mine.reduce((m,x)=>String(x.date||"")>m?String(x.date):m,"");
+    const inc=(state.incidents||[]).filter(i=>(i.project||"").trim()===nm&&!["Resolved","Closed"].includes(i.status||"Open")).length;
+    const pms=(state.pmSchedules||[]).filter(s=>(s.project||"").trim()===nm&&s.active!==false);
+    const od=pms.filter(s=>pmDaysLeft(s)<0).length;
+    const compliance=pms.length?Math.round((pms.length-od)/pms.length*100):null;
+    // RAG: overdue PM or open incidents or budget overrun or gone quiet
+    let rag="Green";
+    const quiet = last && ((new Date(today())-new Date(last))/864e5)>14;
+    if(inc||od||quiet||(pct!==null&&pct>100)) rag="Amber";
+    if(inc>2||od>1||(pct!==null&&pct>115)) rag="Red";
+    return {nm,hrs,totalHrs,est,pct,last,inc,od,compliance,rag,active:hrs>0};
+  }).filter(x=>x.active||x.inc||x.od)
+    .sort((a,b)=>({Red:0,Amber:1,Green:2}[a.rag]-{Red:0,Amber:1,Green:2}[b.rag])||b.hrs-a.hrs);
+  if(!cards.length) return "";
+  const RC={Red:"#C62828",Amber:"#E65100",Green:"#2E7D32"};
+  return `<div class="card">
+    <div class="card-title">🏗 Project health <span style="font-size:11px;font-weight:500;color:var(--muted)">— ${cards.length} project${cards.length>1?"s":""} this period</span></div>
+    <div style="display:grid;gap:8px;margin-top:8px">
+      ${cards.slice(0,10).map(c=>`<button class="dsh-proj" style="border-left-color:${RC[c.rag]}" onclick="switchTab('Projects')">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+          <span style="font-weight:800;font-size:13px;color:var(--text)">${escapeHtml(c.nm)}</span>
+          <span style="font-size:12px;font-weight:800;color:${RC[c.rag]}">${fmtHM(c.hrs)}</span>
+        </div>
+        ${c.pct!==null?`<div style="margin-top:6px">
+          <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted);font-weight:700"><span>BUDGET</span><span>${fmtHM(c.totalHrs)} / ${c.est}h · ${c.pct}%</span></div>
+          <div style="height:6px;background:var(--line);border-radius:4px;overflow:hidden;margin-top:3px"><div style="height:100%;width:${Math.min(100,c.pct)}%;background:${c.pct>100?"#C62828":"linear-gradient(90deg,#C9A84C,#E9CC7A)"};border-radius:4px"></div></div>
+        </div>`:""}
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:7px">
+          ${c.compliance!==null?`<span class="dsh-chip" style="background:${c.od?"#FFF3E0":"#E8F5E9"};color:${c.od?"#E65100":"#2E7D32"}">PM ${c.compliance}%</span>`:""}
+          ${c.od?`<span class="dsh-chip" style="background:#FDECEA;color:#C62828">${c.od} overdue</span>`:""}
+          ${c.inc?`<span class="dsh-chip" style="background:#FDECEA;color:#C62828">${c.inc} incident${c.inc>1?"s":""}</span>`:""}
+          ${c.last?`<span class="dsh-chip" style="background:var(--line);color:var(--muted)">last ${fmtDate(c.last)}</span>`:""}
+        </div>
+      </button>`).join("")}
+    </div>
+  </div>`;
+}
+
+// ── 5 · repeat-offender devices ───────────────────────────────────────
+function dashProblemDevices(){
+  const cut=new Date(appNow()); cut.setDate(cut.getDate()-90);
+  const C=`${cut.getFullYear()}-${String(cut.getMonth()+1).padStart(2,"0")}-${String(cut.getDate()).padStart(2,"0")}`;
+  const tally={};
+  (state.incidents||[]).forEach(i=>{
+    if(!i.deviceSerial || String(i.date||"")<C) return;
+    (tally[i.deviceSerial]=tally[i.deviceSerial]||{sn:i.deviceSerial,n:0,project:i.project||"",last:""});
+    tally[i.deviceSerial].n++;
+    if(String(i.date)>tally[i.deviceSerial].last) tally[i.deviceSerial].last=String(i.date);
+  });
+  const top=Object.values(tally).filter(x=>x.n>1).sort((a,b)=>b.n-a.n).slice(0,5);
+  if(!top.length) return "";
+  return `<div class="card" style="border-left:4px solid #C62828">
+    <div class="card-title">🔁 Repeat offenders <span style="font-size:11px;font-weight:500;color:var(--muted)">— most incidents in the last 90 days</span></div>
+    <div style="display:grid;gap:7px;margin-top:8px">
+      ${top.map(d=>{
+        const dev=(state.devices||[]).find(x=>x.serialNumber===d.sn);
+        return `<button class="dsh-row" onclick="switchTab('Incidents')">
+          <span class="dsh-dot" style="background:#C62828"></span>
+          <span style="flex:1;min-width:0">
+            <span style="font-weight:700;font-size:13px;color:var(--text)">${escapeHtml(dev?(dev.deviceName||dev.model||d.sn):d.sn)}</span>
+            <span style="display:block;font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml([d.project,dev&&dev.site,"last "+fmtDate(d.last)].filter(Boolean).join(" · "))}</span>
+          </span>
+          <span style="font-weight:800;font-size:13px;color:#C62828">${d.n}×</span>
+        </button>`;}).join("")}
+    </div>
+    <p style="font-size:10.5px;color:var(--muted);margin:9px 0 0">Repeated failures on the same unit usually cost more than replacing it.</p>
+  </div>`;
+}
+
+// ── 6 · the technician's own day ──────────────────────────────────────
+function dashMyDay(){
+  const me=(state.profile&&(state.profile.employeeName||state.profile.name))||"";
+  if(!me) return "";
+  const t=today();
+  const mineToday=(state.daily||[]).filter(r=>r.employee===me&&r.date===t);
+  const hrs=mineToday.reduce((s,r)=>s+Number(r.duration||0),0);
+  const r=_dashRange();
+  const mineRange=(state.daily||[]).filter(x=>x.employee===me&&_inRange(x.date,r));
+  const rangeHrs=mineRange.reduce((s,x)=>s+Number(x.duration||0),0);
+  let open=0;
+  try{ if(typeof buildWorkItems==="function")
+    open=buildWorkItems((state.daily||[]).filter(x=>x.employee===me)).filter(w=>!w.closed).length; }catch(e){}
+  const uid=state.profile&&state.profile.uid;
+  const tasks=(state.tasks||[]).filter(x=>x.assignedToUid===uid&&x.status==="pending").length;
+  return `<div class="card" style="border-left:4px solid #2E5FA3">
+    <div class="card-title">🎯 My day</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:9px">
+      <button class="dsh-mini" onclick="switchTab('Daily Log')"><span class="dsh-mv" style="color:${hrs?"#2E7D32":"#C62828"}">${fmtHM(hrs)}</span><span class="dsh-ml">logged today</span></button>
+      <button class="dsh-mini" onclick="switchTab('Daily Log')"><span class="dsh-mv" style="color:#2E5FA3">${fmtHM(rangeHrs)}</span><span class="dsh-ml">this period</span></button>
+      <button class="dsh-mini" onclick="switchTab('Daily Log')"><span class="dsh-mv" style="color:${open?"#E65100":"#2E7D32"}">${open}</span><span class="dsh-ml">open work items</span></button>
+      <button class="dsh-mini" onclick="switchTab('My Tasks')"><span class="dsh-mv" style="color:${tasks?"#E65100":"#2E7D32"}">${tasks}</span><span class="dsh-ml">tasks pending</span></button>
+    </div>
+  </div>`;
+}
+Object.assign(window,{dashAlerts,dashFieldToday,dashProjectHealth,dashProblemDevices,dashMyDay,_dashRange,_prevRange,_trendChip,_sparkline,_dailySeries,_inRange});
+
 function renderDashboard(){
   const s=summary();
   const tHrs=s.reduce((a,b)=>a+b.total,0);
@@ -138,6 +374,7 @@ function renderDashboard(){
   try{ if(isAdmin()){ const init=(typeof reqInitialStatus==="function")?reqInitialStatus():"new";
     const nw=(state.clientRequests||[]).filter(r=>(r.status||init)===init).length;
     if(nw>0) _acts.push({ic:"📨",t:`${nw} new client request${nw>1?"s":""}`,m:"Not yet reviewed",go:"Requests",c:"#6A1B9A"}); } }catch(e){}
+  try{ if(typeof dashAlerts==="function") dashAlerts().forEach(a=>_acts.push(a)); }catch(e){}
   const hero=`<div class="card day-hero">
     <div class="dh-top">
       <div><div class="dh-greet">${_greet}${_fname?`, ${escapeHtml(_fname)}`:""} ${_gIcon}</div>
@@ -149,12 +386,32 @@ function renderDashboard(){
     :`<div class="dh-clear">Nothing is waiting on you right now — enjoy the calm ${_gIcon}</div>`}
   </div>`;
 
-  let h = hero + exportBar + `<div class="kpi-grid">
-    <div class="kpi" style="--accent:#2E5FA3"><div class="kpi-label">Total Hours</div><div class="kpi-value"><span class="cnt" data-v="${tHrs}" data-fmt="hm">0:00</span></div><div class="kpi-sub">${isEmployee()?"your hours":applyReportFilters(visibleRows(state.daily)).length+" sessions"}</div></div>
-    <div class="kpi" style="--accent:#E65100"><div class="kpi-label">Overtime</div><div class="kpi-value"><span class="cnt" data-v="${tOT}" data-fmt="hm">0:00</span></div><div class="kpi-sub">${applyReportFilters(visibleRows(state.overtime)).length} entries</div></div>
-    <div class="kpi" style="--accent:#2E7D32"><div class="kpi-label">Travel Days</div><div class="kpi-value"><span class="cnt" data-v="${tTr}" data-fmt="int">0</span></div><div class="kpi-sub">${applyReportFilters(visibleRows(state.travel)).length} trips</div></div>
-    <div class="kpi" style="--accent:#6A1B9A"><div class="kpi-label">Per Diem</div><div class="kpi-value"><span class="cnt" data-v="${tPD}" data-fmt="money">0</span></div><div class="kpi-sub">IQD total</div></div>
+  // ── period-over-period comparison for every headline figure ──
+  const _R=_dashRange(), _P=_prevRange();
+  const _emps=(typeof visibleEmployees==="function")?visibleEmployees().filter(Boolean):[];
+  const _mine=(rows)=>_emps.length?(rows||[]).filter(x=>_emps.includes(x.employee)):(rows||[]);
+  const _sum=(rows,f,rg)=>rg?_mine(rows).filter(x=>_inRange(x.date,rg)).reduce((s,x)=>s+Number(x[f]||0),0):null;
+  const _pHrs=_sum(state.daily,"duration",_P);
+  const _pOT =_sum(state.overtime,"hours",_P)||_sum(state.overtime,"duration",_P);
+  const _pTr =_sum(state.travel,"days",_P);
+  const _pPD =_sum(state.travel,"perDiem",_P);
+  const _kpi=(accent,label,val,fmt,sub,prev,cur,series)=>`
+    <div class="kpi" style="--accent:${accent}">
+      <div class="kpi-label">${label}</div>
+      <div class="kpi-value"><span class="cnt" data-v="${val}" data-fmt="${fmt}">${fmt==="hm"?"0:00":"0"}</span></div>
+      <div class="kpi-sub">${sub} ${_trendChip(cur,prev)}</div>
+      ${_sparkline(series,accent)}
+    </div>`;
+  let h = hero + exportBar + (isEmployee()&&typeof dashMyDay==="function"?dashMyDay():"") + `<div class="kpi-grid">
+    ${_kpi("#2E5FA3","Total Hours",tHrs,"hm",isEmployee()?"your hours":applyReportFilters(visibleRows(state.daily)).length+" sessions",_pHrs,tHrs,_dailySeries(_mine(state.daily),"duration",_R))}
+    ${_kpi("#E65100","Overtime",tOT,"hm",applyReportFilters(visibleRows(state.overtime)).length+" entries",_pOT,tOT,_dailySeries(_mine(state.overtime),"hours",_R))}
+    ${_kpi("#2E7D32","Travel Days",tTr,"int",applyReportFilters(visibleRows(state.travel)).length+" trips",_pTr,tTr,_dailySeries(_mine(state.travel),"days",_R))}
+    ${_kpi("#6A1B9A","Per Diem",tPD,"money","IQD total",_pPD,tPD,_dailySeries(_mine(state.travel),"perDiem",_R))}
   </div>`;
+  // ── the operational picture, above the historical charts ──
+  if(!isEmployee()){
+    try{ h += dashFieldToday() + dashProjectHealth() + dashProblemDevices(); }catch(e){ console.error("dash blocks",e); }
+  }
 
   if(!isEmployee()){
     h+=`<div class="card"><div class="card-title">Employee Hours Distribution</div>
