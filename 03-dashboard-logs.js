@@ -255,7 +255,6 @@ window.dailyLinkThread=async function(key){
 window.dailyUnlinkThread=function(){ dailyForm.threadId=""; toast("Starting a NEW work item"); render(); };
 
 function renderDailyLog(){
-  rollAutoDate(window.dailyForm);   // stale auto-date? roll it forward now
   // A forgotten MANUAL date/time override silently shifts every date in the
   // app — never let it hide. Shown wherever dates actually matter.
   const _mo=(typeof _dtDoc==="function")&&_dtDoc().mode==="manual"
@@ -287,6 +286,17 @@ function renderDailyLog(){
       resolutionImages:[], // array of base64 compressed images
       notes:""
     };
+  }
+  // ── Date roll, AFTER the form exists (a draft restored above may carry
+  //    yesterday's date). Drafts written before v128 have no `dateAuto` key
+  //    at all — back then the date was ALWAYS auto-filled, so treat a missing
+  //    flag as auto. Any roll on a restored draft is announced, never silent.
+  if(!dailyEditId){
+    if(dailyForm.dateAuto===undefined) dailyForm.dateAuto = true;   // legacy draft
+    const _was=dailyForm.date;
+    if(rollAutoDate(dailyForm) && _was){
+      setTimeout(()=>toast(`📅 Draft was from ${fmtDate(_was)} — date updated to today`),700);
+    }
   }
   // Ensure fields exist (backward compat for edit)
   if(!dailyForm.resolutionImages) dailyForm.resolutionImages = [];
@@ -1186,10 +1196,29 @@ Object.defineProperty(window,'otForm',{get:()=>otForm,set:v=>otForm=v});
 // ═══════════════════════════════════════════════════════════════════════
 //  TRAVEL
 // ═══════════════════════════════════════════════════════════════════════
+// Travel spans are INCLUSIVE: 20 → 22 Jul is 3 per-diem days.
+function trDaysBetween(from,to){
+  if(!from||!to) return 0;
+  const a=new Date(from+"T00:00:00"), b=new Date(to+"T00:00:00");
+  if(isNaN(a)||isNaN(b)) return 0;
+  const n=Math.round((b-a)/86400000)+1;
+  return n>0?n:0;
+}
+// Keep `days` (and therefore per diem) in sync with the chosen range
+function trSyncDays(){
+  const f=window.trForm; if(!f) return;
+  if(f.date && f.dateTo){
+    const n=trDaysBetween(f.date,f.dateTo);
+    f.days = n>0 ? String(n) : "";
+  }
+  if(typeof render==="function") render();
+}
+Object.assign(window,{trDaysBetween,trSyncDays});
+
 function renderTravel(){
   rollAutoDate(window.trForm);
   if(!trForm){
-    trForm={date:today(),dateAuto:true,employee:isEmployee()?state.profile.employeeName:"",days:"",project:"",location:"",notes:""};
+    trForm={date:today(),dateTo:today(),dateAuto:true,employee:isEmployee()?state.profile.employeeName:"",days:"1",project:"",location:"",notes:""};
   }
   const dept=projDept(trForm.project),pd=trForm.days?Number(trForm.days)*PER_DIEM_RATE:0;
   const rows=applyReportFilters(visibleRows(state.travel));
@@ -1200,8 +1229,9 @@ function renderTravel(){
     <div class="form-grid">
       <div class="field"><label>Employee <span class="req">*</span></label>
         ${isEmployee()?`<select onchange="window.trForm.employee=this.value;render()"><option value="${escapeHtml(state.profile.employeeName||"")}" selected>${escapeHtml(state.profile.employeeName||"")}</option></select>`:`<select onchange="window.trForm.employee=this.value;render()"><option value="">— Select —</option>${empOptions.map(e=>`<option ${e===trForm.employee?"selected":""}>${escapeHtml(e)}</option>`).join("")}</select>`}</div>
-      <div class="field"><label>Date <span class="req">*</span></label><input type="date" value="${trForm.date}" onchange="window.trForm.date=this.value;window.trForm.dateAuto=false;render()"></div>
-      <div class="field"><label>Days <span class="req">*</span></label><input type="number" min="1" value="${trForm.days||""}" oninput="window.trForm.days=this.value;render()" placeholder="e.g. 3"></div>
+      <div class="field"><label>From <span class="req">*</span></label><input type="date" value="${trForm.date}" onchange="window.trForm.date=this.value;window.trForm.dateAuto=false;if(!window.trForm.dateTo||window.trForm.dateTo<this.value)window.trForm.dateTo=this.value;trSyncDays()"></div>
+      <div class="field"><label>To <span class="req">*</span></label><input type="date" min="${trForm.date||""}" value="${trForm.dateTo||""}" onchange="window.trForm.dateTo=this.value;window.trForm.dateAuto=false;trSyncDays()"></div>
+      <div class="field"><label>Days (auto)</label><div class="auto green ${Number(trForm.days)>0?"":"empty"}">${Number(trForm.days)>0?trForm.days+(Number(trForm.days)===1?" day":" days"):"—"}</div></div>
       <div class="field"><label>Per Diem (auto)</label><div class="auto yellow ${pd>0?"":"empty"}">${pd>0?fmtMoney(pd)+" IQD":"—"}</div></div>
       <div class="field full"><label>Project</label><select onchange="window.trForm.project=this.value;render()"><option value="">— Select —</option>${state.projects.map(p=>{const n=(p.name||"").trim();return `<option value="${escapeHtml(n)}" ${n===(trForm.project||"").trim()?"selected":""}>${escapeHtml(n)}</option>`}).join("")}</select></div>
       <div class="field"><label>Dept (auto)</label><div class="auto purple ${dept?"":"empty"}">${dept||"—"}</div></div>
@@ -1230,7 +1260,7 @@ function renderTravel(){
         const pdRec=(r.perDiemStatus||"received")==="received";
         return `<tr>
           ${!isEmployee()?`<td>${employeeBadge(r.employee)}</td>`:""}
-          <td>${fmtDate(r.date)}</td><td>${r.days}</td>
+          <td>${fmtDate(r.date)}${(r.dateTo&&r.dateTo!==r.date)?`<br><span style="font-size:10px;color:#888">→ ${fmtDate(r.dateTo)}</span>`:""}</td><td>${r.days}</td>
           <td>${escapeHtml(r.project||"—")}</td><td>${escapeHtml(r.location||"—")}</td>
           <td><strong style="color:#7F6000">${fmtMoney(r.perDiem)}</strong></td>
           <td><span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:${pdRec?'#E8F5E9':'#FFEBEE'};color:${pdRec?'#2E7D32':'#C62828'}">${pdRec?'✅ Received':'❌ Not Received'}</span></td>
@@ -1241,7 +1271,10 @@ function renderTravel(){
   </div>`;
 }
 async function saveTr(){
-  if(!trForm.employee||!trForm.date||!trForm.days)return toast("Required: Employee, Date, Days");
+  if(!trForm.employee||!trForm.date||!trForm.dateTo)return toast("Required: Employee, From and To dates");
+  if(trForm.dateTo<trForm.date) return toast("⚠ 'To' date cannot be before 'From'");
+  trSyncDays();
+  if(!Number(trForm.days)) return toast("⚠ Invalid travel range");
   // Strict employee guard: force own name on save
   if(isEmployee()){
     if(!state.profile.employeeName) return toast("Your account has no employee profile. Contact admin.");
@@ -1250,6 +1283,7 @@ async function saveTr(){
   await fbSave("travel",{
     id:trEditId||undefined,
     ...trForm,days:+trForm.days,
+    dateTo: trForm.dateTo||trForm.date,
     dept:projDept(trForm.project),
     perDiem:+trForm.days*PER_DIEM_RATE,
     perDiemStatus: trForm.perDiemStatus||"received",
@@ -1261,11 +1295,15 @@ async function saveTr(){
   toast(_wasEditTr?"Updated ✓":"Saved ✓");
 }
 async function saveTrAndNext(){
-  if(!trForm.employee||!trForm.date||!trForm.days)return toast("Required: Employee, Date, Days");
+  if(!trForm.employee||!trForm.date||!trForm.dateTo)return toast("Required: Employee, From and To dates");
+  if(trForm.dateTo<trForm.date) return toast("⚠ 'To' date cannot be before 'From'");
+  trSyncDays();
+  if(!Number(trForm.days)) return toast("⚠ Invalid travel range");
   if(isEmployee()) return toast("Use Save for single entry");
   await fbSave("travel",{
     id:undefined,
     ...trForm,days:+trForm.days,
+    dateTo: trForm.dateTo||trForm.date,
     dept:projDept(trForm.project),
     perDiem:+trForm.days*PER_DIEM_RATE,
     perDiemStatus: trForm.perDiemStatus||"received",
@@ -1276,7 +1314,20 @@ async function saveTrAndNext(){
   render();
   toast(`Saved for ${savedEmp} ✓ — Select next employee`);
 }
-function editTr(id){const r=state.travel.find(x=>x.id===id);if(r){trForm={...r,days:String(r.days)};trEditId=id;render();window.scrollTo(0,0);}}
+function editTr(id){
+  const r=state.travel.find(x=>x.id===id);
+  if(!r) return;
+  // Legacy rows stored only a start date + a day count — derive the end date
+  // so the range picker shows something meaningful.
+  let to=r.dateTo;
+  if(!to && r.date && Number(r.days)>0){
+    const d0=new Date(r.date+"T00:00:00");
+    d0.setDate(d0.getDate()+Number(r.days)-1);
+    to=`${d0.getFullYear()}-${String(d0.getMonth()+1).padStart(2,"0")}-${String(d0.getDate()).padStart(2,"0")}`;
+  }
+  trForm={...r,days:String(r.days),dateTo:to||r.date,dateAuto:false};
+  trEditId=id; render(); window.scrollTo(0,0);
+}
 async function delTr(id){if(confirm("Delete?")){await fbDelete("travel",id);toast("Deleted");}}
 function cancelTr(){trForm=null;trEditId=null;render();}
 Object.assign(window,{saveTr,saveTrAndNext,editTr,delTr,cancelTr});

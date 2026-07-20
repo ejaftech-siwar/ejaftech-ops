@@ -449,7 +449,10 @@ function rollAutoDate(form){
     if(!form || !form.dateAuto) return false;
     const t=today();
     if(form.date===t) return false;
+    // A same-day travel range must move BOTH ends together
+    const single = form.dateTo && form.dateTo===form.date;
     form.date=t;
+    if(single) form.dateTo=t;
     return true;   // caller decides whether to notify
   }catch(e){ return false; }
 }
@@ -460,7 +463,7 @@ function _checkDayRollover(){
     if(t===window._lastKnownDay) return;
     window._lastKnownDay=t;
     let hit=false;
-    [window.dailyForm,window.otForm,window.trForm].forEach(f=>{ if(rollAutoDate(f)) hit=true; });
+    [dailyForm,otForm,trForm].forEach(f=>{ if(rollAutoDate(f)) hit=true; });   // lexical bindings — same objects the renderers mutate
     if(hit){ toast("📅 New day — date updated automatically"); }
     render();
   }catch(e){}
