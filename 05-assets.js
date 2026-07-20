@@ -1084,7 +1084,7 @@ async function saveDevice(){
   const wasEdit = !!deviceEditId;
   await fbSave("devices", {id: deviceEditId||undefined, ...data});
   toast(wasEdit?"Device updated ✓":"Device added ✓");
-  if(wasEdit) window._assetView = "devices";   // done editing — back to the list
+  if(wasEdit) window._assetView = "devices";   // finished editing — back to the list
   deviceForm = blankDevice();
   deviceEditId = null;
 }
@@ -1093,7 +1093,7 @@ function editDevice(id){
   if(d){
     deviceForm = {...blankDevice(), ...d, installDate: toDateStr(d.installDate), warrantyExp: toDateStr(d.warrantyExp)};
     deviceEditId = id;
-    window._assetView = "manage";   // the form lives in the Manage segment — jump straight to it
+    window._assetView = "summary";  // ← the device form actually lives in this segment (v114 aimed at "manage" by mistake)
     render(); window.scrollTo(0,0);
   }
 }

@@ -264,7 +264,7 @@ function dashProjectHealth(){
     <div class="dsh-head"><span class="dsh-h1">🏗 Project health</span>${cards.length>6?`<span class="dsh-count">${cards.length}</span>`:""}</div>
     <div class="dsh-h2">${shown.length===cards.length?`${cards.length} active project${cards.length>1?"s":""}`:`showing ${shown.length} of ${cards.length} — those needing attention first`}</div>
     <div style="display:grid;gap:8px;margin-top:8px">
-      ${shown.map(c=>`<button class="dsh-proj" style="border-left-color:${RC[c.rag]}" onclick="switchTab('Projects')">
+      ${shown.map(c=>`<button class="dsh-proj" style="border-left-color:${RC[c.rag]}" onclick="dashOpenProject('${escapeHtml(c.nm).replace(/'/g,"\\'")}')">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
           <span style="font-weight:800;font-size:13px;color:var(--text)">${escapeHtml(c.nm)}</span>
           <span style="font-size:12px;font-weight:800;color:${RC[c.rag]}">${fmtHM(c.hrs)}</span>
@@ -345,8 +345,16 @@ Object.assign(window,{dashAlerts,dashFieldToday,dashProjectHealth,dashProblemDev
 
 // Tapping a person opens the Daily Log filtered to them — and lands on the
 // entries list, not the blank "add entry" form.
+window.dashOpenProject=function(name){
+  window._logProjFilter=name;
+  window._logEmpFilter="";
+  switchTab("Daily Log");
+  setTimeout(()=>{ const el=document.getElementById("dailyListTop");
+    if(el) el.scrollIntoView({behavior:"smooth",block:"start"}); },300);
+};
 window.dashOpenEmployee=function(name){
-  window._logEmpFilter=name;          // the Daily Log's own jump-filter (has its own banner + Clear)
+  window._logEmpFilter=name;
+  window._logProjFilter="";          // the Daily Log's own jump-filter (has its own banner + Clear)
   switchTab("Daily Log");
   setTimeout(()=>{                    // land on the entries, not the blank add-entry form
     const el=document.getElementById("dailyListTop");
@@ -403,26 +411,9 @@ function renderDashboard(){
   const tPD=s.reduce((a,b)=>a+b.pd,0);
 
   // Export button at the top
-  // Filters moved to Logs → Filters (v133). The dashboard shows only a compact
-  // read-out of what is currently narrowing the figures, with one tap to change it.
-  let exportBar = '';
-  if(!isEmployee()){
-    const _sel=(state.globalEmployeeFilter||[]).length;
-    const _pf=state.globalProjectFilter||"", _lf=state.globalLocationFilter||"", _bf=state.globalBranchFilter||"";
-    const _bits=[];
-    if(_sel) _bits.push(`${_sel} employee${_sel>1?"s":""}`);
-    if(_pf) _bits.push(escapeHtml(_pf));
-    if(_lf) _bits.push(escapeHtml(_lf));
-    if(_bf) _bits.push(escapeHtml(_bf));
-    exportBar = `<button class="dsh-filterbar${_bits.length?" on":""}" onclick="switchTab('Filters')">
-      <span class="dsh-fb-ic">🔎</span>
-      <span class="dsh-fb-body">
-        <span class="dsh-fb-t">${getPeriod()}</span>
-        <span class="dsh-fb-m">${_bits.length?_bits.join(" · "):"All employees · all projects"}</span>
-      </span>
-      <span class="dsh-fb-go">Change ›</span>
-    </button>`;
-  }
+  // The period and every filter now live centrally: the header pill (shown on
+  // ALL tabs) and Logs → Filters. The dashboard carries figures, not chrome.
+  const exportBar = '';
 
   const dT={};
   state.departments.forEach(d=>{
@@ -647,6 +638,7 @@ function renderDailyLog(){
   const rows=applyReportFilters(visibleRows(state.daily)).filter(r=>{
     if(dailyEntryNo && Number(r.entryNo||0) !== Number(dailyEntryNo)) return false;
     if(window._logEmpFilter && (r.employee||"") !== window._logEmpFilter) return false;   // jump-from-alert filter
+    if(window._logProjFilter && (r.project||"").trim() !== window._logProjFilter) return false;  // jump-from-dashboard project filter
     return true;
   }).sort((a,b)=>{
     // Ascending by entry number (001 at top → latest at bottom)
@@ -658,9 +650,10 @@ function renderDailyLog(){
     return (a.date||"").localeCompare(b.date||"");
   });
   // Active jump-filter banner (set by Smart Alerts)
-  const _jumpBanner = window._logEmpFilter ? `<div class="card" style="border-left:4px solid #E65100;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
-      <span style="font-size:13px;font-weight:700;color:var(--text)">🔎 Showing entries for: <span style="color:#E65100">${escapeHtml(window._logEmpFilter)}</span> <span style="font-size:11px;color:var(--muted)">(${rows.length} entr${rows.length===1?'y':'ies'})</span></span>
-      <button class="btn btn-sm" style="background:#C62828;color:white;border:none;font-weight:700" onclick="window._logEmpFilter='';render()">${ICN.x} Clear filter</button>
+  const _jumpWhat = window._logEmpFilter || window._logProjFilter || "";
+  const _jumpBanner = _jumpWhat ? `<div class="card" style="border-left:4px solid #E65100;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+      <span style="font-size:13px;font-weight:700;color:var(--text)">🔎 Showing entries for: <span style="color:#E65100">${escapeHtml(_jumpWhat)}</span> <span style="font-size:11px;color:var(--muted)">(${rows.length} entr${rows.length===1?'y':'ies'})</span></span>
+      <button class="btn btn-sm" style="background:#C62828;color:white;border:none;font-weight:700" onclick="window._logEmpFilter='';window._logProjFilter='';render()">${ICN.x} Clear filter</button>
     </div>` : "";
   // Project options for filter
   const projOptions = [...new Set(state.daily.map(r=>r.project).filter(Boolean))].sort();
