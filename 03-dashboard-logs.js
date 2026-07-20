@@ -175,8 +175,9 @@ function dashAlerts(){
     if(typeof buildWorkItems==="function"){
       const cut=new Date(appNow()); cut.setDate(cut.getDate()-14);
       const C=`${cut.getFullYear()}-${String(cut.getMonth()+1).padStart(2,"0")}-${String(cut.getDate()).padStart(2,"0")}`;
-      const stale=buildWorkItems(state.daily||[]).filter(w=>!w.closed && w.lastDate && w.lastDate<C);
-      if(stale.length) out.push({ic:"🧵",t:`${stale.length} work item${stale.length>1?"s":""} stalled`,m:"Open with no visit for 14+ days",go:"Daily Log",c:"#E65100"});
+      const stale=buildWorkItems(state.daily||[]).filter(w=>!w.closed && !w.unclassified && w.lastDate && w.lastDate<C);
+      window._staleWI=stale;
+      if(stale.length) out.push({ic:"🧵",t:`${stale.length} work item${stale.length>1?"s":""} stalled`,m:"Open with no visit for 14+ days — tap to review",fn:"dashShowStalled()",c:"#E65100"});
     }
   }catch(e){}
   try{   // did I log my own work today?
@@ -208,9 +209,10 @@ function dashFieldToday(){
   const silent=roster.filter(e=>!active[e]);
   if(!list.length && !silent.length) return "";
   return `<div class="card">
-    <div class="card-title">📍 Today in the field <span style="font-size:11px;font-weight:500;color:var(--muted)">— ${list.length} active${silent.length?` · ${silent.length} not logged yet`:""}</span></div>
+    <div class="dsh-head"><span class="dsh-h1">📍 Today in the field</span></div>
+    <div class="dsh-h2">${list.length} active${silent.length?` · ${silent.length} not logged yet`:""}</div>
     ${list.length?`<div style="display:grid;gap:7px;margin-top:8px">
-      ${list.map(a=>`<button class="dsh-row" onclick="switchTab('Daily Log')">
+      ${list.map(a=>`<button class="dsh-row" onclick="dashOpenEmployee('${escapeHtml(a.emp).replace(/'/g,"\\'")}')">
         <span class="dsh-dot" style="background:#2E7D32"></span>
         <span style="flex:1;min-width:0">
           <span style="font-weight:700;font-size:13px;color:var(--text)">${escapeHtml(a.emp)}</span>
@@ -254,11 +256,15 @@ function dashProjectHealth(){
   }).filter(x=>x.active||x.inc||x.od)
     .sort((a,b)=>({Red:0,Amber:1,Green:2}[a.rag]-{Red:0,Amber:1,Green:2}[b.rag])||b.hrs-a.hrs);
   if(!cards.length) return "";
+  // Attention first, then the busiest — a wall of 17 green rows helps nobody.
+  const needs=cards.filter(c=>c.rag!=="Green");
+  const shown=(needs.length>=6?needs:cards).slice(0,8);
   const RC={Red:"#C62828",Amber:"#E65100",Green:"#2E7D32"};
   return `<div class="card">
-    <div class="card-title">🏗 Project health <span style="font-size:11px;font-weight:500;color:var(--muted)">— ${cards.length} project${cards.length>1?"s":""} this period</span></div>
+    <div class="dsh-head"><span class="dsh-h1">🏗 Project health</span>${cards.length>6?`<span class="dsh-count">${cards.length}</span>`:""}</div>
+    <div class="dsh-h2">${shown.length===cards.length?`${cards.length} active project${cards.length>1?"s":""}`:`showing ${shown.length} of ${cards.length} — those needing attention first`}</div>
     <div style="display:grid;gap:8px;margin-top:8px">
-      ${cards.slice(0,10).map(c=>`<button class="dsh-proj" style="border-left-color:${RC[c.rag]}" onclick="switchTab('Projects')">
+      ${shown.map(c=>`<button class="dsh-proj" style="border-left-color:${RC[c.rag]}" onclick="switchTab('Projects')">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
           <span style="font-weight:800;font-size:13px;color:var(--text)">${escapeHtml(c.nm)}</span>
           <span style="font-size:12px;font-weight:800;color:${RC[c.rag]}">${fmtHM(c.hrs)}</span>
@@ -292,7 +298,8 @@ function dashProblemDevices(){
   const top=Object.values(tally).filter(x=>x.n>1).sort((a,b)=>b.n-a.n).slice(0,5);
   if(!top.length) return "";
   return `<div class="card" style="border-left:4px solid #C62828">
-    <div class="card-title">🔁 Repeat offenders <span style="font-size:11px;font-weight:500;color:var(--muted)">— most incidents in the last 90 days</span></div>
+    <div class="dsh-head"><span class="dsh-h1">🔁 Repeat offenders</span></div>
+    <div class="dsh-h2">Most incidents in the last 90 days</div>
     <div style="display:grid;gap:7px;margin-top:8px">
       ${top.map(d=>{
         const dev=(state.devices||[]).find(x=>x.serialNumber===d.sn);
@@ -336,6 +343,58 @@ function dashMyDay(){
 }
 Object.assign(window,{dashAlerts,dashFieldToday,dashProjectHealth,dashProblemDevices,dashMyDay,_dashRange,_prevRange,_trendChip,_sparkline,_dailySeries,_inRange});
 
+// Tapping a person opens the Daily Log filtered to them — and lands on the
+// entries list, not the blank "add entry" form.
+window.dashOpenEmployee=function(name){
+  window._logEmpFilter=name;          // the Daily Log's own jump-filter (has its own banner + Clear)
+  switchTab("Daily Log");
+  setTimeout(()=>{                    // land on the entries, not the blank add-entry form
+    const el=document.getElementById("dailyListTop");
+    if(el) el.scrollIntoView({behavior:"smooth",block:"start"});
+  },300);
+};
+// Stalled work items: a triage list you can actually act on
+window._showStalled=false;
+window.dashShowStalled=function(){
+  window._showStalled=!window._showStalled;
+  switchTab("Dashboard");
+  setTimeout(()=>{ const el=document.getElementById("stalledPanel");
+    if(el) el.scrollIntoView({behavior:"smooth",block:"center"}); },260);
+};
+function dashStalledPanel(){
+  if(!window._showStalled) return "";
+  const list=window._staleWI||[];
+  const t=today();
+  const days=d=>Math.round((new Date(t)-new Date(d))/864e5);
+  return `<div class="card" id="stalledPanel" style="border-left:4px solid #E65100">
+    <div class="dsh-head">
+      <span class="dsh-h1">🧵 Stalled work items</span>
+      <button class="btn btn-sm btn-secondary" onclick="window._showStalled=false;render()">Hide</button>
+    </div>
+    <div class="dsh-h2">Open jobs with no visit for 14+ days — close them or book a follow-up</div>
+    ${list.length?`<div style="display:grid;gap:7px;margin-top:9px">
+      ${list.slice(0,25).map(w=>`<button class="dsh-row" onclick="switchTab('Daily Log')">
+        <span class="dsh-dot" style="background:#E65100"></span>
+        <span style="flex:1;min-width:0">
+          <span style="font-weight:700;font-size:13px;color:var(--text)">${escapeHtml(w.title)}</span>
+          <span style="display:block;font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(w.scopeLabel||"—")} · ${escapeHtml(w.status)}</span>
+        </span>
+        <span style="font-weight:800;font-size:12px;color:#E65100;white-space:nowrap">${days(w.lastDate)}d</span>
+      </button>`).join("")}
+    </div>${list.length>25?`<div style="font-size:11px;color:var(--muted);margin-top:7px">Showing the 25 longest-idle of ${list.length}.</div>`:""}`
+    :`<div class="empty empty2" style="margin-top:8px"><span class="e-ic">✅</span><div class="e-t">Nothing stalled</div><div class="e-m">Every open job has been visited recently</div></div>`}
+  </div>`;
+}
+// ① Filters now lives in Logs as its own tab
+function renderFiltersTab(){
+  if(isEmployee()) return `<div class="card"><div class="empty">Filters are managed by your administrator.</div></div>`;
+  return `<div class="card" style="background:linear-gradient(135deg,#1B3A6B 0%,#2E5FA3 100%);color:#fff;padding:16px">
+      <div style="font-family:'DM Serif Display',serif;font-size:20px">🔎 Filters</div>
+      <div style="font-size:11.5px;opacity:.85">Applies across the Dashboard, Logs, Reports and Analytics</div>
+    </div>` + renderEmployeeFilterUI("Filters");
+}
+Object.assign(window,{renderFiltersTab,dashStalledPanel});
+
 function renderDashboard(){
   const s=summary();
   const tHrs=s.reduce((a,b)=>a+b.total,0);
@@ -344,10 +403,25 @@ function renderDashboard(){
   const tPD=s.reduce((a,b)=>a+b.pd,0);
 
   // Export button at the top
+  // Filters moved to Logs → Filters (v133). The dashboard shows only a compact
+  // read-out of what is currently narrowing the figures, with one tap to change it.
   let exportBar = '';
   if(!isEmployee()){
-    // Quick Export card removed — exports now live only in the Reports / HR Report tabs.
-    exportBar = renderEmployeeFilterUI("Filters");
+    const _sel=(state.globalEmployeeFilter||[]).length;
+    const _pf=state.globalProjectFilter||"", _lf=state.globalLocationFilter||"", _bf=state.globalBranchFilter||"";
+    const _bits=[];
+    if(_sel) _bits.push(`${_sel} employee${_sel>1?"s":""}`);
+    if(_pf) _bits.push(escapeHtml(_pf));
+    if(_lf) _bits.push(escapeHtml(_lf));
+    if(_bf) _bits.push(escapeHtml(_bf));
+    exportBar = `<button class="dsh-filterbar${_bits.length?" on":""}" onclick="switchTab('Filters')">
+      <span class="dsh-fb-ic">🔎</span>
+      <span class="dsh-fb-body">
+        <span class="dsh-fb-t">${getPeriod()}</span>
+        <span class="dsh-fb-m">${_bits.length?_bits.join(" · "):"All employees · all projects"}</span>
+      </span>
+      <span class="dsh-fb-go">Change ›</span>
+    </button>`;
   }
 
   const dT={};
@@ -381,7 +455,7 @@ function renderDashboard(){
       <div class="dh-date">${new Date().toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long"})}</div></div>
       <div class="dh-badge ${_acts.length?"warm":"calm"}">${_acts.length?`<span class="cnt" data-v="${_acts.length}" data-fmt="int">0</span> need${_acts.length===1?"s":""} you`:"✅ All clear"}</div>
     </div>
-    ${_acts.length?`<div class="dh-acts">${_acts.map(a=>`<button class="dh-act" style="border-left-color:${a.c}" onclick="switchTab('${a.go}')">
+    ${_acts.length?`<div class="dh-acts">${_acts.map(a=>`<button class="dh-act" style="border-left-color:${a.c}" onclick="${a.fn?a.fn:`switchTab('${a.go}')`}">
       <span class="dh-ic">${a.ic}</span><span class="dh-body"><span class="dh-t">${a.t}</span><span class="dh-m">${a.m}</span></span><span class="dh-go">›</span></button>`).join("")}</div>`
     :`<div class="dh-clear">Nothing is waiting on you right now — enjoy the calm ${_gIcon}</div>`}
   </div>`;
@@ -410,7 +484,7 @@ function renderDashboard(){
   </div>`;
   // ── the operational picture, above the historical charts ──
   if(!isEmployee()){
-    try{ h += dashFieldToday() + dashProjectHealth() + dashProblemDevices(); }catch(e){ console.error("dash blocks",e); }
+    try{ h += dashStalledPanel() + dashFieldToday() + dashProjectHealth() + dashProblemDevices(); }catch(e){ console.error("dash blocks",e); }
   }
 
   if(!isEmployee()){
@@ -879,6 +953,7 @@ function renderDailyLog(){
       </div>
     </div>
     ${!isEmployee()?renderEmployeeFilterUI("Filter Work Log"):""}
+    <div id="dailyListTop"></div>
     <div class="tbl-wrap"><table class="tbl">
       <thead><tr><th style="width:48px;text-align:center">#</th><th>Date</th>${!isEmployee()?"<th>Employee</th>":""}<th>Project</th><th>Dept</th><th>Location</th><th>Hrs</th><th>Resolution</th><th></th></tr></thead>
       <tbody>${rows.length===0?`<tr><td colspan="8" class="empty empty2"><span class="e-ic">🔧</span><div class="e-t">No work entries in this period</div><div class="e-m">Widen the date range — or add your first entry above</div></td></tr>`:(window._dailyShowAll?rows:rows.slice(0,50)).map(r=>{
