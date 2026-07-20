@@ -1141,7 +1141,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v130';"
+      var swCode = "const CACHE='ejaftech-v131';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
@@ -1977,8 +1977,16 @@ window.srLoadDevices=function(){
   render();
 };
 
+function _srPillList(){
+  return SYS_TEMPLATES.map(t=>({id:t.id,ic:t.icon,lb:t.short}))
+    .concat([{id:"daily",ic:"📅",lb:"Daily"},{id:"weekly",ic:"📆",lb:"Weekly"}]);
+}
 function renderSystemReports(){
   if(!(isAdmin()||isHR()||hasCap("canExport"))) return `<div class="card"><div class="empty">No access.</div></div>`;
+  // Project progress reports live in the same pill row but render their own layout
+  if(window._srTpl==="daily"||window._srTpl==="weekly"){
+    return _pills('_srTpl',_srPillList()) + renderProgressReport(window._srTpl);
+  }
   const tpl=sysTemplate(window._srTpl), m=window._sr, mode=window._srMode;
   const items=getSysCheckItems(tpl.id);
   const clientOpts=(state.clients||[]).map(c=>c.name).filter(Boolean).sort();
@@ -1991,7 +1999,7 @@ function renderSystemReports(){
   const fails=items.filter((_,i)=>_srChkState(tpl.id,i).s==="Fail").length;
 
   return `
-  ${_pills('_srTpl',SYS_TEMPLATES.map(t=>({id:t.id,ic:t.icon,lb:t.short})))}
+  ${_pills('_srTpl',_srPillList())}
   ${_rptHero(tpl.icon,tpl.name,"Inspection & Test Report","linear-gradient(135deg,"+tpl.color+" 0%,#1B2A33 100%)")}
   <div class="card" style="padding:10px 12px">
     <div style="display:flex;gap:6px">
@@ -2167,3 +2175,336 @@ window.generateSystemReport=async function(){
   toast(`${tpl.name.split(" ")[0]} report ready!`);
 };
 Object.assign(window,{renderSystemReports});
+
+// ═══════════════════════════════════════════════════════════════════════
+//  PROJECT PROGRESS REPORTS — Daily & Weekly (v131)
+//  Structure follows ISO 21502:2020 §7.15 (Reporting) / project performance
+//  management and PMBOK work-performance reporting: scope of work up front,
+//  accomplishments for the period, look-ahead, RAG status, progress metrics,
+//  risks & issues, manpower, HSE. Every field is either pulled from the
+//  app's own records or typed by hand — you decide, line by line.
+// ═══════════════════════════════════════════════════════════════════════
+window._pr = window._pr || {
+  client:"",clientOther:false, project:"",projectOther:false, site:"",siteOther:false,
+  date:"", from:"", to:"", weekNo:"", contractNo:"", reference:"",
+  preparedBy:"", weather:"", representative:"",
+  scope:"", summary:"", rag:"Green", plannedPct:"", actualPct:"",
+  issues:"", nextPlan:"", hse:"", engName:"", repName:"", repTitle:""
+};
+window._prTasks  = window._prTasks  || [];
+window._prPeople = window._prPeople || [];
+window._prPhotos = window._prPhotos || [];
+
+const PR_RAG = { Green:["#E8F5E9","#2E7D32","On track"], Amber:["#FFF3E0","#E65100","At risk"], Red:["#FDECEA","#C62828","Critical"] };
+
+window.prAddTask   = function(){ window._prTasks.push({date:window._pr.date||today(),desc:"",location:"",by:"",hours:"",status:"Completed"}); render(); };
+window.prDelTask   = function(i){ window._prTasks.splice(i,1); render(); };
+window.prAddPerson = function(){ window._prPeople.push({name:"",role:"",hours:""}); render(); };
+window.prDelPerson = function(i){ window._prPeople.splice(i,1); render(); };
+window.prAddPhotos = async function(input){
+  try{
+    const files=Array.from(input.files||[]); input.value="";
+    for(const f of files){
+      if(window._prPhotos.length>=12){ toast("Max 12 photos"); break; }
+      const b64=await compressImage(f,1024,0.6); const kb=base64SizeKB(b64);
+      if(kb>500){ toast(`Image too large (${kb} KB). Skipped.`); continue; }
+      window._prPhotos.push({data:b64,sizeKB:kb});
+    }
+    render();
+  }catch(e){ toast("Photo error: "+(e.message||"failed")); }
+};
+window.prDelPhoto = function(i){ window._prPhotos.splice(i,1); render(); };
+
+// Quick range helpers for the weekly report
+window.prThisWeek = function(){
+  const n=appNow(); const d=n.getDay();            // 0 = Sunday (work week here starts Sunday)
+  const s=new Date(n); s.setDate(n.getDate()-d);
+  const e=new Date(s); e.setDate(s.getDate()+6);
+  const f=x=>`${x.getFullYear()}-${String(x.getMonth()+1).padStart(2,"0")}-${String(x.getDate()).padStart(2,"0")}`;
+  window._pr.from=f(s); window._pr.to=f(e); render();
+};
+window.prLastWeek = function(){
+  const n=appNow(); const d=n.getDay();
+  const s=new Date(n); s.setDate(n.getDate()-d-7);
+  const e=new Date(s); e.setDate(s.getDate()+6);
+  const f=x=>`${x.getFullYear()}-${String(x.getMonth()+1).padStart(2,"0")}-${String(x.getDate()).padStart(2,"0")}`;
+  window._pr.from=f(s); window._pr.to=f(e); render();
+};
+
+// Pull the period's real work out of the Daily Log — then edit freely
+window.prLoadFromRecords = function(kind){
+  const m=window._pr;
+  const proj=(m.project||"").trim();
+  if(!proj) return toast("⚠ Pick the project first");
+  const from = kind==="daily" ? (m.date||today()) : (m.from||"");
+  const to   = kind==="daily" ? (m.date||today()) : (m.to||"");
+  if(!from||!to) return toast("⚠ Set the report date / period first");
+  const rows=(state.daily||[]).filter(r=>
+    (r.project||"").trim()===proj &&
+    String(r.date||"")>=from && String(r.date||"")<=to &&
+    (!m.site || [r.site,r.area,[r.area,r.site].filter(Boolean).join(" › ")].includes(m.site)));
+  if(!rows.length) return toast("No work entries found for this project in that period");
+  rows.sort((a,b)=>String(a.date).localeCompare(String(b.date))||(a.entryNo||0)-(b.entryNo||0));
+  window._prTasks = rows.map(r=>({
+    date:r.date||"",
+    desc:(r.resolutionText||"").trim() || [r.taskCategory,r.taskSubcategory].filter(Boolean).join(" › ") || (r.workType||"") || (r.notes||""),
+    location:[r.area,r.site].filter(Boolean).join(" › ") || (r.location||""),
+    by:r.employee||"", hours:r.duration||"", status:r.taskStatus||"Completed"
+  }));
+  // manpower roll-up for the period
+  const byEmp={};
+  rows.forEach(r=>{ const e=r.employee||"—"; byEmp[e]=(byEmp[e]||0)+Number(r.duration||0); });
+  window._prPeople = Object.entries(byEmp).map(([name,h])=>({name,role:"",hours:(+h).toFixed(2)}))
+    .sort((a,b)=>Number(b.hours)-Number(a.hours));
+  toast(`✓ ${rows.length} entr${rows.length>1?"ies":"y"} · ${window._prPeople.length} person(s) loaded`);
+  render();
+};
+
+function renderProgressReport(kind){
+  if(!(isAdmin()||isHR()||hasCap("canExport"))) return `<div class="card"><div class="empty">No access.</div></div>`;
+  const m=window._pr, daily=(kind==="daily");
+  const clientOpts=(state.clients||[]).map(c=>c.name).filter(Boolean).sort();
+  const projOpts=(state.projects||[]).map(p=>(p.name||"").trim()).filter(Boolean).sort();
+  const pr=(state.projects||[]).find(p=>(p.name||"").trim()===m.project);
+  const siteOpts=pr?getProjectAreas(pr).filter(a=>a.active!==false).flatMap(a=>{
+    const ss=(a.sites||[]).filter(x=>x.active!==false);
+    return ss.length?ss.map(x=>[a.name,x.name].filter(Boolean).join(" › ")):[a.name];
+  }):[];
+  const totH=window._prTasks.reduce((s,t)=>s+Number(t.hours||0),0);
+  const accent=daily?"#2E5FA3":"#00695C";
+  const S=(n,t)=>`<div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">${n}</span> ${t}</div>`;
+
+  return `
+  ${_rptHero(daily?"📅":"📆", daily?"Daily Progress Report":"Weekly Progress Report",
+     "Project monitoring — ISO 21502 §7.15", `linear-gradient(135deg,${accent} 0%,#1B2A33 100%)`)}
+
+  <div class="card">
+    ${S("01","Project Information")}
+    <div class="form-grid" style="margin-top:10px">
+      ${_syncSel("👤 Client",clientOpts,"window._pr.client","window._pr.clientOther",m.client,m.clientOther,"Client name")}
+      ${_syncSel("📁 Project",projOpts,"window._pr.project","window._pr.projectOther",m.project,m.projectOther,"Project name","window._pr.site='';")}
+      ${(siteOpts.length&&!m.projectOther)
+        ? _syncSel("📍 Site / Area",siteOpts,"window._pr.site","window._pr.siteOther",m.site,m.siteOther,"optional")
+        : `<div class="field"><label>📍 Site / Area</label><input value="${escapeHtml(m.site||"")}" oninput="window._pr.site=this.value" placeholder="optional"></div>`}
+      ${daily
+        ? `<div class="field"><label>📅 Report date <span class="req">*</span></label><input type="date" value="${m.date||""}" onchange="window._pr.date=this.value;render()"></div>
+           <div class="field"><label>🌤 Weather / site conditions</label><input value="${escapeHtml(m.weather||"")}" oninput="window._pr.weather=this.value" placeholder="e.g. Clear, 41°C"></div>`
+        : `<div class="field"><label>From <span class="req">*</span></label><input type="date" value="${m.from||""}" onchange="window._pr.from=this.value;render()"></div>
+           <div class="field"><label>To <span class="req">*</span></label><input type="date" min="${m.from||""}" value="${m.to||""}" onchange="window._pr.to=this.value;render()"></div>
+           <div class="field"><label>Week no.</label><input value="${escapeHtml(m.weekNo||"")}" oninput="window._pr.weekNo=this.value" placeholder="e.g. W29"></div>`}
+      <div class="field"><label>Contract / PO no.</label><input value="${escapeHtml(m.contractNo||"")}" oninput="window._pr.contractNo=this.value"></div>
+      <div class="field"><label>Reference</label><input value="${escapeHtml(m.reference||"")}" oninput="window._pr.reference=this.value" placeholder="e.g. #S03890"></div>
+      <div class="field"><label>👷 Prepared by</label><input value="${escapeHtml(m.preparedBy||"")}" oninput="window._pr.preparedBy=this.value"></div>
+      <div class="field"><label>👤 Client representative</label><input value="${escapeHtml(m.representative||"")}" oninput="window._pr.representative=this.value"></div>
+    </div>
+    ${daily?"":`<div style="display:flex;gap:6px;margin-top:10px">
+      <button class="btn btn-sm btn-secondary" onclick="prThisWeek()">This week</button>
+      <button class="btn btn-sm btn-secondary" onclick="prLastWeek()">Last week</button>
+    </div>`}
+  </div>
+
+  <div class="card" style="border-left:4px solid ${accent}">
+    ${S("02","Scope of Work")}
+    <p style="font-size:11px;color:var(--muted);margin:6px 0 0">Opens the report — the engineer's overview of what this project covers.</p>
+    <textarea rows="5" oninput="window._pr.scope=this.value" placeholder="Describe the project scope: systems covered, contracted works, sites, objectives…" style="width:100%;margin-top:8px">${escapeHtml(m.scope||"")}</textarea>
+  </div>
+
+  ${daily?"":`<div class="card">
+    ${S("03","Status & Progress")}
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin:10px 0">
+      ${Object.keys(PR_RAG).map(k=>`<button class="btn btn-sm ${m.rag===k?"":"btn-secondary"}" style="${m.rag===k?`background:${PR_RAG[k][1]};color:#fff;border:none;`:""}font-weight:800" onclick="window._pr.rag='${k}';render()">${k} — ${PR_RAG[k][2]}</button>`).join("")}
+    </div>
+    <div class="form-grid">
+      <div class="field"><label>Planned progress %</label><input type="number" min="0" max="100" value="${m.plannedPct||""}" oninput="window._pr.plannedPct=this.value;render()"></div>
+      <div class="field"><label>Actual progress %</label><input type="number" min="0" max="100" value="${m.actualPct||""}" oninput="window._pr.actualPct=this.value;render()"></div>
+      <div class="field"><label>Variance (auto)</label><div class="auto ${(m.plannedPct!==""&&m.actualPct!=="")?(Number(m.actualPct)>=Number(m.plannedPct)?"green":"yellow"):"empty"}">${(m.plannedPct!==""&&m.actualPct!=="")?((Number(m.actualPct)-Number(m.plannedPct))>=0?"+":"")+(Number(m.actualPct)-Number(m.plannedPct))+"%":"—"}</div></div>
+    </div>
+    <div class="field" style="margin-top:8px"><label>Executive summary</label>
+      <textarea rows="3" oninput="window._pr.summary=this.value" placeholder="Overall position of the project this week…" style="width:100%">${escapeHtml(m.summary||"")}</textarea></div>
+  </div>`}
+
+  <div class="card">
+    ${S(daily?"03":"04", daily?"Work Performed Today":"Work Completed This Week")}
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin:10px 0">
+      <button class="btn btn-sm" style="background:${accent};color:#fff;border:none;font-weight:700" onclick="prLoadFromRecords('${kind}')">⬇ Load from Daily Log</button>
+      <button class="btn btn-sm btn-secondary" onclick="prAddTask()">+ Add task</button>
+      ${window._prTasks.length?`<button class="btn btn-sm btn-secondary" onclick="window._prTasks=[];render()">Clear</button>
+      <span style="margin-left:auto;font-size:11px;font-weight:800;color:${accent};align-self:center">${window._prTasks.length} task(s) · ${fmtHM(totH)}</span>`:""}
+    </div>
+    ${window._prTasks.map((t,i)=>`<div style="border:1px solid var(--line);border-radius:9px;padding:9px;margin-bottom:8px;background:var(--card,#fff)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <span style="font-size:10.5px;font-weight:800;color:${accent}">TASK ${i+1}</span>
+        <button class="btn btn-sm" style="background:#FDECEA;color:#C62828;border:none" onclick="prDelTask(${i})">×</button>
+      </div>
+      <div class="form-grid">
+        <div class="field"><label>Date</label><input type="date" value="${t.date||""}" onchange="window._prTasks[${i}].date=this.value"></div>
+        <div class="field"><label>Hours</label><input type="number" step="0.25" value="${t.hours||""}" oninput="window._prTasks[${i}].hours=this.value;render()"></div>
+        <div class="field" style="grid-column:1/-1"><label>Description</label><input value="${escapeHtml(t.desc||"")}" oninput="window._prTasks[${i}].desc=this.value" placeholder="Work performed"></div>
+        <div class="field"><label>Location</label><input value="${escapeHtml(t.location||"")}" oninput="window._prTasks[${i}].location=this.value"></div>
+        <div class="field"><label>By</label><input value="${escapeHtml(t.by||"")}" oninput="window._prTasks[${i}].by=this.value"></div>
+        <div class="field"><label>Status</label><input value="${escapeHtml(t.status||"")}" oninput="window._prTasks[${i}].status=this.value"></div>
+      </div>
+    </div>`).join("")}
+  </div>
+
+  <div class="card">
+    ${S(daily?"04":"05","Manpower")}
+    <div style="display:flex;gap:6px;margin:10px 0">
+      <button class="btn btn-sm btn-secondary" onclick="prAddPerson()">+ Add person</button>
+      ${window._prPeople.length?`<button class="btn btn-sm btn-secondary" onclick="window._prPeople=[];render()">Clear</button>`:""}
+    </div>
+    ${window._prPeople.map((p,i)=>`<div style="display:flex;gap:6px;margin-bottom:7px;flex-wrap:wrap;align-items:center">
+      <input value="${escapeHtml(p.name||"")}" oninput="window._prPeople[${i}].name=this.value" placeholder="Name" style="flex:2;min-width:130px">
+      <input value="${escapeHtml(p.role||"")}" oninput="window._prPeople[${i}].role=this.value" placeholder="Role / trade" style="flex:1;min-width:100px">
+      <input type="number" step="0.25" value="${p.hours||""}" oninput="window._prPeople[${i}].hours=this.value" placeholder="Hrs" style="width:80px">
+      <button class="btn btn-sm" style="background:#FDECEA;color:#C62828;border:none" onclick="prDelPerson(${i})">×</button>
+    </div>`).join("")}
+  </div>
+
+  <div class="card">
+    ${S(daily?"05":"06","Issues, Delays & Risks")}
+    <textarea rows="3" oninput="window._pr.issues=this.value" placeholder="${daily?"Obstructions, delays, missing materials, access problems…":"Open risks, delays and mitigation actions…"}" style="width:100%;margin-top:8px">${escapeHtml(m.issues||"")}</textarea>
+  </div>
+
+  <div class="card">
+    ${S(daily?"06":"07", daily?"Plan for Tomorrow":"Plan for Next Week")}
+    <textarea rows="3" oninput="window._pr.nextPlan=this.value" placeholder="Look-ahead activities…" style="width:100%;margin-top:8px">${escapeHtml(m.nextPlan||"")}</textarea>
+  </div>
+
+  <div class="card">
+    ${S(daily?"07":"08","HSE / Safety Notes")}
+    <textarea rows="2" oninput="window._pr.hse=this.value" placeholder="Safety observations, incidents, toolbox talks…" style="width:100%;margin-top:8px">${escapeHtml(m.hse||"")}</textarea>
+  </div>
+
+  <div class="card">
+    ${S(daily?"08":"09","Photos")} 
+    <input type="file" accept="image/*" multiple onchange="prAddPhotos(this)" style="margin-top:8px">
+    ${window._prPhotos.length?`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+      ${window._prPhotos.map((p,i)=>`<div style="position:relative"><img src="${p.data}" style="width:76px;height:76px;object-fit:cover;border-radius:8px;border:1px solid var(--line)"><button onclick="prDelPhoto(${i})" style="position:absolute;top:-6px;right:-6px;background:#C62828;color:#fff;border:none;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:11px;font-weight:800">×</button></div>`).join("")}
+    </div>`:""}
+  </div>
+
+  <div class="card">
+    ${S(daily?"09":"10","Approval")}
+    <div class="form-grid" style="margin-top:10px">
+      <div class="field"><label>EJAF Engineer</label><input value="${escapeHtml(m.engName||"")}" oninput="window._pr.engName=this.value" placeholder="Eng. …"></div>
+      <div class="field"><label>Client approver</label><input value="${escapeHtml(m.repName||"")}" oninput="window._pr.repName=this.value" placeholder="Mr. …"></div>
+      <div class="field"><label>Approver title</label><input value="${escapeHtml(m.repTitle||"")}" oninput="window._pr.repTitle=this.value" placeholder="e.g. Project Manager"></div>
+    </div>
+  </div>
+
+  <div class="card" style="background:linear-gradient(135deg,#1B3A6B 0%,#2E5FA3 100%);border:2px solid #C9A84C">
+    <button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:800;border:none;width:100%" onclick="generateProgressReport('${kind}')">📄 Generate ${daily?"Daily":"Weekly"} Report (PDF)</button>
+  </div>`;
+}
+
+window.generateProgressReport = async function(kind){
+  const m=window._pr, daily=(kind==="daily");
+  if(!m.project) return toast("⚠ Project is required");
+  if(daily && !m.date)        return toast("⚠ Report date is required");
+  if(!daily && (!m.from||!m.to)) return toast("⚠ Period (From / To) is required");
+  if(!daily && m.to<m.from)   return toast("⚠ 'To' cannot be before 'From'");
+
+  const tasks=window._prTasks.filter(t=>(t.desc||"").trim());
+  const people=window._prPeople.filter(p=>(p.name||"").trim());
+  const totH=tasks.reduce((s,t)=>s+Number(t.hours||0),0);
+  const manH=people.reduce((s,p)=>s+Number(p.hours||0),0);
+  const rag=PR_RAG[m.rag]||PR_RAG.Green;
+  const period = daily ? fmtDate(m.date) : `${fmtDate(m.from)} → ${fmtDate(m.to)}`;
+  const infoRow=(l,v)=>`<tr><td style="border:1px solid #ccc;background:#F0F4FA;padding:6px 10px;font-weight:800;font-size:11px;width:42%">${l}</td><td style="border:1px solid #ccc;padding:6px 10px;font-size:12px">${v||"&nbsp;"}</td></tr>`;
+  const block=(t)=>`<div style="border:1px solid #ccc;border-radius:6px;padding:11px;font-size:12px;line-height:1.8;white-space:pre-wrap;min-height:44px">${escapeHtml((t||"").trim())||"&nbsp;"}</div>`;
+  let n=0; const K=()=>String(++n).padStart(2,"0");
+
+  const bodyHTML=`${_fmPrintBar}
+    <div style="border:1.5px solid #1B3A6B;border-radius:6px;padding:10px 14px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+      <div>
+        <div style="font-family:'DM Serif Display',serif;font-size:19px;color:#03308B">${daily?"DAILY":"WEEKLY"} PROGRESS REPORT</div>
+        <div style="font-size:12px;font-weight:800;color:${daily?"#2E5FA3":"#00695C"}">${escapeHtml(m.project)}</div>
+      </div>
+      <table style="border-collapse:collapse;font-size:11px">
+        ${m.reference?`<tr><td style="padding:2px 8px;font-weight:800;color:#555">Reference</td><td style="padding:2px 8px">${escapeHtml(m.reference)}</td></tr>`:""}
+        <tr><td style="padding:2px 8px;font-weight:800;color:#555">${daily?"Date":"Period"}</td><td style="padding:2px 8px">${period}</td></tr>
+        ${!daily&&m.weekNo?`<tr><td style="padding:2px 8px;font-weight:800;color:#555">Week</td><td style="padding:2px 8px">${escapeHtml(m.weekNo)}</td></tr>`:""}
+      </table>
+    </div>
+
+    <div class="ksec"><span class="kbad">${K()}</span><h3>Project Information</h3></div>
+    <table style="border-collapse:collapse;width:100%">
+      ${infoRow("Client",escapeHtml(m.client))}
+      ${infoRow("Project",escapeHtml(m.project))}
+      ${m.site?infoRow("Site / Area",escapeHtml(m.site)):""}
+      ${m.contractNo?infoRow("Contract / PO",escapeHtml(m.contractNo)):""}
+      ${daily&&m.weather?infoRow("Weather / conditions",escapeHtml(m.weather)):""}
+      ${infoRow("Prepared by",escapeHtml(m.preparedBy))}
+      ${m.representative?infoRow("Client representative",escapeHtml(m.representative)):""}
+    </table>
+
+    <div class="ksec"><span class="kbad">${K()}</span><h3>Scope of Work</h3></div>
+    ${block(m.scope)}
+
+    ${!daily?`<div class="ksec"><span class="kbad">${K()}</span><h3>Status &amp; Progress</h3></div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:stretch;margin-bottom:10px">
+      <div style="flex:1;min-width:120px;border:1px solid #ccc;border-left:5px solid ${rag[1]};border-radius:6px;padding:10px;background:${rag[0]}">
+        <div style="font-size:9px;font-weight:800;color:#666;text-transform:uppercase;letter-spacing:.6px">Overall status</div>
+        <div style="font-family:'DM Serif Display',serif;font-size:20px;color:${rag[1]}">${escapeHtml(m.rag)}</div>
+        <div style="font-size:10px;color:#666">${rag[2]}</div>
+      </div>
+      ${(m.plannedPct!==""||m.actualPct!=="")?`
+      <div style="flex:2;min-width:200px;border:1px solid #ccc;border-radius:6px;padding:10px">
+        <div style="display:flex;justify-content:space-between;font-size:10px;font-weight:800;color:#666"><span>PLANNED</span><span>${m.plannedPct||0}%</span></div>
+        <div style="height:8px;background:#E8EDF5;border-radius:5px;margin:3px 0 8px"><div style="height:100%;width:${Math.min(100,Number(m.plannedPct)||0)}%;background:#8FA8CC;border-radius:5px"></div></div>
+        <div style="display:flex;justify-content:space-between;font-size:10px;font-weight:800;color:#666"><span>ACTUAL</span><span>${m.actualPct||0}%</span></div>
+        <div style="height:8px;background:#E8EDF5;border-radius:5px;margin:3px 0 6px"><div style="height:100%;width:${Math.min(100,Number(m.actualPct)||0)}%;background:linear-gradient(90deg,#C9A84C,#E9CC7A);border-radius:5px"></div></div>
+        <div style="font-size:10.5px;font-weight:800;color:${(Number(m.actualPct)-Number(m.plannedPct))>=0?"#2E7D32":"#C62828"}">Variance: ${(Number(m.actualPct)-Number(m.plannedPct))>=0?"+":""}${(Number(m.actualPct)||0)-(Number(m.plannedPct)||0)}%</div>
+      </div>`:""}
+    </div>
+    ${(m.summary||"").trim()?block(m.summary):""}`:""}
+
+    <div class="ksec"><span class="kbad">${K()}</span><h3>${daily?"Work Performed":"Work Completed"} (${tasks.length})</h3></div>
+    ${tasks.length?`<table><thead><tr><th style="width:34px">No.</th>${daily?"":"<th>Date</th>"}<th>Description</th><th>Location</th><th>By</th><th>Status</th><th style="width:52px">Hours</th></tr></thead>
+    <tbody>${tasks.map((t,i)=>`<tr>
+      <td style="text-align:center">${String(i+1).padStart(2,"0")}</td>
+      ${daily?"":`<td style="white-space:nowrap;font-size:10px">${t.date?fmtDate(t.date):"—"}</td>`}
+      <td style="font-size:11px">${escapeHtml(t.desc)}</td>
+      <td style="font-size:10px">${escapeHtml(t.location||"—")}</td>
+      <td style="font-size:10px">${escapeHtml(t.by||"—")}</td>
+      <td style="font-size:10px">${escapeHtml(t.status||"—")}</td>
+      <td style="text-align:right">${t.hours?fmtHM(Number(t.hours)):"—"}</td></tr>`).join("")}
+      <tr><td colspan="${daily?5:6}" style="text-align:right;font-weight:800">Total</td><td style="text-align:right;font-weight:800">${fmtHM(totH)}</td></tr>
+    </tbody></table>`:`<div style="color:#888;font-size:12px">No tasks recorded for this period.</div>`}
+
+    ${people.length?`<div class="ksec"><span class="kbad">${K()}</span><h3>Manpower (${people.length})</h3></div>
+    <table><thead><tr><th style="width:34px">No.</th><th>Name</th><th>Role / trade</th><th style="width:70px">Hours</th></tr></thead>
+    <tbody>${people.map((p,i)=>`<tr><td style="text-align:center">${String(i+1).padStart(2,"0")}</td><td><strong>${escapeHtml(p.name)}</strong></td><td style="font-size:11px">${escapeHtml(p.role||"—")}</td><td style="text-align:right">${p.hours?fmtHM(Number(p.hours)):"—"}</td></tr>`).join("")}
+      <tr><td colspan="3" style="text-align:right;font-weight:800">Total man-hours</td><td style="text-align:right;font-weight:800">${fmtHM(manH)}</td></tr>
+    </tbody></table>`:""}
+
+    <div class="ksec"><span class="kbad">${K()}</span><h3>Issues, Delays &amp; Risks</h3></div>
+    ${block(m.issues)}
+
+    <div class="ksec"><span class="kbad">${K()}</span><h3>${daily?"Plan for Tomorrow":"Plan for Next Week"}</h3></div>
+    ${block(m.nextPlan)}
+
+    ${(m.hse||"").trim()?`<div class="ksec"><span class="kbad">${K()}</span><h3>HSE / Safety</h3></div>${block(m.hse)}`:""}
+    ${_rptPhotoGrid(window._prPhotos,"Site Photos")}
+
+    <div class="ksec"><span class="kbad">${K()}</span><h3>Approval</h3></div>
+    <table style="border-collapse:collapse;width:100%"><tr>
+      <td style="border:1px solid #ccc;padding:14px;width:50%;vertical-align:top;font-size:12px">
+        <strong>${escapeHtml(m.engName||m.preparedBy||"Eng.")}</strong><br>Project / Technical Engineer<br>EJAF Technology<br><br><span style="color:#888;font-size:10.5px">Date &amp; Signature</span>
+      </td>
+      <td style="border:1px solid #ccc;padding:14px;width:50%;vertical-align:top;font-size:12px">
+        <strong>${escapeHtml(m.repName||m.representative||"Mr.")}</strong><br>${escapeHtml(m.repTitle||"")}<br>${escapeHtml(m.client||"")}<br><br><span style="color:#888;font-size:10.5px">Date &amp; Signature</span>
+      </td>
+    </tr></table>
+    <div style="margin-top:14px;border:1px solid #ddd;border-radius:6px;padding:10px 12px;display:flex;gap:14px;align-items:center">
+      <div style="flex:1;font-size:10px;font-style:italic;color:#555;line-height:1.7">This progress report has been prepared by EJAF Technology for the period stated above as part of the project monitoring and control process.</div>
+      <div style="font-size:9.5px;font-style:italic;font-weight:700;color:#333;white-space:nowrap;line-height:1.6">Reference Standards<br><span style="font-weight:500">ISO 21502:2020 §7.15 · PMBOK® Guide</span></div>
+    </div>
+    <script>setTimeout(()=>window.print(),500)<\/script>`;
+
+  await openReportPDF(daily?"DAILY_PROGRESS":"WEEKLY_PROGRESS",
+    [period,m.client,m.project].filter(Boolean).join(" · "), bodyHTML);
+  toast(`${daily?"Daily":"Weekly"} report ready!`);
+};
+Object.assign(window,{renderProgressReport});
