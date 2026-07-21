@@ -303,7 +303,7 @@ function dashProblemDevices(){
     <div style="display:grid;gap:7px;margin-top:8px">
       ${top.map(d=>{
         const dev=(state.devices||[]).find(x=>x.serialNumber===d.sn);
-        return `<button class="dsh-row" onclick="switchTab('Incidents')">
+        return `<button class="dsh-row" onclick="window.incProjFilter='${escapeHtml(d.project||"").replace(/'/g,"\\'")}';switchTab('Incidents')">
           <span class="dsh-dot" style="background:#C62828"></span>
           <span style="flex:1;min-width:0">
             <span style="font-weight:700;font-size:13px;color:var(--text)">${escapeHtml(dev?(dev.deviceName||dev.model||d.sn):d.sn)}</span>
@@ -334,9 +334,9 @@ function dashMyDay(){
   return `<div class="card" style="border-left:4px solid #2E5FA3">
     <div class="card-title">🎯 My day</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:9px">
-      <button class="dsh-mini" onclick="switchTab('Daily Log')"><span class="dsh-mv" style="color:${hrs?"#2E7D32":"#C62828"}">${fmtHM(hrs)}</span><span class="dsh-ml">logged today</span></button>
-      <button class="dsh-mini" onclick="switchTab('Daily Log')"><span class="dsh-mv" style="color:#2E5FA3">${fmtHM(rangeHrs)}</span><span class="dsh-ml">this period</span></button>
-      <button class="dsh-mini" onclick="switchTab('Daily Log')"><span class="dsh-mv" style="color:${open?"#E65100":"#2E7D32"}">${open}</span><span class="dsh-ml">open work items</span></button>
+      <button class="dsh-mini" onclick="dashClearJumps();switchTab('Daily Log')"><span class="dsh-mv" style="color:${hrs?"#2E7D32":"#C62828"}">${fmtHM(hrs)}</span><span class="dsh-ml">logged today</span></button>
+      <button class="dsh-mini" onclick="dashClearJumps();switchTab('Daily Log')"><span class="dsh-mv" style="color:#2E5FA3">${fmtHM(rangeHrs)}</span><span class="dsh-ml">this period</span></button>
+      <button class="dsh-mini" onclick="dashClearJumps();switchTab('Daily Log')"><span class="dsh-mv" style="color:${open?"#E65100":"#2E7D32"}">${open}</span><span class="dsh-ml">open work items</span></button>
       <button class="dsh-mini" onclick="switchTab('My Tasks')"><span class="dsh-mv" style="color:${tasks?"#E65100":"#2E7D32"}">${tasks}</span><span class="dsh-ml">tasks pending</span></button>
     </div>
   </div>`;
@@ -345,7 +345,24 @@ Object.assign(window,{dashAlerts,dashFieldToday,dashProjectHealth,dashProblemDev
 
 // Tapping a person opens the Daily Log filtered to them — and lands on the
 // entries list, not the blank "add entry" form.
+// Open ONE work item: filter the log to exactly the entries that make up that
+// job, so tapping a stalled row lands on the job itself, not a generic list.
+// Clear every jump-filter so a plain navigation never lands on a stale view
+window.dashClearJumps=function(){
+  window._logEmpFilter=""; window._logProjFilter=""; window._logWiIds=null; window._logWiLabel="";
+};
+window.dashOpenWorkItem=function(key){
+  const w=(window._staleWI||[]).find(x=>x.key===key);
+  if(!w) return switchTab("Daily Log");
+  window._logWiIds   = w.entries.map(e=>e.id).filter(Boolean);
+  window._logWiLabel = [w.title,w.scopeLabel].filter(Boolean).join(" · ");
+  window._logEmpFilter=""; window._logProjFilter="";
+  switchTab("Daily Log");
+  setTimeout(()=>{ const el=document.getElementById("dailyListTop");
+    if(el) el.scrollIntoView({behavior:"smooth",block:"start"}); },300);
+};
 window.dashOpenProject=function(name){
+  window._logWiIds=null;
   window._logProjFilter=name;
   window._logEmpFilter="";
   switchTab("Daily Log");
@@ -354,7 +371,7 @@ window.dashOpenProject=function(name){
 };
 window.dashOpenEmployee=function(name){
   window._logEmpFilter=name;
-  window._logProjFilter="";          // the Daily Log's own jump-filter (has its own banner + Clear)
+  window._logProjFilter=""; window._logWiIds=null;          // the Daily Log's own jump-filter (has its own banner + Clear)
   switchTab("Daily Log");
   setTimeout(()=>{                    // land on the entries, not the blank add-entry form
     const el=document.getElementById("dailyListTop");
@@ -381,7 +398,7 @@ function dashStalledPanel(){
     </div>
     <div class="dsh-h2">Open jobs with no visit for 14+ days — close them or book a follow-up</div>
     ${list.length?`<div style="display:grid;gap:7px;margin-top:9px">
-      ${list.slice(0,25).map(w=>`<button class="dsh-row" onclick="switchTab('Daily Log')">
+      ${list.slice(0,25).map(w=>`<button class="dsh-row" onclick="dashOpenWorkItem('${escapeHtml(w.key).replace(/'/g,"\\'")}')">
         <span class="dsh-dot" style="background:#E65100"></span>
         <span style="flex:1;min-width:0">
           <span style="font-weight:700;font-size:13px;color:var(--text)">${escapeHtml(w.title)}</span>
@@ -639,6 +656,7 @@ function renderDailyLog(){
     if(dailyEntryNo && Number(r.entryNo||0) !== Number(dailyEntryNo)) return false;
     if(window._logEmpFilter && (r.employee||"") !== window._logEmpFilter) return false;   // jump-from-alert filter
     if(window._logProjFilter && (r.project||"").trim() !== window._logProjFilter) return false;  // jump-from-dashboard project filter
+    if(window._logWiIds && !window._logWiIds.includes(r.id)) return false;                       // jump-to-one-work-item filter
     return true;
   }).sort((a,b)=>{
     // Ascending by entry number (001 at top → latest at bottom)
@@ -650,10 +668,10 @@ function renderDailyLog(){
     return (a.date||"").localeCompare(b.date||"");
   });
   // Active jump-filter banner (set by Smart Alerts)
-  const _jumpWhat = window._logEmpFilter || window._logProjFilter || "";
+  const _jumpWhat = window._logEmpFilter || window._logProjFilter || (window._logWiIds ? (window._logWiLabel||"work item") : "") || "";
   const _jumpBanner = _jumpWhat ? `<div class="card" style="border-left:4px solid #E65100;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
       <span style="font-size:13px;font-weight:700;color:var(--text)">🔎 Showing entries for: <span style="color:#E65100">${escapeHtml(_jumpWhat)}</span> <span style="font-size:11px;color:var(--muted)">(${rows.length} entr${rows.length===1?'y':'ies'})</span></span>
-      <button class="btn btn-sm" style="background:#C62828;color:white;border:none;font-weight:700" onclick="window._logEmpFilter='';window._logProjFilter='';render()">${ICN.x} Clear filter</button>
+      <button class="btn btn-sm" style="background:#C62828;color:white;border:none;font-weight:700" onclick="window._logEmpFilter='';window._logProjFilter='';window._logWiIds=null;window._logWiLabel='';render()">${ICN.x} Clear filter</button>
     </div>` : "";
   // Project options for filter
   const projOptions = [...new Set(state.daily.map(r=>r.project).filter(Boolean))].sort();
