@@ -1141,7 +1141,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v136';"
+      var swCode = "const CACHE='ejaftech-v137';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
@@ -1370,7 +1370,8 @@ function renderPMReportTab(){
   </div>
 
   <div class="card" style="background:linear-gradient(135deg,#1B3A6B 0%,#2E5FA3 100%);border:2px solid #C9A84C">
-    <button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:800;border:none;width:100%" onclick="generatePMReport()">📄 Generate PM Report (PDF)</button>
+    ${rptFormatToggle()}
+    <button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:800;border:none;width:100%" onclick="generatePMReport()">${window._rptFormat==="word"?"📝":"📄"} Generate PM Report (${window._rptFormat==="word"?"Word":"PDF"})</button>
   </div>`;
 }
 
@@ -1424,7 +1425,8 @@ function renderIncidentReportTab(){
   </div>
 
   <div class="card" style="background:linear-gradient(135deg,#1B3A6B 0%,#2E5FA3 100%);border:2px solid #C9A84C">
-    <button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:800;border:none;width:100%" onclick="generateIncidentReport()">📄 Generate Incident Report (PDF)</button>
+    ${rptFormatToggle()}
+    <button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:800;border:none;width:100%" onclick="generateIncidentReport()">${window._rptFormat==="word"?"📝":"📄"} Generate Incident Report (${window._rptFormat==="word"?"Word":"PDF"})</button>
   </div>`}`;
 }
 Object.assign(window,{renderPMReportTab,renderIncidentReportTab});
@@ -1509,7 +1511,8 @@ function _pmManualLayout(){
     </div>`:""}
   </div>
   <div class="card" style="background:linear-gradient(135deg,#1B3A6B 0%,#2E5FA3 100%);border:2px solid #C9A84C">
-    <button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:800;border:none;width:100%" onclick="generatePMReport()">📄 Generate PM Report (PDF)</button>
+    ${rptFormatToggle()}
+    <button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:800;border:none;width:100%" onclick="generatePMReport()">${window._rptFormat==="word"?"📝":"📄"} Generate PM Report (${window._rptFormat==="word"?"Word":"PDF"})</button>
   </div>`;
 }
 
@@ -1593,7 +1596,8 @@ function _incManualLayout(){
     </div>
   </div>
   <div class="card" style="background:linear-gradient(135deg,#1B3A6B 0%,#2E5FA3 100%);border:2px solid #C9A84C">
-    <button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:800;border:none;width:100%" onclick="generateIncidentReport()">📄 Generate Incident Report (PDF)</button>
+    ${rptFormatToggle()}
+    <button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:800;border:none;width:100%" onclick="generateIncidentReport()">${window._rptFormat==="word"?"📝":"📄"} Generate Incident Report (${window._rptFormat==="word"?"Word":"PDF"})</button>
   </div>`;
 }
 
@@ -1801,7 +1805,8 @@ function renderFM200Section(){
   </div>
 
   <div class="card" style="background:linear-gradient(135deg,#1B3A6B 0%,#2E5FA3 100%);border:2px solid #C9A84C">
-    <button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:800;border:none;width:100%" onclick="${fv==="test"?"generateFM200Test()":"generateFM200Refill()"}">📄 Generate ${fv==="test"?"Test":"Refilling"} Report (PDF)</button>
+    ${rptFormatToggle()}
+    <button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:800;border:none;width:100%" onclick="${fv==="test"?"generateFM200Test()":"generateFM200Refill()"}">${window._rptFormat==="word"?"📝":"📄"} Generate ${fv==="test"?"Test":"Refilling"} Report (${window._rptFormat==="word"?"Word":"PDF"})</button>
   </div>`;
 }
 
@@ -2097,7 +2102,8 @@ function renderSystemReports(){
   </div>
 
   <div class="card" style="background:linear-gradient(135deg,#1B3A6B 0%,#2E5FA3 100%);border:2px solid #C9A84C">
-    <button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:800;border:none;width:100%" onclick="generateSystemReport()">📄 Generate ${escapeHtml(tpl.name.split(" ")[0])} Report (PDF)</button>
+    ${rptFormatToggle()}
+    <button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:800;border:none;width:100%" onclick="generateSystemReport()">${window._rptFormat==="word"?"📝":"📄"} Generate ${escapeHtml(tpl.name.split(" ")[0])} Report (${window._rptFormat==="word"?"Word":"PDF"})</button>
   </div>`;
 }
 
@@ -2394,7 +2400,8 @@ function renderProgressReport(kind){
   </div>
 
   <div class="card" style="background:linear-gradient(135deg,#1B3A6B 0%,#2E5FA3 100%);border:2px solid #C9A84C">
-    <button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:800;border:none;width:100%" onclick="generateProgressReport('${kind}')">📄 Generate ${daily?"Daily":"Weekly"} Report (PDF)</button>
+    ${rptFormatToggle()}
+    <button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:800;border:none;width:100%" onclick="generateProgressReport('${kind}')">${window._rptFormat==="word"?"📝":"📄"} Generate ${daily?"Daily":"Weekly"} Report (${window._rptFormat==="word"?"Word":"PDF"})</button>
   </div>`;
 }
 

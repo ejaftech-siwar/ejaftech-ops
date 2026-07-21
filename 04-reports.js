@@ -116,8 +116,9 @@ function renderTechReport(){
     h += `<div class="card" style="background:#0F2347">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
         <div style="color:#C9A84C;font-weight:800;font-size:14px">📤 Export Technical Report</div>
-        <div style="display:flex;gap:8px">
-          <button class="btn" style="background:#C9A84C;color:#0F2347;border:none;font-weight:700" onclick="exportTechPDF()">📄 PDF</button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn" style="background:#C9A84C;color:#0F2347;border:none;font-weight:700" onclick="window._rptFormat='pdf';exportTechPDF()">📄 PDF</button>
+          <button class="btn" style="background:#2E5FA3;color:white;border:none;font-weight:700" onclick="window._rptFormat='word';exportTechPDF()">📝 Word</button>
           <button class="btn" style="background:#2E7D32;color:white;border:none;font-weight:700" onclick="exportTechExcel()">📊 Excel</button>
         </div>
       </div>

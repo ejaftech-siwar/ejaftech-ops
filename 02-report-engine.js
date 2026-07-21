@@ -62,6 +62,26 @@ async function generateRefNo(reportType="GENERAL"){
 // ═══════════════════════════════════════════════════════════════════════
 //  UNIVERSAL PREMIUM REPORT TEMPLATE
 // ═══════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════
+//  EJAF BRAND MARK — vector rebuild of the official logo (v137)
+//  Drawn as paths, not text: identical in the browser, in print and inside
+//  the Word export, with no font dependency and no external image file.
+//  The "A" deliberately has no crossbar — that is the brand's signature.
+// ═══════════════════════════════════════════════════════════════════════
+const EJAF_GLYPHS = `<g fill="#FFFFFF" transform="translate(38,112) scale(0.815)">
+  <path d="M0,0 H68 V25 H25 V44 H58 V65 H25 V86 H68 V111 H0 Z"/>
+  <path d="M114,0 H139 V78 C139,98 125,111 104,111 H80 V86 H101 C109,86 114,81 114,73 Z"/>
+  <path d="M188,0 L224,111 H199 L188,64 L177,111 H152 Z"/>
+  <path d="M238,0 H300 V25 H263 V47 H293 V69 H263 V111 H238 Z"/>
+</g>
+<text x="150" y="243" fill="#FFFFFF" font-family="Arial,Helvetica,sans-serif" font-size="24.5"
+      letter-spacing="8" text-anchor="middle">TECHNOLOGY</text>`;
+function ejafLogoSVG(px){
+  return `<svg width="${px}" height="${px}" viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg" style="display:block;flex:0 0 auto">
+    <rect width="300" height="300" fill="#0B3190"/>${EJAF_GLYPHS}</svg>`;
+}
+window.ejafLogoSVG=ejafLogoSVG;
+
 function buildReportHTML(refNo, reportType, periodLabel, bodyHTML){
   const now=new Date();
   const dt=now.toLocaleDateString("en-GB",{day:"2-digit",month:"long",year:"numeric"});
@@ -76,7 +96,9 @@ function buildReportHTML(refNo, reportType, periodLabel, bodyHTML){
     .rh{background:linear-gradient(135deg,#03308B 0%,#1a4db5 60%,#0a1628 100%);
         padding:20px 26px;display:flex;justify-content:space-between;align-items:flex-start;
         -webkit-print-color-adjust:exact;print-color-adjust:exact}
-    .rl{color:white;font-size:22px;font-weight:900;letter-spacing:2px;line-height:1}
+    .rlrow{display:flex;align-items:center;gap:13px}
+    .rlmark{border-radius:6px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.28);-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    .rl{color:white;font-size:20px;font-weight:900;letter-spacing:2px;line-height:1}
     .rl span{color:#C9A84C}
     .rs{color:rgba(255,255,255,.65);font-size:10px;margin-top:4px}
     .rt{color:rgba(255,255,255,.45);font-size:9px;text-transform:uppercase;letter-spacing:1px;margin-top:2px}
@@ -149,21 +171,27 @@ function buildReportHTML(refNo, reportType, periodLabel, bodyHTML){
     @media print{.no-print{display:none}body{background:#fff}}
   `;
   // EJAF wordmark watermark (letter A drawn WITHOUT its crossbar), tilted, slightly saturated blue.
-  const watermark = `<div class="wm"><svg viewBox="0 0 400 140" xmlns="http://www.w3.org/2000/svg">
-    <g transform="rotate(-30 200 70)" fill="#0A3FB0" opacity="0.13" font-family="Arial Black, Arial, sans-serif" font-weight="900">
-      <text x="0" y="105" font-size="130" letter-spacing="4">E</text>
-      <text x="95" y="105" font-size="130" letter-spacing="4">J</text>
-      <polygon points="175,105 210,20 245,105 228,105 210,58 192,105"/>
-      <text x="255" y="105" font-size="130" letter-spacing="4">F</text>
+  const watermark = `<div class="wm"><svg viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg">
+    <g transform="rotate(-30 150 150)" opacity="0.11" fill="#0A3FB0">
+      <g fill="#0A3FB0" transform="translate(38,112) scale(0.815)">
+        <path d="M0,0 H68 V25 H25 V44 H58 V65 H25 V86 H68 V111 H0 Z"/>
+        <path d="M114,0 H139 V78 C139,98 125,111 104,111 H80 V86 H101 C109,86 114,81 114,73 Z"/>
+        <path d="M188,0 L224,111 H199 L188,64 L177,111 H152 Z"/>
+        <path d="M238,0 H300 V25 H263 V47 H293 V69 H263 V111 H238 Z"/>
+      </g>
+      <text x="150" y="243" fill="#0A3FB0" font-family="Arial,Helvetica,sans-serif" font-size="24.5" letter-spacing="8" text-anchor="middle">TECHNOLOGY</text>
     </g>
   </svg></div>`;
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>${css}</style></head><body>
 ${watermark}
 <div class="rh">
-  <div>
-    <div class="rl">EJAF <span>TECHNOLOGY</span></div>
-    <div class="rs">Girêk</div>
-    <div class="rt">${reportType.replace(/_/g," ")}</div>
+  <div class="rlrow">
+    <div class="rlmark">${ejafLogoSVG(48)}</div>
+    <div>
+      <div class="rl">EJAF <span>TECHNOLOGY</span></div>
+      <div class="rs">Girêk</div>
+      <div class="rt">${reportType.replace(/_/g," ")}</div>
+    </div>
   </div>
   <div class="rr">
     <div class="rn">${refNo}</div>
@@ -179,15 +207,62 @@ ${watermark}
 </body></html>`;
 }
 
+// Output format is a single global switch, so every report family — Technical,
+// PM, Incident, FM-200, System and the Daily/Weekly progress reports — gains
+// Word export from one place.
+window._rptFormat = window._rptFormat || "pdf";
+
 async function openReportPDF(reportType, periodLabel, bodyHTML){
   const refNo=await generateRefNo(reportType);
   const html=buildReportHTML(refNo,reportType,periodLabel,bodyHTML);
+  if(window._rptFormat==="word") return downloadReportWord(refNo,reportType,html);
   const win=window.open("","_blank");
   if(!win){alert("Please allow pop-ups to export PDF");return;}
   win.document.write(html);
   win.document.close();
   win.onload=()=>setTimeout(()=>win.print(),300);
 }
+
+// Word export: the very same branded document, wrapped in the Office namespaces
+// Word needs. Everything survives — the vector logo, tables, PASS/FAIL boxes,
+// embedded photos — and the file opens fully editable in Word.
+function downloadReportWord(refNo, reportType, html){
+  try{
+    let body = html
+      .replace(/^[\s\S]*?<body[^>]*>/i,"")     // keep only the body
+      .replace(/<\/body>[\s\S]*$/i,"")
+      .replace(/<script[\s\S]*?<\/script>/gi,"")            // no scripts in Word
+      .replace(/<div class="actions no-print"[\s\S]*?<\/div>\s*(?=<div class="ksec"|<div class="rh")/i,"");
+    const css = (html.match(/<style>([\s\S]*?)<\/style>/i)||[])[1] || "";
+    const doc = `<html xmlns:o="urn:schemas-microsoft-com:office:office"
+      xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+      <head><meta charset="utf-8"><title>${reportType.replace(/_/g," ")} ${refNo}</title>
+      <!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom></w:WordDocument></xml><![endif]-->
+      <style>@page{size:A4;margin:1.4cm}${css}
+        .wm{display:none}                       /* fixed-position watermark cannot tile in Word */
+        body{font-family:Calibri,Arial,sans-serif}
+        table{border-collapse:collapse}
+      </style></head><body>${body}</body></html>`;
+    const blob=new Blob(["\ufeff",doc],{type:"application/msword"});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a");
+    a.href=url; a.download=`EJAF_${reportType}_${refNo}.doc`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),4000);
+    toast("📝 Word file downloaded ✓");
+  }catch(err){ console.error(err); toast("Word export failed: "+err.message); }
+}
+window.downloadReportWord=downloadReportWord;
+
+// A PDF / Word chooser to sit beside any Generate button
+function rptFormatToggle(){
+  const w=window._rptFormat==="word";
+  return `<div style="display:flex;gap:6px;margin-bottom:9px">
+    <button class="btn btn-sm ${w?"btn-secondary":""}" style="${w?"":"background:#C9A84C;color:#1B3A6B;border:none;"}flex:1;font-weight:800" onclick="window._rptFormat='pdf';render()">📄 PDF</button>
+    <button class="btn btn-sm ${w?"":"btn-secondary"}" style="${w?"background:#2E5FA3;color:#fff;border:none;":""}flex:1;font-weight:800" onclick="window._rptFormat='word';render()">📝 Word</button>
+  </div>`;
+}
+window.rptFormatToggle=rptFormatToggle;
 
 // ═══════════════════════════════════════════════════════════════════════
 //  EXPORTS (Excel CSV + PDF)
