@@ -76,6 +76,11 @@ const EJAF_GLYPHS = `<g fill="#FFFFFF" transform="translate(38,112) scale(0.815)
 </g>
 <text x="150" y="243" fill="#FFFFFF" font-family="Arial,Helvetica,sans-serif" font-size="24.5"
       letter-spacing="8" text-anchor="middle">TECHNOLOGY</text>`;
+// Raster twin of the mark. Word's HTML engine cannot render inline SVG — it
+// flattens <text> nodes into stray words — so the Word export uses this PNG.
+const EJAF_LOGO_PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAPAAAADwCAIAAACxN37FAAAnwUlEQVR42u2deXhV1dX/19r7DHfKTUISQpCZMAiITGqQSUBtUQGHDk8H69vW2r5trfr+qn1rZ1ttbbWTtX07vK+t1Vqtc6tWrVpFEUUQkEkIMyRhyHxz7z3D3uv3xwFkuLn3JiQmhPV5zuMjcO4Z9vmeddZee+21MTr558AwfQXBTcCwoBmGBc0wLGiGYUEzLGiGYUEzDAuaYVjQDMOCZljQDMOCZhgWNMOwoBmGBc2woBmGBc0wLGiGYUEzDAuaYUEzDAuaYVjQDMOCZhgWNMOCZhgWNMOwoBmGBc0wLGiGBc0wLGiGYUEzDAuaYVjQDAuaYVjQDMOCZhgWNMOCZhgWNMOwoBmGBc0wLGiGBc0wLGiGYUEzDAuaYVjQDAuaYVjQDMOCZhgWNMOwoBkWNMOwoBmGBc0wLGiGYUEzLGiGYUEzDAuaYVjQDMOCZljQDMOCZhgWNMOwoBmGBc2woBmGBc0wLGiGYUEzDAuaYUEzDAuaYVjQDMOCZljQDMOCZhgWNMOwoBmGBc2woBmGBc0wLGiG6RaM7js0Igrs4dsjAK2pe+4OBGJvuJL3jZ56oB1qum4UdNrxfV/3rJ6lFCHb6A41+75OO6pDPwmFjA69Ax2+W4LuOzwiuJ5yXdUTbxJEw2ZPChoRlKLpkwaOqyzxPAXYA+81abIsY2dty4vLdpiGJKKuuzt0PDW0omDeOUN8pXPfHYEQ2JbyXly2sznhGBKpqy21JrJMKRDSruqOdwYRXU9NqCydOqFcKQJ8P8WMvtKP/2uT52vM49a6yUKjr9SVl47/3IfO6Nmv5IvLdvxzyVbLlF2oISnQS3kTx5T99pYL8//VvvrkBZ9+qL4pZRoGdamipcC2ZufyyyZ4nnro7+vjRWHV1b6NEOCm/Q/MGn7bDTPf/4foeurpl7c6rmtIoB4SNACA1kQEikj2hOellJZCqG5zW4kgz7sjTShQddulaCJpiMsvGNXU4jz8zMbu89M1BW8ivW+fXAJAAF91wHE1uvWCEAHf1w/UsWfvDXcXPJXuw1dUXByePW1QW8qLxUOep7rPU0cEen8faEfPxWG7kxsh0HXUrKmDSovDQwfGz54wwPWU6PHoUg82CGvi5H5+iNrzF84dGfxx8bxKlfJZ0MxJCSI6rj9wYOH0SQODv5kx9bSSsqjrKURkQTMnn7+RTnlTx5ePGd5PayKi8ZUlU8aXp5KeOFUfLAv6JIaIDFPOrRqMCJpIabJMOXvaICEQiAXNnGz4Ssei1uJ5lYG1DoIbi+ZVRqOmr4gFzZxk/obrqWkTBowYXBT0DoO+4IRRpeMrS13/FI11sKBPYkGrtH/p/EoAODxoozQJgZfOH+UnPYEsaOYkIUiuKCmLzZhy2tFeNQDAnLMGxQtDvtKnYKyDBX2SmmdIJb0p4/qPqywhosPOhRRARGeMKZs4rjzZ5p2CTofRq65Gd13WjqaAvhrgACFw9rRBlil9pQ0pDltupXQ0bM6YPPC1t3ad7A80yBro0FPsXRZaIHbVZhkSES2zb36CfEWRqLV4fmXQaMd4IwBw6fzKcNhUPT2l4AQfokQUiB3KaO8uC0106MWivHZGhOZWd/POxq5KF1aaImFz49bGvtc3EgJTjn/W2PLxlaXBH4/5VwCYOmFA5ZDijdsaLENSVwWlO/hgHFdt2Npwgl9JITCV9rUmzC+23l2CRjxoKvJJl1JaG1K89vbuRdc8WlgU6lC6YNaOE2hNIds42ec+HW/2/KS3eP4oIVDpDPmrWoNpiEXzRq65a2+42OiymHTepoGIEHFnTcv5n37I8dSJufIIQEpRnlHIXuRDE4Hyle/rLhJ04IH1tY4+IvpKxwtDc6YNas9oEhEAzq0acscfliuiIOezJ/x88H3l+12Qzpr/UxS97nF1HQL7YNhKICTbvInjys8YU0ZEUmSOgQDB5NP7Tzi9LJX0erAVuupRnqydQiY/mdCMyQOjYVNryviwEVFpXRwPVU2sUEqdUrE7FvRJhtIUDpvBAGEW04WIBLBw7shw2FKaWNBMrzTNgJ6vRw0tnjphwPHxjWOCAwgwc8qgQeUFec6XZkEz7zdSopv0Fs4daRpC5+o5E0EkbCyYM9xN+6fOkCEL+iSKb4AiCkfMeVVDII/xM601AFwwfagQACxopvcJGlNJb/zYskmnlwNBzjkpgZtx9sSK00eXJZPeKZJNyoI+iRxoUEpXTawojttK53aLhUClqH9JZNr4ct89VWYZit72zIL/dm7r8/GNUNhcOHck5T/QgEAEl5w30g5bWutTQdC9aqSQSGlfdX6kUIo+m9QeJEAPHRifOWUQAuRZBjRoj/nnDi0pDjU0pwwpiFjQnVTnoWFZykeICACTx5Xf+/NFdmfr0BHQj//w5rrNByxL9r3HJhDctH/R7OGRsJF/lVEEAILiAvvCGcP+9Og7VsxW72/TdC6HlwA6bZm6MTkJ8k5OCj6gp/WPXblo3Imc9N7H1615dz8i9sE8aAQhYP70oUH4Qsp8fUWltZDiotnD//jwmvf584UAhiEVQQe7oygQfNXJZPbelZx0IvngRNRXpzoLgcmkN2502TlnVgB0LN8qyIQ4Z2JF5fB+O2pbQqbR+UbO+4fBFQ4ZGP/XPR/pqC6VoljEvO23y+57cn0sanU0U7IXCRoR5AnYECLouw40+J4+Z+KA/v0iGfNFc8Q6NA0eGJ8yrrx6W0PENnWnX/sOtq9tyUljyzp3qgGlUdLUiefJYbuTAK3JDpkLZo/opG0lQIAPzBxmWsb7nNehiTq6ub4iIt/v5HUaLJeTwDz7un9JZH7V0I4u7HLYSAPAxXNGFBWGWtvc7lhCoP2+LHbiJ3gCeb9soXt/fAMdxz9/+rCiuA2dqs0ciKO8NDp72iC3r4+wsKBPAgtNmhbMHkYAqrODI77WQTapdnzBgmZ60DwnHX/UiH5VZ1YgdH4+GQIiQNWkisFDitJuX9Y0C7p3Px6BXtqfOq58cEU8KPPVueNIgVpT5eCiyeP6O8m+XBGdBd2rUZos2/zArOFBsOJEICIpxfyqodKSuu+OgPcuQdOJbX0wvqF0YdxaMHsEZJ2fAnm0gBACABbOHVkQtZTSLOj35RGewNb35ngjouuqOWcNLi+JQK5hjZz5hsHPh59WeM7EAY6r+qob3Yvi0EqR4/qA2DlrSwSqbw19C4Ha8S+eMyKIbxjtpPQfqjvlEFFRPJRlxFRrEgIXzat89sUtImppn1jQ3UJQbvD517df8cXHCwtDnU3JoLSr+kydJIGYdvzBg4umTxqIANi+/dWapMTnX99uSrF4/ihFZLSj6MBzPnfKaaXlsba0L0X3FqAh6kycMUge7rSX34sstO9TMuEKU3ZyyXvsU16HEOgk/ckz+1cOKdJZ8zeCW35tRU28wFo8fxRmN/lE40b2mzy+//NLtsfjoW51phHBkB32aYOfhG2jc72i3pWchBINgSA7qcq+9AXVRNKS508fKqVQSmfxkIPO4qqN++JRGw4ll7fXwkqRZco50wa/sHRHdyfZJpLuS2/sUh3MMQqyrzZubTDMzkxH6F25HH01XtGJzrGvdDxmLZxbeThAkcWBbm1z11UfCNtm2vFDdrYZAIHcF82r/PEflvuqu4bBg2KNu2oTi655BDzViTRIGTHDoc5kunJyUm+Nbzj+nLMGDTstnj2+QUAIuHLd3kSbl0z766rrp44vz7K+eKDg8aNKzhhT+sbq2pBtdJ+dNgwsLYu6nVp7XGnqXF+IB1Y6aYJMQ0AHi8t34KlIVGk/MM/Z05eDp750VY3rKc/Tr6+qOfyXWZwZgbjwvBF+2pPdOWRIBL6vvU5tne7Zs4XupAktKrC7yW1HBNdTZeWxGZMH5jxDYHFXrt+nlFaK3nqnLrfONIHEWdMGxeLBwkLQl8YN2UJ3vLumybDl2BH9IO/Z1x1zH4VIJb2p4weMqyzVREJmDdgJrG9Kb93dZJpSSty8symR9KQUWbzPwCOfMq588rjyZNLtY3kdLOjOxB/CIfOCGcOgI8VANEGeX1FNJISYPW2QaQidNUQQHK96R0P1tgbbMmzLqN7RuGVnU/ZPRzCiHrKN6ZMqkPpaF5wF3UEXTYq2pDe/asiEUaVEkL95cz2VZ/dIKR2LWZeeXxlY65z7b9ja0NKYkgJNQ+zb27p5R2NO514IJIBLzx8Vjlq6b+V1sKDzbilE0xRtKbesX/h7187oaI8w7fiO6+cc10dE19MTx5SOGVECufI3grfpzTW1aBkHZ/0LXP5OHeTKZAoGoM6aMKBySJHn676U1tHLZn0LlAKJuqyBqZ0uf8cm5yEiQNr1nVZv4ICCe2+/aOKYMqJ8s5MD2Te3uo0taWmI7B95KdBPeQvnVgo8GI7Ifl1K62Wraw1TaiIgkJaxbHVNEAbO9kMATWQY4pK5lavX7Q3bpt9X7HQvErTna5VwWgzZdY1LUorjV7lDBNfTruvn6wMrDQCDBxXOrRpy8+erxgwrVopk3sOZBASA++qTrY3pwn6RLHeHCJ7S8eJDCwJpyjJoGoyebN/Tsm13czDvFYEsQ6yrrt/XkCoviWSv66A1CYnzqwbf8b+GJo19ZTyrV5QCC8zJ0IHxj39sUjRsdUm5KtJkWcbO2pYXl+0wDXnYPQiKxI2rLKmaONBx/RxhCgLbEqXF4bEjSqZOKB8zrB8cSgbqkK8CAJu2NwBirpRlbGt1Zp01+Myx/SHrAGHQd5SIb6yuTTl+kP9AQUmatLd8Td0lc0cEO2T5FADA5HH9J47tv2JtXSzSR1au6BWlwILGnTS2//13XNK1l/Hish3/XLLVOqJenkBwHf+C6UN/fOOcjh5NaRIIHY1zBfu/vqYGLZHT7UbAmVNOC9lHLXjcjskgAHzznVon5dnxUCBHKTCZ8Jatrrlk7gjS2YpwBcvDFRWEqiZWvLW6NlgOkDuF3WPdu2LzlSaC9qyOJiICX+mcU2CCAmVKURD07WjyQyDgppb08jV1likpqxVUSocj5qJ5lZRzfgqBFOj5en11/ZE2AxFI6zWb9gOAyFV/I/h0LJw70g6bqq8U2+2Ngsau2HKGCA5/P3IeRCBKiZ0bgAi6pE+/sq1uf5tpCMp6Pa6nK4cUTZ1QjrlKtBxaqrV5y84mK2TQey8qGJaxZVfTnn0JgTmizMHLOWvaoEHlsWDIkAXN5DDPKAAAHvtXteep7K+EFMJL+4vmVxpZx/kOf2EAoHpn087dTSHrvTkNwVLQW3Y0Vm9vhFxJHYhARCHbuHjOCCfVR6aCs6C7Ea0JAd/esO+FpdsjETPLVx0BtNZ22Jx3zuCcQjxsXN/esM/3jrWsUqDT5q2troc86ngELtmFM4cZEvtGmIMF3Z2+EwIi3P2XVY1NaeOISEvm+EbSO3Ns2eRx5ZA1Sf/IbvTrq2qFdWzSsCZCS765piaf4wRWeeq48rGjSpOp7k2+Y0Gf3ChFQuBTL2/98+NrYwV2rslOSJrOmVhRGLN9ldc6ma1t7op1ey3z2MgJEZimfGN1neup3I8fUSldXho9a+IA3+sL63OyoLvL2ZASd9S03PDDlyCPwspKaztsLppXCXlU7Awcknc27W9udYQ4dp4SERlS1OxPbArcaMrLe7l49kgrZPSBWAcLuhvUTISIvq+v/+FLm7c35JyIHqS/DR5QMHPqafk4voFEX19Vm2onQ18ISDt+kOyfc5AqON3504eWl0Q8n5AFzRxjPoNo9XW3vfj4s5viBXbOETgh0El5l5w3MpgQlfuzjwAAK9ftVW7myIkQwkv7b62tgzwyqIIE/8IC6/xzh7rpk359zlNU0N0xRyOodCMEJpLuNd9+9tf3v10Qt/OqfUNgGuKCGUMPhx2ynoWkwKaW9OYdjcJsr6NJKMXGrQ1px89nKbfgA3LR7BFIcLKv68EWuou6gJoQQUrcuK3xiq88+fu/ro4XhPKZGCcFtqW800eVTR1XDpB7XD3wcqt3Nm/Z2RSyM8+L1hps26je2bRlV3N+bjQAwLQzBgwf3i+VPrkD0qeooLvEDNGhIfFAl8mU9z9/XT3vqgefX7ojXhjKs4OFiMrTZ00c0L8kopTOI6mVAGDjtvqGA22mkdn6EpFliZqals3bcyf7w6GFhYYNjJ81odxzvJM61tG9gqae3rK4B505IAERaU1KURBcC4bEU47/16c2XvCZv33xe883NKcKImb+VfaU1lbIuPjQgkA5bweFAIDla+rAyJ3qtHL93iBskruhiIgOLiyUZRHl3l8MthvzoQUiAhg99P0yBGL7X3A8dG0dXBLyyCAEtrZ5qzbuW7Ji11//sXHD1galqCBqaaL88zARwPNpYFn0g7OGI0I+y2kGN7R0VY2RdcldIpCWEQQ68nEhglMvmld588+WNDanM15J0Gj52O9gnx4ZpulGQaddP5n2lAbZE36Nr8iQmEr7Gf/V81Qy7QX7dCSCAbX7E9t2t6zfUr9qw95N2xtXbdyXanGsqBWypUDsaEqxEOimvPPOHgIAbSkvp1SCnP3ddYktO5tMM1vKh9ZkmuKdTftr9iWK4qF8gicEELKNqjMHPvFCddSUx3cAgkbLZz3IYJ+2lNcDzmR08s+76dCWKQ0pslTx6e5IBgAqrR03w4CZYQjLkB2/NvJ87XracX3lKjRENGxKKZQ+odVZQ7Y8wphhp28q495hO/hG5uOaIwApTWlHZZRsRxqNAFATpR2/T1lo0j2XOI4ABNhOPr7nKcdRHb42hMCNiYRMEbGISBOd4IQxREilfaL8GirrTWXcPZny8j34oetp7+AdaDQ8KPv33+voZh9a9nCfl9p38gzZ+QNqIt11xdVFB1156qGDd7TResSOGT2ip94AnTIXQ6fGA30/wnYMw4JmGBY0w7CgGRY0w7CgGYYFzTAsaIYFzTAsaIZhQTMMC5phWNDMKUvns+2CGXXZFh0jUu0U4xdCZJnGQkS+yl0fRSAcrtccVHHWuStgCClAqQw7okBDoNbtT6BCNCQGVRWPT4GWUgg4WHA6Z7sJgYgHk+SDSYr5zHSRUggE3+9Mof0jTxrMIMzzpEe2T9DaRxwh13xyREMitCMDEayno8nv0pUDjE6r2XPcRKt35F8Fa9Ec+QSsQts6rqolIrS1prSrD05VPR7TDMfNdgWPIBB9z0+mFXkKFAECSAG2GQkZUrRbuhMRkq0p5WqI2jH7qPnSiOAknURKQdiOhduZSu37zQ0uAEDULggdNUMJgVoa24CEFc9wv0c2GhI5juc6PvgaNAAimFKGjLAlEbIqjHRLQ+rgKUQH0jiDk7qu5zg+uBqoIyc9pDytdDrp+a4CXwMBCAQpMGSEbUO2dwQE7XnN9S4YRihuG0eXQhEC0m2Ol/IhZEWiBlKPChoRPccbdvaZd1492jrYQuC5vqvItAzLQNIEiOna2u/87PV3EjL8XuF6FKhTrrzss/OunFpkmNI2j1YPaUBRv3bj9b9Z14KGzFAQBpF0MuXHB5QsmDX8gsnlQ8pC0vf31jT966V3n3yjLuHJcIaVHw6ed9Fn5l81Lf73v7z652WNVsg4tBIapByqWjjjqxf2X/bUsp8+u+/wPx2+X+X50cFDf3LdmadJ9cyDS3//alM0IrUmQBTaT4mCr3xnwbxo4/fufP2dhAgbGdbYRETt+WmSlacPWjB7+NTKkvK4cNPOzuq6h5/a+Gp1AkwzlOmHgAjKp4KSW74zY6JR/4M73ljdSMcKpP0npT0/DXL4qCELZg07e3y/8qh0k+ntW/c+9My7y95tAdsMyWwrggqEVNIzwuEpMys/eO7gM4cUxGzR0txWU9v4yktbnlt1wDENSxx7MYjou375uDG3/ec4q2bPN36xfLsrD+8mBLS16XMWT//aByp2Llv73Qeq06YpumjZ9E5ZaATSJMOhEcOKo0AEoEgMOK0gAuC0JmqalUBAIRLYYgXaPvrp+ApPnzpy8fxir6VtT4uPR1Ym1hql3FMXai+VXKBO+sbCq8770ZcmjYkBkDpQnwbbLp1jfOpj01a9svqG217+9y5VEBbHTMVHBN/HsVNHLp5fVPPKinv8BvvQGteI4PsweOzQxfNPC2165ydP0fGzjEhrq7DosgsrKwBmD9VvbXhmVStEJGgABPLRmjFvzOLivb+5a6lPGSbcBcLC0rLbbpp/wwcHWgB+2q1P+AXxSGT+2C9+vurRP7/233ev2ZbK/DIAEdjhCxdUnmPH/3D3mysaKJTPNChE5XuiX/9bvzb3hgWDbADPcepbVawwErtg7Jc/X/Xwfa9+7a41O1MibGbWtBCQSunxs8687StVF42PAUBbS6rFhX6lYRvgK5+d/sojr19167LdygoL0kdfr2GI2h3790XLr//4iNSuvZ/943aIWagIBfqOVzhi5J03zpxe0nLDn/c3axFB6Cq/ozOCJk1myNy+7O1zL18tAARQq29e/50P/+Ciwl9+55FvvdhcEJGagJRyPRmWdLw/nEg4vlJ3//jJbzy5NxIzj/p8I/qe8tA47rUHISDRBvOvmvPA184INR24/dbXH1tRX1ef0pY9bOSAaz5b9cnZZ/59YPjiLz27tE6HjrdhCKk2x1d+m3vc8gsIbsrxlW5OtbsyA/mqxdORFqe4cuwtn9ryoTs3Usw69K2k1mbHR8ejzMIC5ato8U9uW3RtVWH1ig23/W7NyprEgWY/Fg8Pq6z48n/OvPzK+ROGFl7xtVc3pdDOaDJJNzVp33I8nd+0XkRQyouU/PRHi6+tim9/a/13/2/typ0t9S0qVhQZWllx3efO/dAn558+sPAj33x1UxLDx51UCEy3uZVzpj1+13nDTP+Zh1755eM7tx1INqeppDQ6duLwm7907uwrZj5IziW3rEpIUx5V0IZQCmw58O3vPDvtj5d94kszn1q+98ENXjwiQOuUCF9/3czpJXTf7c/94tXGcNymrnOjT6BTSOSkfQAQSI4HWoMhhXaUk/ZNQUoTtL+4pRAiWFrP87Xn6aO93mON+mGnwU+5ZaePvfMLZ8immk994ck/v9mMYdM0ECi1a8f+JSvqdv140efPKJ8+MrZkdxMa8ngPXQg0pDAkGoYwpNAYFD0CQ1LwN+13VYkIIqbY9Or6rcPGffTKGZ94adcfVqfjgZUGEFIY7XSRBUKLg4s+PfPaqsLV/3jtsu8s3daK0hKGxL0NiXffrX1pZe2dP770y7Onffejuz/+my1UYGb0J2T7p8h0UkqkYdHVM66tiq955rUrvrW0ugWFJUyJ++sTm9bX/PuNmp/eeemX50377kd2fuq3W3XUgqN7FeT7WFr+zRuqhhnub2/7+3V/rHaEYZjCEHCgvnXd23tWbm25/XNjUwdUYVg0u8cWq9Ca7Iid2LLt5t+tee6bZ/7gi9Ne+39L6sH2k+rsS8++6cLSPW+8dctD282o3VXORheE7aQUwYby4ExhIREP/WXOGb+ppOM1ppqb063NqdbmVGvwPy2uqzJUfhBEKW3MvXDcxCJ48dGVD6xojZVG4xHDNqRtGYWFkZDT/PPvPzH/qofuXtoUtrPVrEgm0s6BZGNDsrkh2dyQbGhI+vXJ5qTK5WYRAsjmA9//5Wu7QsW3Xn/26JBOKRS51ibSvm+VlV11+Uhwmn76x1XbUmZxkR0JGZYhwyGzuF9E1dX98p6VtQQXXjB6QjGkFJzgXGlEJN83+/f/9CXDIdX403tWVyeM4mI7GjJMQ4bCZlFJFA7U/uye1Q0ElywYPbpIuOqowh0CIZXWY6aMuGhMqHF99d2PbfWikeK4Fbakacpo1C4ui+xdvfET1zx81c/W7PaEhRlUqTTFomLJI8t++mJT5byp3778tHRDmz10yK3XTi5qPnDzHcs3p42wQV1bOPOEJskG10JAdOiq6OAfKPtlBgtQnTFt5Ed0iRV6r89IAKjdVSv3VDf4pnHUqmREWkRiU6dUELivL6vzLVNofTDiQ6CBDFO21je/ozBktauHg+c9q/IjVHr4vEJAKg3njCs4vEd7P9YA0bi1acnK7/9t3O8+POVbH9726T/toIjIfqeer/oPHXjuYJFcv2P5Lse2Dc9/74Y9gHBY7q6uW1NDH6gsHTcktHKthxFxQgVSEVxHV4woP3OYkVi75+0dSRm2lH/wQ0gEmrQVMms37V52AC4aXjF+gP1OtRey3gs2IJBCWTmsrBhgycpd21oxUkCuTwCgfe36+mD8xDAsBNJE7TS5FjKcar3jF6/MPWvh574w62+vNg2+aub5A/Gvd/77gXfaYjFLqS6ed9sTSyMjCCQAXPiJWQs/cfw/t3316r/cWevZpjgifImkyQhb5cUWUuvWRg8EHLcUA0nDiJjtr7iT47wHHZvsxlGhKDDce3/96uKqD33yizMeX1L32A4Hw9k70BCPh/sR1O1NNDsaxbH9PSkg0Zre0+DRaXZx1ARyT7iBQREWFoVLAGoaEvUpMkw4qpNMgAK9ZHrrPh/K7AExg7SLR77NBCBEpCgEALW1LW2AMQBAUD71q+g3ekAYNBGCEMISesfWA9sbPZlpWUTSZEas5k2bv/mLdU9/c8IffnVFbHj/3atWffOB7RixUFOXrxjQE4KmoP9BD/762btebrAjxnsWGlFor3pLKhTCjD7DYUuAWUYQsJ0+RjvnFQgJh8776OwfXToQ8lhQTViWV7vru794a84dZ9967eQ3vrpkD2RfYRlBiuz1WRAg8Hh011WZwsNLK+dY/Rm9dvZAEgQAJuChcFsiRXOumn//xwYd8UK6P//WYzc+vDsSMzN+lpWCWBhfemTpHVUV3zi/v2rce+OPlm1JyXgYVDcsgNEzi9cHgbEd2/e/9maNeXSUgwAtS0pxzOtOKNB3vfpGlzAyvMgg7Qg8SvSIqH0/kfRFyAqbmP95pQC3jcpnpCG/QuhKUyRmvvXsWz+aP/IHC86+/vnNX32m/RK0BIjU2pysBygdEIubeEAdG43QCqzi0MB+JrY17mtKg+iCYlMSoLU51QBQURIrsbHOA1uAOvK7ociMhEb0l+i01TW7KI4e3EAApZsbEwhUUR4PonJCQyiEbzy29JMro4joOGrygnO+/sGyXAvCEQkDE80PPbP5v+b127F88z/eaQ2FQ7p71nPpyVwO0zKsiBk9eotFDDOTuUMUOpVcu24/gnXBvMER3/FQmDIYj0XDEMrxwhX9r7zi9MkVVvYxcNM0zLAZObyFTBE2bRM78IUBEYXkr371yhut5nXXnTt1gGj1KKOZIwDDEI27963aR5HRw88bE3XT2jTFwWFkRFOi4+hBowZMGYjNW/at2+MYVraa+5iBDCe1LKjduX9dnS4YOWj62JhKK2kEJz3YXJ7jDxw9qKoMk5tr19a6x/ZYAE3w362u20945vThE8pE0gNDCtMSu9ftvP+xdfc9uf5vD61+ak0TacinrjsG0UuBwQI03bKEQo8LWivteRk2P1MLEWII3ef+uW5DK8y8dPpXF1YkG9uaWr20rzzPb25Kpez4dTddfO+PFv7nzKJUWmep/nYwfeLwRqR1x/raRGTYVsuWrV+/a70YMvoHnzndanMyO+BE0jASe+vueWQLGPEbPjd5uOU0Nrqe0kqTUqqxoc0rLr3+M1MqUD346PpNiQwh4aO/4PrYTWfwXNEy07vr/vT4VggV/ddVk4aH3MZGxw3291VzQ8It6P+V/5jUD/z7H9lYnSBLHmWhNUEobFS/VX3/6y3x4SO/9tHRVqKtsdXzfC1tsyBu2wZAYXz04AgKDJmYZ+th99ft7DKXQ2vylc4zQK619hVJKcIhIxw6bpEoTZ6v1dE3rzWZYbNm1Yav/mbwQzeN/97tl48cvfwvL+/avCfpmOaQIWWf+cyMq2cUV7+2/GfP7bVDmRcfyXKRpMnPJI4jpamUPpx9pAhiYfz335befcHgaz88aVcC21r8jI6HBoxK74l7X71rcv9r55zzyE+M79+7fvn2ljaXDMuaOKXy6qtnXH1O/O1/LLnl8d0yZLY3yqCU9jXYlgyHRNg42MlDROUp77ifaMKIrR7706v/M7nsC/Or/na78YP7Nry1tSXhaStsnzFt9NWfPvdz0wtW/mPJLU/sFmETM3SxpZVq+uFPXp76+4su+9IH74/G7np6+7u7E44iw7Yrhwy+/LIpN14xyD1Q83p1C5q580uIghamk0PQkWjIkEbUzGuF3VjMNqT80k2LLv3C0UPfQWaI13zz9X//S7VbYOGRUR2tIRbBf9734oec1B3XTv3UNXM/dQ0017elLGtAgQlAy55/49rblq1vxpiVcbANwlHbkEb0+G86gRW2DSkKw+1+7tEw+klhRo0jHrlpp5p++POlF/7fB8aUACgjY0YVEaFhGm0NX//6Y83Xz7tx8dRHL5i6f19rwtWGHRpcZgM4j977wo2/WrMfDLudHi0KWRQXRnjQPf97ZeuhOL1WJA2xb+2Gq25+ZZNvhcURvyVCKUWy4ab/fqLu+vO+sXjaYxdOO7C3tdXXZsgeVBICcB/+0ws3/XrNXm0cETg96g03QlbTpk0f+4J/643nXfUf513xH7q2ttXRIAyjojxqgv/yMytu/91bz29Ohm2ZvTtNBIZlFkrRFjOxlwuaAAykdSs3PyFiK/e6hoHZK8sbkjas2PIEZEpOCoqw6kSLTyLTq6FJRAz13AMvz3pp7aIFp180qTQekdpXe3fv+8fTG59d0+AKI2ZlGFUhAsOgjSu2PIHxFbtTR14kERgG7Nq444kXUss2t0kjw4lRCK+l6eEXqtMrGw57M6S1FTL3rt54ww+Lr5nVz6/bV+dgpl8DEQnT0PX13/7Go/feN+jji8ZWjYhJJCB6+tEdf3ly47JtCbBMuz1nAxGc5HNPb64rFpZtHDYapAkFNu1PeYDHdySDOKZff+B7Nz96//2DP7H49OnDogIBtH56w457//7um5tbsycnkSY7ZOzfuPWzn9/9m7NGfPKiytHlIQRw2pIPrNn58PPb1u5pc0hEbUk51WyI5pp9D75QfWDVgW5dOq5rCp4jQLItrV3CWChqYa4sWUgmnGzpo4CiMBRp3zMTAn3PT6V88FSQHwRSYtgMW1IitZ/PDKmE0276aMr1sqePKpVsccE2oxHj6EFmSLY5ytEghVWQK30UyHF8N+WBf2gv05BhI2RJkSt9tK3FAQ0Z1GcYoULLaCcykuWk+aePktbptO+nfVCH8rksaYQM25QSIR8vAhF810snfLDMSNTo7YKGrLnz7e2cLTSW8ziI8qiMdQi6d52+yDwT/CFTQnpw2CwTGo6NlIv34tYdTfDP6NLkPG+nT3pk+8jD0ykOHaFDPelgRgjkM3ujd3QKOxBY7NDO7XfRqAsvkjR52Z8wke/Tid9OoD/V8TtWSqvOt1YnT3pUp/nEouPUfgP2kbAdw7CgGYYFzbCgGYYFzTAsaIZhQTMMC5phQTMMC5phWNAMw4JmGBY0w4JmGBY0w7CgGYYFzTAsaIYFzTAsaIZhQTMMC5phWNAMC5phWNAMw4JmGBY0w4JmGBY0w7CgGYYFzTAsaIYFzTAsaIZhQTMMC5phWNAMC5phWNAMw4JmGBY0w7CgmVOD/w/5OXsth1mciQAAAABJRU5ErkJggg==";
+window.EJAF_LOGO_PNG = EJAF_LOGO_PNG;
+
 function ejafLogoSVG(px){
   return `<svg width="${px}" height="${px}" viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg" style="display:block;flex:0 0 auto">
     <rect width="300" height="300" fill="#0B3190"/>${EJAF_GLYPHS}</svg>`;
@@ -98,9 +103,9 @@ function buildReportHTML(refNo, reportType, periodLabel, bodyHTML){
         -webkit-print-color-adjust:exact;print-color-adjust:exact}
     .rlrow{display:flex;align-items:center;gap:13px}
     .rlmark{border-radius:6px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.28);-webkit-print-color-adjust:exact;print-color-adjust:exact}
-    .rl{color:white;font-size:20px;font-weight:900;letter-spacing:2px;line-height:1}
+    .rl{color:white;font-size:19px;font-weight:800;letter-spacing:1.4px;line-height:1.15;text-transform:uppercase}
     .rl span{color:#C9A84C}
-    .rs{color:rgba(255,255,255,.65);font-size:10px;margin-top:4px}
+    .rs{color:rgba(255,255,255,.62);font-size:10px;margin-top:5px;letter-spacing:.4px}
     .rt{color:rgba(255,255,255,.45);font-size:9px;text-transform:uppercase;letter-spacing:1px;margin-top:2px}
     .rr{text-align:right}
     .rn{color:#C9A84C;font-size:13px;font-weight:700}
@@ -186,11 +191,10 @@ function buildReportHTML(refNo, reportType, periodLabel, bodyHTML){
 ${watermark}
 <div class="rh">
   <div class="rlrow">
-    <div class="rlmark">${ejafLogoSVG(48)}</div>
+    <div class="rlmark">${ejafLogoSVG(52)}</div>
     <div>
-      <div class="rl">EJAF <span>TECHNOLOGY</span></div>
-      <div class="rs">Girêk</div>
-      <div class="rt">${reportType.replace(/_/g," ")}</div>
+      <div class="rl">${reportType.replace(/_/g," ")}</div>
+      <div class="rs">Girêk · Operations Management System</div>
     </div>
   </div>
   <div class="rr">
@@ -215,7 +219,7 @@ window._rptFormat = window._rptFormat || "pdf";
 async function openReportPDF(reportType, periodLabel, bodyHTML){
   const refNo=await generateRefNo(reportType);
   const html=buildReportHTML(refNo,reportType,periodLabel,bodyHTML);
-  if(window._rptFormat==="word") return downloadReportWord(refNo,reportType,html);
+  if(window._rptFormat==="word") return downloadReportWord(refNo,reportType,html,periodLabel);
   const win=window.open("","_blank");
   if(!win){alert("Please allow pop-ups to export PDF");return;}
   win.document.write(html);
@@ -223,26 +227,123 @@ async function openReportPDF(reportType, periodLabel, bodyHTML){
   win.onload=()=>setTimeout(()=>win.print(),300);
 }
 
-// Word export: the very same branded document, wrapped in the Office namespaces
-// Word needs. Everything survives — the vector logo, tables, PASS/FAIL boxes,
-// embedded photos — and the file opens fully editable in Word.
-function downloadReportWord(refNo, reportType, html){
+// ═══════════════════════════════════════════════════════════════════════
+//  WORD EXPORT — a document built FOR Word, not a print page shoved into it.
+//  Word's HTML engine is essentially Word-2003: it understands tables and
+//  inline styles, and silently drops flexbox, grid, gradients, position:fixed
+//  and inline SVG (flattening <text> nodes into stray words). So the shell is
+//  rebuilt with tables + inline styles and a PNG mark, and the report body is
+//  translated the same way before it goes in.
+// ═══════════════════════════════════════════════════════════════════════
+const W_NAVY="#03308B", W_GOLD="#C9A84C", W_INK="#1B2A44", W_MUTE="#6B7B8F", W_LINE="#C9D3E4";
+
+// Translate the shared body markup into constructs Word actually honours.
+// Done on a real DOM, not with regexes — nested <div> structures cannot be
+// matched reliably by pattern, and a half-converted card is worse than none.
+function _wordifyBody(html){
+  const doc = new DOMParser().parseFromString("<div id='_wroot'>"+html+"</div>", "text/html");
+  const root = doc.getElementById("_wroot");
+  const txt  = (el,cls)=>{ const n=el.querySelector("."+cls); return n?n.textContent.trim():""; };
+
+  root.querySelectorAll("script, svg, .no-print").forEach(n=>n.remove());
+
+  // ── section heading → full-width banded row ──
+  root.querySelectorAll(".ksec").forEach(sec=>{
+    const badge=txt(sec,"kbad"), h=sec.querySelector("h3");
+    const t=doc.createElement("table");
+    t.setAttribute("width","100%"); t.setAttribute("cellpadding","0"); t.setAttribute("cellspacing","0");
+    t.setAttribute("style","margin:15pt 0 6pt;border-collapse:collapse");
+    t.innerHTML=`<tr>
+      <td width="30" style="background:${W_NAVY};color:${W_GOLD};font:bold 9pt Calibri;text-align:center;padding:5pt 0">${badge||"&#9642;"}</td>
+      <td style="padding:5pt 9pt;background:#EEF3FB;font:bold 12pt Calibri;color:${W_NAVY}">${h?h.innerHTML:""}</td>
+    </tr>`;
+    sec.replaceWith(t);
+  });
+
+  // ── KPI card row → one table row of equal cells ──
+  root.querySelectorAll(".kr").forEach(row=>{
+    const cards=[...row.querySelectorAll(".kc")];
+    if(!cards.length){ row.remove(); return; }
+    const w=Math.floor(100/cards.length);
+    const cells=cards.map(c=>`<td width="${w}%" style="border:1px solid ${W_LINE};padding:9pt;vertical-align:top">
+        <div style="font:bold 7.5pt Calibri;color:${W_MUTE};text-transform:uppercase;letter-spacing:.5pt">${txt(c,"kl")}</div>
+        <div style="font:bold 18pt Calibri;color:${W_NAVY};margin:3pt 0 1pt">${txt(c,"kv")}</div>
+        <div style="font:8pt Calibri;color:${W_MUTE}">${txt(c,"ks")}</div></td>`).join("");
+    const t=doc.createElement("table");
+    t.setAttribute("width","100%"); t.setAttribute("cellpadding","0"); t.setAttribute("cellspacing","0");
+    t.setAttribute("style","margin:6pt 0;border-collapse:collapse");
+    t.innerHTML=`<tr>${cells}</tr>`;
+    row.replaceWith(t);
+  });
+
+  // ── data tables get real Word borders and a navy header band ──
+  root.querySelectorAll("table").forEach(t=>{
+    if(t.getAttribute("cellpadding")) return;      // already converted above
+    t.setAttribute("width","100%"); t.setAttribute("cellpadding","5"); t.setAttribute("cellspacing","0");
+    t.setAttribute("border","1"); t.setAttribute("bordercolor",W_LINE);
+    t.setAttribute("style","border-collapse:collapse;font:9.5pt Calibri;margin:5pt 0");
+    t.querySelectorAll("th").forEach(th=>th.setAttribute("style",
+      `background:${W_NAVY};color:#FFFFFF;font:bold 9pt Calibri;padding:6pt;text-align:left`));
+    t.querySelectorAll("td").forEach(td=>{
+      const s=td.getAttribute("style")||"";
+      td.setAttribute("style", s+";padding:5pt;border:1px solid "+W_LINE);
+    });
+  });
+
+  root.querySelectorAll("img").forEach(im=>im.setAttribute("style",
+    "max-width:225px;border:1px solid "+W_LINE+";margin:4pt 6pt 4pt 0"));
+  // neutralise anything Word cannot lay out
+  root.querySelectorAll("[style*='display:flex'],[style*='display: flex']").forEach(n=>{
+    n.setAttribute("style",(n.getAttribute("style")||"").replace(/display:\s*flex/gi,"display:block"));
+  });
+  return root.innerHTML;
+}
+
+function downloadReportWord(refNo, reportType, html, periodLabel){
   try{
-    let body = html
-      .replace(/^[\s\S]*?<body[^>]*>/i,"")     // keep only the body
-      .replace(/<\/body>[\s\S]*$/i,"")
-      .replace(/<script[\s\S]*?<\/script>/gi,"")            // no scripts in Word
-      .replace(/<div class="actions no-print"[\s\S]*?<\/div>\s*(?=<div class="ksec"|<div class="rh")/i,"");
-    const css = (html.match(/<style>([\s\S]*?)<\/style>/i)||[])[1] || "";
-    const doc = `<html xmlns:o="urn:schemas-microsoft-com:office:office"
-      xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
-      <head><meta charset="utf-8"><title>${reportType.replace(/_/g," ")} ${refNo}</title>
-      <!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom></w:WordDocument></xml><![endif]-->
-      <style>@page{size:A4;margin:1.4cm}${css}
-        .wm{display:none}                       /* fixed-position watermark cannot tile in Word */
-        body{font-family:Calibri,Arial,sans-serif}
-        table{border-collapse:collapse}
-      </style></head><body>${body}</body></html>`;
+    const body = _wordifyBody((html.match(/<div class="rb">([\s\S]*)<\/div>\s*<div class="rf">/i)||[,""])[1] || html);
+    const user = (state.profile && (state.profile.name||state.profile.employeeName)) || (state.user&&state.user.email) || "";
+    const now  = new Date();
+    const dt   = now.toLocaleDateString("en-GB",{day:"2-digit",month:"long",year:"numeric"});
+    const title= reportType.replace(/_/g," ");
+
+    const header = `<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">
+      <tr>
+        <td width="66" style="background:${W_NAVY};padding:10pt 0 10pt 10pt;vertical-align:middle">
+          <img src="${EJAF_LOGO_PNG}" width="56" height="56" alt="EJAF Technology"/>
+        </td>
+        <td style="background:${W_NAVY};padding:10pt 12pt;vertical-align:middle">
+          <div style="font:bold 15pt Calibri;color:#FFFFFF;letter-spacing:.6pt;text-transform:uppercase">${title}</div>
+          <div style="font:8.5pt Calibri;color:#B9C9E6;margin-top:3pt">Gir&#xEA;k &#183; Operations Management System</div>
+        </td>
+        <td width="215" style="background:${W_NAVY};padding:10pt 12pt;text-align:right;vertical-align:middle">
+          <div style="font:bold 11pt Calibri;color:${W_GOLD}">${refNo}</div>
+          <div style="font:8pt Calibri;color:#B9C9E6;margin-top:3pt">Issued: ${dt}<br/>Period: ${periodLabel||"&#8212;"}<br/>By: ${user}</div>
+        </td>
+      </tr>
+      <tr><td colspan="3" style="background:${W_GOLD};font-size:0;line-height:0;height:3pt">&nbsp;</td></tr>
+    </table>`;
+
+    const footer = `<table width="100%" cellpadding="0" cellspacing="0" style="margin-top:20pt;border-top:1px solid ${W_LINE}">
+      <tr>
+        <td style="font:7.5pt Calibri;color:${W_MUTE};padding-top:6pt">EJAF Technology &#183; Gir&#xEA;k &#183; Confidential<br/>Automatically generated by Gir&#xEA;k</td>
+        <td style="font:7.5pt Calibri;color:${W_MUTE};padding-top:6pt;text-align:right">Powered by Siwar &#183; ${refNo}</td>
+      </tr></table>`;
+
+    const doc = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+<head><meta charset="utf-8"><title>${title} ${refNo}</title>
+<!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom><w:DoNotOptimizeForBrowser/></w:WordDocument></xml><![endif]-->
+<style>
+  @page WordSection1{size:21cm 29.7cm;margin:1.5cm 1.4cm 1.5cm 1.4cm;mso-header-margin:.8cm;mso-footer-margin:.8cm}
+  div.WordSection1{page:WordSection1}
+  body{font-family:Calibri,Arial,sans-serif;font-size:10.5pt;color:${W_INK}}
+  table{border-collapse:collapse}
+  td,th{vertical-align:top}
+  h3{font-size:12pt;color:${W_NAVY};margin:0}
+  p{margin:4pt 0}
+</style></head>
+<body><div class="WordSection1">${header}${body}${footer}</div></body></html>`;
+
     const blob=new Blob(["\ufeff",doc],{type:"application/msword"});
     const url=URL.createObjectURL(blob);
     const a=document.createElement("a");
