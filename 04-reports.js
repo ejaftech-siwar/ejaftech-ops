@@ -400,8 +400,8 @@ function renderHRReport(){
         <span style="background:#C9A84C;color:#1B3A6B;padding:2px 10px;border-radius:10px;font-size:11px">${my.length} trips</span>
       </div>
       ${my.length===0?`<div class="empty">No travel</div>`:`<div class="tbl-wrap"><table class="tbl">
-        <thead><tr><th>Date</th><th>Days</th><th>Project</th><th>Location</th><th>Per Diem</th></tr></thead>
-        <tbody>${my.map((r,idx)=>`<tr style="background:${idx%2?'#F5F8FC':'white'}"><td>${fmtDate(r.date)}</td><td><strong>${fmtDays(r.days)}</strong></td><td>${escapeHtml(r.project||"—")}</td><td>${escapeHtml(r.location||"—")}</td><td><strong style="color:#6A1B9A">${fmtMoney(r.perDiem)}</strong></td></tr>`).join("")}</tbody></table></div>`}
+        <thead><tr><th>From</th><th>To</th><th>Days</th><th>Project</th><th>Location</th><th>Per Diem</th></tr></thead>
+        <tbody>${my.map((r,idx)=>`<tr style="background:${idx%2?'#F5F8FC':'white'}"><td>${fmtDate(r.date)}</td><td>${(()=>{const t=trEnd(r);return (t&&t!==r.date)?fmtDate(t):'—';})()}</td><td><strong>${fmtDays(r.days)}</strong></td><td>${escapeHtml(r.project||"—")}</td><td>${escapeHtml(r.location||"—")}</td><td><strong style="color:#6A1B9A">${fmtMoney(r.perDiem)}</strong></td></tr>`).join("")}</tbody></table></div>`}
       <div style="background:linear-gradient(135deg,#2E7D32,#1B5E20);color:white;padding:8px 12px;font-weight:700;font-size:12px;display:flex;justify-content:space-between"><span>Subtotal</span><span>${sd} days · ${fmtMoney(sp)} IQD</span></div>
     </div>`;
   });

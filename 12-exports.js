@@ -504,24 +504,6 @@ window.exportFilteredExcel = exportFilteredExcel;
 // ═══════════════════════════════════════════════════════════════════════
 //  EXPORT FILTERED PDF — Unified Style for the Reports Tab
 // ═══════════════════════════════════════════════════════════════════════
-// A trip is a RANGE. Legacy rows stored only a start date + a day count, so the
-// end date is derived when it is missing — otherwise a 4-day trip starting on
-// the 19th showed as a bare "19" with no end in sight.
-function trEnd(r){
-  if(r.dateTo) return r.dateTo;
-  const n = Number(r.days||0);
-  if(!r.date || n<=1) return r.date||"";
-  const d = new Date(r.date+"T00:00:00");
-  if(isNaN(d)) return r.date||"";
-  d.setDate(d.getDate()+n-1);
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
-}
-function trRangeText(r){
-  const to = trEnd(r);
-  return (to && to!==r.date) ? `${r.date} → ${to}` : (r.date||"");
-}
-window.trEnd=trEnd; window.trRangeText=trRangeText;
-
 async function exportFilteredPDF(){
   try{
     const f = state.reportFilter;
@@ -1159,7 +1141,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v139';"
+      var swCode = "const CACHE='ejaftech-v140';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"

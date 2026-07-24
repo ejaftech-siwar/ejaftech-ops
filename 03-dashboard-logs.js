@@ -1597,13 +1597,13 @@ function renderTravel(){
   <div class="card">
     <div class="filter-row"><span class="card-title" style="margin:0">Travel Log</span><span class="count-pill">${rows.length}</span></div>
     <div class="tbl-wrap"><table class="tbl">
-      <thead><tr>${!isEmployee()?"<th>Employee</th>":""}<th>Date</th><th>Days</th><th>Project</th><th>Location</th><th>Per Diem</th><th>Status</th><th></th></tr></thead>
-      <tbody>${rows.length===0?`<tr><td colspan="8" class="empty empty2"><span class="e-ic">✈️</span><div class="e-t">No trips recorded</div><div class="e-m">Travel entries with per-diem will appear here</div></td></tr>`:rows.map(r=>{
+      <thead><tr>${!isEmployee()?"<th>Employee</th>":""}<th>From</th><th>To</th><th>Days</th><th>Project</th><th>Location</th><th>Per Diem</th><th>Status</th><th></th></tr></thead>
+      <tbody>${rows.length===0?`<tr><td colspan="9" class="empty empty2"><span class="e-ic">✈️</span><div class="e-t">No trips recorded</div><div class="e-m">Travel entries with per-diem will appear here</div></td></tr>`:rows.map(r=>{
         const canEdit=isHR()||r.employee===state.profile.employeeName;
         const pdRec=(r.perDiemStatus||"received")==="received";
         return `<tr>
           ${!isEmployee()?`<td>${employeeBadge(r.employee)}</td>`:""}
-          <td>${fmtDate(r.date)}${(r.dateTo&&r.dateTo!==r.date)?`<br><span style="font-size:10px;color:#888">→ ${fmtDate(r.dateTo)}</span>`:""}</td><td>${r.days}</td>
+          <td>${fmtDate(r.date)}</td><td>${(()=>{const t=trEnd(r);return (t&&t!==r.date)?fmtDate(t):'<span style="color:#9AA7B8">—</span>';})()}</td><td>${r.days}</td>
           <td>${escapeHtml(r.project||"—")}</td><td>${escapeHtml(r.location||"—")}</td>
           <td><strong style="color:#7F6000">${fmtMoney(r.perDiem)}</strong></td>
           <td><span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:${pdRec?'#E8F5E9':'#FFEBEE'};color:${pdRec?'#2E7D32':'#C62828'}">${pdRec?'✅ Received':'❌ Not Received'}</span></td>

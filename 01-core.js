@@ -484,6 +484,24 @@ const fmtHM=(hrs)=>{
   const h=Math.floor(hrs),m=Math.round((hrs-h)*60);
   return m===60?`${h+1}:00`:`${h}:${m.toString().padStart(2,"0")}`;
 };
+// A trip is a RANGE. Legacy rows stored only a start date + a day count, so the
+// end date is derived when it is missing — otherwise a 4-day trip starting on
+// the 19th showed as a bare "19" with no end in sight.
+function trEnd(r){
+  if(r.dateTo) return r.dateTo;
+  const n = Number(r.days||0);
+  if(!r.date || n<=1) return r.date||"";
+  const d = new Date(r.date+"T00:00:00");
+  if(isNaN(d)) return r.date||"";
+  d.setDate(d.getDate()+n-1);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+}
+function trRangeText(r){
+  const to = trEnd(r);
+  return (to && to!==r.date) ? `${r.date} → ${to}` : (r.date||"");
+}
+window.trEnd=trEnd; window.trRangeText=trRangeText;
+
 const timeToHrs=(s,e)=>{
   if(!s||!e)return 0;
   const[sh,sm]=s.split(":").map(Number),[eh,em]=e.split(":").map(Number);

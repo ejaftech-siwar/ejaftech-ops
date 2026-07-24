@@ -710,8 +710,8 @@ async function exportPDF(){
     const sp=my.reduce((a,r)=>a+Number(r.perDiem||0),0);
     return `<div class="emp-block tr">
       <div class="emp-head"><span>▶ ${employeeBadge(emp)}</span><span class="emp-head-tag">${my.length} trips</span></div>
-      ${!my.length?`<div class="empty">No travel</div>`:`<table><thead><tr><th>Date</th><th>Days</th><th>Project</th><th>Location</th><th>Per Diem</th><th>Status</th></tr></thead>
-      <tbody>${my.map(r=>`<tr><td>${fmtDate(r.date)}</td><td><strong>${fmtDays(r.days)}</strong></td><td>${escapeHtml(r.project||'—')}</td><td>${escapeHtml(r.location||'—')}</td><td style="color:#6A1B9A;font-weight:700">${fmtMoney(r.perDiem)}</td><td style="font-weight:700;color:${(r.perDiemStatus||'received')==='received'?'#2E7D32':'#C62828'}">${(r.perDiemStatus||'received')==='received'?'✅ Received':'❌ Not Received'}</td></tr>`).join('')}</tbody></table>`}
+      ${!my.length?`<div class="empty">No travel</div>`:`<table><thead><tr><th>From</th><th>To</th><th>Days</th><th>Project</th><th>Location</th><th>Per Diem</th><th>Status</th></tr></thead>
+      <tbody>${my.map(r=>`<tr><td>${fmtDate(r.date)}</td><td>${(()=>{const t=trEnd(r);return (t&&t!==r.date)?fmtDate(t):'<span style="color:#9AA7B8">—</span>';})()}</td><td><strong>${fmtDays(r.days)}</strong></td><td>${escapeHtml(r.project||'—')}</td><td>${escapeHtml(r.location||'—')}</td><td style="color:#6A1B9A;font-weight:700">${fmtMoney(r.perDiem)}</td><td style="font-weight:700;color:${(r.perDiemStatus||'received')==='received'?'#2E7D32':'#C62828'}">${(r.perDiemStatus||'received')==='received'?'✅ Received':'❌ Not Received'}</td></tr>`).join('')}</tbody></table>`}
       <div class="emp-sub"><span>Subtotal</span><span>${sd} days · ${fmtMoney(sp)} IQD</span></div>
     </div>`;
   }).filter(Boolean).join('');
