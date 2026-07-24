@@ -698,10 +698,24 @@ function getDept(name){
   if(!name) return null;
   return state.departments.find(d=>d.name===name) || null;
 }
+// A department created before the colour field existed has no `color` at all,
+// and `d ? d.color : fallback` happily returned undefined — which collapsed
+// every gradient and border built from it (white text on white in reports).
+// Now anything without a stored colour gets a stable one from the palette,
+// derived from its name so it never changes between renders or exports.
+const DEPT_PALETTE = ["#2E5FA3","#00695C","#6A1B9A","#E65100","#C62828","#00838F","#4527A0","#2E7D32","#AD1457","#5D4037"];
+function deptColorFor(name){
+  const s = String(name||"");
+  let h = 0;
+  for(let i=0;i<s.length;i++) h = (h*31 + s.charCodeAt(i)) >>> 0;
+  return DEPT_PALETTE[h % DEPT_PALETTE.length];
+}
 function deptColor(name){
   const d = getDept(name);
-  return d ? d.color : "#6B7B8F";
+  const c = d && d.color;
+  return (typeof c === "string" && /^#[0-9a-f]{3,8}$/i.test(c)) ? c : deptColorFor(name);
 }
+Object.assign(window,{deptColorFor});
 function deptBg(name){
   const c = deptColor(name);
   // Convert hex to rgba with 0.12 opacity

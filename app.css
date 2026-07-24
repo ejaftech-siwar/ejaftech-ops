@@ -571,15 +571,20 @@ body.has-bnav #updBar{bottom:calc(78px + env(safe-area-inset-bottom,0px))}
 .btn{transition:transform .1s ease,filter .15s ease}
 .btn:active{transform:scale(.955)}
 .btn:hover{filter:brightness(1.06)}
-/* progress bars grow into place */
-.an-fl,.kpi-bar>div{transform-origin:left;animation:growX .7s cubic-bezier(.22,1,.36,1)}
+/* Progress bars grow into place — but ONLY on a real view change.
+   Firebase pushes a fresh snapshot several times a second while syncing, and
+   each one re-renders the markup; unscoped, every bar replayed its 0→100%
+   animation on every push, which is the rapid "shaking" seen while browsing. */
+.an-fl,.kpi-bar>div,.ex-bar>div{transform-origin:left}
+body.anim-in .an-fl,body.anim-in .kpi-bar>div,body.anim-in .ex-bar>div{
+  animation:growX .7s cubic-bezier(.22,1,.36,1)}
 @keyframes growX{from{transform:scaleX(0)}}
 /* KPI cards lift slightly */
 .kpi{transition:transform .18s ease,box-shadow .18s ease}
 .kpi:hover{transform:translateY(-2px);box-shadow:0 8px 22px rgba(20,40,80,.14)}
 [data-theme="dark"] .kpi:hover{box-shadow:0 8px 22px rgba(0,0,0,.4)}
 @media (prefers-reduced-motion: reduce){
-  #content.view-in,.an-fl,.kpi-bar>div{animation:none}
+  #content.view-in,body.anim-in .an-fl,body.anim-in .kpi-bar>div,body.anim-in .ex-bar>div{animation:none}
   .btn,.kpi,.dh-act{transition:none}
 }
 
@@ -667,7 +672,7 @@ input,select,textarea,button{font-variant-numeric:tabular-nums}
 .ex-st{font-size:9px;background:#F0F4FF;color:#03308B;padding:1px 7px;border-radius:8px;font-weight:800}
 [data-theme="dark"] .ex-st{background:#1B2C45;color:#8FB4E8}
 .ex-bar{height:7px;border-radius:4px;background:var(--line);overflow:hidden;margin-top:7px}
-.ex-bar>div{height:100%;border-radius:4px;transform-origin:left;animation:growX .7s cubic-bezier(.22,1,.36,1)}
+.ex-bar>div{height:100%;border-radius:4px;transform-origin:left}
 .ex-ph{display:flex;justify-content:space-between;font-size:10.5px;color:var(--muted);margin-top:4px}
 
 /* ═══ Dashboard intelligence (v132) ═══ */

@@ -2225,6 +2225,11 @@ function renderTab(){
       if(window._lastViewTab!==state.tab){
         window._lastViewTab=state.tab;
         c.classList.remove("view-in"); void c.offsetWidth; c.classList.add("view-in");
+        // Open the animation gate for this view change only. Any re-render
+        // caused by incoming data lands after it has closed, so nothing replays.
+        document.body.classList.add("anim-in");
+        clearTimeout(window._animGate);
+        window._animGate = setTimeout(()=>document.body.classList.remove("anim-in"), 800);
         if(typeof window._runCountUps==="function") window._runCountUps(c);
       } else if(typeof _cntFmt==="function"){
         c.querySelectorAll(".cnt").forEach(el=>{ if(!el.dataset.done){ el.dataset.done="1"; el.textContent=_cntFmt(el); } });

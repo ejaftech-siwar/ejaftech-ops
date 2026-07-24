@@ -77,7 +77,7 @@ function renderFlexReports(){
     const dHours = dailyFiltered.filter(r=>r.dept===d.name).reduce((s,r)=>s+Number(r.duration||0),0);
     const dCount = dailyFiltered.filter(r=>r.dept===d.name).length;
     const otHours = otFiltered.filter(r=>r.dept===d.name).reduce((s,r)=>s+Number(r.hours||0),0);
-    return {...d, hours: dHours, count: dCount, otHours};
+    return {...d, color: deptColor(d.name), hours: dHours, count: dCount, otHours};
   });
   const totalHours = deptStats.reduce((s,d)=>s+d.hours,0);
 
@@ -196,13 +196,13 @@ function renderFlexReports(){
     <div style="display:grid;gap:10px;margin-top:10px">
       ${deptStats.map(d=>{
         const pct = totalHours>0 ? (d.hours/totalHours*100) : 0;
-        return `<div style="border:1px solid var(--line);border-left:5px solid ${d.color};border-radius:10px;padding:12px 14px;background:white">
+        return `<div style="border:1px solid var(--line);border-left:5px solid ${deptColor(d.name)};border-radius:10px;padding:12px 14px;background:white">
           <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">
-            <strong style="color:${d.color};font-size:14px">${escapeHtml(d.name)}</strong>
-            <span style="font-family:'DM Serif Display',serif;font-size:18px;color:${d.color}">${fmtHM(d.hours)}</span>
+            <strong style="color:${deptColor(d.name)};font-size:14px">${escapeHtml(d.name)}</strong>
+            <span style="font-family:'DM Serif Display',serif;font-size:18px;color:${deptColor(d.name)}">${fmtHM(d.hours)}</span>
           </div>
           <div style="font-size:11px;color:var(--muted);margin-bottom:6px">${d.count} entries · ${fmtHM(d.otHours)} OT · ${pct.toFixed(1)}% of total</div>
-          <div style="height:6px;background:#F0F0F0;border-radius:3px;overflow:hidden"><div style="height:100%;background:${d.color};width:${pct}%;transition:width 0.4s"></div></div>
+          <div style="height:6px;background:#F0F0F0;border-radius:3px;overflow:hidden"><div style="height:100%;background:${deptColor(d.name)};width:${pct}%;transition:width 0.4s"></div></div>
         </div>`;
       }).join("")}
     </div>`}
@@ -395,7 +395,7 @@ async function exportFilteredExcel(){
       const dh = dr.filter(r=>r.dept===d.name).reduce((s,r)=>s+Number(r.duration||0),0);
       const dc = dr.filter(r=>r.dept===d.name).length;
       const oh = or.filter(r=>r.dept===d.name).reduce((s,r)=>s+Number(r.hours||0),0);
-      setCell(ws1,`A${row}`,d.name,{...empNameStyle(alt),font:{bold:true,sz:11,color:{rgb:d.color.replace('#','')}}});
+      setCell(ws1,`A${row}`,d.name,{...empNameStyle(alt),font:{bold:true,sz:11,color:{rgb:deptColor(d.name).replace('#','')}}});
       setCell(ws1,`B${row}`,fmtHM(dh),numStyle(alt));
       setCell(ws1,`C${row}`,dc,numStyle(alt));
       setCell(ws1,`D${row}`,fmtHM(oh),numStyle(alt,COLORS.orange));
@@ -479,9 +479,9 @@ async function exportFilteredExcel(){
     wsO['!cols']=[{wch:26},{wch:12},{wch:8},{wch:8},{wch:12},{wch:26},{wch:16},{wch:16},{wch:30}];
     XLSX.utils.book_append_sheet(wb, wsO, 'Overtime');
 
-    const trData = tr.map(r=>[employeePlainBadge(r.employee||''),r.date||'',r.days||0,r.project||'',r.location||'',r.perDiem||0,(r.perDiemStatus||'received')==='received'?'Received':'Not Received',r.notes||'']);
-    const wsT = buildDetail('Travel Log', ['Employee','Date','Days','Project','Location','Per Diem','Per Diem Status','Notes'], trData, COLORS.green);
-    wsT['!cols']=[{wch:26},{wch:12},{wch:8},{wch:26},{wch:16},{wch:14},{wch:16},{wch:30}];
+    const trData = tr.map(r=>[employeePlainBadge(r.employee||''),r.date||'',trEnd(r),r.days||0,r.project||'',r.location||'',r.perDiem||0,(r.perDiemStatus||'received')==='received'?'Received':'Not Received',r.notes||'']);
+    const wsT = buildDetail('Travel Log', ['Employee','From','To','Days','Project','Location','Per Diem','Per Diem Status','Notes'], trData, COLORS.green);
+    wsT['!cols']=[{wch:26},{wch:12},{wch:12},{wch:8},{wch:26},{wch:16},{wch:14},{wch:16},{wch:30}];
     XLSX.utils.book_append_sheet(wb, wsT, 'Travel');
 
     const lvData = lv.map(r=>{
@@ -504,6 +504,24 @@ window.exportFilteredExcel = exportFilteredExcel;
 // ═══════════════════════════════════════════════════════════════════════
 //  EXPORT FILTERED PDF — Unified Style for the Reports Tab
 // ═══════════════════════════════════════════════════════════════════════
+// A trip is a RANGE. Legacy rows stored only a start date + a day count, so the
+// end date is derived when it is missing — otherwise a 4-day trip starting on
+// the 19th showed as a bare "19" with no end in sight.
+function trEnd(r){
+  if(r.dateTo) return r.dateTo;
+  const n = Number(r.days||0);
+  if(!r.date || n<=1) return r.date||"";
+  const d = new Date(r.date+"T00:00:00");
+  if(isNaN(d)) return r.date||"";
+  d.setDate(d.getDate()+n-1);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+}
+function trRangeText(r){
+  const to = trEnd(r);
+  return (to && to!==r.date) ? `${r.date} → ${to}` : (r.date||"");
+}
+window.trEnd=trEnd; window.trRangeText=trRangeText;
+
 async function exportFilteredPDF(){
   try{
     const f = state.reportFilter;
@@ -569,18 +587,18 @@ async function exportFilteredPDF(){
     const deptBlocks = deptStats.map(d=>{
       const totalDept = deptStats.reduce((s,x)=>s+x.hours,0);
       const pct = totalDept>0 ? (d.hours/totalDept*100).toFixed(1) : '0.0';
-      return `<div class="dept-card" style="border-left-color:${d.color}">
-        <div class="dept-row"><span class="dept-name" style="color:${d.color}">${escapeHtml(d.name)}</span><span class="dept-val" style="color:${d.color}">${fmtHM(d.hours)}</span></div>
+      return `<div class="dept-card" style="border-left-color:${deptColor(d.name)}">
+        <div class="dept-row"><span class="dept-name" style="color:${deptColor(d.name)}">${escapeHtml(d.name)}</span><span class="dept-val" style="color:${deptColor(d.name)}">${fmtHM(d.hours)}</span></div>
         <div class="dept-sub">${d.count} entries · ${fmtHM(d.otHours)} OT · ${pct}% of total</div>
-        <div class="bar"><div class="bar-fill" style="background:${d.color};width:${pct}%"></div></div>
+        <div class="bar"><div class="bar-fill" style="background:${deptColor(d.name)};width:${pct}%"></div></div>
       </div>`;
     }).join('');
 
     // Employee summary table
-    const deptHeaders = state.departments.map(d=>`<th style="border-bottom:3px solid ${d.color}">${escapeHtml(d.name.slice(0,10))}</th>`).join('');
+    const deptHeaders = state.departments.map(d=>`<th style="border-bottom:3px solid ${deptColor(d.name)}">${escapeHtml(d.name.slice(0,10))}</th>`).join('');
     const empRows = empStats.map(r=>`<tr>
       <td><strong style="color:#1B3A6B">${escapeHtml(r.emp)}</strong></td>
-      ${state.departments.map(d=>`<td style="color:${d.color};font-weight:700">${fmtHM(r.byDept[d.name]||0)}</td>`).join('')}
+      ${state.departments.map(d=>`<td style="color:${deptColor(d.name)};font-weight:700">${fmtHM(r.byDept[d.name]||0)}</td>`).join('')}
       <td><strong style="color:#1B3A6B">${fmtHM(r.hours)}</strong></td>
       <td style="color:#E65100;font-weight:600">${fmtHM(r.ot)}</td>
       <td style="color:#2E7D32;font-weight:600">${fmtDays(r.travelDays)}</td>
@@ -740,7 +758,7 @@ async function exportExcel(){
       const col = XLSX.utils.encode_col(1 + i);
       setCell(ws1, `${col}4`, d.name, {
         ...headerStyle,
-        fill:{fgColor:{rgb: d.color.replace('#','')}}
+        fill:{fgColor:{rgb: deptColor(d.name).replace('#','')}}
       });
     });
     const totalCol = XLSX.utils.encode_col(1 + depts.length);
@@ -762,7 +780,7 @@ async function exportExcel(){
       depts.forEach((d, i) => {
         const col = XLSX.utils.encode_col(1 + i);
         const hrs = r.byDept[d.name] || 0;
-        setCell(ws1, `${col}${rowNum}`, fmtHM(hrs), deptStyle(d.color, alt));
+        setCell(ws1, `${col}${rowNum}`, fmtHM(hrs), deptStyle(deptColor(d.name), alt));
       });
       setCell(ws1, `${totalCol}${rowNum}`, fmtHM(r.total), {...numStyle(alt), font:{bold:true,sz:11,color:{rgb:COLORS.navy}}});
       setCell(ws1, `${otCol}${rowNum}`, fmtHM(r.ot), numStyle(alt));
@@ -856,9 +874,9 @@ async function exportExcel(){
 
     // Travel
     const tRows = applyReportFilters(isHR() ? state.travel : state.travel.filter(r=>r.employee===state.profile.employeeName));
-    const trData = tRows.map(r=>[r.employee||'', r.date||'', r.days||0, r.project||'', r.dept||'', r.location||'', r.perDiem||0, (r.perDiemStatus||'received')==='received'?'Received':'Not Received', r.notes||'']);
-    const ws4 = buildDetailSheet('Travel Log', ['Employee','Date','Days','Project','Department','Location','Per Diem (IQD)','Per Diem Status','Notes'], trData, '#'+COLORS.green);
-    ws4['!cols']=[{wch:22},{wch:12},{wch:8},{wch:26},{wch:14},{wch:14},{wch:16},{wch:16},{wch:30}];
+    const trData = tRows.map(r=>[r.employee||'', r.date||'', trEnd(r), r.days||0, r.project||'', r.dept||'', r.location||'', r.perDiem||0, (r.perDiemStatus||'received')==='received'?'Received':'Not Received', r.notes||'']);
+    const ws4 = buildDetailSheet('Travel Log', ['Employee','From','To','Days','Project','Department','Location','Per Diem (IQD)','Per Diem Status','Notes'], trData, '#'+COLORS.green);
+    ws4['!cols']=[{wch:22},{wch:12},{wch:12},{wch:8},{wch:26},{wch:14},{wch:14},{wch:16},{wch:16},{wch:30}];
     XLSX.utils.book_append_sheet(wb, ws4, 'Travel');
 
     // Leaves sheet
@@ -885,8 +903,8 @@ async function exportExcel(){
         const alt = idx%2===1;
         const pc = state.projects.filter(p=>p.dept===d.name).length;
         const hr = filterByPeriod(state.daily).filter(x=>x.dept===d.name).reduce((s,x)=>s+Number(x.duration||0),0);
-        setCell(ws5,`A${r}`,d.name,{...empNameStyle(alt),font:{bold:true,sz:11,color:{rgb:d.color.replace('#','')}}});
-        setCell(ws5,`B${r}`,'',{...cellStyle(alt),fill:{fgColor:{rgb:d.color.replace('#','')}}});
+        setCell(ws5,`A${r}`,d.name,{...empNameStyle(alt),font:{bold:true,sz:11,color:{rgb:deptColor(d.name).replace('#','')}}});
+        setCell(ws5,`B${r}`,'',{...cellStyle(alt),fill:{fgColor:{rgb:deptColor(d.name).replace('#','')}}});
         setCell(ws5,`C${r}`,pc,numStyle(alt));
         setCell(ws5,`D${r}`,fmtHM(hr),numStyle(alt));
       });
@@ -907,7 +925,7 @@ async function exportExcel(){
         const r=3+idx;
         const alt=idx%2===1;
         const d=state.departments.find(x=>x.name===p.dept);
-        const col=d?d.color:'#6B7B8F';
+        const col=deptColor(d?d.name:'');
         setCell(ws6,`A${r}`,p.name,cellStyle(alt));
         setCell(ws6,`B${r}`,p.dept,deptStyle(col,alt));
       });
@@ -990,12 +1008,12 @@ async function exportDashboardPDF(){
             </div>
           </div>
           <div style="height:3px;background:#E0E8F0;border-radius:2px;overflow:hidden">
-            <div style="height:100%;background:${d.color};width:${bw}%"></div>
+            <div style="height:100%;background:${deptColor(d.name)};width:${bw}%"></div>
           </div>
         </div>`;
       }).join('');
       return `<div style="border:1px solid #D6E4F0;border-radius:10px;overflow:hidden;margin-bottom:14px;page-break-inside:avoid">
-        <div style="background:linear-gradient(135deg,${d.color},${d.color}DD);color:white;padding:10px 14px;display:flex;justify-content:space-between;align-items:center">
+        <div style="background:linear-gradient(135deg,${deptColor(d.name)},${deptColor(d.name)}DD);color:white;padding:10px 14px;display:flex;justify-content:space-between;align-items:center">
           <h3 style="margin:0;font-size:13px;font-weight:800;text-transform:uppercase">${escapeHtml(d.name)}</h3>
           <span style="font-family:Georgia,serif;font-size:20px;font-weight:700">${fmtHM(tot)}</span>
         </div>
@@ -1141,7 +1159,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v138';"
+      var swCode = "const CACHE='ejaftech-v139';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
