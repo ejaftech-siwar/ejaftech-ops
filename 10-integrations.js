@@ -48,7 +48,7 @@ function renderWhatsApp(){
     `<div style="display:flex;flex-direction:column;gap:8px">
       ${contacts.map(c=>`<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;background:#F7FAF8;border:1px solid #D7E8DD;border-radius:8px">
         <div style="display:flex;align-items:center;gap:10px;min-width:0">
-          <span style="font-size:20px">${c.type==="group"?"👥":"📱"}</span>
+          <span style="font-size:18px">${c.type==="group"?"👥":"📱"}</span>
           <div style="min-width:0">
             <div style="font-weight:700;font-size:13px;color:#1B3A6B">${escapeHtml(c.name)}</div>
             <div style="font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.type==="group"?"Group link":escapeHtml(c.value)}</div>
@@ -70,9 +70,9 @@ function renderWhatsApp(){
     <div style="display:flex;flex-direction:column;gap:6px">
       ${WA_FIELDS.map(f=>{
         const on = (s.enabledFields||[]).includes(f.id);
-        return `<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;padding:7px 10px;background:${on?'#E8F5E9':'#F7F7F7'};border-radius:6px">
+        return `<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;padding:7px 10px;background:${on?'#E8F5E9':'#F7F7F7'};border-radius:8px">
           <input type="checkbox" ${on?"checked":""} onchange="toggleWaField('${f.id}')" style="width:16px;height:16px;cursor:pointer">
-          <span style="font-size:15px">${f.icon}</span>
+          <span style="font-size:14px">${f.icon}</span>
           <span style="font-weight:600;color:${on?'#2E7D32':'#666'}">${f.label}</span>
         </label>`;
       }).join("")}
@@ -89,7 +89,7 @@ function renderWhatsApp(){
     <div style="display:flex;flex-direction:column;gap:6px">
       ${[["hr","📋 HR / Manager"],["support","🛠 Support"],["it","💻 IT"],["employee","👤 Employee"]].map(([role,lbl])=>{
         const on = (s.allowedRoles||["admin"]).includes(role);
-        return `<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;padding:7px 10px;background:${on?'#F3E5F5':'#F7F7F7'};border-radius:6px">
+        return `<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;padding:7px 10px;background:${on?'#F3E5F5':'#F7F7F7'};border-radius:8px">
           <input type="checkbox" ${on?"checked":""} onchange="toggleWaRole('${role}')" style="width:16px;height:16px;cursor:pointer">
           <span style="font-weight:600;color:${on?'#6A1B9A':'#666'}">${lbl}</span>
         </label>`;
@@ -103,7 +103,7 @@ function renderWhatsApp(){
     <div style="display:flex;flex-direction:column;gap:6px">
       ${[["daily","📋 After adding a Daily Log entry"],["clientRequests","📨 After a Client Request"]].map(([trig,lbl])=>{
         const on = (s.triggers||[]).includes(trig);
-        return `<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;padding:7px 10px;background:${on?'#FFF3E0':'#F7F7F7'};border-radius:6px">
+        return `<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;padding:7px 10px;background:${on?'#FFF3E0':'#F7F7F7'};border-radius:8px">
           <input type="checkbox" ${on?"checked":""} onchange="toggleWaTrigger('${trig}')" style="width:16px;height:16px;cursor:pointer">
           <span style="font-weight:600;color:${on?'#E65100':'#666'}">${lbl}</span>
         </label>`;
@@ -139,7 +139,7 @@ function editWaContact(id){
   if(c){ waContactForm={name:c.name,type:c.type,value:c.value}; waContactEditId=id; render(); window.scrollTo(0,0); }
 }
 async function delWaContact(id){
-  if(!confirm("Delete this contact?"))return;
+  if(!await uiConfirm("Delete this contact?"))return;
   await fbDelete("waContacts",id);
   toast("Deleted");
 }
@@ -218,9 +218,9 @@ function openWaShare(record){
 
   const html = `
     <div id="waShareDialog" style="position:fixed;inset:0;background:rgba(10,22,46,0.6);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px" onclick="if(event.target===this)this.remove()">
-      <div style="background:white;border-radius:16px;max-width:400px;width:100%;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,0.3);max-height:85vh;display:flex;flex-direction:column">
+      <div style="background:var(--card);border-radius:16px;max-width:400px;width:100%;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,0.3);max-height:85vh;display:flex;flex-direction:column">
         <div style="background:#25D366;padding:16px 20px;color:white;display:flex;align-items:center;gap:10px">
-          <span style="font-size:24px">📲</span>
+          <span style="font-size:22px">📲</span>
           <div><div style="font-size:16px;font-weight:800">Share to WhatsApp</div><div style="font-size:11px;opacity:0.9">Choose a contact or group</div></div>
         </div>
         <div style="padding:14px 18px;overflow-y:auto">
@@ -228,8 +228,8 @@ function openWaShare(record){
           ${contacts.length===0
             ? `<div style="text-align:center;padding:20px;color:#999;font-size:13px">No contacts saved yet.<br>Add some in the WhatsApp tab.</div>`
             : `<div style="display:flex;flex-direction:column;gap:7px">
-                ${contacts.map(c=>`<button onclick="sendToWa('${c.id}')" style="display:flex;align-items:center;gap:10px;padding:11px 13px;background:#F7FAF8;border:1px solid #D7E8DD;border-radius:9px;cursor:pointer;text-align:left;width:100%">
-                  <span style="font-size:20px">${c.type==="group"?"👥":"📱"}</span>
+                ${contacts.map(c=>`<button onclick="sendToWa('${c.id}')" style="display:flex;align-items:center;gap:10px;padding:11px 13px;background:#F7FAF8;border:1px solid #D7E8DD;border-radius:8px;cursor:pointer;text-align:left;width:100%">
+                  <span style="font-size:18px">${c.type==="group"?"👥":"📱"}</span>
                   <div style="flex:1;min-width:0">
                     <div style="font-weight:700;font-size:13px;color:#1B3A6B">${escapeHtml(c.name)}</div>
                     <div style="font-size:10px;color:#888">${c.type==="group"?"Group — copy & paste":"Number — opens ready to send"}</div>
@@ -380,14 +380,14 @@ function renderScheduledReportsCard(){
   <div class="card" style="border-left:4px solid #1565C0">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:6px">
       <div style="display:flex;align-items:center;gap:10px">
-        <span style="font-size:24px">📅</span>
+        <span style="font-size:22px">📅</span>
         <div>
-          <div style="font-size:15px;font-weight:800;color:#1B3A6B">Automatic Scheduled Reports</div>
+          <div style="font-size:14px;font-weight:800;color:#1B3A6B">Automatic Scheduled Reports</div>
           <div style="font-size:11px;color:${s.enabled?'#2E7D32':'#999'};font-weight:600">${s.enabled?'● Automatic sending ENABLED (runs on server)':'○ Automatic sending OFF — manual button only'}</div>
         </div>
       </div>
-      <div onclick="toggleSchedEnabled()" style="width:52px;height:28px;background:${s.enabled?'#2E7D32':'#ccc'};border-radius:14px;position:relative;cursor:pointer;transition:background 0.3s">
-        <div style="position:absolute;top:3px;${s.enabled?'right:3px':'left:3px'};width:22px;height:22px;background:white;border-radius:50%;transition:all 0.3s;box-shadow:0 1px 3px rgba(0,0,0,0.3)"></div>
+      <div onclick="toggleSchedEnabled()" style="width:52px;height:28px;background:${s.enabled?'#2E7D32':'#ccc'};border-radius:16px;position:relative;cursor:pointer;transition:background 0.3s">
+        <div style="position:absolute;top:3px;${s.enabled?'right:3px':'left:3px'};width:22px;height:22px;background:var(--card);border-radius:50%;transition:all 0.3s;box-shadow:0 1px 3px rgba(0,0,0,0.3)"></div>
       </div>
     </div>
 
@@ -403,11 +403,11 @@ function renderScheduledReportsCard(){
       <div style="margin-bottom:12px">
         <label style="font-size:12px;font-weight:700;color:#1B3A6B;display:block;margin-bottom:6px">Reporting Period</label>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
-          <label style="flex:1;min-width:160px;display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12.5px;padding:9px 12px;background:${isAuto?'#E8F5E9':'#F7F7F7'};border:2px solid ${isAuto?'#66BB6A':'#ddd'};border-radius:9px">
+          <label style="flex:1;min-width:160px;display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;padding:9px 12px;background:${isAuto?'#E8F5E9':'#F7F7F7'};border:2px solid ${isAuto?'#66BB6A':'#ddd'};border-radius:8px">
             <input type="radio" name="periodType" ${isAuto?'checked':''} onchange="setSchedField('periodType','auto')" style="width:16px;height:16px;cursor:pointer">
             <div><div style="font-weight:700;color:${isAuto?'#2E7D32':'#666'}">🔄 Automatic (monthly cycle)</div><div style="font-size:10px;color:#777;margin-top:1px">25th of prev month → 24th of current</div></div>
           </label>
-          <label style="flex:1;min-width:160px;display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12.5px;padding:9px 12px;background:${!isAuto?'#E3F2FD':'#F7F7F7'};border:2px solid ${!isAuto?'#42A5F5':'#ddd'};border-radius:9px">
+          <label style="flex:1;min-width:160px;display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;padding:9px 12px;background:${!isAuto?'#E3F2FD':'#F7F7F7'};border:2px solid ${!isAuto?'#42A5F5':'#ddd'};border-radius:8px">
             <input type="radio" name="periodType" ${!isAuto?'checked':''} onchange="setSchedField('periodType','manual')" style="width:16px;height:16px;cursor:pointer">
             <div><div style="font-weight:700;color:${!isAuto?'#1565C0':'#666'}">📅 Manual (fixed dates)</div><div style="font-size:10px;color:#777;margin-top:1px">You set From / To yourself</div></div>
           </label>
@@ -415,7 +415,7 @@ function renderScheduledReportsCard(){
         ${isAuto
           ? `<div style="padding:10px 12px;background:#E8F5E9;border:1px solid #A5D6A7;border-radius:8px;font-size:12px;color:#1B5E20">
               📆 <strong>This month's period:</strong> ${p.from} → ${p.to}
-              <div style="font-size:10.5px;color:#388E3C;margin-top:3px">Recomputed automatically every month — next month it shifts to the following cycle.</div>
+              <div style="font-size:10px;color:#388E3C;margin-top:3px">Recomputed automatically every month — next month it shifts to the following cycle.</div>
             </div>`
           : `<div class="form-grid" style="grid-template-columns:1fr 1fr">
               <div class="field"><label>From Date</label><input type="date" value="${s.fromDate||''}" onchange="setSchedField('fromDate',this.value)"></div>
@@ -449,7 +449,7 @@ function renderScheduledReportsCard(){
     ${(s.groups||[]).map((g,gi)=>`
       <div style="border:1px solid #B3D4FF;border-radius:12px;padding:14px;margin-top:10px;background:#F7FAFF">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px">
-          <input value="${escapeHtml(g.name||'')}" onchange="setSchedGroupField(${gi},'name',this.value)" placeholder="Group name (e.g. Erbil Branch Manager)" style="flex:1;font-weight:700;color:#03308B;padding:7px 10px;border:1px solid #B3D4FF;border-radius:7px;font-size:13px">
+          <input value="${escapeHtml(g.name||'')}" onchange="setSchedGroupField(${gi},'name',this.value)" placeholder="Group name (e.g. Erbil Branch Manager)" style="flex:1;font-weight:700;color:#03308B;padding:7px 10px;border:1px solid #B3D4FF;border-radius:8px;font-size:13px">
           <button class="btn btn-sm btn-danger" onclick="delSchedGroup(${gi})" title="Remove group">${ICN.del}</button>
         </div>
 
@@ -457,14 +457,14 @@ function renderScheduledReportsCard(){
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
           <div>
             <label style="font-size:11px;font-weight:700;color:#475569;display:block;margin-bottom:3px">🏙️ Branch filter</label>
-            <select onchange="setSchedGroupField(${gi},'branch',this.value)" style="width:100%;padding:7px 8px;border:1px solid #B3D4FF;border-radius:6px;font-size:12px;background:white">
+            <select onchange="setSchedGroupField(${gi},'branch',this.value)" style="width:100%;padding:7px 8px;border:1px solid #B3D4FF;border-radius:8px;font-size:12px;background:var(--card)">
               <option value="">All Branches</option>
               ${branches.map(b=>`<option value="${escapeHtml(b)}" ${b===(g.branch||'')?'selected':''}>${escapeHtml(b)}</option>`).join('')}
             </select>
           </div>
           <div>
             <label style="font-size:11px;font-weight:700;color:#475569;display:block;margin-bottom:3px">🗂️ Department filter</label>
-            <select onchange="setSchedGroupField(${gi},'dept',this.value)" style="width:100%;padding:7px 8px;border:1px solid #B3D4FF;border-radius:6px;font-size:12px;background:white">
+            <select onchange="setSchedGroupField(${gi},'dept',this.value)" style="width:100%;padding:7px 8px;border:1px solid #B3D4FF;border-radius:8px;font-size:12px;background:var(--card)">
               <option value="">All Departments</option>
               ${depts.map(d=>`<option value="${escapeHtml(d)}" ${d===(g.dept||'')?'selected':''}>${escapeHtml(d)}</option>`).join('')}
             </select>
@@ -476,7 +476,7 @@ function renderScheduledReportsCard(){
         <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">
           ${REPORT_OPTS.map(([id,lbl])=>{
             const on = (g.reports||[]).includes(id);
-            return `<label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:11.5px;padding:5px 9px;background:${on?'#E3F2FD':'#fff'};border:1px solid ${on?'#90CAF9':'#ddd'};border-radius:12px">
+            return `<label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;padding:5px 9px;background:${on?'#E3F2FD':'#fff'};border:1px solid ${on?'#90CAF9':'#ddd'};border-radius:12px">
               <input type="checkbox" ${on?"checked":""} onchange="toggleSchedGroupReport(${gi},'${id}')" style="width:14px;height:14px;cursor:pointer">
               <span style="font-weight:600;color:${on?'#1565C0':'#777'}">${lbl}</span>
             </label>`;
@@ -485,18 +485,18 @@ function renderScheduledReportsCard(){
 
         <!-- Subject + message for this group -->
         <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px">
-          <input value="${escapeHtml(g.subject||'')}" onchange="setSchedGroupField(${gi},'subject',this.value)" placeholder="Email subject" style="padding:7px 10px;border:1px solid #B3D4FF;border-radius:6px;font-size:12px">
-          <textarea onchange="setSchedGroupField(${gi},'message',this.value)" rows="2" placeholder="Message for this group..." style="padding:7px 10px;border:1px solid #B3D4FF;border-radius:6px;font-family:inherit;font-size:12px;resize:vertical">${escapeHtml(g.message||'')}</textarea>
+          <input value="${escapeHtml(g.subject||'')}" onchange="setSchedGroupField(${gi},'subject',this.value)" placeholder="Email subject" style="padding:7px 10px;border:1px solid #B3D4FF;border-radius:8px;font-size:12px">
+          <textarea onchange="setSchedGroupField(${gi},'message',this.value)" rows="2" placeholder="Message for this group..." style="padding:7px 10px;border:1px solid #B3D4FF;border-radius:8px;font-family:inherit;font-size:12px;resize:vertical">${escapeHtml(g.message||'')}</textarea>
         </div>
 
         <!-- Recipients for this group -->
         <label style="font-size:11px;font-weight:700;color:#475569;display:block;margin-bottom:5px">Recipients (${(g.recipients||[]).length}):</label>
         <div style="display:flex;gap:6px;margin-bottom:6px">
-          <input id="schedGroupEmail_${gi}" type="email" placeholder="director@ejaftech.iq" style="flex:1;padding:7px 10px;border:1px solid #B3D4FF;border-radius:6px;font-size:12px">
+          <input id="schedGroupEmail_${gi}" type="email" placeholder="director@ejaftech.iq" style="flex:1;padding:7px 10px;border:1px solid #B3D4FF;border-radius:8px;font-size:12px">
           <button class="btn btn-sm" style="background:#1565C0;color:white;border:none;font-weight:700" onclick="addSchedGroupRecipient(${gi})">Add</button>
         </div>
         ${(g.recipients||[]).length===0
-          ? `<div style="padding:7px 10px;background:#FFF3E0;border-radius:6px;font-size:11px;color:#E65100">No recipients yet — add at least one.</div>`
+          ? `<div style="padding:7px 10px;background:#FFF3E0;border-radius:8px;font-size:11px;color:#E65100">No recipients yet — add at least one.</div>`
           : `<div style="display:flex;flex-wrap:wrap;gap:5px">
               ${(g.recipients||[]).map((em,ri)=>`<span style="display:inline-flex;align-items:center;gap:5px;background:#E3F2FD;border:1px solid #90CAF9;color:#0D47A1;padding:4px 8px 4px 10px;border-radius:12px;font-size:11px;font-weight:600">
                 ✉️ ${escapeHtml(em)}
@@ -526,7 +526,7 @@ function renderSchedManagersBlock(){
     <div style="display:flex;flex-wrap:wrap;gap:6px">
       ${emps.map(emp=>{
         const on = managers.includes(emp);
-        return `<label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:11.5px;padding:5px 9px;background:${on?'#F3E5F5':'#fff'};border:1px solid ${on?'#CE93D8':'#ddd'};border-radius:12px">
+        return `<label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;padding:5px 9px;background:${on?'#F3E5F5':'#fff'};border:1px solid ${on?'#CE93D8':'#ddd'};border-radius:12px">
           <input type="checkbox" ${on?"checked":""} onchange="toggleSchedManager('${escapeHtml(emp)}')" style="width:14px;height:14px;cursor:pointer">
           <span style="font-weight:600;color:${on?'#6A1B9A':'#777'}">${escapeHtml(emp)}</span>
         </label>`;
@@ -561,7 +561,7 @@ window.addSchedGroup = async function(){
 window.delSchedGroup = async function(gi){
   const s = schedGetSettings();
   const groups = [...(s.groups||[])];
-  if(!confirm(`Remove group "${groups[gi]?.name||''}"?`)) return;
+  if(!await uiConfirm(`Remove group "${groups[gi]?.name||''}"?`)) return;
   groups.splice(gi,1);
   await schedSave({groups});
   toast("Group removed");
@@ -750,7 +750,7 @@ function renderEmailTab(){
   const configured = s.serviceId && s.templateId && s.publicKey;
 
   const ev = window._emailView || "setup";
-  const _ep=(id,ic,lb)=>`<button onclick="window._emailView='${id}';window.__navFade=true;render()" style="flex:1;padding:10px 4px;border:none;border-radius:9px;font-weight:800;font-size:11.5px;cursor:pointer;background:${ev===id?'#03308B':'#E8EEF7'};color:${ev===id?'#C9A84C':'#1B3A6B'}">${ic} ${lb}</button>`;
+  const _ep=(id,ic,lb)=>`<button onclick="window._emailView='${id}';window.__navFade=true;render()" style="flex:1;padding:10px 4px;border:none;border-radius:8px;font-weight:800;font-size:11px;cursor:pointer;background:${ev===id?'#03308B':'#E8EEF7'};color:${ev===id?'#C9A84C':'#1B3A6B'}">${ic} ${lb}</button>`;
   let h = `<div style="display:flex;gap:6px;margin-bottom:14px">${_ep("setup","🔑","Setup")}${_ep("recipients","👥","Recipients")}${_ep("options","🧩","Options")}${_ep("scheduled","⏰","Scheduled")}</div>`;
   if(ev==="setup")      h += `
   <!-- MASTER SWITCH -->
@@ -765,8 +765,8 @@ function renderEmailTab(){
       </div>
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none">
         <span style="font-size:13px;font-weight:700;color:${s.enabled?'#2E7D32':'#666'}">${s.enabled?'ON':'OFF'}</span>
-        <div onclick="toggleEmailEnabled()" style="width:52px;height:28px;background:${s.enabled?'#2E7D32':'#ccc'};border-radius:14px;position:relative;transition:background 0.3s;cursor:pointer">
-          <div style="position:absolute;top:3px;${s.enabled?'right:3px':'left:3px'};width:22px;height:22px;background:white;border-radius:50%;transition:all 0.3s;box-shadow:0 1px 3px rgba(0,0,0,0.3)"></div>
+        <div onclick="toggleEmailEnabled()" style="width:52px;height:28px;background:${s.enabled?'#2E7D32':'#ccc'};border-radius:16px;position:relative;transition:background 0.3s;cursor:pointer">
+          <div style="position:absolute;top:3px;${s.enabled?'right:3px':'left:3px'};width:22px;height:22px;background:var(--card);border-radius:50%;transition:all 0.3s;box-shadow:0 1px 3px rgba(0,0,0,0.3)"></div>
         </div>
       </label>
     </div>
@@ -787,10 +787,10 @@ function renderEmailTab(){
       <input value="${escapeHtml(s.publicKey||"")}" onchange="setEmailKey('publicKey',this.value)" placeholder="xxxxxxxxxxxxxxxx"></div>
     <div style="padding:10px 12px;background:#E8F0FE;border-radius:8px;font-size:11px;color:#1B3A6B;line-height:1.7;margin-top:8px">
       📌 <strong>Your EmailJS template must include these variables:</strong><br>
-      <code style="background:white;padding:1px 5px;border-radius:3px">{{subject}}</code>
-      <code style="background:white;padding:1px 5px;border-radius:3px">{{message}}</code>
-      <code style="background:white;padding:1px 5px;border-radius:3px">{{to_email}}</code><br>
-      Set the template's "To Email" field to <code style="background:white;padding:1px 5px;border-radius:3px">{{to_email}}</code>
+      <code style="background:var(--card);padding:1px 5px;border-radius:4px">{{subject}}</code>
+      <code style="background:var(--card);padding:1px 5px;border-radius:4px">{{message}}</code>
+      <code style="background:var(--card);padding:1px 5px;border-radius:4px">{{to_email}}</code><br>
+      Set the template's "To Email" field to <code style="background:var(--card);padding:1px 5px;border-radius:4px">{{to_email}}</code>
     </div>
     ${configured?`<button class="btn btn-sm" style="background:#03308B;color:#C9A84C;margin-top:10px" onclick="sendTestEmail()">📨 Send Test Email</button>`:''}
   </div>`;
@@ -817,7 +817,7 @@ function renderEmailTab(){
     `<div style="display:flex;flex-direction:column;gap:8px">
       ${contacts.map(c=>`<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;background:#F7FAF8;border:1px solid #D7E8DD;border-radius:8px">
         <div style="display:flex;align-items:center;gap:10px;min-width:0">
-          <span style="font-size:20px">✉️</span>
+          <span style="font-size:18px">✉️</span>
           <div style="min-width:0">
             <div style="font-weight:700;font-size:13px;color:#1B3A6B">${escapeHtml(c.name)}</div>
             <div style="font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(c.email)}</div>
@@ -835,14 +835,14 @@ function renderEmailTab(){
   <div class="card" style="border-left:4px solid ${s.autoSend?'#2E7D32':'#999'}">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
       <div style="display:flex;align-items:center;gap:10px">
-        <span style="font-size:24px">${s.autoSend?'⚡':'✋'}</span>
+        <span style="font-size:22px">${s.autoSend?'⚡':'✋'}</span>
         <div>
           <div style="font-size:14px;font-weight:800;color:#1B3A6B">Automatic Sending</div>
           <div style="font-size:11px;color:${s.autoSend?'#2E7D32':'#999'};font-weight:600">${s.autoSend?'● Sends instantly on each new task':'○ Manual only (📧 button)'}</div>
         </div>
       </div>
-      <div onclick="toggleEmailAutoSend()" style="width:52px;height:28px;background:${s.autoSend?'#2E7D32':'#ccc'};border-radius:14px;position:relative;cursor:pointer;transition:background 0.3s">
-        <div style="position:absolute;top:3px;${s.autoSend?'right:3px':'left:3px'};width:22px;height:22px;background:white;border-radius:50%;transition:all 0.3s;box-shadow:0 1px 3px rgba(0,0,0,0.3)"></div>
+      <div onclick="toggleEmailAutoSend()" style="width:52px;height:28px;background:${s.autoSend?'#2E7D32':'#ccc'};border-radius:16px;position:relative;cursor:pointer;transition:background 0.3s">
+        <div style="position:absolute;top:3px;${s.autoSend?'right:3px':'left:3px'};width:22px;height:22px;background:var(--card);border-radius:50%;transition:all 0.3s;box-shadow:0 1px 3px rgba(0,0,0,0.3)"></div>
       </div>
     </div>
     <div style="margin-top:10px;padding:9px 12px;background:#FFF8E1;border-radius:8px;font-size:11px;color:#7F6000;line-height:1.6">
@@ -854,17 +854,17 @@ function renderEmailTab(){
   <div class="card" style="border-left:4px solid #00838F">
     <div class="card-title">📋 Recipient Sources</div>
     <p style="font-size:12px;color:var(--muted);margin-bottom:10px">Beyond the manual list above, automatically include:</p>
-    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;padding:9px 11px;background:${s.includeEmployees?'#E0F7FA':'#F7F7F7'};border-radius:6px;margin-bottom:6px">
+    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;padding:9px 11px;background:${s.includeEmployees?'#E0F7FA':'#F7F7F7'};border-radius:8px;margin-bottom:6px">
       <input type="checkbox" ${s.includeEmployees?"checked":""} onchange="toggleEmailIncludeEmployees()" style="width:16px;height:16px;cursor:pointer">
-      <span style="font-size:15px">👥</span>
+      <span style="font-size:14px">👥</span>
       <span style="font-weight:600;color:${s.includeEmployees?'#00838F':'#666'}">All staff (Employees, HR, Support, IT)</span>
     </label>
-    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;padding:9px 11px;background:${s.includeClients?'#E0F7FA':'#F7F7F7'};border-radius:6px">
+    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;padding:9px 11px;background:${s.includeClients?'#E0F7FA':'#F7F7F7'};border-radius:8px">
       <input type="checkbox" ${s.includeClients?"checked":""} onchange="toggleEmailIncludeClients()" style="width:16px;height:16px;cursor:pointer">
-      <span style="font-size:15px">🏢</span>
+      <span style="font-size:14px">🏢</span>
       <span style="font-weight:600;color:${s.includeClients?'#00838F':'#666'}">All Clients</span>
     </label>
-    <div style="margin-top:10px;padding:8px 11px;background:#F0F4FA;border-radius:7px;font-size:11px;color:#475569">
+    <div style="margin-top:10px;padding:8px 11px;background:#F0F4FA;border-radius:8px;font-size:11px;color:#475569">
       📊 Current recipients: <strong>${resolveEmailRecipients().length}</strong> total (manual + selected sources)
     </div>
   </div>
@@ -880,7 +880,7 @@ function renderEmailTab(){
       </div>
     </div>
     ${(s.requestRecipients||[]).length===0
-      ? `<div style="padding:10px 12px;background:#FCE4EC;border-radius:7px;font-size:11px;color:#880E4F">No dedicated recipients — requests will fall back to the main recipient list above.</div>`
+      ? `<div style="padding:10px 12px;background:#FCE4EC;border-radius:8px;font-size:11px;color:#880E4F">No dedicated recipients — requests will fall back to the main recipient list above.</div>`
       : `<div style="display:flex;flex-direction:column;gap:6px">
           ${(s.requestRecipients||[]).map((em,idx)=>`<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 12px;background:#FCE4EC;border:1px solid #F8BBD0;border-radius:8px">
             <div style="display:flex;align-items:center;gap:8px;min-width:0"><span style="font-size:16px">✉️</span><span style="font-size:12px;color:#880E4F;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(em)}</span></div>
@@ -896,9 +896,9 @@ function renderEmailTab(){
     <div style="display:flex;flex-direction:column;gap:6px">
       ${EMAIL_FIELDS.map(f=>{
         const on = (s.enabledFields||[]).includes(f.id);
-        return `<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;padding:7px 10px;background:${on?'#F3E5F5':'#F7F7F7'};border-radius:6px">
+        return `<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;padding:7px 10px;background:${on?'#F3E5F5':'#F7F7F7'};border-radius:8px">
           <input type="checkbox" ${on?"checked":""} onchange="toggleEmailField('${f.id}')" style="width:16px;height:16px;cursor:pointer">
-          <span style="font-size:15px">${f.icon}</span>
+          <span style="font-size:14px">${f.icon}</span>
           <span style="font-weight:600;color:${on?'#6A1B9A':'#666'}">${f.label}</span>
         </label>`;
       }).join("")}
@@ -914,7 +914,7 @@ function renderEmailTab(){
     <div style="display:flex;flex-direction:column;gap:6px">
       ${[["hr","📋 HR / Manager"],["support","🛠 Support"],["it","💻 IT"],["employee","👤 Employee"]].map(([role,lbl])=>{
         const on = (s.allowedRoles||["admin"]).includes(role);
-        return `<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;padding:7px 10px;background:${on?'#E1F5FE':'#F7F7F7'};border-radius:6px">
+        return `<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;padding:7px 10px;background:${on?'#E1F5FE':'#F7F7F7'};border-radius:8px">
           <input type="checkbox" ${on?"checked":""} onchange="toggleEmailRole('${role}')" style="width:16px;height:16px;cursor:pointer">
           <span style="font-weight:600;color:${on?'#0277BD':'#666'}">${lbl}</span>
         </label>`;
@@ -928,7 +928,7 @@ function renderEmailTab(){
     <div style="display:flex;flex-direction:column;gap:6px">
       ${[["daily","📋 After adding a Daily Log entry"],["clientRequests","📨 After a Client Request"]].map(([trig,lbl])=>{
         const on = (s.triggers||[]).includes(trig);
-        return `<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;padding:7px 10px;background:${on?'#FFF3E0':'#F7F7F7'};border-radius:6px">
+        return `<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;padding:7px 10px;background:${on?'#FFF3E0':'#F7F7F7'};border-radius:8px">
           <input type="checkbox" ${on?"checked":""} onchange="toggleEmailTrigger('${trig}')" style="width:16px;height:16px;cursor:pointer">
           <span style="font-weight:600;color:${on?'#E65100':'#666'}">${lbl}</span>
         </label>`;
@@ -958,7 +958,7 @@ function editEmailContact(id){
   if(c){ emailContactForm={name:c.name,email:c.email}; emailContactEditId=id; render(); window.scrollTo(0,0); }
 }
 async function delEmailContact(id){
-  if(!confirm("Delete this recipient?"))return;
+  if(!await uiConfirm("Delete this recipient?"))return;
   await fbDelete("emailContacts",id);
   toast("Deleted");
 }
@@ -1110,9 +1110,9 @@ function openEmailShare(record){
 
   const html = `
     <div id="emailShareDialog" style="position:fixed;inset:0;background:rgba(10,22,46,0.6);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px" onclick="if(event.target===this)this.remove()">
-      <div style="background:white;border-radius:16px;max-width:400px;width:100%;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,0.3);max-height:85vh;display:flex;flex-direction:column">
+      <div style="background:var(--card);border-radius:16px;max-width:400px;width:100%;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,0.3);max-height:85vh;display:flex;flex-direction:column">
         <div style="background:#03308B;padding:16px 20px;color:white;display:flex;align-items:center;gap:10px">
-          <span style="font-size:24px">📧</span>
+          <span style="font-size:22px">📧</span>
           <div><div style="font-size:16px;font-weight:800">Send Email Notification</div><div style="font-size:11px;opacity:0.9">Select recipients</div></div>
         </div>
         <div style="padding:14px 18px;overflow-y:auto">
@@ -1120,9 +1120,9 @@ function openEmailShare(record){
           ${contacts.length===0
             ? `<div style="text-align:center;padding:20px;color:#999;font-size:13px">No recipients saved.<br>Add some in the Email tab.</div>`
             : `<div style="display:flex;flex-direction:column;gap:7px;margin-bottom:12px">
-                <button onclick="sendEmailToAll()" style="display:flex;align-items:center;justify-content:center;gap:8px;padding:12px;background:#03308B;color:#C9A84C;border:none;border-radius:9px;cursor:pointer;font-weight:700;font-size:14px">📨 Send to All (${contacts.length})</button>
+                <button onclick="sendEmailToAll()" style="display:flex;align-items:center;justify-content:center;gap:8px;padding:12px;background:#03308B;color:#C9A84C;border:none;border-radius:8px;cursor:pointer;font-weight:700;font-size:14px">📨 Send to All (${contacts.length})</button>
                 <div style="text-align:center;font-size:11px;color:#999">— or pick one —</div>
-                ${contacts.map(c=>`<button onclick="sendEmailToOne('${c.id}')" style="display:flex;align-items:center;gap:10px;padding:10px 13px;background:#F7FAF8;border:1px solid #D7E8DD;border-radius:9px;cursor:pointer;text-align:left;width:100%">
+                ${contacts.map(c=>`<button onclick="sendEmailToOne('${c.id}')" style="display:flex;align-items:center;gap:10px;padding:10px 13px;background:#F7FAF8;border:1px solid #D7E8DD;border-radius:8px;cursor:pointer;text-align:left;width:100%">
                   <span style="font-size:18px">✉️</span>
                   <div style="flex:1;min-width:0"><div style="font-weight:700;font-size:13px;color:#1B3A6B">${escapeHtml(c.name)}</div><div style="font-size:10px;color:#888;overflow:hidden;text-overflow:ellipsis">${escapeHtml(c.email)}</div></div>
                 </button>`).join("")}

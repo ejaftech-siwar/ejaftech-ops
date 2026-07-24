@@ -28,7 +28,7 @@ async function parseImportFile(file, deptName){
     }
 
     const map = buildImportMap(rows, ci);
-    finishImport(map, deptName);
+    await finishImport(map, deptName);   // now async — keep it inside this try/catch
   }catch(err){
     console.error(err);
     toast("Import failed: "+(err.message||"bad file"));
@@ -67,12 +67,12 @@ function buildImportMap(rows, ci){
 }
 
 // Confirm summary then merge
-function finishImport(map, deptName){
+async function finishImport(map, deptName){
   const projNames = Object.keys(map);
   if(projNames.length===0) return toast("No valid rows found");
   let totalAreas=0, totalSites=0;
   projNames.forEach(p=>{ const areas=Object.keys(map[p]); totalAreas+=areas.length; areas.forEach(a=>totalSites+=Object.keys(map[p][a].sites).length); });
-  if(!confirm(`Import into "${deptName}"?\n\n• ${projNames.length} project(s)\n• ${totalAreas} area(s)\n• ${totalSites} site(s)\n\nThis ADDS to existing data (merge).`)) return;
+  if(!await uiConfirm(`Import into "${deptName}"?\n\n• ${projNames.length} project(s)\n• ${totalAreas} area(s)\n• ${totalSites} site(s)\n\nThis ADDS to existing data (merge).`)) return;
   mergeImport(map, deptName);
 }
 
@@ -87,7 +87,7 @@ function showColumnMapper(rows, header, deptName){
   wrap.id = 'colMapOverlay';
   wrap.innerHTML = `
   <div onclick="if(event.target===this)document.getElementById('colMapOverlay').remove()" style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:flex-start;justify-content:center;padding:20px;overflow-y:auto">
-    <div style="background:white;border-radius:16px;max-width:480px;width:100%;box-shadow:0 24px 64px rgba(0,0,0,0.4);margin-top:30px">
+    <div style="background:var(--card);border-radius:16px;max-width:480px;width:100%;box-shadow:0 24px 64px rgba(0,0,0,0.4);margin-top:30px">
       <div style="background:#00897B;color:white;padding:16px 20px;border-radius:16px 16px 0 0;display:flex;align-items:center;justify-content:space-between">
         <div style="font-size:16px;font-weight:800">🔗 Match Your Columns</div>
         <button onclick="document.getElementById('colMapOverlay').remove()" style="background:rgba(255,255,255,0.2);border:none;color:white;width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:18px;font-weight:700">×</button>
@@ -109,7 +109,7 @@ function showColumnMapper(rows, header, deptName){
   document.body.appendChild(wrap);
 }
 
-window.applyColumnMapping = function(){
+window.applyColumnMapping = async function(){
   const ci = {
     project: parseInt(document.getElementById('mapProject').value),
     area:    parseInt(document.getElementById('mapArea').value),
@@ -119,7 +119,7 @@ window.applyColumnMapping = function(){
   const ov = document.getElementById('colMapOverlay'); if(ov) ov.remove();
   if(!_importRows) return toast("No file loaded");
   const map = buildImportMap(_importRows, ci);
-  finishImport(map, _importDept);
+  await finishImport(map, _importDept);
 };
 
 async function mergeImport(map, deptName){
@@ -232,7 +232,7 @@ function renderSitesModal(){
     </button>`;
 
   return `<div onclick="if(event.target===this)closeSitesModal()" style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:flex-start;justify-content:center;padding:20px;overflow-y:auto">
-    <div style="background:white;border-radius:16px;max-width:580px;width:100%;box-shadow:0 24px 64px rgba(0,0,0,0.4);margin-top:20px">
+    <div style="background:var(--card);border-radius:16px;max-width:580px;width:100%;box-shadow:0 24px 64px rgba(0,0,0,0.4);margin-top:20px">
       <div style="background:#03308B;color:white;padding:16px 20px;border-radius:16px 16px 0 0;display:flex;align-items:center;justify-content:space-between">
         <div>
           <div style="font-size:16px;font-weight:800">🗺️ Areas & Sites</div>
@@ -243,17 +243,17 @@ function renderSitesModal(){
       <div style="padding:20px;max-height:70vh;overflow-y:auto">
 
         <!-- Project Codes -->
-        <div style="background:#FFF8E1;border:1px solid #FFE082;border-radius:10px;padding:12px;margin-bottom:16px">
+        <div style="background:#FFF8E1;border:1px solid #FFE082;border-radius:12px;padding:12px;margin-bottom:16px">
           <div style="font-weight:800;color:#F57F17;font-size:13px;margin-bottom:8px">🔖 Project Codes</div>
           <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">
             ${(proj.codes||[]).length===0?`<span style="font-size:12px;color:#999">No codes yet</span>`:(proj.codes||[]).map((c,ci)=>`
-              <span style="display:inline-flex;align-items:center;gap:5px;background:white;border:1px solid #FFE082;color:#F57F17;padding:4px 8px 4px 12px;border-radius:12px;font-size:12px;font-weight:700">
+              <span style="display:inline-flex;align-items:center;gap:5px;background:var(--card);border:1px solid #FFE082;color:#F57F17;padding:4px 8px 4px 12px;border-radius:12px;font-size:12px;font-weight:700">
                 ${escapeHtml(c)}
                 <button onclick="delProjectCode(${ci})" style="background:#FFF3E0;border:none;color:#E65100;width:18px;height:18px;border-radius:50%;cursor:pointer;font-weight:700;font-size:11px">×</button>
               </span>`).join("")}
           </div>
           <div style="display:flex;gap:6px">
-            <input value="${escapeHtml(newCodeName||'')}" oninput="window._setNewCode(this.value)" placeholder="Add project code (e.g. AC-001)" style="flex:1;padding:7px 10px;border:1px solid var(--line);border-radius:7px;font-size:12px">
+            <input value="${escapeHtml(newCodeName||'')}" oninput="window._setNewCode(this.value)" placeholder="Add project code (e.g. AC-001)" style="flex:1;padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:12px">
             <button class="btn btn-sm" style="background:#F57F17;color:white;border:none;font-weight:700" onclick="addProjectCode()">+ Code</button>
           </div>
         </div>
@@ -267,7 +267,7 @@ function renderSitesModal(){
         </div>
 
         ${areas.length===0
-          ? `<div style="padding:20px;text-align:center;color:#888;background:#F7F7F7;border-radius:10px;font-size:13px">No areas yet. Add the first area above.</div>`
+          ? `<div style="padding:20px;text-align:center;color:#888;background:#F7F7F7;border-radius:12px;font-size:13px">No areas yet. Add the first area above.</div>`
           : areas.map((a,ai)=>`
             <div style="border:1px solid #CBD5E1;border-radius:12px;padding:14px;margin-bottom:12px;background:#F8FAFC">
               <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;flex-wrap:wrap">
@@ -280,15 +280,15 @@ function renderSitesModal(){
               ${(a.sites||[]).length===0
                 ? `<div style="font-size:12px;color:#94A3B8;padding:6px 0">No sites yet.</div>`
                 : `<div style="display:flex;flex-direction:column;gap:5px;margin-bottom:8px">
-                    ${(a.sites||[]).map((s,si)=>`<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;background:white;border:1px solid #E2E8F0;border-radius:7px;padding:7px 10px">
+                    ${(a.sites||[]).map((s,si)=>`<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--card);border:1px solid #E2E8F0;border-radius:8px;padding:7px 10px">
                       <span style="font-size:12px;color:#1E293B;font-weight:600;flex:1">📍 ${escapeHtml(s.name)}</span>
                       ${statusPill(s.active!==false, `toggleSiteStatus(${ai},${si})`)}
-                      <button onclick="delSite(${ai},${si})" style="background:#FEE2E2;border:none;color:#DC2626;width:22px;height:22px;border-radius:5px;cursor:pointer;font-weight:700">×</button>
+                      <button onclick="delSite(${ai},${si})" style="background:#FEE2E2;border:none;color:#DC2626;width:22px;height:22px;border-radius:4px;cursor:pointer;font-weight:700">×</button>
                     </div>`).join("")}
                   </div>`}
               <!-- Add site -->
               <div style="display:flex;gap:6px">
-                <input value="${escapeHtml(newSiteInputs[ai]||'')}" oninput="window._setNewSite(${ai},this.value)" placeholder="e.g. Tower-A, Site-1" style="flex:1;padding:7px 10px;border:1px solid var(--line);border-radius:7px;font-size:12px">
+                <input value="${escapeHtml(newSiteInputs[ai]||'')}" oninput="window._setNewSite(${ai},this.value)" placeholder="e.g. Tower-A, Site-1" style="flex:1;padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:12px">
                 <button class="btn btn-sm" style="background:#2E7D32;color:white;border:none;font-weight:700" onclick="addSite(${ai})">+ Site</button>
               </div>
             </div>
@@ -359,7 +359,7 @@ window.delArea = async function(ai){
   const proj = state.projects.find(p=>p.id===sitesModalProjId);
   if(!proj) return;
   const areas = getProjectAreas(proj).map(a=>({...a}));
-  if(!confirm(`Delete area "${areas[ai]?.name}" and its sites?`)) return;
+  if(!await uiConfirm(`Delete area "${areas[ai]?.name}" and its sites?`)) return;
   areas.splice(ai,1);
   await saveAreasToProject(proj, areas);
   showSitesModal();
@@ -646,7 +646,7 @@ async function processAssetImport(rows, ci){
   if(newProjects===0 && newDevices===0 && updDevices===0 && newSites===0){
     return toast("Nothing to import (no valid rows)");
   }
-  if(!confirm(`Import summary:\n\n• ${newProjects} new project(s)\n• ${newSites} new site(s)\n• ${newDevices} new device(s)\n• ${updDevices} device(s) updated\n\nProceed? (merge — nothing deleted)`)) return;
+  if(!await uiConfirm(`Import summary:\n\n• ${newProjects} new project(s)\n• ${newSites} new site(s)\n• ${newDevices} new device(s)\n• ${updDevices} device(s) updated\n\nProceed? (merge — nothing deleted)`)) return;
 
   toast("Importing...");
   // 1. Write projects (with merged codes + areas)
@@ -679,7 +679,7 @@ function showAssetColumnMapper(rows, header){
   const ex=document.getElementById('assetMapOverlay'); if(ex) ex.remove();
   const wrap=document.createElement('div'); wrap.id='assetMapOverlay';
   wrap.innerHTML=`<div onclick="if(event.target===this)document.getElementById('assetMapOverlay').remove()" style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:flex-start;justify-content:center;padding:20px;overflow-y:auto">
-    <div style="background:white;border-radius:16px;max-width:520px;width:100%;box-shadow:0 24px 64px rgba(0,0,0,0.4);margin-top:20px">
+    <div style="background:var(--card);border-radius:16px;max-width:520px;width:100%;box-shadow:0 24px 64px rgba(0,0,0,0.4);margin-top:20px">
       <div style="background:#00897B;color:white;padding:16px 20px;border-radius:16px 16px 0 0;display:flex;align-items:center;justify-content:space-between">
         <div style="font-size:16px;font-weight:800">🔗 Match Columns</div>
         <button onclick="document.getElementById('assetMapOverlay').remove()" style="background:rgba(255,255,255,0.2);border:none;color:white;width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:18px;font-weight:700">×</button>
@@ -897,10 +897,10 @@ function renderAssets(){
     return `<div class="card">
       <div class="card-title">📊 Inventory Summary</div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;margin-bottom:14px">
-        <div style="background:linear-gradient(135deg,#1B3A6B,#2E5FA3);color:white;border-radius:10px;padding:12px"><div style="font-size:11px;opacity:0.8">TOTAL DEVICES</div><div style="font-size:22px;font-weight:800">${devices.length}</div></div>
-        <div style="background:linear-gradient(135deg,#2E7D32,#43A047);color:white;border-radius:10px;padding:12px"><div style="font-size:11px;opacity:0.8">ACTIVE</div><div style="font-size:22px;font-weight:800">${byStatus["Active"]||0}</div></div>
-        <div style="background:linear-gradient(135deg,#E65100,#FB8C00);color:white;border-radius:10px;padding:12px"><div style="font-size:11px;opacity:0.8">WARRANTY ≤90d</div><div style="font-size:22px;font-weight:800">${expiring.length}</div></div>
-        <div style="background:linear-gradient(135deg,#C62828,#E53935);color:white;border-radius:10px;padding:12px"><div style="font-size:11px;opacity:0.8">EXPIRED</div><div style="font-size:22px;font-weight:800">${expired.length}</div></div>
+        <div style="background:linear-gradient(135deg,#1B3A6B,#2E5FA3);color:white;border-radius:12px;padding:12px"><div style="font-size:11px;opacity:0.8">TOTAL DEVICES</div><div style="font-size:22px;font-weight:800">${devices.length}</div></div>
+        <div style="background:linear-gradient(135deg,#2E7D32,#43A047);color:white;border-radius:12px;padding:12px"><div style="font-size:11px;opacity:0.8">ACTIVE</div><div style="font-size:22px;font-weight:800">${byStatus["Active"]||0}</div></div>
+        <div style="background:linear-gradient(135deg,#E65100,#FB8C00);color:white;border-radius:12px;padding:12px"><div style="font-size:11px;opacity:0.8">WARRANTY ≤90d</div><div style="font-size:22px;font-weight:800">${expiring.length}</div></div>
+        <div style="background:linear-gradient(135deg,#C62828,#E53935);color:white;border-radius:12px;padding:12px"><div style="font-size:11px;opacity:0.8">EXPIRED</div><div style="font-size:22px;font-weight:800">${expired.length}</div></div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
         <div>
@@ -981,17 +981,17 @@ function renderAssets(){
       <span class="card-title" style="margin:0">Devices</span>
       <span class="count-pill">${shown.length}</span>
       <div style="display:flex;gap:6px;margin-left:auto;flex-wrap:wrap">
-        <input value="${escapeHtml(assetSearch)}" oninput="window.assetSearch=this.value;render()" placeholder="🔍 Serial, name, IP, model..." style="padding:6px 10px;border:1px solid var(--line);border-radius:6px;font-size:12px;min-width:160px">
-        <select onchange="window.assetFilterProject=this.value;render()" style="padding:6px 10px;border:1px solid var(--line);border-radius:6px;font-size:12px">
+        <input value="${escapeHtml(assetSearch)}" oninput="window.assetSearch=this.value;render()" placeholder="🔍 Serial, name, IP, model..." style="padding:6px 10px;border:1px solid var(--line);border-radius:8px;font-size:12px;min-width:160px">
+        <select onchange="window.assetFilterProject=this.value;render()" style="padding:6px 10px;border:1px solid var(--line);border-radius:8px;font-size:12px">
           <option value="">All Projects</option>
           ${allProjects.map(p=>`<option value="${escapeHtml(p)}" ${p===assetFilterProject?"selected":""}>${escapeHtml(p)}</option>`).join("")}
         </select>
-        <select onchange="window.assetFilterWarranty=this.value;render()" style="padding:6px 10px;border:1px solid ${assetFilterWarranty?'#E65100':'var(--line)'};border-radius:6px;font-size:12px;font-weight:${assetFilterWarranty?'800':'400'};color:${assetFilterWarranty?'#E65100':'inherit'}">
+        <select onchange="window.assetFilterWarranty=this.value;render()" style="padding:6px 10px;border:1px solid ${assetFilterWarranty?'#E65100':'var(--line)'};border-radius:8px;font-size:12px;font-weight:${assetFilterWarranty?'800':'400'};color:${assetFilterWarranty?'#E65100':'inherit'}">
           <option value="">🛡️ All Warranty</option>
           <option value="expired" ${assetFilterWarranty==="expired"?"selected":""}>❌ Expired</option>
           <option value="soon30" ${assetFilterWarranty==="soon30"?"selected":""}>⏳ Expiring ≤ 30 days</option>
         </select>
-        <select onchange="window.assetFilterStatus=this.value;render()" style="padding:6px 10px;border:1px solid var(--line);border-radius:6px;font-size:12px">
+        <select onchange="window.assetFilterStatus=this.value;render()" style="padding:6px 10px;border:1px solid var(--line);border-radius:8px;font-size:12px">
           <option value="">All Status</option>
           ${DEVICE_STATUSES.map(s=>`<option value="${escapeHtml(s)}" ${s===assetFilterStatus?"selected":""}>${escapeHtml(s)}</option>`).join("")}
         </select>
@@ -1003,10 +1003,10 @@ function renderAssets(){
       const shownIds = shown.map(d=>d.id);
       const selShown = shownIds.filter(id=>selectedDevices.has(id));
       if(selShown.length===0) return "";
-      return `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;background:#FFF3E0;border:1px solid #FFB74D;border-radius:10px;padding:10px 14px;margin-bottom:10px;flex-wrap:wrap">
+      return `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;background:#FFF3E0;border:1px solid #FFB74D;border-radius:12px;padding:10px 14px;margin-bottom:10px;flex-wrap:wrap">
         <span style="font-size:13px;font-weight:700;color:#E65100">✓ ${selShown.length} device(s) selected</span>
         <div style="display:flex;gap:6px">
-          <button class="btn btn-sm" style="background:#fff;border:1px solid #FFB74D;color:#E65100;font-weight:700" onclick="clearDeviceSelection()">Clear</button>
+          <button class="btn btn-sm" style="background:var(--card);border:1px solid #FFB74D;color:#E65100;font-weight:700" onclick="clearDeviceSelection()">Clear</button>
           <button class="btn btn-sm btn-danger" style="font-weight:700" onclick="deleteSelectedDevices()">${ICN.del} Delete Selected (${selShown.length})</button>
         </div>
       </div>`;
@@ -1050,7 +1050,7 @@ function deviceStatusBadge(status){
     "Decommissioned":"#ECEFF1|#546E7A", "Spare":"#E3F2FD|#1565C0"
   };
   const [bg,fg] = (map[status]||"#F5F5F5|#666").split("|");
-  return `<span style="background:${bg};color:${fg};padding:3px 8px;border-radius:10px;font-size:10px;font-weight:700;white-space:nowrap">${escapeHtml(status||"—")}</span>`;
+  return `<span style="background:${bg};color:${fg};padding:3px 8px;border-radius:12px;font-size:10px;font-weight:700;white-space:nowrap">${escapeHtml(status||"—")}</span>`;
 }
 
 async function saveDevice(){
@@ -1100,7 +1100,7 @@ function editDevice(id){
 async function delDevice(id){
   if(!isHR()) return toast("HR/Admin only");
   const d = (state.devices||[]).find(x=>x.id===id);
-  if(!confirm(`Delete device "${d?.serialNumber||''}"?`)) return;
+  if(!await uiConfirm(`Delete device "${d?.serialNumber||''}"?`)) return;
   await fbDelete("devices", id);
   toast("Device deleted");
 }
@@ -1146,7 +1146,7 @@ async function _bulkDeleteDevices(ids, label){
   if(!isHR()) return toast("HR/Admin only");
   if(ids.length===0) return toast("Nothing selected");
   // Strong confirmation: must type the exact count to proceed
-  const typed = prompt(`⚠ You are about to permanently delete ${ids.length} device(s) — ${label}.\n\nThis cannot be undone.\n\nType the number ${ids.length} to confirm:`);
+  const typed = await uiPrompt(`⚠ You are about to permanently delete ${ids.length} device(s) — ${label}.\n\nThis cannot be undone.\n\nType the number ${ids.length} to confirm:`);
   if(typed === null) return;                       // cancelled
   if(String(typed).trim() !== String(ids.length)){ return toast("Confirmation did not match — nothing deleted"); }
   toast(`Deleting ${ids.length} device(s)...`);
@@ -1403,12 +1403,12 @@ function renderMaintenance(){
   return `
   <div class="card" style="background:linear-gradient(135deg,#1B3A6B,#2E5FA3);border:none;color:#fff">
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
-      <div><div style="font-size:17px;font-weight:800">🛠️ Preventive Maintenance</div>
+      <div><div style="font-size:16px;font-weight:800">🛠️ Preventive Maintenance</div>
       <div style="font-size:11px;opacity:.75;margin-top:2px">Project › Area › Site › Device — schedule at any level</div></div>
       <div style="display:flex;gap:14px;text-align:center">
-        <div><div style="font-size:20px;font-weight:800;color:${gc.overdue?'#FF9B9B':'#C9A84C'}">${gc.overdue}</div><div style="font-size:9px;opacity:.8">OVERDUE</div></div>
-        <div><div style="font-size:20px;font-weight:800;color:#F0D68A">${gc.soon}</div><div style="font-size:9px;opacity:.8">≤ 7 DAYS</div></div>
-        <div><div style="font-size:20px;font-weight:800">${gc.total}</div><div style="font-size:9px;opacity:.8">ACTIVE</div></div>
+        <div><div style="font-size:18px;font-weight:800;color:${gc.overdue?'#FF9B9B':'#C9A84C'}">${gc.overdue}</div><div style="font-size:9px;opacity:.8">OVERDUE</div></div>
+        <div><div style="font-size:18px;font-weight:800;color:#F0D68A">${gc.soon}</div><div style="font-size:9px;opacity:.8">≤ 7 DAYS</div></div>
+        <div><div style="font-size:18px;font-weight:800">${gc.total}</div><div style="font-size:9px;opacity:.8">ACTIVE</div></div>
       </div>
     </div>
   </div>
@@ -1422,7 +1422,7 @@ function renderMaintenance(){
       </select>
       ${pmProjFilter?`<button class="btn btn-sm" style="background:#C62828;color:#fff;border:none;font-weight:700" onclick="window.pmProjFilter='';render()">${ICN.x} Clear</button>`:""}
     </div>
-    ${pmProjFilter?`<div style="margin-top:10px;padding:10px 14px;background:linear-gradient(135deg,#1B3A6B,#2E5FA3);border-radius:10px;color:#fff;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+    ${pmProjFilter?`<div style="margin-top:10px;padding:10px 14px;background:linear-gradient(135deg,#1B3A6B,#2E5FA3);border-radius:12px;color:#fff;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
       <div><div style="font-weight:800;font-size:14px">📁 ${escapeHtml(pmProjFilter)}</div>
 </div>
       <div style="font-size:11px;opacity:.85">${list.length} schedule(s) · ${overdue.length} overdue · ${(state.devices||[]).filter(d=>(d.project||"").trim()===pmProjFilter).length} devices in project</div>
@@ -1478,7 +1478,7 @@ function renderMaintenance(){
               oninput="window.pmForm.freqDays=Number(this.value)||0" onchange="render()"
               style="width:100px;padding:8px 10px;border:1.5px solid #C9A84C;border-radius:8px;font-weight:800;font-size:14px">
             <span style="font-size:12px;font-weight:700">days</span>
-            <span style="font-size:10.5px;color:var(--muted)">${Number(pmForm.freqDays)>0?`≈ ${(Math.round(Number(pmForm.freqDays)/30*10)/10)} month(s)`:"enter contract interval"}</span>
+            <span style="font-size:10px;color:var(--muted)">${Number(pmForm.freqDays)>0?`≈ ${(Math.round(Number(pmForm.freqDays)/30*10)/10)} month(s)`:"enter contract interval"}</span>
           </div>`:""}`;
         })()}</div>
       <div class="field"><label>📅 Date</label>
@@ -1582,7 +1582,7 @@ function editPM(id){ const s=(state.pmSchedules||[]).find(x=>x.id===id); if(!s)r
   const _mode = s.lastDone ? "done" : "due";
   pmEditId=id; pmForm={title:s.title,project:s.project||"",areas:_pmAreasOf(s).slice(),sites:_pmSitesOf(s).slice(),deviceSerial:s.deviceSerial||"",freqDays:s.freqDays,freqCustom:![7,14,30,60,90,120,180,365].includes(Number(s.freqDays)),startDate:(_mode==="done"?s.lastDone:(s.startDate||today())),dateMode:_mode,notes:s.notes||""};
   render(); window.scrollTo({top:0,behavior:'smooth'}); }
-async function delPM(id){ if(!confirm("Delete this maintenance schedule?"))return;
+async function delPM(id){ if(!await uiConfirm("Delete this maintenance schedule?"))return;
   await fbDelete("pmSchedules", id); toast("Deleted"); render(); }
 async function togglePM(id){ const s=(state.pmSchedules||[]).find(x=>x.id===id); if(!s)return;
   await fbSave("pmSchedules",{...s, active: s.active===false}); render(); }
@@ -1591,14 +1591,14 @@ async function markPMDone(id){
   const units=_pmUnitsOf(s);
   if(units.length>1){
     const left=units.filter(x=>!_pmRoundDone(s).includes(x));
-    if(left.length && !confirm(`This schedule covers ${units.length} sites and ${left.length} are not marked complete yet:\n\n• ${left.join("\n• ")}\n\nMark the WHOLE round done anyway? (renews the due date for all sites)`)) return;
+    if(left.length && !await uiConfirm(`This schedule covers ${units.length} sites and ${left.length} are not marked complete yet:\n\n• ${left.join("\n• ")}\n\nMark the WHOLE round done anyway? (renews the due date for all sites)`)) return;
   }
   const by=(state.profile&&(state.profile.name||state.profile.email))||"";
   const history=[{date:today(),by,...(units.length>1?{sites:units}:{})},...(s.history||[])].slice(0,20);
   await fbSave("pmSchedules",{...s,lastDone:today(),history,roundDone:[]});
   toast(`✔ ${s.title} — done today. Next due ${fmtDate(_pmAddDays(today(),s.freqDays))}`);
   // Bridge to Daily Log: offer a prefilled work entry tagged with the PM code
-  if(confirm("Log a Daily Log work entry for this maintenance now?")){
+  if(await uiConfirm("Log a Daily Log work entry for this maintenance now?")){
     const dv=(state.devices||[]).find(x=>x.serialNumber===s.deviceSerial);
     window._draftSuspend=true; setTimeout(()=>{window._draftSuspend=false;},900);
     window.dailyForm={date:today(),employee:isEmployee()?state.profile.employeeName:"",
@@ -1708,7 +1708,7 @@ window.editIncident=function(id){
   render(); window.scrollTo(0,0);
 };
 window.deleteIncident=async function(id){
-  if(!confirm("Move this incident to the Recycle Bin?"))return;
+  if(!await uiConfirm("Move this incident to the Recycle Bin?"))return;
   await fbDelete("incidents",id);
   toast("Moved to Recycle Bin ✓");
   if(incEditId===id){ window.incForm=null; window.incEditId=null; }
@@ -1741,7 +1741,7 @@ function renderIncidents(){
   <div class="card" style="background:linear-gradient(135deg,#7B1FA2 0%,#4A148C 100%);color:#fff;padding:18px 16px">
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
       <div><div style="font-family:'DM Serif Display',serif;font-size:22px">🚨 Incidents</div>
-      <div style="font-size:11.5px;opacity:.85">Permanent register — feeds the branded Incident Reports</div></div>
+      <div style="font-size:11px;opacity:.85">Permanent register — feeds the branded Incident Reports</div></div>
       <div style="text-align:center"><div style="font-family:'DM Serif Display',serif;font-size:28px;color:${openCount?'#FFD54F':'#A5D6A7'}">${openCount}</div><div style="font-size:10px;letter-spacing:1px;opacity:.8">OPEN</div></div>
     </div>
   </div>
@@ -1830,9 +1830,9 @@ function renderIncidents(){
         <td style="white-space:nowrap;font-size:11px">${fmtDate(i.date)}${i.time?`<br><span style="color:var(--muted)">${i.time}</span>`:""}</td>
         <td style="font-weight:700">${escapeHtml(i.title)}</td>
         <td style="font-size:11px">${escapeHtml(i.project||"")}${i.area?` · ${escapeHtml(i.area)}`:""}${i.site?` · ${escapeHtml(i.site)}`:""}${i.deviceSerial?`<br><span style="font-size:10px;color:#6A1B9A">📟 ${escapeHtml(i.deviceSerial)}</span>`:""}</td>
-        <td>${i.system?`<span style="font-size:10px;background:#E0F2F1;color:#00695C;padding:2px 8px;border-radius:9px;font-weight:800">${escapeHtml(i.system)}</span>`:"—"}</td>
-        <td><span style="font-size:10px;background:${_incSevColor[i.severity]||'#888'}22;color:${_incSevColor[i.severity]||'#888'};padding:2px 8px;border-radius:9px;font-weight:800">${escapeHtml(i.severity||"—")}</span></td>
-        <td><span style="font-size:10px;background:${_incStColor[i.status]||'#888'}22;color:${_incStColor[i.status]||'#888'};padding:2px 8px;border-radius:9px;font-weight:800">${escapeHtml(i.status||"Open")}</span></td>
+        <td>${i.system?`<span style="font-size:10px;background:#E0F2F1;color:#00695C;padding:2px 8px;border-radius:8px;font-weight:800">${escapeHtml(i.system)}</span>`:"—"}</td>
+        <td><span style="font-size:10px;background:${_incSevColor[i.severity]||'#888'}22;color:${_incSevColor[i.severity]||'#888'};padding:2px 8px;border-radius:8px;font-weight:800">${escapeHtml(i.severity||"—")}</span></td>
+        <td><span style="font-size:10px;background:${_incStColor[i.status]||'#888'}22;color:${_incStColor[i.status]||'#888'};padding:2px 8px;border-radius:8px;font-weight:800">${escapeHtml(i.status||"Open")}</span></td>
         <td style="font-size:11px">${(i.photos||[]).length||"—"}</td>
         <td style="white-space:nowrap"><button class="btn btn-sm btn-secondary" onclick="editIncident('${i.id}')" title="Edit">${ICN.edit}</button> <button class="btn btn-sm" style="background:#FDECEA;color:#C62828;border:none" onclick="deleteIncident('${i.id}')" title="Delete">${ICN.del}</button></td>
       </tr>`).join("")}</tbody>

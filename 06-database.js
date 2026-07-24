@@ -94,7 +94,7 @@ async function saveProj(){
   projForm=null; projEditId=null; window._projView='list'; render();
 }
 function editProj(id){const r=state.projects.find(p=>p.id===id);if(r){projForm={...r};projEditId=id;window._projView='add';render();window.scrollTo(0,0);}}
-async function delProj(id){if(confirm("Delete?")){await fbDelete("projects",id);toast("Deleted");}}
+async function delProj(id){if(await uiConfirm("Delete?")){await fbDelete("projects",id);toast("Deleted");}}
 function cancelProj(){projForm=null;projEditId=null;window._projView='list';render();}
 Object.assign(window,{saveProj,editProj,delProj,cancelProj});
 Object.defineProperty(window,'projForm',{get:()=>projForm,set:v=>projForm=v});
@@ -139,7 +139,7 @@ async function saveLoc(){
     const affected = state.daily.filter(r=>r.location===oldName).length
       + state.overtime.filter(r=>r.location===oldName).length
       + state.travel.filter(r=>r.location===oldName).length;
-    if(affected > 0 && !confirm(`Rename "${oldName}" → "${name}"?\n\nThis will update ${affected} record(s).\n\nThis cannot be undone.`)) return;
+    if(affected > 0 && !await uiConfirm(`Rename "${oldName}" → "${name}"?\n\nThis will update ${affected} record(s).\n\nThis cannot be undone.`)) return;
   }
 
   await fbSave("locations",{id,name});
@@ -153,7 +153,7 @@ async function saveLoc(){
   locForm="";locEditId=null;
 }
 function editLoc(id){const r=state.locations.find(l=>l.id===id);if(r){locForm=r.name;locEditId=id;render();window.scrollTo(0,0);}}
-async function delLoc(id){if(confirm("Delete?")){await fbDelete("locations",id);toast("Deleted");}}
+async function delLoc(id){if(await uiConfirm("Delete?")){await fbDelete("locations",id);toast("Deleted");}}
 function cancelLoc(){locForm="";locEditId=null;render();}
 Object.assign(window,{saveLoc,editLoc,delLoc,cancelLoc});
 Object.defineProperty(window,'locForm',{get:()=>locForm,set:v=>locForm=v});
@@ -165,7 +165,7 @@ function renderUsers(){
   if(!isAdmin())return `<div class="card"><div class="empty">Access denied — Admin only</div></div>`;
   if(!userForm)userForm={name:"",email:"",password:"",role:"employee",employeeName:"",branch:"",userDept:"",jobTitle:"",supervisorName:"",isSupervisor:false};
   const uv = window._usersView || "team";
-  const _up=(id,ic,lb)=>`<button onclick="window._usersView='${id}';window.__navFade=true;render()" style="flex:1;padding:10px 6px;border:none;border-radius:9px;font-weight:800;font-size:12px;cursor:pointer;background:${uv===id?'#03308B':'#E8EEF7'};color:${uv===id?'#C9A84C':'#1B3A6B'}">${ic} ${lb}</button>`;
+  const _up=(id,ic,lb)=>`<button onclick="window._usersView='${id}';window.__navFade=true;render()" style="flex:1;padding:10px 6px;border:none;border-radius:8px;font-weight:800;font-size:12px;cursor:pointer;background:${uv===id?'#03308B':'#E8EEF7'};color:${uv===id?'#C9A84C':'#1B3A6B'}">${ic} ${lb}</button>`;
   let h = `<div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap">${_up("team","👥","Team Members")}${_up("add","➕","Add User")}${_up("tags","🏷️","Nametags")}${_up("perms","🔐","Permissions")}</div>`;
   if(uv==="add")  h += `<div class="card">
     <div class="sec-hdr">${userEditId?"Edit":"Add"} User</div>
@@ -304,7 +304,7 @@ function renderUsers(){
     </div>
 
     <!-- Add/Edit Nametag Form -->
-    <div style="background:#FFFBEB;border:1px solid #D4AF37;border-radius:10px;padding:14px;margin-bottom:14px">
+    <div style="background:#FFFBEB;border:1px solid #D4AF37;border-radius:12px;padding:14px;margin-bottom:14px">
       <div style="font-size:13px;font-weight:800;color:#7F6000;margin-bottom:10px">
         ${nametagEditId ? "✎ Edit Nametag Employee" : "➕ Add Nametag Employee"}
       </div>
@@ -346,12 +346,12 @@ function renderUsers(){
             const isExt = e.type === "external";
             return `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:${isExt ? "linear-gradient(135deg,#FFF3E0 0%,#FFF8E1 100%)" : "#F7FAFC"};border:1px solid ${isExt ? "#FF9800" : "#CBD5E0"};border-radius:8px;gap:10px">
               <div style="display:flex;align-items:center;gap:10px;flex:1">
-                <div style="width:36px;height:36px;background:${isExt ? "linear-gradient(135deg,#FF9800 0%,#FFB74D 100%)" : "#1B3A6B"};color:white;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;flex-shrink:0">
+                <div style="width:36px;height:36px;background:${isExt ? "linear-gradient(135deg,#FF9800 0%,#FFB74D 100%)" : "#1B3A6B"};color:white;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;flex-shrink:0">
                   ${(e.name||"?").charAt(0).toUpperCase()}
                 </div>
                 <div>
                   <div style="font-weight:700;color:#1A202C;font-size:14px">${escapeHtml(e.name||"")}
-                    ${isExt ? `<span style="display:inline-block;margin-left:6px;padding:1px 7px;background:linear-gradient(135deg,#FF9800,#FFB74D);color:#7F4A00;border-radius:10px;font-size:10px;font-weight:800">EXT</span>` : `<span style="display:inline-block;margin-left:6px;padding:1px 7px;background:#E8F5E9;color:#2F855A;border-radius:10px;font-size:10px;font-weight:700">INTERNAL</span>`}
+                    ${isExt ? `<span style="display:inline-block;margin-left:6px;padding:1px 7px;background:linear-gradient(135deg,#FF9800,#FFB74D);color:#7F4A00;border-radius:12px;font-size:10px;font-weight:800">EXT</span>` : `<span style="display:inline-block;margin-left:6px;padding:1px 7px;background:#E8F5E9;color:#2F855A;border-radius:12px;font-size:10px;font-weight:700">INTERNAL</span>`}
                   </div>
                   <div style="font-size:11px;color:var(--muted)">${isExt ? "External / Outsource" : "Internal employee"} · Nametag only</div>
                 </div>
@@ -447,7 +447,7 @@ function editUser(id){
 }
 
 async function delUser(id){
-  if(!confirm("Delete this user profile? (Note: this only removes the Firestore profile, not the auth account. Delete the auth account from Firebase Console separately.)"))return;
+  if(!await uiConfirm("Delete this user profile? (Note: this only removes the Firestore profile, not the auth account. Delete the auth account from Firebase Console separately.)"))return;
   await fbDelete("users",id);
   toast("Profile deleted");
 }
@@ -528,7 +528,7 @@ window.uploadProfilePhoto = async function(input){
 
 window.removeProfilePhoto = async function(){
   if(!state.profile || !state.profile.uid) return;
-  if(!confirm("Remove your profile photo?")) return;
+  if(!await uiConfirm("Remove your profile photo?")) return;
   try{
     const {db, doc, updateDoc} = window.__fb;
     await updateDoc(doc(db,"users",state.profile.uid), { photoData: "" });
@@ -543,7 +543,7 @@ window.resetUserSession = async function(userId){
   if(!isAdmin()) return toast("Admin only");
   const u = state.users.find(x=>x.id===userId);
   if(!u) return;
-  if(!confirm(`Reset active session for ${u.name||"this user"}?\\n\\nThey will be signed out on their current device and can sign in again anywhere.`)) return;
+  if(!await uiConfirm(`Reset active session for ${u.name||"this user"}?\\n\\nThey will be signed out on their current device and can sign in again anywhere.`)) return;
   try{
     const {db, doc, updateDoc} = window.__fb;
     await updateDoc(doc(db,"users",userId),{ activeSession: "" });
@@ -590,7 +590,7 @@ async function saveNametagEmp(){
         const msg = `Rename "${oldName}" → "${name}"?\n\nThis will update ${total} record(s):\n` +
           `· Daily Log: ${affected.daily}\n· Overtime: ${affected.overtime}\n` +
           `· Travel: ${affected.travel}\n· Leaves: ${affected.leaves}\n\nThis cannot be undone.`;
-        if(!confirm(msg)) return;
+        if(!await uiConfirm(msg)) return;
       }
     }
 
@@ -651,7 +651,7 @@ async function migrateDefaultEmployees(){
   if(toMigrate.length === 0){
     return toast("All default employees are already editable ✓");
   }
-  if(!confirm(`Make ${toMigrate.length} default employee(s) editable?\n\n${toMigrate.join(", ")}\n\nAfter this, you can edit their names with full data sync.`)) return;
+  if(!await uiConfirm(`Make ${toMigrate.length} default employee(s) editable?\n\n${toMigrate.join(", ")}\n\nAfter this, you can edit their names with full data sync.`)) return;
   for(const name of toMigrate){
     await fbSave("nametagEmployees", {
       id: undefined,
@@ -676,7 +676,7 @@ async function delNametagEmp(id){
   const msg = hasRecords
     ? `Delete "${e.name}"?\n\n⚠ This employee has existing records. The records will remain but the name will no longer appear in dropdowns.`
     : `Delete "${e.name}" from the tracking list?`;
-  if(!confirm(msg)) return;
+  if(!await uiConfirm(msg)) return;
   const{db,doc,deleteDoc}=window.__fb;
   try {
     await deleteDoc(doc(db,"nametagEmployees",id));
@@ -780,10 +780,10 @@ function renderBranches(){
     ${(state.branches||[]).length===0?`<div class="empty">No branches yet. Add your first city above (e.g. Erbil).</div>`:`
     <div style="display:grid;gap:10px">
       ${stats.map(b=>`
-        <div style="border:1px solid var(--line);border-left:5px solid #1565C0;border-radius:10px;padding:12px 14px;background:white">
+        <div style="border:1px solid var(--line);border-left:5px solid #1565C0;border-radius:12px;padding:12px 14px;background:var(--card)">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
             <div style="flex:1;min-width:0">
-              <div style="font-weight:800;color:#1565C0;font-size:15px">🏙️ ${escapeHtml(b.name)}</div>
+              <div style="font-weight:800;color:#1565C0;font-size:14px">🏙️ ${escapeHtml(b.name)}</div>
               <div style="font-size:11px;color:var(--muted);margin-top:4px">
                 ${b.empCount} employee${b.empCount===1?'':'s'} · ${b.dailyCount} work entr${b.dailyCount===1?'y':'ies'}
               </div>
@@ -817,7 +817,7 @@ function renderBranches(){
 // One-time loader for existing databases (seed only runs on brand-new DBs)
 window.seedTechDefaults = async function(){
   if(!isAdmin()) return toast("Admin only");
-  if(!confirm("Load the default Work Types, Statuses, and Categories?")) return;
+  if(!await uiConfirm("Load the default Work Types, Statuses, and Categories?")) return;
   const {db, doc, setDoc} = window.__fb;
   try{
     for(let i=0;i<WORK_TYPES.length;i++){
@@ -852,7 +852,7 @@ window.addTechItem = async function(col, inputId, count){
 
 window.delTechItem = async function(col, id){
   if(!isAdmin()) return toast("Admin only");
-  if(!confirm("Delete this item?")) return;
+  if(!await uiConfirm("Delete this item?")) return;
   const {db, doc, deleteDoc} = window.__fb;
   await deleteDoc(doc(db, col, id));
   toast("Deleted");
@@ -902,7 +902,7 @@ window.bulkAssignBranch = async function(branchName){
   const tagTargets = (state.nametagEmployees||[]).filter(n=>!n.branch);
   const total = userTargets.length + tagTargets.length;
   if(total===0) return toast("Everyone already has a branch");
-  if(!confirm(`Assign ${total} member(s) to ${branchName}?`)) return;
+  if(!await uiConfirm(`Assign ${total} member(s) to ${branchName}?`)) return;
   const {db, doc, setDoc} = window.__fb;
   let done=0;
   for(const u of userTargets){
@@ -930,7 +930,7 @@ function editBranch(id){
   if(b){ branchForm={name:b.name}; branchEditId=id; render(); window.scrollTo(0,0); }
 }
 async function delBranch(id){
-  if(!confirm("Delete this branch? Employees assigned to it will show no branch until reassigned."))return;
+  if(!await uiConfirm("Delete this branch? Employees assigned to it will show no branch until reassigned."))return;
   await fbDelete("branches",id);
   toast("Branch deleted");
 }
@@ -984,10 +984,10 @@ function renderDepartments(){
     ${state.departments.length===0?`<div class="empty">No departments yet. Add your first one above.</div>`:`
     <div style="display:grid;gap:10px">
       ${stats.map(d=>`
-        <div style="border:1px solid var(--line);border-left:5px solid ${d.color};border-radius:10px;padding:12px 14px;background:white">
+        <div style="border:1px solid var(--line);border-left:5px solid ${d.color};border-radius:12px;padding:12px 14px;background:var(--card)">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
             <div style="flex:1;min-width:0">
-              <div style="font-weight:800;color:${d.color};font-size:15px">${escapeHtml(d.name)}</div>
+              <div style="font-weight:800;color:${d.color};font-size:14px">${escapeHtml(d.name)}</div>
               <div style="font-size:11px;color:var(--muted);margin-top:4px">
                 ${d.projCount} project${d.projCount===1?'':'s'} · ${d.dailyCount} entr${d.dailyCount===1?'y':'ies'} · ${fmtHM(d.hours)} hrs
               </div>
@@ -1027,7 +1027,7 @@ async function saveDept(){
       + state.overtime.filter(r=>r.dept===oldName).length
       + state.travel.filter(r=>r.dept===oldName).length
       + state.projects.filter(p=>p.dept===oldName).length;
-    if(affected > 0 && !confirm(`Rename "${oldName}" → "${name}"?\n\nThis will update ${affected} record(s) including projects assigned to this department.\n\nThis cannot be undone.`)) return;
+    if(affected > 0 && !await uiConfirm(`Rename "${oldName}" → "${name}"?\n\nThis will update ${affected} record(s) including projects assigned to this department.\n\nThis cannot be undone.`)) return;
   }
 
   await fbSave("departments",{id, name, color:deptForm.color});
@@ -1049,7 +1049,7 @@ async function delDept(id){
   if(!d) return;
   const usedBy = state.projects.filter(p=>p.dept===d.name).length;
   const msg = usedBy>0 ? `This department has ${usedBy} project(s) assigned. Delete anyway?` : "Delete this department?";
-  if(confirm(msg)){
+  if(await uiConfirm(msg)){
     await fbDelete("departments",id);
     toast("Deleted");
   }

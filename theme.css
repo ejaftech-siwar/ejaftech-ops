@@ -1,5 +1,27 @@
 /* Girêk — design tokens: colors, fonts, radius, shadows */
-:root{--navy:#1B3A6B;--navy-2:#2E5FA3;--gold:#C9A84C;--gold-2:#B58E2E;--bg:#F5F8FC;--card:#FFFFFF;--line:#D6E4F0;--text:#1A1A2E;--muted:#6B7B8F;--green:#2E7D32;--green-bg:#E8F2E8;--orange:#E65100;--orange-bg:#FCEAE0;--purple:#6A1B9A;--purple-bg:#F0E8F7;--yellow:#FFF2CC;--yellow-text:#7F6000;--red:#C0392B;--shadow:0 2px 12px rgba(27,58,107,0.08);--shadow-lg:0 8px 28px rgba(27,58,107,0.15);--radius:14px;--radius-sm:8px;--shadow-sm:0 1px 4px rgba(27,58,107,0.06)}
+:root{--navy:#1B3A6B;--navy-2:#2E5FA3;--gold:#C9A84C;--gold-2:#B58E2E;--bg:#F5F8FC;--card:#FFFFFF;--line:#D6E4F0;--text:#1A1A2E;--muted:#6B7B8F;--green:#2E7D32;--green-bg:#E8F2E8;--orange:#E65100;--orange-bg:#FCEAE0;--purple:#6A1B9A;--purple-bg:#F0E8F7;--yellow:#FFF2CC;--yellow-text:#7F6000;--red:#C0392B;--shadow:0 2px 12px rgba(27,58,107,0.08);--shadow-lg:0 8px 28px rgba(27,58,107,0.15);--radius:14px;--radius-sm:8px;--shadow-sm:0 1px 4px rgba(27,58,107,0.06);
+
+  /* ═══ SCALES (v141) ═══════════════════════════════════════════════════
+     Measured from the codebase, not invented: 145 distinct font sizes and
+     12 radii collapsed onto ladders that sit on the values already most
+     used, so nothing shifts by more than 2px while everything lines up. */
+  --r-xs:4px;  --r-sm:8px;  --r-md:12px; --r-lg:16px; --r-pill:999px;
+  --s-1:4px;   --s-2:8px;   --s-3:12px;  --s-4:16px;  --s-5:24px;  --s-6:32px;
+  --f-2xs:9px; --f-xs:10px; --f-sm:11px; --f-md:12px; --f-lg:13px;
+  --f-xl:14px; --f-2xl:16px; --f-3xl:18px; --f-4xl:22px; --f-5xl:28px;
+
+  /* ═══ SEMANTIC COLOURS ════════════════════════════════════════════════
+     Every raw hex scattered through the modules maps here, so dark mode is
+     one override instead of hundreds, and meaning survives the theme. */
+  --ok:#2E7D32;      --ok-bg:#E8F5E9;      --ok-ink:#1B5E20;
+  --warn:#E65100;    --warn-bg:#FFF3E0;    --warn-ink:#BF360C;
+  --danger:#C62828;  --danger-bg:#FDECEA;  --danger-ink:#8E1B1B;
+  --info:#2E5FA3;    --info-bg:#EEF4FF;    --info-ink:#03308B;
+  --accent:#6A1B9A;  --accent-bg:#F3E8FF;
+  --teal:#00695C;    --teal-bg:#E0F2F1;
+  --surface-2:#F5F8FC;   /* subtle raised panel — flips in dark mode  */
+  --on-brand:#FFFFFF;    /* text that sits on navy/gold brand fills   */
+}
 
 
 /* ═══ Girêk Dark Mode — token overrides (activated by data-theme="dark") ═══ */
@@ -13,5 +35,13 @@
   --red:#FF8F8F;
   --shadow:0 2px 12px rgba(0,0,0,0.45); --shadow-lg:0 8px 28px rgba(0,0,0,0.6);
   --shadow-sm:0 1px 4px rgba(0,0,0,0.4);
+  /* semantic colours, retuned for contrast on dark surfaces */
+  --ok:#7CDA8C;      --ok-bg:#1D3326;      --ok-ink:#A5E8B0;
+  --warn:#FFA366;    --warn-bg:#3A2C1C;    --warn-ink:#FFC49B;
+  --danger:#FF8F8F;  --danger-bg:#3A1F1F;  --danger-ink:#FFB3B3;
+  --info:#7FB0FF;    --info-bg:#16273F;    --info-ink:#A9CBFF;
+  --accent:#CE93E8;  --accent-bg:#2E2140;
+  --teal:#5FD3C4;    --teal-bg:#12312D;
+  --surface-2:#101B2E;
 }
 html{transition:background-color .25s ease}

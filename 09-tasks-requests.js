@@ -52,19 +52,19 @@ window.openNotifPanel=function(){
   const items = list.length ? list.map(n=>`
     <div onclick="openNotif('${n.id}')" style="padding:10px 12px;border-bottom:1px solid #eee;cursor:pointer;background:${n.read?'#fff':'#EEF4FF'}">
       <div style="display:flex;justify-content:space-between;gap:8px">
-        <strong style="font-size:12.5px;color:#03308B">${n.read?'':'🔵 '}${escapeHtml(n.title||'')}</strong>
-        <span style="display:flex;align-items:center;gap:6px;white-space:nowrap"><span style="font-size:10px;color:#999">${escapeHtml(fmtLastSeen(n.createdAt)||'')}</span><button onclick="event.stopPropagation();deleteNotif('${n.id}')" title="Delete" style="background:#FFEBEE;color:#C62828;border:none;width:18px;height:18px;border-radius:9px;font-size:10px;font-weight:800;cursor:pointer;line-height:1">${ICN.x}</button></span>
+        <strong style="font-size:12px;color:#03308B">${n.read?'':'🔵 '}${escapeHtml(n.title||'')}</strong>
+        <span style="display:flex;align-items:center;gap:6px;white-space:nowrap"><span style="font-size:10px;color:#999">${escapeHtml(fmtLastSeen(n.createdAt)||'')}</span><button onclick="event.stopPropagation();deleteNotif('${n.id}')" title="Delete" style="background:#FFEBEE;color:#C62828;border:none;width:18px;height:18px;border-radius:8px;font-size:10px;font-weight:800;cursor:pointer;line-height:1">${ICN.x}</button></span>
       </div>
-      <div style="font-size:11.5px;color:#444;margin-top:3px;line-height:1.5">${escapeHtml(n.body||'')}</div>
+      <div style="font-size:11px;color:#444;margin-top:3px;line-height:1.5">${escapeHtml(n.body||'')}</div>
 
     </div>`).join("") : `<div style="padding:26px;text-align:center;color:#999;font-style:italic;font-size:12px">No notifications yet</div>`;
-  ov.innerHTML=`<div style="background:#fff;border-radius:12px;max-width:420px;width:100%;max-height:75vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,0.3)">
+  ov.innerHTML=`<div style="background:var(--card);border-radius:12px;max-width:420px;width:100%;max-height:75vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,0.3)">
     <div style="background:linear-gradient(135deg,#03308B,#2E5FA3);color:#fff;padding:12px 14px;display:flex;justify-content:space-between;align-items:center">
-      <strong style="font-size:14px">🔔 Notifications & Alerts${unreadNotifCount()?` <span style="background:#C62828;padding:1px 8px;border-radius:10px;font-size:11px">${unreadNotifCount()}</span>`:''}</strong>
+      <strong style="font-size:14px">🔔 Notifications & Alerts${unreadNotifCount()?` <span style="background:#C62828;padding:1px 8px;border-radius:12px;font-size:11px">${unreadNotifCount()}</span>`:''}</strong>
       <div style="display:flex;gap:6px">
-        ${unreadNotifCount()?`<button onclick="markAllNotifsRead()" style="background:rgba(255,255,255,0.15);color:#fff;border:none;padding:4px 10px;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer">Mark all read</button>`:''}
-        ${list.length?`<button onclick="clearAllNotifs()" style="background:rgba(198,40,40,0.9);color:#fff;border:none;padding:4px 10px;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer">🗑 Clear all</button>`:''}
-        <button onclick="closeNotifPanel()" style="background:rgba(255,255,255,0.15);color:#fff;border:none;width:26px;height:26px;border-radius:6px;font-weight:700;cursor:pointer">${ICN.x}</button>
+        ${unreadNotifCount()?`<button onclick="markAllNotifsRead()" style="background:rgba(255,255,255,0.15);color:#fff;border:none;padding:4px 10px;border-radius:8px;font-size:10px;font-weight:700;cursor:pointer">Mark all read</button>`:''}
+        ${list.length?`<button onclick="clearAllNotifs()" style="background:rgba(198,40,40,0.9);color:#fff;border:none;padding:4px 10px;border-radius:8px;font-size:10px;font-weight:700;cursor:pointer">🗑 Clear all</button>`:''}
+        <button onclick="closeNotifPanel()" style="background:rgba(255,255,255,0.15);color:#fff;border:none;width:26px;height:26px;border-radius:8px;font-weight:700;cursor:pointer">${ICN.x}</button>
       </div>
     </div>
     <div style="overflow-y:auto">${(typeof alertsHTML==="function"?alertsHTML():"")}${items}</div>
@@ -121,7 +121,7 @@ window.deleteNotif=async function(id){
 window.clearAllNotifs=async function(){
   const mine=myNotifications();
   if(!mine.length) return;
-  if(!confirm(`Delete all ${mine.length} notification(s)?`)) return;
+  if(!await uiConfirm(`Delete all ${mine.length} notification(s)?`)) return;
   const ids=mine.map(n=>n.id);
   state.notifications=(state.notifications||[]).filter(x=>!ids.includes(x.id));  // optimistic
   try{ for(const id of ids){ await fbDelete("notifications", id); } }catch(e){ console.error(e); }
@@ -180,11 +180,11 @@ function _renderAssignModal(){
   if(!ov){ ov=document.createElement("div"); ov.id="assignOverlay"; document.body.appendChild(ov); }
   ov.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9991;display:flex;align-items:center;justify-content:center;padding:16px";
   ov.onclick=(e)=>{ if(e.target===ov) closeAssignModal(); };
-  const inp="width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;background:#fff;box-sizing:border-box";
-  ov.innerHTML=`<div style="background:#fff;border-radius:12px;max-width:420px;width:100%;max-height:85vh;overflow-y:auto;box-shadow:0 10px 40px rgba(0,0,0,0.3)">
+  const inp="width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;background:var(--card);box-sizing:border-box";
+  ov.innerHTML=`<div style="background:var(--card);border-radius:12px;max-width:420px;width:100%;max-height:85vh;overflow-y:auto;box-shadow:0 10px 40px rgba(0,0,0,0.3)">
     <div style="background:linear-gradient(135deg,#03308B,#2E5FA3);color:#fff;padding:12px 14px;display:flex;justify-content:space-between;align-items:center;border-radius:12px 12px 0 0">
       <strong style="font-size:14px">👤 Assign Task</strong>
-      <button onclick="closeAssignModal()" style="background:rgba(255,255,255,0.15);color:#fff;border:none;width:26px;height:26px;border-radius:6px;font-weight:700;cursor:pointer">${ICN.x}</button>
+      <button onclick="closeAssignModal()" style="background:rgba(255,255,255,0.15);color:#fff;border:none;width:26px;height:26px;border-radius:8px;font-weight:700;cursor:pointer">${ICN.x}</button>
     </div>
     <div style="padding:14px;display:flex;flex-direction:column;gap:10px">
       ${req
@@ -279,7 +279,7 @@ window.deleteTask=async function(id){
   if(!t) return;
   const uid=state.profile&&state.profile.uid;
   if(!(isAdmin()||t.assignedByUid===uid)) return toast("Only the assigner or an admin can delete this task");
-  if(!confirm(`Delete task "${t.title}"?`)) return;
+  if(!await uiConfirm(`Delete task "${t.title}"?`)) return;
   await fbDelete("tasks", id);
   const myName=(state.profile&&(state.profile.name||state.profile.employeeName))||"";
   if(t.assignedToUid && t.assignedToUid!==uid){
@@ -301,14 +301,14 @@ function miniAvatar(uid, nameFallback){
 
 function taskStatusChip(t){
   return t.status==="confirmed"
-    ? `<span style="background:#E8F5E9;color:#2E7D32;padding:3px 10px;border-radius:10px;font-size:10px;font-weight:800;white-space:nowrap">✅ CONFIRMED</span>`
-    : `<span style="background:#FFF8E1;color:#B26A00;padding:3px 10px;border-radius:10px;font-size:10px;font-weight:800;white-space:nowrap">⏳ AWAITING CONFIRM</span>`;
+    ? `<span style="background:#E8F5E9;color:#2E7D32;padding:3px 10px;border-radius:12px;font-size:10px;font-weight:800;white-space:nowrap">✅ CONFIRMED</span>`
+    : `<span style="background:#FFF8E1;color:#B26A00;padding:3px 10px;border-radius:12px;font-size:10px;font-weight:800;white-space:nowrap">⏳ AWAITING CONFIRM</span>`;
 }
 function taskAssignBlockHTML(r){
   const t=(state.tasks||[]).find(x=>x.requestId===r.id);
   if(t){
     return `<div style="margin-top:8px;background:#F0F7F0;border:1px solid #C8E6C9;border-radius:8px;padding:7px 10px;font-size:11px;display:flex;justify-content:space-between;align-items:center;gap:6px;flex-wrap:wrap">
-      <span>👤 Assigned to <strong>${escapeHtml(t.assignedTo||"")}</strong> · by ${escapeHtml(t.assignedBy||"")}</span><span style="display:flex;gap:5px;align-items:center">${taskStatusChip(t)}${(isAdmin()||t.assignedByUid===(state.profile&&state.profile.uid))?`<button onclick="deleteTask('${t.id}')" title="Delete task" style="background:#FFEBEE;color:#C62828;border:none;width:22px;height:22px;border-radius:11px;font-weight:800;cursor:pointer;font-size:11px">${ICN.del}</button>`:""}</span></div>`;
+      <span>👤 Assigned to <strong>${escapeHtml(t.assignedTo||"")}</strong> · by ${escapeHtml(t.assignedBy||"")}</span><span style="display:flex;gap:5px;align-items:center">${taskStatusChip(t)}${(isAdmin()||t.assignedByUid===(state.profile&&state.profile.uid))?`<button onclick="deleteTask('${t.id}')" title="Delete task" style="background:#FFEBEE;color:#C62828;border:none;width:22px;height:22px;border-radius:12px;font-weight:800;cursor:pointer;font-size:11px">${ICN.del}</button>`:""}</span></div>`;
   }
   if(canAssignTasks()){
     return `<div style="margin-top:8px"><button onclick="openAssignTask('${r.id}')" style="background:#03308B;color:#C9A84C;border:none;padding:7px 14px;border-radius:8px;font-weight:800;font-size:11px;cursor:pointer">👤 Assign Task</button></div>`;
@@ -344,15 +344,15 @@ window.toggleViewReports=async function(userId){
 function _taskCard(t, mineView){
   return `<div class="card" style="border-left:4px solid ${t.status==="confirmed"?"#2E7D32":"#C9A84C"};padding:12px 14px">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap">
-      <strong style="font-size:13.5px;color:#03308B">${escapeHtml(t.title||"")}</strong>
+      <strong style="font-size:13px;color:#03308B">${escapeHtml(t.title||"")}</strong>
       ${taskStatusChip(t)}
     </div>
     ${t.clientName
       ? `<div style="font-size:11px;color:#6A1B9A;font-weight:700;margin-top:3px">🤝 ${escapeHtml(t.clientName)}${t.source==="request"?" · from client request":""}</div>`
-      : (t.source==="manual" ? `<div style="font-size:10.5px;color:#888;margin-top:3px">✍️ Manual task</div>` : "")}
+      : (t.source==="manual" ? `<div style="font-size:10px;color:#888;margin-top:3px">✍️ Manual task</div>` : "")}
     <div style="font-size:12px;color:#333;margin-top:6px;line-height:1.6;background:#F8FAFF;border:1px solid #E3ECF7;border-radius:8px;padding:8px 10px">${escapeHtml(t.description||"")}</div>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;flex-wrap:wrap;gap:6px">
-      <span style="font-size:10.5px;color:#666">${mineView
+      <span style="font-size:10px;color:#666">${mineView
         ? `${miniAvatar(t.assignedByUid,t.assignedBy)} By: <strong>${escapeHtml(t.assignedBy||"")}</strong>`
         : `${miniAvatar(t.assignedToUid,t.assignedTo)} To: <strong>${escapeHtml(t.assignedTo||"")}</strong>`} · 📅 ${escapeHtml(fmtDate((t.createdAt||"").slice(0,10)))}${(t.status==="confirmed"&&t.confirmedAt)?` · ✅ ${escapeHtml(fmtLastSeen(t.confirmedAt)||"")}`:""}</span>
       <div style="display:flex;gap:6px;align-items:center">
@@ -373,7 +373,7 @@ function renderMyTasks(){
   const mv=canAsg?(window._myTasksView||"inbox"):"inbox";
   let h=`<div class="card" style="background:linear-gradient(135deg,#03308B,#2E5FA3);color:#fff;padding:14px 16px">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
-      <div><strong style="font-size:15px">📋 My Tasks</strong>
+      <div><strong style="font-size:14px">📋 My Tasks</strong>
         <div style="font-size:11px;opacity:0.85;margin-top:2px">${mv==="assigned"
           ? `${byMe.length} assigned by you${pendBy?` · ${pendBy} awaiting confirmation`:""}`
           : `${mine.length} task(s)${pend?` · ${pend} awaiting your confirmation`:""}`}</div></div>
@@ -396,15 +396,15 @@ function slaChip(r){
       const end=r.completedAt?new Date(r.completedAt).getTime():(r.statusUpdatedAt?new Date(r.statusUpdatedAt).getTime():null);
       if(!end) return "";
       const took=hrs(end-created), ok=took<=sla.completeHrs;
-      return `<span style="font-size:10px;font-weight:800;padding:2px 8px;border-radius:9px;background:${ok?'#E8F5E9':'#FFEBEE'};color:${ok?'#2E7D32':'#C62828'}">${ok?'✔ SLA met':'✖ SLA breached'} · ${took}h</span>`;
+      return `<span style="font-size:10px;font-weight:800;padding:2px 8px;border-radius:8px;background:${ok?'#E8F5E9':'#FFEBEE'};color:${ok?'#2E7D32':'#C62828'}">${ok?'✔ SLA met':'✖ SLA breached'} · ${took}h</span>`;
     }
     const init=(typeof reqInitialStatus==="function")?reqInitialStatus():"new";
     const isNewR=((r.status||init)===init) && !r.respondedAt;
     const limit=(isNewR?sla.responseHrs:sla.completeHrs)*36e5;
     const left=created+limit-Date.now(), lab=isNewR?"response":"completion", lh=hrs(Math.abs(left));
-    if(left<0) return `<span style="font-size:10px;font-weight:800;padding:2px 8px;border-radius:9px;background:#C62828;color:#fff">⚠ ${lab} SLA · ${lh}h over</span>`;
+    if(left<0) return `<span style="font-size:10px;font-weight:800;padding:2px 8px;border-radius:8px;background:#C62828;color:#fff">⚠ ${lab} SLA · ${lh}h over</span>`;
     const warn=left<limit*0.25;
-    return `<span style="font-size:10px;font-weight:800;padding:2px 8px;border-radius:9px;background:${warn?'#FFF3E0':'#E3F2FD'};color:${warn?'#E65100':'#1565C0'}">⏱ ${lab}: ${lh}h left</span>`;
+    return `<span style="font-size:10px;font-weight:800;padding:2px 8px;border-radius:8px;background:${warn?'#FFF3E0':'#E3F2FD'};color:${warn?'#E65100':'#1565C0'}">⏱ ${lab}: ${lh}h left</span>`;
   }catch(e){ return ""; }
 }
 function renderRequests(){
@@ -504,18 +504,18 @@ function renderRequests(){
       <span style="font-size:10px;color:var(--muted)">— your time promise to clients</span>
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px;margin-top:8px">
-      <div style="border:1px solid var(--line);border-radius:10px;padding:10px 12px">
+      <div style="border:1px solid var(--line);border-radius:12px;padding:10px 12px">
         <div style="font-weight:800;font-size:12px;color:#1565C0">🫱 First Response</div>
-        <div style="font-size:10.5px;color:var(--muted);margin:3px 0 8px;line-height:1.45">Max time to REACT to a new request (its status leaves "New"). Answers the client's "did they even see it?"</div>
+        <div style="font-size:10px;color:var(--muted);margin:3px 0 8px;line-height:1.45">Max time to REACT to a new request (its status leaves "New"). Answers the client's "did they even see it?"</div>
         <div style="display:flex;align-items:center;gap:8px">
           <input type="number" min="1" value="${_sla.responseHrs}" style="width:76px;padding:7px 9px;border:1.5px solid var(--line);border-radius:8px;font-weight:800;font-size:14px" onchange="saveSLA('responseHrs',this.value)">
           <span style="font-size:12px;font-weight:700">hours</span>
           <span style="font-size:10px;color:var(--muted)">≈ ${(Math.round(_sla.responseHrs/24*10)/10)} day(s)</span>
         </div>
       </div>
-      <div style="border:1px solid var(--line);border-radius:10px;padding:10px 12px">
+      <div style="border:1px solid var(--line);border-radius:12px;padding:10px 12px">
         <div style="font-weight:800;font-size:12px;color:#2E7D32">🏁 Completion</div>
-        <div style="font-size:10.5px;color:var(--muted);margin:3px 0 8px;line-height:1.45">Max time to fully CLOSE the request (status becomes Completed). Your delivery promise.</div>
+        <div style="font-size:10px;color:var(--muted);margin:3px 0 8px;line-height:1.45">Max time to fully CLOSE the request (status becomes Completed). Your delivery promise.</div>
         <div style="display:flex;align-items:center;gap:8px">
           <input type="number" min="1" value="${_sla.completeHrs}" style="width:76px;padding:7px 9px;border:1.5px solid var(--line);border-radius:8px;font-weight:800;font-size:14px" onchange="saveSLA('completeHrs',this.value)">
           <span style="font-size:12px;font-weight:700">hours</span>
@@ -523,7 +523,7 @@ function renderRequests(){
         </div>
       </div>
     </div>
-    <div style="margin-top:10px;padding:8px 12px;background:var(--line);border-radius:8px;font-size:10.5px;color:var(--muted);line-height:1.5">
+    <div style="margin-top:10px;padding:8px 12px;background:var(--line);border-radius:8px;font-size:10px;color:var(--muted);line-height:1.5">
       ⚙️ Both timers start when a request is created. Every request card shows a live countdown chip: 🔵 on time → 🟠 &lt;25% left → 🔴 breached — and freezes on ✔/✖ when closed. Breaches also ring the 🔔 bell, and monthly compliance % appears in Analytics.
     </div>
   </div>`:''}<div class="card">
@@ -536,10 +536,10 @@ function renderRequests(){
     `<div style="display:flex;flex-direction:column;gap:10px">
       ${reqs.map(r=>{
         const client = (state.clients||[]).find(c=>c.id===r.clientId);
-        return `<div style="border:1px solid var(--line);border-left:4px solid ${reqStatusColor(r.status)};border-radius:10px;padding:14px">
+        return `<div style="border:1px solid var(--line);border-left:4px solid ${reqStatusColor(r.status)};border-radius:12px;padding:14px">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">
             <div style="flex:1;min-width:200px">
-              <div style="font-weight:800;font-size:15px;color:#1A202C">${escapeHtml(r.title)}</div>
+              <div style="font-weight:800;font-size:14px;color:#1A202C">${escapeHtml(r.title)}</div>
               <div style="font-size:11px;color:var(--muted);margin-top:3px">
                 🏢 ${escapeHtml(client?.name||"Unknown client")} · 📁 ${escapeHtml(r.project||"—")} · ${fmtDate((r.createdAt||"").slice(0,10))}
               </div>
@@ -549,7 +549,7 @@ function renderRequests(){
             </div>
             <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">
               ${reqStatusBadge(r.status)} ${slaChip(r)}
-              ${isAdmin()||isHR()?`<select onchange="updateRequestStatus('${r.id}',this.value)" style="padding:5px 10px;border:1px solid var(--line);border-radius:6px;font-size:12px;font-weight:600">
+              ${isAdmin()||isHR()?`<select onchange="updateRequestStatus('${r.id}',this.value)" style="padding:5px 10px;border:1px solid var(--line);border-radius:8px;font-size:12px;font-weight:600">
                 ${(()=>{const opts=getReqStatusList();const has=opts.some(o=>o.value===r.status);const all=has?opts:[{value:r.status,label:prettyStatus(r.status)},...opts];return all.map(o=>`<option value="${escapeHtml(o.value)}" ${r.status===o.value?"selected":""}>${o.label}</option>`).join("");})()}
               </select>`:""}
               ${isAdmin()?`<button class="btn btn-sm btn-danger" onclick="delRequest('${r.id}')">${ICN.del}</button>`:""}
@@ -693,7 +693,7 @@ async function updateRequestStatus(id, status){
 }
 async function delRequest(id){
   if(!isAdmin()) return;
-  if(!confirm("Delete this request?"))return;
+  if(!await uiConfirm("Delete this request?"))return;
   await fbDelete("clientRequests",id);
   toast("Request deleted");
 }

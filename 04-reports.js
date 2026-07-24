@@ -98,7 +98,7 @@ function renderTechReport(){
         <td style="font-weight:700">${escapeHtml(w.title)}<br><span style="font-size:10px;color:var(--muted)">${fmtDate(w.firstDate)}${w.visits>1?` → ${fmtDate(w.lastDate)}`:""}</span></td>
         <td style="font-size:11px">${escapeHtml(w.scopeLabel)}</td>
         <td style="font-size:10px;color:#456">${w.timeline.map(t=>escapeHtml(t.status)).join(" → ")}</td>
-        <td><span style="font-size:10px;background:${w.closed?'#E8F5E9':'#FFF3E0'};color:${w.closed?'#2E7D32':'#E65100'};padding:2px 8px;border-radius:9px;font-weight:800">${escapeHtml(w.status)}</span></td>
+        <td><span style="font-size:10px;background:${w.closed?'#E8F5E9':'#FFF3E0'};color:${w.closed?'#2E7D32':'#E65100'};padding:2px 8px;border-radius:8px;font-weight:800">${escapeHtml(w.status)}</span></td>
         <td>${w.visits}</td><td>${fmtHM(w.hours)}</td>
       </tr>`).join("")}</tbody>
     </table></div>
@@ -129,9 +129,9 @@ function renderTechReport(){
   h += `<div class="card">
     <div class="card-title">📊 Summary</div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:16px">
-      <div style="background:linear-gradient(135deg,#1B3A6B,#2E5FA3);color:white;border-radius:10px;padding:12px"><div style="font-size:11px;opacity:0.8">TOTAL TASKS</div><div style="font-size:24px;font-weight:800">${totalTasks}</div></div>
-      <div style="background:linear-gradient(135deg,#2E7D32,#43A047);color:white;border-radius:10px;padding:12px"><div style="font-size:11px;opacity:0.8">TOTAL HOURS</div><div style="font-size:24px;font-weight:800">${fmtHM(totalHours)}</div></div>
-      <div style="background:linear-gradient(135deg,#6A1B9A,#8E24AA);color:white;border-radius:10px;padding:12px"><div style="font-size:11px;opacity:0.8">WORK DAYS</div><div style="font-size:24px;font-weight:800">${workDays}</div></div>
+      <div style="background:linear-gradient(135deg,#1B3A6B,#2E5FA3);color:white;border-radius:12px;padding:12px"><div style="font-size:11px;opacity:0.8">TOTAL TASKS</div><div style="font-size:22px;font-weight:800">${totalTasks}</div></div>
+      <div style="background:linear-gradient(135deg,#2E7D32,#43A047);color:white;border-radius:12px;padding:12px"><div style="font-size:11px;opacity:0.8">TOTAL HOURS</div><div style="font-size:22px;font-weight:800">${fmtHM(totalHours)}</div></div>
+      <div style="background:linear-gradient(135deg,#6A1B9A,#8E24AA);color:white;border-radius:12px;padding:12px"><div style="font-size:11px;opacity:0.8">WORK DAYS</div><div style="font-size:22px;font-weight:800">${workDays}</div></div>
     </div>
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
@@ -139,7 +139,7 @@ function renderTechReport(){
         <div style="font-size:12px;font-weight:800;color:#C2185B;margin-bottom:6px">By Category</div>
         ${Object.keys(byCat).sort((a,b)=>byCat[b]-byCat[a]).map(c=>`
           <div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid #f0f0f0">
-            <span style="font-size:12px;color:#333"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${catColors[c]||'#999'};margin-right:6px"></span>${escapeHtml(c)}</span>
+            <span style="font-size:12px;color:#333"><span style="display:inline-block;width:10px;height:10px;border-radius:4px;background:${catColors[c]||'#999'};margin-right:6px"></span>${escapeHtml(c)}</span>
             <span style="font-weight:700;color:${catColors[c]||'#333'};font-size:13px">${byCat[c]}</span>
           </div>`).join("")}
       </div>
@@ -161,7 +161,7 @@ function renderTechReport(){
       <p style="font-size:11px;color:var(--muted);margin-bottom:10px">Select which columns appear in the table and exports. Saved for everyone.</p>
       <div style="display:flex;flex-wrap:wrap;gap:8px">
         ${TECH_COLUMNS.map(c=>`
-          <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer;background:${cols.includes(c.key)?'#F3E5F5':'#F7F7F7'};border:1px solid ${cols.includes(c.key)?'#CE93D8':'#ddd'};padding:5px 10px;border-radius:14px">
+          <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer;background:${cols.includes(c.key)?'#F3E5F5':'#F7F7F7'};border:1px solid ${cols.includes(c.key)?'#CE93D8':'#ddd'};padding:5px 10px;border-radius:16px">
             <input type="checkbox" ${cols.includes(c.key)?'checked':''} onchange="toggleTechCol('${c.key}')" style="cursor:pointer">
             ${escapeHtml(c.label)}
           </label>`).join("")}
@@ -217,19 +217,19 @@ function renderDailyLogReport(){
   return `<div class="card" style="border-left:4px solid #03308B">
     <div class="sec-hdr">📋 Daily Log Report</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
-      <div style="border:1px solid var(--line);border-radius:10px;padding:12px;background:#F8FAFD">
+      <div style="border:1px solid var(--line);border-radius:12px;padding:12px;background:#F8FAFD">
         <div style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:1px">Period</div>
         <div style="font-weight:800;color:#03308B;margin-top:3px;font-size:13px">📅 ${period}</div>
       </div>
-      <div style="border:1px solid var(--line);border-radius:10px;padding:12px;background:#F8FAFD">
+      <div style="border:1px solid var(--line);border-radius:12px;padding:12px;background:#F8FAFD">
         <div style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:1px">Entries in report</div>
         <div style="font-family:'DM Serif Display',serif;font-size:22px;color:#03308B;margin-top:2px">${rows.length}</div>
       </div>
     </div>
-    <p style="font-size:11.5px;color:var(--muted);margin:0 0 14px;line-height:1.6">This report follows the header <strong>period</strong> and all <strong>global filters</strong> (branch, employee, project, work type…). Adjust them, then export.</p>
+    <p style="font-size:11px;color:var(--muted);margin:0 0 14px;line-height:1.6">This report follows the header <strong>period</strong> and all <strong>global filters</strong> (branch, employee, project, work type…). Adjust them, then export.</p>
     <div style="display:flex;gap:10px;flex-wrap:wrap">
-      <button onclick="exportDailyPDF()" style="flex:1;min-width:150px;background:#03308B;color:#C9A84C;border:none;padding:14px;border-radius:10px;font-weight:800;font-size:13px;cursor:pointer;box-shadow:0 3px 10px rgba(27,58,107,0.22)">📄 Export PDF</button>
-      <button onclick="exportDailyExcel()" style="flex:1;min-width:150px;background:#1B5E20;color:#fff;border:none;padding:14px;border-radius:10px;font-weight:800;font-size:13px;cursor:pointer;box-shadow:0 3px 10px rgba(27,94,32,0.22)">📊 Export Excel</button>
+      <button onclick="exportDailyPDF()" style="flex:1;min-width:150px;background:#03308B;color:#C9A84C;border:none;padding:14px;border-radius:12px;font-weight:800;font-size:13px;cursor:pointer;box-shadow:0 3px 10px rgba(27,58,107,0.22)">📄 Export PDF</button>
+      <button onclick="exportDailyExcel()" style="flex:1;min-width:150px;background:#1B5E20;color:#fff;border:none;padding:14px;border-radius:12px;font-weight:800;font-size:13px;cursor:pointer;box-shadow:0 3px 10px rgba(27,94,32,0.22)">📊 Export Excel</button>
     </div>
   </div>`;
 }
@@ -245,7 +245,7 @@ function renderHRReport(){
   let h=`<div class="card" style="background:linear-gradient(135deg,#1B3A6B 0%,#2E5FA3 100%);color:white;border:2px solid #C9A84C;position:relative;overflow:hidden">
     <div style="position:absolute;top:0;right:0;width:120px;height:120px;background:radial-gradient(circle,#C9A84C22,transparent);border-radius:50%"></div>
     <div style="display:flex;align-items:center;gap:14px;position:relative">
-      <div style="width:56px;height:56px;border:2px solid #C9A84C;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:#1B3A6B">
+      <div style="width:56px;height:56px;border:2px solid #C9A84C;border-radius:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:#1B3A6B">
         <span style="font-family:'DM Serif Display',serif;font-size:18px;color:#C9A84C;font-weight:700">EJAF</span>
       </div>
       <div style="flex:1;min-width:0">
@@ -269,29 +269,29 @@ function renderHRReport(){
   const hv = window._hrView || "summary";
   h += _pills('_hrView',[{id:"summary",ic:"📊",lb:"Summary"},{id:"daily",ic:"👥",lb:"Daily"},{id:"leaves",ic:"🏖️",lb:"Leaves"},{id:"overtime",ic:"⏱️",lb:"Overtime"},{id:"travel",ic:"✈️",lb:"Travel"}]);
   if(hv==="summary") h+=`<div class="card">
-    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">01</span> Executive Summary</div>
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">01</span> Executive Summary</div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-top:10px">
-      <div style="border:1px solid var(--line);border-left:4px solid #2E5FA3;border-radius:8px;padding:12px;background:white">
+      <div style="border:1px solid var(--line);border-left:4px solid #2E5FA3;border-radius:8px;padding:12px;background:var(--card)">
         <div style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:1px">Total Hours</div>
         <div style="font-family:'DM Serif Display',serif;font-size:22px;color:#2E5FA3;margin-top:2px">${fmtHM(tot("total"))}</div>
         <div style="font-size:10px;color:var(--muted)">${applyReportFilters(state.daily).length} sessions</div>
       </div>
-      <div style="border:1px solid var(--line);border-left:4px solid #E65100;border-radius:8px;padding:12px;background:white">
+      <div style="border:1px solid var(--line);border-left:4px solid #E65100;border-radius:8px;padding:12px;background:var(--card)">
         <div style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:1px">Overtime</div>
         <div style="font-family:'DM Serif Display',serif;font-size:22px;color:#E65100;margin-top:2px">${fmtHM(tot("ot"))}</div>
         <div style="font-size:10px;color:var(--muted)">${applyReportFilters(state.overtime).length} entries</div>
       </div>
-      <div style="border:1px solid var(--line);border-left:4px solid #2E7D32;border-radius:8px;padding:12px;background:white">
+      <div style="border:1px solid var(--line);border-left:4px solid #2E7D32;border-radius:8px;padding:12px;background:var(--card)">
         <div style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:1px">Travel Days</div>
         <div style="font-family:'DM Serif Display',serif;font-size:22px;color:#2E7D32;margin-top:2px">${tot("tDays")}</div>
         <div style="font-size:10px;color:var(--muted)">${applyReportFilters(state.travel).length} trips</div>
       </div>
-      <div style="border:1px solid var(--line);border-left:4px solid #6A1B9A;border-radius:8px;padding:12px;background:white">
+      <div style="border:1px solid var(--line);border-left:4px solid #6A1B9A;border-radius:8px;padding:12px;background:var(--card)">
         <div style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:1px">Per Diem</div>
         <div style="font-family:'DM Serif Display',serif;font-size:22px;color:#6A1B9A;margin-top:2px">${fmtMoney(tot("pd"))}</div>
         <div style="font-size:10px;color:var(--muted)">IQD total</div>
       </div>
-      <div style="border:1px solid var(--line);border-left:4px solid #C62828;border-radius:8px;padding:12px;background:white">
+      <div style="border:1px solid var(--line);border-left:4px solid #C62828;border-radius:8px;padding:12px;background:var(--card)">
         <div style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:1px">Leave Days</div>
         <div style="font-family:'DM Serif Display',serif;font-size:22px;color:#C62828;margin-top:2px">${totalLeaveDays.toFixed(2)}</div>
         <div style="font-size:10px;color:var(--muted)">${applyReportFilters(state.leaves,"from").length} entries</div>
@@ -301,7 +301,7 @@ function renderHRReport(){
 
   // ═══════ STAFF WORK SUMMARY (Section 2) ═══════
   if(hv==="daily") h+=`<div class="card">
-    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">02</span> Staff Work Summary</div>
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">02</span> Staff Work Summary</div>
     <div class="tbl-wrap"><table class="tbl">
       <thead><tr style="background:linear-gradient(135deg,#1B3A6B,#2E5FA3);color:white"><th style="color:white">Employee</th>${state.departments.map(d=>`<th style="color:white;border-bottom:3px solid ${d.color}">${escapeHtml(d.name.slice(0,8))}</th>`).join("")}<th style="color:white">Total</th><th style="color:white">OT</th><th style="color:white">Travel</th><th style="color:white">Per Diem</th><th style="color:white">Leave</th></tr></thead>
       <tbody>${s.map((r,idx)=>`<tr style="background:${idx%2?'#F5F8FC':'white'}">
@@ -327,15 +327,15 @@ function renderHRReport(){
   // ═══════ LEAVES SECTION (Section 3) — NEW ═══════
   if(hv==="leaves"){
   h+=`<div class="card">
-    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">03</span> Employee Leaves</div>
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">03</span> Employee Leaves</div>
     ${state.leaves.length===0?`<div class="empty">No leaves recorded</div>`:`
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;margin-bottom:14px">
       ${LEAVE_TYPES.map(lt=>{
         const total = s.reduce((sum,r)=>sum+(r.leaveBreakdown?.[lt.id]||0),0);
         if(total===0) return '';
-        return `<div style="border:1px solid var(--line);border-left:4px solid ${lt.color};border-radius:8px;padding:10px;background:white">
+        return `<div style="border:1px solid var(--line);border-left:4px solid ${lt.color};border-radius:8px;padding:10px;background:var(--card)">
           <div style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:0.5px">${lt.label}</div>
-          <div style="font-family:'DM Serif Display',serif;font-size:20px;color:${lt.color};margin-top:2px">${fmtDays(total)}</div>
+          <div style="font-family:'DM Serif Display',serif;font-size:18px;color:${lt.color};margin-top:2px">${fmtDays(total)}</div>
           <div style="font-size:10px;color:var(--muted)">days</div>
         </div>`;
       }).filter(Boolean).join("")}
@@ -368,14 +368,14 @@ function renderHRReport(){
   // ═══════ OVERTIME (Section 4) ═══════
   if(hv==="overtime"){
   h+=`<div class="card">
-    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">04</span> Overtime by Employee</div>`;
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">04</span> Overtime by Employee</div>`;
   emps.forEach(emp=>{
     const my=applyReportFilters(state.overtime).filter(r=>r.employee===emp);
     const sub=my.reduce((a,r)=>a+Number(r.hours||0),0);
-    h+=`<div style="border:1px solid var(--line);border-radius:10px;margin-bottom:10px;overflow:hidden;border-left:4px solid #E65100">
+    h+=`<div style="border:1px solid var(--line);border-radius:12px;margin-bottom:10px;overflow:hidden;border-left:4px solid #E65100">
       <div style="background:linear-gradient(135deg,#1B3A6B,#2E5FA3);color:white;padding:8px 12px;font-weight:700;font-size:12px;display:flex;justify-content:space-between;align-items:center">
         <span>▶ ${employeeBadge(emp)}</span>
-        <span style="background:#C9A84C;color:#1B3A6B;padding:2px 10px;border-radius:10px;font-size:11px">${my.length} entries</span>
+        <span style="background:#C9A84C;color:#1B3A6B;padding:2px 10px;border-radius:12px;font-size:11px">${my.length} entries</span>
       </div>
       ${my.length===0?`<div class="empty">No overtime</div>`:`<div class="tbl-wrap"><table class="tbl">
         <thead><tr><th>Date</th><th>Day</th><th>Hrs</th><th>Project</th><th>Location</th></tr></thead>
@@ -389,15 +389,15 @@ function renderHRReport(){
   // ═══════ TRAVEL (Section 5) ═══════
   if(hv==="travel"){
   h+=`<div class="card">
-    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">05</span> Travel by Employee</div>`;
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">05</span> Travel by Employee</div>`;
   emps.forEach(emp=>{
     const my=applyReportFilters(state.travel).filter(r=>r.employee===emp);
     const sd=my.reduce((a,r)=>a+Number(r.days||0),0);
     const sp=my.reduce((a,r)=>a+Number(r.perDiem||0),0);
-    h+=`<div style="border:1px solid var(--line);border-radius:10px;margin-bottom:10px;overflow:hidden;border-left:4px solid #2E7D32">
+    h+=`<div style="border:1px solid var(--line);border-radius:12px;margin-bottom:10px;overflow:hidden;border-left:4px solid #2E7D32">
       <div style="background:linear-gradient(135deg,#1B3A6B,#2E5FA3);color:white;padding:8px 12px;font-weight:700;font-size:12px;display:flex;justify-content:space-between;align-items:center">
         <span>▶ ${employeeBadge(emp)}</span>
-        <span style="background:#C9A84C;color:#1B3A6B;padding:2px 10px;border-radius:10px;font-size:11px">${my.length} trips</span>
+        <span style="background:#C9A84C;color:#1B3A6B;padding:2px 10px;border-radius:12px;font-size:11px">${my.length} trips</span>
       </div>
       ${my.length===0?`<div class="empty">No travel</div>`:`<div class="tbl-wrap"><table class="tbl">
         <thead><tr><th>From</th><th>To</th><th>Days</th><th>Project</th><th>Location</th><th>Per Diem</th></tr></thead>
@@ -596,7 +596,7 @@ function renderAnalytics(){
   return `
   <div class="card" style="background:linear-gradient(135deg,#1B3A6B,#2E5FA3);border:none;color:white">
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
-      <div><div style="font-size:17px;font-weight:800">📊 Smart Analytics</div>
+      <div><div style="font-size:16px;font-weight:800">📊 Smart Analytics</div>
       <div style="font-size:11px;opacity:.75;margin-top:2px">All-time & recent trends · independent of the period filter · works offline</div></div>
       <div style="text-align:right"><div style="font-size:22px;font-weight:800;color:#C9A84C">${fmtHM(curM)}</div>
       <div style="font-size:10px;opacity:.8">this month ${_anDelta(curM,prevM)}</div></div>
@@ -700,7 +700,7 @@ function renderExecutive(){
   const sevc={high:"#C62828",med:"#E65100",low:"#2E5FA3"};
   return `
   <div class="card" style="background:linear-gradient(135deg,#101F3C,#1B3A6B);border:1px solid #C9A84C;color:#fff">
-    <div style="font-size:17px;font-weight:800">👑 Executive View</div>
+    <div style="font-size:16px;font-weight:800">👑 Executive View</div>
     <div style="font-size:11px;opacity:.72;margin-top:2px">${now.toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long",year:"numeric"})} · live company snapshot</div>
   </div>
   <div class="ex-grid">
@@ -715,8 +715,8 @@ function renderExecutive(){
     <div class="card-title">⚡ Needs leadership attention</div>
     ${alerts.map((al,i)=>`<button class="ex-al" onclick="(window._alertsCache=computeAlerts())&&_alertGo(${i})">
       <span style="width:7px;height:7px;border-radius:4px;background:${sevc[al.sev]};flex:0 0 auto"></span>
-      <span style="font-size:15px">${al.icon}</span>
-      <span style="flex:1;text-align:left"><span style="font-weight:800;font-size:12.5px;display:block">${escapeHtml(al.title)}</span><span style="font-size:10.5px;color:var(--muted)">${escapeHtml(al.meta||"")}</span></span>
+      <span style="font-size:14px">${al.icon}</span>
+      <span style="flex:1;text-align:left"><span style="font-weight:800;font-size:12px;display:block">${escapeHtml(al.title)}</span><span style="font-size:10px;color:var(--muted)">${escapeHtml(al.meta||"")}</span></span>
       <span style="color:#C9A84C;font-weight:800">›</span></button>`).join("")}
   </div>`:`<div class="card"><div class="empty empty2"><span class="e-ic">✅</span><div class="e-t">All clear</div><div class="e-m">Nothing needs leadership intervention right now</div></div></div>`}
   <div class="card">
@@ -765,7 +765,7 @@ function permsMatrixHTML(){
   return `
   <div class="card" style="border-left:4px solid #C9A84C">
     <div class="card-title">🔐 Permissions</div>
-    <p style="font-size:11.5px;color:var(--muted);margin:4px 0 0;line-height:1.6">Grant extra capabilities to specific people without changing their role. Admins always have everything; HR keeps its built-in access. Changes apply the moment the person's app refreshes.</p>
+    <p style="font-size:11px;color:var(--muted);margin:4px 0 0;line-height:1.6">Grant extra capabilities to specific people without changing their role. Admins always have everything; HR keeps its built-in access. Changes apply the moment the person's app refreshes.</p>
   </div>
   <div class="card">
     <div class="tbl-wrap"><table class="tbl">

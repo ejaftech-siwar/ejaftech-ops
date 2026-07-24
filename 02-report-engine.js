@@ -95,15 +95,15 @@ function buildReportHTML(refNo, reportType, periodLabel, bodyHTML){
   const css=`
     @page{margin:0;size:A4}
     *{margin:0;padding:0;box-sizing:border-box}
-    body{font-family:'Segoe UI',Arial,sans-serif;color:#1A1A2E;font-size:11px;line-height:1.4;background:#fff}
+    body{font-family:'Segoe UI',Arial,sans-serif;color:#1A1A2E;font-size:11px;line-height:1.4;background:#FFFFFF}
 
     /* HEADER */
     .rh{background:linear-gradient(135deg,#03308B 0%,#1a4db5 60%,#0a1628 100%);
         padding:20px 26px;display:flex;justify-content:space-between;align-items:flex-start;
         -webkit-print-color-adjust:exact;print-color-adjust:exact}
     .rlrow{display:flex;align-items:center;gap:13px}
-    .rlmark{border-radius:6px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.28);-webkit-print-color-adjust:exact;print-color-adjust:exact}
-    .rl{color:white;font-size:19px;font-weight:800;letter-spacing:1.4px;line-height:1.15;text-transform:uppercase}
+    .rlmark{border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.28);-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    .rl{color:white;font-size:18px;font-weight:800;letter-spacing:1.4px;line-height:1.15;text-transform:uppercase}
     .rl span{color:#C9A84C}
     .rs{color:rgba(255,255,255,.62);font-size:10px;margin-top:5px;letter-spacing:.4px}
     .rt{color:rgba(255,255,255,.45);font-size:9px;text-transform:uppercase;letter-spacing:1px;margin-top:2px}
@@ -129,8 +129,8 @@ function buildReportHTML(refNo, reportType, periodLabel, bodyHTML){
     .kr{display:flex;gap:8px;margin:14px 0}
     .kc{flex:1;padding:12px;border-radius:8px;border-left:4px solid;background:#f8faff;
         page-break-inside:avoid;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-    .kl{font-size:8px;text-transform:uppercase;letter-spacing:1px;color:#888}
-    .kv{font-size:19px;font-weight:700;margin-top:2px}
+    .kl{font-size:9px;text-transform:uppercase;letter-spacing:1px;color:#888}
+    .kv{font-size:18px;font-weight:700;margin-top:2px}
     .ks{font-size:9px;color:#888;margin-top:1px}
     .kb{border-color:#03308B}.kb .kv{color:#03308B}
     .ko{border-color:#E65100}.ko .kv{color:#E65100}
@@ -139,7 +139,7 @@ function buildReportHTML(refNo, reportType, periodLabel, bodyHTML){
     .krd{border-color:#C62828}.krd .kv{color:#C62828}
 
     /* TABLES */
-    table{width:100%;border-collapse:collapse;margin:8px 0;font-size:10px;border-radius:6px;overflow:hidden}
+    table{width:100%;border-collapse:collapse;margin:8px 0;font-size:10px;border-radius:8px;overflow:hidden}
     thead tr{background:#03308B;-webkit-print-color-adjust:exact;print-color-adjust:exact}
     thead th{color:white;padding:9px 10px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:.5px;font-weight:700}
     tbody tr:nth-child(even) td{background:#f0f4ff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
@@ -166,8 +166,8 @@ function buildReportHTML(refNo, reportType, periodLabel, bodyHTML){
 
     .empty{padding:14px;text-align:center;color:#888;font-style:italic;font-size:10px}
     .actions{padding:12px;background:#FFF8E1;border:1px solid #FFE082;border-radius:8px;margin-bottom:14px;text-align:center;font-size:13px;color:#7F6000}
-    .actions button{background:#03308B;color:#C9A84C;border:none;padding:10px 24px;border-radius:6px;font-weight:700;cursor:pointer;font-size:13px;margin:0 4px}
-    .lv-badge{padding:2px 8px;border-radius:10px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;display:inline-block}
+    .actions button{background:#03308B;color:#C9A84C;border:none;padding:10px 24px;border-radius:8px;font-weight:700;cursor:pointer;font-size:13px;margin:0 4px}
+    .lv-badge{padding:2px 8px;border-radius:12px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;display:inline-block}
     /* EJAF watermark — light blue, tilted, centered on every printed page */
     .wm{position:fixed;top:0;left:0;width:100%;height:100%;z-index:0;pointer-events:none;
         display:flex;align-items:center;justify-content:center;-webkit-print-color-adjust:exact;print-color-adjust:exact}
@@ -428,7 +428,7 @@ async function exportDailyPDF(){
     const dh = rows.filter(r=>r.dept===d.name).reduce((s,r)=>s+Number(r.duration||0),0);
     const dc = rows.filter(r=>r.dept===d.name).length;
     if(!dh && !dc) return '';
-    return `<tr><td><span style="background:${d.color}22;color:${d.color};padding:2px 8px;border-radius:10px;font-weight:700;font-size:10px">${escapeHtml(d.name)}</span></td>
+    return `<tr><td><span style="background:${d.color}22;color:${d.color};padding:2px 8px;border-radius:12px;font-weight:700;font-size:10px">${escapeHtml(d.name)}</span></td>
       <td style="color:${d.color};font-weight:700">${fmtHM(dh)}</td><td>${dc}</td></tr>`;
   }).filter(Boolean).join('');
 
@@ -446,7 +446,7 @@ async function exportDailyPDF(){
     <td>${fmtDate(r.date)}</td>
     <td style="font-size:10px;color:#555;white-space:nowrap">${r.start&&r.end?`${r.start}–${r.end}`:'—'}</td>
     <td><strong style="color:#03308B">${escapeHtml(r.employee||'')}</strong></td>
-    <td>${escapeHtml(r.project||'')}${(r.area||r.site)?`<br><span style="font-size:9px;color:#1565C0">${r.area?`🗺️ ${escapeHtml(r.area)}`:''}${r.site?` · 📍 ${escapeHtml(r.site)}`:''}</span>`:''}${(r.taskCategory||r.taskStatus||r.workType)?`<br><span style="font-size:8px;color:#6A1B9A">${r.taskCategory?escapeHtml(r.taskCategory):''}${r.taskSubcategory?'›'+escapeHtml(r.taskSubcategory):''}${r.taskStatus?` · ${escapeHtml(r.taskStatus)}`:''}${r.workType?` · ${escapeHtml(r.workType)}`:''}</span>`:''}</td>
+    <td>${escapeHtml(r.project||'')}${(r.area||r.site)?`<br><span style="font-size:9px;color:#1565C0">${r.area?`🗺️ ${escapeHtml(r.area)}`:''}${r.site?` · 📍 ${escapeHtml(r.site)}`:''}</span>`:''}${(r.taskCategory||r.taskStatus||r.workType)?`<br><span style="font-size:9px;color:#6A1B9A">${r.taskCategory?escapeHtml(r.taskCategory):''}${r.taskSubcategory?'›'+escapeHtml(r.taskSubcategory):''}${r.taskStatus?` · ${escapeHtml(r.taskStatus)}`:''}${r.workType?` · ${escapeHtml(r.workType)}`:''}</span>`:''}</td>
     <td><span style="background:${(state.departments.find(d=>d.name===r.dept)||{color:'#888'}).color}22;color:${(state.departments.find(d=>d.name===r.dept)||{color:'#888'}).color};padding:2px 7px;border-radius:8px;font-size:10px;font-weight:700">${escapeHtml(r.dept||'')}</span></td>
     <td>${r.location?`<span style="background:#E3F2FD;color:#1565C0;padding:2px 7px;border-radius:8px;font-size:10px">📍 ${escapeHtml(r.location)}</span>`:'—'}${r.gpsLat?` <a href="${gpsMapLink(r.gpsLat,r.gpsLng)}" style="font-size:9px;color:#2E7D32;font-weight:700;text-decoration:none">🛰️ Map</a>`:r.gpsDenied?` <span style="font-size:9px;color:#C62828">🚫 GPS</span>`:''}</td>
     <td style="color:#2E7D32;font-weight:700">${fmtHM(r.duration)}</td>
@@ -457,8 +457,8 @@ async function exportDailyPDF(){
     <div class="actions no-print" style="padding:10px;background:#FFF8E1;border:1px solid #FFE082;border-radius:8px;margin-bottom:14px;text-align:center;font-size:13px;color:#7F6000">
       📄 Choose <strong>"Save as PDF"</strong> in the print dialog
       <br><br>
-      <button onclick="window.print()" style="background:#03308B;color:#C9A84C;border:none;padding:10px 24px;border-radius:6px;font-weight:700;cursor:pointer;font-size:13px">🖨️ Print / Save as PDF</button>
-      <button onclick="window.close()" style="background:#888;color:white;border:none;padding:10px 20px;border-radius:6px;font-weight:700;cursor:pointer;font-size:13px;margin-left:6px">Close</button>
+      <button onclick="window.print()" style="background:#03308B;color:#C9A84C;border:none;padding:10px 24px;border-radius:8px;font-weight:700;cursor:pointer;font-size:13px">🖨️ Print / Save as PDF</button>
+      <button onclick="window.close()" style="background:#888;color:white;border:none;padding:10px 20px;border-radius:8px;font-weight:700;cursor:pointer;font-size:13px;margin-left:6px">Close</button>
     </div>
     <div class="ksec"><span class="kbad">01</span><h3>Executive Summary${reportFilterLabel()?' — '+reportFilterLabel():''}</h3></div>
     <div class="kr">
@@ -667,7 +667,7 @@ async function exportPDF(){
     const t=s.reduce((sum,r)=>sum+(r.leaveBreakdown?.[lt.id]||0),0);
     if(!t)return '';
     return `<div class="kc" style="border-left-color:${lt.color};flex:0 0 auto;min-width:100px;padding:10px">
-      <div class="kl">${lt.label}</div><div class="kv" style="color:${lt.color};font-size:17px">${fmtDays(t)}</div><div class="ks">days</div></div>`;
+      <div class="kl">${lt.label}</div><div class="kv" style="color:${lt.color};font-size:16px">${fmtDays(t)}</div><div class="ks">days</div></div>`;
   }).filter(Boolean).join('');
 
   // Leave blocks
@@ -720,8 +720,8 @@ async function exportPDF(){
   const bodyHTML=`
     <div class="actions no-print" style="padding:10px;background:#FFF8E1;border:1px solid #FFE082;border-radius:8px;margin-bottom:14px;text-align:center;font-size:13px;color:#7F6000">
       📄 In the print dialog, choose <strong>"Save as PDF"</strong>
-      <br><br><button onclick="window.print()" style="background:#03308B;color:#C9A84C;border:none;padding:10px 24px;border-radius:6px;font-weight:700;cursor:pointer;font-size:13px">🖨️ Print / Save as PDF</button>
-      <button onclick="window.close()" style="background:#888;color:white;border:none;padding:10px 20px;border-radius:6px;font-weight:700;cursor:pointer;font-size:13px;margin-left:6px">Close</button>
+      <br><br><button onclick="window.print()" style="background:#03308B;color:#C9A84C;border:none;padding:10px 24px;border-radius:8px;font-weight:700;cursor:pointer;font-size:13px">🖨️ Print / Save as PDF</button>
+      <button onclick="window.close()" style="background:#888;color:white;border:none;padding:10px 20px;border-radius:8px;font-weight:700;cursor:pointer;font-size:13px;margin-left:6px">Close</button>
     </div>
     <div class="ksec"><span class="kbad">01</span><h3>Executive Summary</h3></div>
     ${kpiCards}

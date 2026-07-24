@@ -28,7 +28,7 @@ function renderWorkInstructions(){
         </div>
         <div class="field full"><label>Color</label>
           <div style="display:flex;gap:6px;flex-wrap:wrap">
-            ${colorChoices.map(c=>`<div onclick="window.wiCategoryForm.color='${c}';render()" style="width:28px;height:28px;border-radius:6px;background:${c};cursor:pointer;border:${c===wiCategoryForm.color?'3px solid #1B3A6B':'1px solid #E0E6ED'};box-shadow:0 2px 4px rgba(0,0,0,0.1)"></div>`).join("")}
+            ${colorChoices.map(c=>`<div onclick="window.wiCategoryForm.color='${c}';render()" style="width:28px;height:28px;border-radius:8px;background:${c};cursor:pointer;border:${c===wiCategoryForm.color?'3px solid #1B3A6B':'1px solid #E0E6ED'};box-shadow:0 2px 4px rgba(0,0,0,0.1)"></div>`).join("")}
           </div>
         </div>
       </div>
@@ -43,7 +43,7 @@ function renderWorkInstructions(){
       <div style="display:flex;align-items:center;gap:10px">
         <div style="font-size:28px">💻</div>
         <div>
-          <div style="font-size:15px;font-weight:800;color:#03308B;margin-bottom:2px">Work Instructions — IT Access</div>
+          <div style="font-size:14px;font-weight:800;color:#03308B;margin-bottom:2px">Work Instructions — IT Access</div>
           <div style="font-size:12px;color:#0277BD;font-weight:600">You can view all instructions and add new tasks to existing categories. Category management is Admin only.</div>
         </div>
       </div>
@@ -54,7 +54,7 @@ function renderWorkInstructions(){
       <div style="display:flex;align-items:center;gap:10px">
         <div style="font-size:28px">📖</div>
         <div>
-          <div style="font-size:15px;font-weight:800;color:#1B3A6B;margin-bottom:2px">Work Instructions — Reference Library</div>
+          <div style="font-size:14px;font-weight:800;color:#1B3A6B;margin-bottom:2px">Work Instructions — Reference Library</div>
           <div style="font-size:12px;color:#1565C0;font-weight:600">View-only access. Contact your administrator to add or modify content.</div>
         </div>
       </div>
@@ -67,7 +67,7 @@ function renderWorkInstructions(){
     ${cats.length === 0 ? `<div class="empty">${canEdit ? 'No categories. Add one above to begin.' : 'No instructions available yet. Please check back later.'}</div>` : `
       <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:${canEdit ? '8px' : '0'}">
         ${cats.map(c => `
-          <div onclick="window.wiActiveCategory='${escapeHtml(c.name)}';render()" style="cursor:pointer;padding:8px 14px;background:${c.name===wiActiveCategory ? c.color : 'white'};color:${c.name===wiActiveCategory ? 'white' : c.color};border:2px solid ${c.color};border-radius:20px;font-size:13px;font-weight:700;display:flex;align-items:center;gap:6px;transition:all 0.2s">
+          <div onclick="window.wiActiveCategory='${escapeHtml(c.name)}';render()" style="cursor:pointer;padding:8px 14px;background:${c.name===wiActiveCategory ? c.color : 'white'};color:${c.name===wiActiveCategory ? 'white' : c.color};border:2px solid ${c.color};border-radius:16px;font-size:13px;font-weight:700;display:flex;align-items:center;gap:6px;transition:all 0.2s">
             <span>${c.icon||"📁"}</span>
             <span>${escapeHtml(c.name)}</span>
             <span style="font-size:10px;background:${c.name===wiActiveCategory ? 'rgba(255,255,255,0.25)' : c.color+'22'};padding:1px 6px;border-radius:8px">${state.workTasks.filter(t=>t.category===c.name).length}</span>
@@ -105,7 +105,7 @@ function renderWorkInstructions(){
           <div class="field full"><label>Document Display Name</label>
             <input value="${escapeHtml(wiTaskForm.fileName||"")}" oninput="window.wiTaskForm.fileName=this.value" placeholder="e.g., Cisco Switch Manual.pdf, Datasheet.docx"></div>
           <div class="field full"><label>Workflow / Solution / Instructions <span class="req">*</span></label>
-            <textarea rows="6" oninput="window.wiTaskForm.description=this.value" placeholder="Step-by-step instructions, troubleshooting workflow, how to handle this task..." style="width:100%;padding:10px;border:1px solid var(--line);border-radius:6px;font-family:inherit;font-size:13px;resize:vertical">${escapeHtml(wiTaskForm.description||"")}</textarea>
+            <textarea rows="6" oninput="window.wiTaskForm.description=this.value" placeholder="Step-by-step instructions, troubleshooting workflow, how to handle this task..." style="width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;font-family:inherit;font-size:13px;resize:vertical">${escapeHtml(wiTaskForm.description||"")}</textarea>
             <div style="font-size:10px;color:var(--muted);margin-top:3px">${(wiTaskForm.description||"").length} chars · Markdown line breaks supported</div>
           </div>
         </div>
@@ -122,10 +122,10 @@ function renderWorkInstructions(){
       ${activeTasks.length === 0 ? `<div class="empty">${canEdit ? 'No tasks yet in this category. Add the first one above.' : 'No tasks in this category yet.'}</div>` : `
         <div style="display:flex;flex-direction:column;gap:10px">
           ${activeTasks.map(t => `
-            <div style="background:white;border:1px solid var(--line);border-left:4px solid ${catColor};border-radius:10px;padding:14px">
+            <div style="background:var(--card);border:1px solid var(--line);border-left:4px solid ${catColor};border-radius:12px;padding:14px">
               <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:8px">
                 <div style="flex:1">
-                  <div style="font-size:15px;font-weight:700;color:#1B3A6B;margin-bottom:3px">${escapeHtml(t.name)}</div>
+                  <div style="font-size:14px;font-weight:700;color:#1B3A6B;margin-bottom:3px">${escapeHtml(t.name)}</div>
                   <div style="font-size:11px;color:var(--muted)">${escapeHtml(t.category)}${t.fileName ? ` · ${escapeHtml(t.fileName)}` : ''}</div>
                 </div>
                 ${canEdit ? `
@@ -137,14 +137,14 @@ function renderWorkInstructions(){
               </div>
               ${t.fileLink ? `
                 <div style="margin-bottom:8px">
-                  <a href="${escapeHtml(t.fileLink)}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;background:#E3F2FD;color:#1565C0;text-decoration:none;border-radius:6px;font-size:12px;font-weight:700;border:1px solid #1565C0">
+                  <a href="${escapeHtml(t.fileLink)}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;background:#E3F2FD;color:#1565C0;text-decoration:none;border-radius:8px;font-size:12px;font-weight:700;border:1px solid #1565C0">
                     📄 ${escapeHtml(t.fileName||"Open document")}
                   </a>
-                  ${canEdit ? `<button onclick="removeWITaskFile('${t.id}')" style="margin-left:6px;background:#FEE;color:#C53030;border:1px solid #C53030;padding:5px 10px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer" title="Admin: Remove file link">×</button>` : ''}
+                  ${canEdit ? `<button onclick="removeWITaskFile('${t.id}')" style="margin-left:6px;background:#FEE;color:#C53030;border:1px solid #C53030;padding:5px 10px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer" title="Admin: Remove file link">×</button>` : ''}
                 </div>
               ` : ''}
               ${t.description ? `
-                <div style="background:#F7FAFC;padding:10px 12px;border-radius:6px;font-size:12.5px;line-height:1.7;color:#1A202C;white-space:pre-wrap">${escapeHtml(t.description)}</div>
+                <div style="background:#F7FAFC;padding:10px 12px;border-radius:8px;font-size:12px;line-height:1.7;color:#1A202C;white-space:pre-wrap">${escapeHtml(t.description)}</div>
               ` : ''}
             </div>
           `).join("")}
@@ -160,7 +160,7 @@ function renderWorkInstructions(){
 // UI that previously lived inside Work Instructions.
 function _pills(stateVar, views){
   const cur = window[stateVar] || views[0].id;
-  return `<div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap">${views.map(v=>`<button onclick="window.${stateVar}='${v.id}';window.__navFade=true;render()" style="flex:1;min-width:86px;padding:10px 6px;border:none;border-radius:9px;font-weight:800;font-size:11.5px;cursor:pointer;background:${cur===v.id?'#03308B':'#E8EEF7'};color:${cur===v.id?'#C9A84C':'#1B3A6B'}">${v.ic} ${v.lb}</button>`).join("")}</div>`;
+  return `<div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap">${views.map(v=>`<button onclick="window.${stateVar}='${v.id}';window.__navFade=true;render()" style="flex:1;min-width:86px;padding:10px 6px;border:none;border-radius:8px;font-weight:800;font-size:11px;cursor:pointer;background:${cur===v.id?'#03308B':'#E8EEF7'};color:${cur===v.id?'#C9A84C':'#1B3A6B'}">${v.ic} ${v.lb}</button>`).join("")}</div>`;
 }
 
 function renderTechClassifications(){
@@ -197,8 +197,8 @@ function renderTechClassifications(){
         </div>
         <div style="background:#F5F8FC;border-left:3px solid ${tpl.color};border-radius:8px;padding:10px 12px;margin-bottom:10px">
           <div style="font-size:12px;font-weight:800;color:#1B3A6B">${tpl.icon} ${escapeHtml(tpl.name)}</div>
-          <div style="font-size:10.5px;color:var(--muted);margin-top:4px;line-height:1.6">📐 ${escapeHtml(tpl.standards)}</div>
-          <div style="font-size:10.5px;margin-top:6px;color:${custom.length?"#00695C":"#8A6D00"};font-weight:700">${custom.length?`✏️ Customised — ${custom.length} item(s)`:`📘 Using the ${tpl.checks.length} standards defaults`}</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:4px;line-height:1.6">📐 ${escapeHtml(tpl.standards)}</div>
+          <div style="font-size:10px;margin-top:6px;color:${custom.length?"#00695C":"#8A6D00"};font-weight:700">${custom.length?`✏️ Customised — ${custom.length} item(s)`:`📘 Using the ${tpl.checks.length} standards defaults`}</div>
         </div>
         <div style="display:grid;gap:5px;margin-bottom:10px">
           ${items.map((it,i)=>{
@@ -210,12 +210,12 @@ function renderTechClassifications(){
             </div>`;}).join("")}
         </div>
         <div style="display:flex;gap:6px;flex-wrap:wrap">
-          <input id="newSysCheck" placeholder="Add a check item…" style="flex:1;min-width:170px;padding:7px 10px;border:1px solid var(--line);border-radius:7px;font-size:12px">
+          <input id="newSysCheck" placeholder="Add a check item…" style="flex:1;min-width:170px;padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:12px">
           <button class="btn btn-sm" style="background:${tpl.color};color:#fff;border:none;font-weight:700" onclick="addSysCheck('${ct}',${items.length})">+ Add</button>
           ${custom.length?`<button class="btn btn-sm btn-secondary" onclick="resetSysChecks('${ct}')">↺ Restore defaults</button>`
                          :`<button class="btn btn-sm btn-secondary" onclick="cloneSysDefaults('${ct}')">✏️ Edit defaults</button>`}
         </div>
-        <p style="font-size:10.5px;color:var(--muted);margin-top:8px;line-height:1.6">Leave untouched to keep the standards-based defaults. "Edit defaults" copies them in so you can add, remove or reword any item; "Restore defaults" clears your copy.</p>
+        <p style="font-size:10px;color:var(--muted);margin-top:8px;line-height:1.6">Leave untouched to keep the standards-based defaults. "Edit defaults" copies them in so you can add, remove or reword any item; "Restore defaults" clears your copy.</p>
       </div>`;
   }
   if(tv==="systems") h += `<!-- SYSTEMS -->
@@ -223,13 +223,13 @@ function renderTechClassifications(){
         <div style="font-weight:800;color:#00695C;font-size:13px;margin-bottom:8px">🧩 Systems <span style="font-weight:500;font-size:11px;color:var(--muted)">— used by device records & Maintenance / Incident reports (e.g. Fire Alarm, CCTV, ELV)</span></div>
         <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">
           ${systems.length===0?`<span style="font-size:12px;color:#999">None yet — e.g. Fire Alarm · CCTV · ELV · Access Control · Public Address · Networking</span>`:systems.map(w=>`
-            <span style="display:inline-flex;align-items:center;gap:5px;background:#E0F2F1;color:#00695C;padding:5px 8px 5px 12px;border-radius:14px;font-size:12px;font-weight:600">
+            <span style="display:inline-flex;align-items:center;gap:5px;background:#E0F2F1;color:#00695C;padding:5px 8px 5px 12px;border-radius:16px;font-size:12px;font-weight:600">
               ${escapeHtml(w.name)}
               <button onclick="delTechItem('systemTypes','${w.id}')" style="background:#B2DFDB;border:none;color:#00695C;width:18px;height:18px;border-radius:50%;cursor:pointer;font-weight:700;font-size:11px">×</button>
             </span>`).join("")}
         </div>
         <div style="display:flex;gap:6px">
-          <input id="newSystemType" placeholder="Add system (e.g. Fire Alarm)" style="flex:1;padding:7px 10px;border:1px solid var(--line);border-radius:7px;font-size:12px">
+          <input id="newSystemType" placeholder="Add system (e.g. Fire Alarm)" style="flex:1;padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:12px">
           <button class="btn btn-sm" style="background:#00695C;color:white;border:none;font-weight:700" onclick="addTechItem('systemTypes','newSystemType',${systems.length})">+ Add</button>
         </div>
       </div>`;
@@ -238,13 +238,13 @@ function renderTechClassifications(){
         <div style="font-weight:800;color:#3949AB;font-size:13px;margin-bottom:8px">🧭 Work Types</div>
         <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">
           ${workTypes.length===0?`<span style="font-size:12px;color:#999">None yet</span>`:workTypes.map(w=>`
-            <span style="display:inline-flex;align-items:center;gap:5px;background:#E8EAF6;color:#3949AB;padding:5px 8px 5px 12px;border-radius:14px;font-size:12px;font-weight:600">
+            <span style="display:inline-flex;align-items:center;gap:5px;background:#E8EAF6;color:#3949AB;padding:5px 8px 5px 12px;border-radius:16px;font-size:12px;font-weight:600">
               ${escapeHtml(w.name)}
               <button onclick="delTechItem('techWorkTypes','${w.id}')" style="background:#C5CAE9;border:none;color:#3949AB;width:18px;height:18px;border-radius:50%;cursor:pointer;font-weight:700;font-size:11px">×</button>
             </span>`).join("")}
         </div>
         <div style="display:flex;gap:6px">
-          <input id="newWorkType" placeholder="Add work type (e.g. Standby)" style="flex:1;padding:7px 10px;border:1px solid var(--line);border-radius:7px;font-size:12px">
+          <input id="newWorkType" placeholder="Add work type (e.g. Standby)" style="flex:1;padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:12px">
           <button class="btn btn-sm" style="background:#3949AB;color:white;border:none;font-weight:700" onclick="addTechItem('techWorkTypes','newWorkType',${workTypes.length})">+ Add</button>
         </div>
       </div>
@@ -255,13 +255,13 @@ function renderTechClassifications(){
         <div style="font-weight:800;color:#00897B;font-size:13px;margin-bottom:8px">📊 Task Statuses</div>
         <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">
           ${statuses.length===0?`<span style="font-size:12px;color:#999">None yet</span>`:statuses.map(s=>`
-            <span style="display:inline-flex;align-items:center;gap:5px;background:#E0F2F1;color:#00897B;padding:5px 8px 5px 12px;border-radius:14px;font-size:12px;font-weight:600">
+            <span style="display:inline-flex;align-items:center;gap:5px;background:#E0F2F1;color:#00897B;padding:5px 8px 5px 12px;border-radius:16px;font-size:12px;font-weight:600">
               ${escapeHtml(s.name)}
               <button onclick="delTechItem('techStatuses','${s.id}')" style="background:#B2DFDB;border:none;color:#00897B;width:18px;height:18px;border-radius:50%;cursor:pointer;font-weight:700;font-size:11px">×</button>
             </span>`).join("")}
         </div>
         <div style="display:flex;gap:6px">
-          <input id="newStatus" placeholder="Add status (e.g. Waiting Parts)" style="flex:1;padding:7px 10px;border:1px solid var(--line);border-radius:7px;font-size:12px">
+          <input id="newStatus" placeholder="Add status (e.g. Waiting Parts)" style="flex:1;padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:12px">
           <button class="btn btn-sm" style="background:#00897B;color:white;border:none;font-weight:700" onclick="addTechItem('techStatuses','newStatus',${statuses.length})">+ Add</button>
         </div>
       </div>
@@ -271,24 +271,24 @@ function renderTechClassifications(){
       <div>
         <div style="font-weight:800;color:#C2185B;font-size:13px;margin-bottom:8px">🗂️ Categories & Subcategories</div>
         <div style="display:flex;gap:6px;margin-bottom:10px">
-          <input id="newCategory" placeholder="Add category (e.g. Wireless)" style="flex:1;padding:7px 10px;border:1px solid var(--line);border-radius:7px;font-size:12px">
+          <input id="newCategory" placeholder="Add category (e.g. Wireless)" style="flex:1;padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:12px">
           <button class="btn btn-sm" style="background:#C2185B;color:white;border:none;font-weight:700" onclick="addTechCategory(${cats2.length})">+ Category</button>
         </div>
         ${cats2.map(c=>`
-          <div style="border:1px solid #F8BBD0;border-radius:10px;padding:10px 12px;margin-bottom:8px;background:#FFF5F8">
+          <div style="border:1px solid #F8BBD0;border-radius:12px;padding:10px 12px;margin-bottom:8px;background:#FFF5F8">
             <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px">
               <div style="font-weight:800;color:#C2185B;font-size:13px">🗂️ ${escapeHtml(c.name)}</div>
               <button class="btn btn-sm btn-danger" onclick="delTechItem('techCategories','${c.id}')">🗑 Category</button>
             </div>
             <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px">
               ${(c.subcategories||[]).length===0?`<span style="font-size:11px;color:#aaa">No subcategories</span>`:(c.subcategories||[]).map((sc,si)=>`
-                <span style="display:inline-flex;align-items:center;gap:4px;background:white;border:1px solid #F8BBD0;color:#880E4F;padding:4px 7px 4px 10px;border-radius:12px;font-size:11px;font-weight:600">
+                <span style="display:inline-flex;align-items:center;gap:4px;background:var(--card);border:1px solid #F8BBD0;color:#880E4F;padding:4px 7px 4px 10px;border-radius:12px;font-size:11px;font-weight:600">
                   ${escapeHtml(sc)}
                   <button onclick="delSubcategory('${c.id}',${si})" style="background:#FCE4EC;border:none;color:#C2185B;width:16px;height:16px;border-radius:50%;cursor:pointer;font-weight:700;font-size:10px">×</button>
                 </span>`).join("")}
             </div>
             <div style="display:flex;gap:5px">
-              <input id="newSub_${c.id}" placeholder="Add subcategory" style="flex:1;padding:6px 9px;border:1px solid var(--line);border-radius:6px;font-size:11px">
+              <input id="newSub_${c.id}" placeholder="Add subcategory" style="flex:1;padding:6px 9px;border:1px solid var(--line);border-radius:8px;font-size:11px">
               <button class="btn btn-sm" style="background:#AD1457;color:white;border:none;font-weight:700;font-size:11px" onclick="addSubcategory('${c.id}')">+ Sub</button>
             </div>
           </div>
@@ -326,7 +326,7 @@ async function delWICategory(id){
   const taskCount = state.workTasks.filter(t => t.category === c.name).length;
   let msg = `Delete category "${c.name}"?`;
   if(taskCount > 0) msg += `\n\n⚠️ This will also delete ${taskCount} task(s) inside it. This cannot be undone.`;
-  if(!confirm(msg)) return;
+  if(!await uiConfirm(msg)) return;
   // Delete all tasks in this category first
   for(const t of state.workTasks.filter(t => t.category === c.name)){
     await fbDelete("workTasks", t.id);
@@ -380,7 +380,7 @@ function editWITask(id){
 
 async function delWITask(id){
   if(!isAdmin()) return toast("Only Admin can delete tasks");
-  if(!confirm("Delete this task? This cannot be undone.")) return;
+  if(!await uiConfirm("Delete this task? This cannot be undone.")) return;
   await fbDelete("workTasks", id);
   toast("Task deleted");
 }
@@ -389,7 +389,7 @@ async function removeWITaskFile(id){
   if(!isAdmin()) return toast("Only Admin can remove file links");
   const t = state.workTasks.find(x => x.id === id);
   if(!t) return;
-  if(!confirm(`Remove the document link from task "${t.name}"?\n\nThe task itself will be kept, only the file link is removed.`)) return;
+  if(!await uiConfirm(`Remove the document link from task "${t.name}"?\n\nThe task itself will be kept, only the file link is removed.`)) return;
   await fbSave("workTasks", { ...t, id, fileLink:"", fileName:"" });
   toast("File link removed");
 }
@@ -470,7 +470,7 @@ async function importBackup(file){
     if(!backup.data) return toast('Invalid backup file');
 
     const total = (backup.counts.daily||0) + (backup.counts.overtime||0) + (backup.counts.travel||0) + (backup.counts.leaves||0);
-    if(!confirm(`Restore backup from ${backup.exportedAt}?\n\nThis will ADD ${total} records to your current data.\n\nContinue?`)) return;
+    if(!await uiConfirm(`Restore backup from ${backup.exportedAt}?\n\nThis will ADD ${total} records to your current data.\n\nContinue?`)) return;
 
     const {db, doc, setDoc} = window.__fb;
     let restored = 0;
@@ -520,7 +520,7 @@ window.addSysCheck=async function(tpl,order){
 // Copy the standards defaults into editable records so they can be reworded
 window.cloneSysDefaults=async function(tpl){
   const defs=sysTemplate(tpl).checks||[];
-  if(!confirm(`Copy the ${defs.length} standard items for editing?\n\nYou can then reword or delete any of them.`)) return;
+  if(!await uiConfirm(`Copy the ${defs.length} standard items for editing?\n\nYou can then reword or delete any of them.`)) return;
   for(let i=0;i<defs.length;i++) await fbSave("systemChecks",{template:tpl,name:defs[i],order:i});
   toast("✏️ Defaults copied — edit freely");
   render();
@@ -528,7 +528,7 @@ window.cloneSysDefaults=async function(tpl){
 window.resetSysChecks=async function(tpl){
   const mine=(state.systemChecks||[]).filter(x=>x.template===tpl);
   if(!mine.length) return;
-  if(!confirm(`Remove your ${mine.length} custom item(s) and go back to the standards defaults?`)) return;
+  if(!await uiConfirm(`Remove your ${mine.length} custom item(s) and go back to the standards defaults?`)) return;
   for(const r of mine) await fbDelete("systemChecks",r.id);
   toast("↺ Standards defaults restored");
   render();

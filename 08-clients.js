@@ -53,16 +53,16 @@ function renderClients(){
             return s + Number(p?.estimatedHours||0);
           },0);
           const pct = estHrs>0 ? Math.min(100, Math.round(totalHrs/estHrs*100)) : null;
-          return `<div style="border:1px solid var(--line);border-left:4px solid #C9A84C;border-radius:10px;padding:14px">
+          return `<div style="border:1px solid var(--line);border-left:4px solid #C9A84C;border-radius:12px;padding:14px">
             <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">
               <div style="flex:1;min-width:200px">
-                <div style="font-weight:800;font-size:15px;color:#03308B">🏢 ${escapeHtml(c.name)}</div>
+                <div style="font-weight:800;font-size:14px;color:#03308B">🏢 ${escapeHtml(c.name)}</div>
                 <div style="font-size:11px;color:var(--muted);margin-top:2px">
                   ${linkedClientLabel(c)?`👤 ${escapeHtml(linkedClientLabel(c))}`:'<span style="color:#C62828">No login linked</span>'}
                   ${c.notes?` · ${escapeHtml(c.notes)}`:''}
                 </div>
                 <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:8px">
-                  ${projList.map(p=>`<span style="background:#E8F0FE;color:#03308B;padding:2px 9px;border-radius:10px;font-size:11px;font-weight:600">${escapeHtml(p)}</span>`).join("")}
+                  ${projList.map(p=>`<span style="background:#E8F0FE;color:#03308B;padding:2px 9px;border-radius:12px;font-size:11px;font-weight:600">${escapeHtml(p)}</span>`).join("")}
                 </div>
               </div>
               <div style="text-align:right;min-width:120px">
@@ -70,14 +70,14 @@ function renderClients(){
                 <div style="font-size:18px;font-weight:800;color:#03308B">${fmtHM(totalHrs)}</div>
                 ${pct!==null?`<div style="margin-top:6px">
                   <div style="font-size:10px;color:var(--muted)">Progress: <strong style="color:${pct>=100?'#2E7D32':'#C9A84C'}">${pct}%</strong></div>
-                  <div style="height:6px;background:#E2E8F0;border-radius:3px;margin-top:3px;overflow:hidden">
-                    <div style="height:100%;width:${pct}%;background:linear-gradient(90deg,#C9A84C,#03308B);border-radius:3px"></div>
+                  <div style="height:6px;background:#E2E8F0;border-radius:4px;margin-top:3px;overflow:hidden">
+                    <div style="height:100%;width:${pct}%;background:linear-gradient(90deg,#C9A84C,#03308B);border-radius:4px"></div>
                   </div>
                 </div>`:'<div style="font-size:10px;color:#999;margin-top:4px">Set estimated hours in Projects to track %</div>'}
               </div>
             </div>
             ${(()=>{const sl=(state.publicSharesMeta||[]).find(s=>s.clientId===c.id&&!s.revoked);
-              return sl?`<div style="margin-top:10px;background:#F0FAF4;border:1px solid #C8E6C9;border-radius:9px;padding:9px 10px">
+              return sl?`<div style="margin-top:10px;background:#F0FAF4;border:1px solid #C8E6C9;border-radius:8px;padding:9px 10px">
                 <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
                   <span style="font-size:11px;font-weight:800;color:#2E7D32">🔗 Live share link active</span>
                   ${sl.expires?`<span style="font-size:10px;color:#888">expires ${sl.expires}</span>`:""}
@@ -139,7 +139,7 @@ function editClient(id){
   if(c){ clientForm={name:c.name,linkedUserEmail:c.linkedUserEmail||"",linkedUserUid:c.linkedUserUid||"",projects:[...(c.projects||[])],notes:c.notes||""}; clientEditId=id; render(); window.scrollTo(0,0); }
 }
 async function delClient(id){
-  if(!confirm("Delete this client? Their requests will remain."))return;
+  if(!await uiConfirm("Delete this client? Their requests will remain."))return;
   await fbDelete("clients",id);
   toast("Client deleted");
 }
@@ -207,16 +207,16 @@ function renderClientPortal(){
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
       <div>
         <div style="font-size:11px;opacity:0.6;text-transform:uppercase;letter-spacing:1px">Client Portal</div>
-        <div style="font-size:20px;font-weight:800;color:#C9A84C;margin-top:2px">🏢 ${escapeHtml(c.name)}</div>
+        <div style="font-size:18px;font-weight:800;color:#C9A84C;margin-top:2px">🏢 ${escapeHtml(c.name)}</div>
         <div style="font-size:12px;opacity:0.7;margin-top:2px">${myProjects.length} project(s) · ${myDaily.length} work entries</div>
         ${perms.reportsExport?`<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
-          <button onclick="exportClientPDF()" style="background:#C9A84C;color:#03308B;border:none;padding:7px 14px;border-radius:7px;font-size:12px;font-weight:800;cursor:pointer">📄 PDF Report</button>
-          <button onclick="exportClientExcel()" style="background:rgba(255,255,255,0.15);color:white;border:1px solid rgba(201,168,76,0.6);padding:7px 14px;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer">📊 Excel Report</button>
+          <button onclick="exportClientPDF()" style="background:#C9A84C;color:#03308B;border:none;padding:7px 14px;border-radius:8px;font-size:12px;font-weight:800;cursor:pointer">📄 PDF Report</button>
+          <button onclick="exportClientExcel()" style="background:rgba(255,255,255,0.15);color:white;border:1px solid rgba(201,168,76,0.6);padding:7px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">📊 Excel Report</button>
         </div>`:""}
       </div>
       <div style="text-align:right">
         <div style="font-size:11px;opacity:0.6">Total Hours Delivered</div>
-        <div style="font-size:26px;font-weight:900;color:#C9A84C">${fmtHM(totalHrs)}</div>
+        <div style="font-size:28px;font-weight:900;color:#C9A84C">${fmtHM(totalHrs)}</div>
         ${pct!==null?`<div style="font-size:13px;font-weight:700;margin-top:2px">${pct}% Complete</div>`:""}
       </div>
     </div>
@@ -248,26 +248,26 @@ function renderClientPortal(){
   <div class="card" style="border-left:4px solid #6A1B9A">
     <div class="card-title" style="margin-bottom:8px">🔎 Filters</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <select onchange="window._cpf.project=this.value;window._cpf.area='';window._cpf.site='';render()" style="flex:1;min-width:130px;padding:7px 10px;border:1px solid #6A1B9A;border-radius:6px;font-size:12px">
+      <select onchange="window._cpf.project=this.value;window._cpf.area='';window._cpf.site='';render()" style="flex:1;min-width:130px;padding:7px 10px;border:1px solid #6A1B9A;border-radius:8px;font-size:12px">
         <option value="">📁 All Projects</option>
         ${myProjects.map(p=>`<option value="${escapeHtml(p)}" ${p===F.project?"selected":""}>${escapeHtml(p)}</option>`).join("")}
       </select>
-      <input value="${escapeHtml((state.projects||[]).find(p=>p.name===F.project)?.code||"")}" disabled placeholder="🔌 Project Code" style="flex:1;min-width:110px;padding:7px 10px;border:1px solid #ddd;border-radius:6px;font-size:12px;background:#F5F7FA">
-      <select onchange="window._cpf.area=this.value;window._cpf.site='';render()" ${!F.project?"disabled":""} style="flex:1;min-width:110px;padding:7px 10px;border:1px solid #6A1B9A;border-radius:6px;font-size:12px">
+      <input value="${escapeHtml((state.projects||[]).find(p=>p.name===F.project)?.code||"")}" disabled placeholder="🔌 Project Code" style="flex:1;min-width:110px;padding:7px 10px;border:1px solid #ddd;border-radius:8px;font-size:12px;background:#F5F7FA">
+      <select onchange="window._cpf.area=this.value;window._cpf.site='';render()" ${!F.project?"disabled":""} style="flex:1;min-width:110px;padding:7px 10px;border:1px solid #6A1B9A;border-radius:8px;font-size:12px">
         <option value="">🗺️ All Areas</option>
         ${(((state.projects||[]).find(p=>p.name===F.project)||{}).areas||[]).map(a=>`<option value="${escapeHtml(a.name)}" ${a.name===F.area?"selected":""}>${escapeHtml(a.name)}</option>`).join("")}
       </select>
-      <select onchange="window._cpf.site=this.value;render()" ${!F.area?"disabled":""} style="flex:1;min-width:110px;padding:7px 10px;border:1px solid #6A1B9A;border-radius:6px;font-size:12px">
+      <select onchange="window._cpf.site=this.value;render()" ${!F.area?"disabled":""} style="flex:1;min-width:110px;padding:7px 10px;border:1px solid #6A1B9A;border-radius:8px;font-size:12px">
         <option value="">📍 All Sites</option>
         ${(((((state.projects||[]).find(p=>p.name===F.project)||{}).areas||[]).find(a=>a.name===F.area)||{}).sites||[]).map(s=>`<option value="${escapeHtml(s.name)}" ${s.name===F.site?"selected":""}>${escapeHtml(s.name)}</option>`).join("")}
       </select>
-      <select onchange="window._cpf.device=this.value;render()" style="flex:1;min-width:120px;padding:7px 10px;border:1px solid #6A1B9A;border-radius:6px;font-size:12px">
+      <select onchange="window._cpf.device=this.value;render()" style="flex:1;min-width:120px;padding:7px 10px;border:1px solid #6A1B9A;border-radius:8px;font-size:12px">
         <option value="">📟 All Devices</option>
         ${[...new Set(myDevicesAll.map(d=>d.deviceName).filter(Boolean))].sort().map(n=>`<option value="${escapeHtml(n)}" ${n===F.device?"selected":""}>${escapeHtml(n)}</option>`).join("")}
       </select>
-      <input value="${escapeHtml(F.serial)}" oninput="window._cpf.serial=this.value" onchange="render()" placeholder="🔢 Serial Number" style="flex:1;min-width:120px;padding:7px 10px;border:1px solid #6A1B9A;border-radius:6px;font-size:12px">
-      <input value="${escapeHtml(F.model)}" oninput="window._cpf.model=this.value" onchange="render()" placeholder="📱 Model" style="flex:1;min-width:110px;padding:7px 10px;border:1px solid #6A1B9A;border-radius:6px;font-size:12px">
-      ${fActive?`<button onclick="window._cpf={project:'',area:'',site:'',device:'',serial:'',model:''};render()" style="background:#C62828;color:white;border:none;padding:7px 14px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer">${ICN.x} Clear</button>`:""}
+      <input value="${escapeHtml(F.serial)}" oninput="window._cpf.serial=this.value" onchange="render()" placeholder="🔢 Serial Number" style="flex:1;min-width:120px;padding:7px 10px;border:1px solid #6A1B9A;border-radius:8px;font-size:12px">
+      <input value="${escapeHtml(F.model)}" oninput="window._cpf.model=this.value" onchange="render()" placeholder="📱 Model" style="flex:1;min-width:110px;padding:7px 10px;border:1px solid #6A1B9A;border-radius:8px;font-size:12px">
+      ${fActive?`<button onclick="window._cpf={project:'',area:'',site:'',device:'',serial:'',model:''};render()" style="background:#C62828;color:white;border:none;padding:7px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">${ICN.x} Clear</button>`:""}
     </div>
   </div>`:""}
 
@@ -287,7 +287,7 @@ function renderClientPortal(){
         <td style="max-width:280px">
           ${r.resolutionText?`<div style="font-size:12px;color:#444;line-height:1.5">${escapeHtml(r.resolutionText)}</div>`:'<span style="color:#bbb">—</span>'}
           ${(r.resolutionImages||[]).length?`<div style="display:flex;gap:4px;margin-top:5px;flex-wrap:wrap">
-            ${r.resolutionImages.map((img,i)=>{const src=img.data||img;return `<img src="${src}" onclick="window.open(this.src,'_blank')" style="width:44px;height:44px;object-fit:cover;border-radius:6px;cursor:pointer;border:1px solid #ddd">`;}).join("")}
+            ${r.resolutionImages.map((img,i)=>{const src=img.data||img;return `<img src="${src}" onclick="window.open(this.src,'_blank')" style="width:44px;height:44px;object-fit:cover;border-radius:8px;cursor:pointer;border:1px solid #ddd">`;}).join("")}
           </div>`:""}
         </td>
       </tr>`).join("")}</tbody>
@@ -313,7 +313,7 @@ function renderClientPortal(){
         <td>${deviceStatusBadge(d.status)}</td>
         ${perms.deviceEditSuggest?`<td style="text-align:right">${pending
           ?`<span style="font-size:10px;color:#E65100;font-weight:700">⏳ Pending review</span>`
-          :`<button onclick="openDeviceSuggest('${d.id}')" style="background:#03308B;color:#C9A84C;border:none;padding:5px 10px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer">✏️ Suggest edit</button>`}</td>`:""}
+          :`<button onclick="openDeviceSuggest('${d.id}')" style="background:#03308B;color:#C9A84C;border:none;padding:5px 10px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer">✏️ Suggest edit</button>`}</td>`:""}
       </tr>`;}).join("")}</tbody>
     </table></div>`}
   </div>
@@ -623,10 +623,10 @@ window.createShareLink=async function(clientId){
 };
 window.copyShareLink=async function(token){
   try{ await navigator.clipboard.writeText(_shareUrl(token)); toast("📋 Link copied ✓"); }
-  catch(e){ prompt("Copy this link:",_shareUrl(token)); }
+  catch(e){ await uiPrompt("Copy this link:",_shareUrl(token),{title:"Share link",okText:"Done"}); }
 };
 window.revokeShareLink=async function(token){
-  if(!confirm("Revoke this link? The client's page will stop working immediately."))return;
+  if(!await uiConfirm("Revoke this link? The client's page will stop working immediately."))return;
   const{db,doc,updateDoc}=window.__fb;
   try{ await updateDoc(doc(db,"publicShares",token),{revoked:true}); toast("Link revoked ✓"); }
   catch(e){ toast("Revoke failed: "+e.message); }

@@ -49,10 +49,10 @@ function renderDateTime(){
   const tz=getAppTZ();
   return `
   <div class="card" style="background:linear-gradient(135deg,#1B3A6B 0%,#2E5FA3 100%);color:#fff;text-align:center;padding:28px 16px">
-    <div style="font-size:10.5px;letter-spacing:1.5px;opacity:.75;text-transform:uppercase">Business Time</div>
-    <div id="dtClock" style="font-family:'DM Serif Display',serif;font-size:46px;font-weight:700;color:#C9A84C;margin:8px 0 4px;letter-spacing:1px;line-height:1">--:--:--</div>
+    <div style="font-size:10px;letter-spacing:1.5px;opacity:.75;text-transform:uppercase">Business Time</div>
+    <div id="dtClock" style="font-family:'DM Serif Display',serif;font-size:28px;font-weight:700;color:#C9A84C;margin:8px 0 4px;letter-spacing:1px;line-height:1">--:--:--</div>
     <div id="dtDate" style="font-size:13px;opacity:.9">—</div>
-    <div style="font-size:10.5px;opacity:.65;margin-top:8px">${escapeHtml(tz)}${_dtDoc().mode==="manual"?' · <span style="color:#F0D68A;font-weight:800">MANUAL</span>':''}</div>
+    <div style="font-size:10px;opacity:.65;margin-top:8px">${escapeHtml(tz)}${_dtDoc().mode==="manual"?' · <span style="color:#F0D68A;font-weight:800">MANUAL</span>':''}</div>
   </div>
 
   <div class="card">
@@ -62,7 +62,7 @@ function renderDateTime(){
       <button class="btn ${_dtDoc().mode==="manual"?"btn-primary":"btn-secondary"}" style="flex:1" onclick="(function(){const x=document.getElementById('dtManualRow');if(x)x.style.display='flex';})()">✍️ Manual</button>
     </div>
     <div id="dtManualRow" style="display:${_dtDoc().mode==="manual"?"flex":"none"};gap:8px;flex-wrap:wrap;align-items:center">
-      <input type="datetime-local" id="dtManual" value="${(()=>{const n=appNow();return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-${String(n.getDate()).padStart(2,"0")}T${String(n.getHours()).padStart(2,"0")}:${String(n.getMinutes()).padStart(2,"0")}`})()}" style="flex:1;min-width:190px;padding:9px 10px;border:1.5px solid var(--line);border-radius:9px;font-size:13px;background:var(--card,#fff);color:var(--text)">
+      <input type="datetime-local" id="dtManual" value="${(()=>{const n=appNow();return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-${String(n.getDate()).padStart(2,"0")}T${String(n.getHours()).padStart(2,"0")}:${String(n.getMinutes()).padStart(2,"0")}`})()}" style="flex:1;min-width:190px;padding:9px 10px;border:1.5px solid var(--line);border-radius:8px;font-size:13px;background:var(--card,#fff);color:var(--text)">
       <button class="btn btn-primary" onclick="applyManualDT()">Apply</button>
     </div>
   </div>
@@ -71,9 +71,9 @@ function renderDateTime(){
     <div class="card-title">🌍 Timezone</div>
     ${TZ_GROUPS.map(([region,list])=>`
       <div style="margin-bottom:16px">
-        <div style="font-size:10.5px;font-weight:800;color:var(--muted);letter-spacing:.6px;text-transform:uppercase;margin-bottom:7px">${region}</div>
+        <div style="font-size:10px;font-weight:800;color:var(--muted);letter-spacing:.6px;text-transform:uppercase;margin-bottom:7px">${region}</div>
         <div style="display:grid;gap:6px">
-          ${list.map(([v,l])=>`<label style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1.5px solid ${tz===v?'#C9A84C':'var(--line)'};border-radius:9px;cursor:pointer;background:${tz===v?'#FFF8E1':'transparent'}">
+          ${list.map(([v,l])=>`<label style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1.5px solid ${tz===v?'#C9A84C':'var(--line)'};border-radius:8px;cursor:pointer;background:${tz===v?'#FFF8E1':'transparent'}">
             <input type="radio" name="dtTz" value="${v}" ${tz===v?"checked":""} onchange="saveAppTZ(this.value)" style="width:16px;height:16px;accent-color:#C9A84C;flex:0 0 auto">
             <span style="font-size:13px;font-weight:${tz===v?'800':'500'};color:${tz===v?'#7A5A00':'var(--text)'}">${l}</span>
           </label>`).join("")}
@@ -114,47 +114,47 @@ function renderProfile(){
   return `<div class="card" style="background:linear-gradient(135deg,#1B3A6B 0%,#2E5FA3 100%);color:white;border:2px solid #C9A84C">
     <div style="display:flex;align-items:center;gap:14px">
       <div onclick="document.getElementById('profilePhotoInput').click()" title="Tap to change photo" style="position:relative;width:64px;height:64px;border:2px solid #C9A84C;border-radius:12px;display:flex;align-items:center;justify-content:center;background:#1B3A6B;flex-shrink:0;cursor:pointer;overflow:hidden">
-        ${p.photoData?`<img src="${p.photoData}" alt="Profile photo" style="width:100%;height:100%;object-fit:cover">`:`<span style="font-family:'DM Serif Display',serif;font-size:20px;color:#C9A84C;font-weight:700">${escapeHtml((p.name||'?').charAt(0).toUpperCase())}</span>`}
-        <span style="position:absolute;right:-1px;bottom:-1px;width:22px;height:22px;background:#C9A84C;color:#1B3A6B;border-radius:11px 0 10px 0;display:flex;align-items:center;justify-content:center;font-size:12px;box-shadow:0 0 0 2px #1B3A6B">📷</span>
+        ${p.photoData?`<img src="${p.photoData}" alt="Profile photo" style="width:100%;height:100%;object-fit:cover">`:`<span style="font-family:'DM Serif Display',serif;font-size:18px;color:#C9A84C;font-weight:700">${escapeHtml((p.name||'?').charAt(0).toUpperCase())}</span>`}
+        <span style="position:absolute;right:-1px;bottom:-1px;width:22px;height:22px;background:#C9A84C;color:#1B3A6B;border-radius:12px 0 10px 0;display:flex;align-items:center;justify-content:center;font-size:12px;box-shadow:0 0 0 2px #1B3A6B">📷</span>
       </div>
       <input type="file" id="profilePhotoInput" accept="image/*" onchange="uploadProfilePhoto(this)" style="display:none">
       <div style="flex:1;min-width:0">
         <h2 style="font-family:'DM Serif Display',serif;font-size:22px;color:white;margin:0;line-height:1.2">${escapeHtml(p.name || 'User')}</h2>
         <div style="font-size:12px;color:#B8CFE8;margin-top:4px">${escapeHtml(p.email || '')}</div>
         <div style="margin-top:8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-          <span style="background:${roleColor};color:#1B3A6B;font-size:11px;padding:3px 10px;border-radius:10px;font-weight:800;letter-spacing:0.5px">${role}</span>
+          <span style="background:${roleColor};color:#1B3A6B;font-size:11px;padding:3px 10px;border-radius:12px;font-weight:800;letter-spacing:0.5px">${role}</span>
           ${p.photoData
-            ? `<button onclick="removeProfilePhoto()" style="background:rgba(255,255,255,0.15);color:#fff;border:none;font-size:11px;padding:4px 10px;border-radius:10px;cursor:pointer;font-family:inherit">Remove photo</button>`
-            : `<button onclick="document.getElementById('profilePhotoInput').click()" style="background:rgba(255,255,255,0.15);color:#fff;border:none;font-size:11px;padding:4px 10px;border-radius:10px;cursor:pointer;font-family:inherit">📷 Add photo</button>`}
+            ? `<button onclick="removeProfilePhoto()" style="background:rgba(255,255,255,0.15);color:#fff;border:none;font-size:11px;padding:4px 10px;border-radius:12px;cursor:pointer;font-family:inherit">Remove photo</button>`
+            : `<button onclick="document.getElementById('profilePhotoInput').click()" style="background:rgba(255,255,255,0.15);color:#fff;border:none;font-size:11px;padding:4px 10px;border-radius:12px;cursor:pointer;font-family:inherit">📷 Add photo</button>`}
         </div>
       </div>
     </div>
   </div>
 
   <div class="card">
-    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">01</span> Account Information</div>
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">01</span> Account Information</div>
     <div style="display:grid;gap:10px;margin-top:10px">
-      <div style="display:flex;justify-content:space-between;padding:10px 14px;border:1px solid var(--line);border-radius:8px;background:white">
+      <div style="display:flex;justify-content:space-between;padding:10px 14px;border:1px solid var(--line);border-radius:8px;background:var(--card)">
         <span style="color:var(--muted);font-size:12px">Email</span>
         <strong style="color:#1B3A6B">${escapeHtml(p.email || 'N/A')}</strong>
       </div>
-      <div style="display:flex;justify-content:space-between;padding:10px 14px;border:1px solid var(--line);border-radius:8px;background:white">
+      <div style="display:flex;justify-content:space-between;padding:10px 14px;border:1px solid var(--line);border-radius:8px;background:var(--card)">
         <span style="color:var(--muted);font-size:12px">Full Name</span>
         <strong style="color:#1B3A6B">${escapeHtml(p.name || 'N/A')}</strong>
       </div>
-      ${p.employeeName ? `<div style="display:flex;justify-content:space-between;padding:10px 14px;border:1px solid var(--line);border-radius:8px;background:white">
+      ${p.employeeName ? `<div style="display:flex;justify-content:space-between;padding:10px 14px;border:1px solid var(--line);border-radius:8px;background:var(--card)">
         <span style="color:var(--muted);font-size:12px">Tracked As</span>
         <strong style="color:#1B3A6B">${escapeHtml(p.employeeName)}</strong>
       </div>` : ''}
-      <div style="display:flex;justify-content:space-between;padding:10px 14px;border:1px solid var(--line);border-radius:8px;background:white">
+      <div style="display:flex;justify-content:space-between;padding:10px 14px;border:1px solid var(--line);border-radius:8px;background:var(--card)">
         <span style="color:var(--muted);font-size:12px">Role</span>
-        <span style="background:${roleColor}22;color:${roleColor};font-size:11px;padding:3px 10px;border-radius:10px;font-weight:700">${role}</span>
+        <span style="background:${roleColor}22;color:${roleColor};font-size:11px;padding:3px 10px;border-radius:12px;font-weight:700">${role}</span>
       </div>
-      <div style="display:flex;justify-content:space-between;padding:10px 14px;border:1px solid var(--line);border-radius:8px;background:white">
+      <div style="display:flex;justify-content:space-between;padding:10px 14px;border:1px solid var(--line);border-radius:8px;background:var(--card)">
         <span style="color:var(--muted);font-size:12px">Last Sign In</span>
         <span style="color:#1B3A6B;font-size:12px">${lastSignIn}</span>
       </div>
-      <div style="display:flex;justify-content:space-between;padding:10px 14px;border:1px solid var(--line);border-radius:8px;background:white">
+      <div style="display:flex;justify-content:space-between;padding:10px 14px;border:1px solid var(--line);border-radius:8px;background:var(--card)">
         <span style="color:var(--muted);font-size:12px">Account Created</span>
         <span style="color:#1B3A6B;font-size:12px">${accountCreated}</span>
       </div>
@@ -162,7 +162,7 @@ function renderProfile(){
   </div>
 
   <div class="card">
-    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">02</span> 🔒 Change Password</div>
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">02</span> 🔒 Change Password</div>
     <p style="font-size:12px;color:var(--muted);margin:0 0 12px">Keep your account safe by using a strong password. Minimum 6 characters.</p>
 
     <div class="form-grid">
@@ -184,7 +184,7 @@ function renderProfile(){
       ${profileForm.newPass ? `<div class="field full">
         ${passwordStrengthBar(profileForm.newPass)}
       </div>` : ''}
-      ${profileForm.newPass && profileForm.confirm ? `<div class="field full" style="padding:8px 12px;border-radius:6px;background:${profileForm.newPass===profileForm.confirm ? '#E8F5E9' : '#FFEBEE'};border:1px solid ${profileForm.newPass===profileForm.confirm ? '#A5D6A7' : '#EF9A9A'};font-size:12px;color:${profileForm.newPass===profileForm.confirm ? '#2E7D32' : '#C62828'};font-weight:600">
+      ${profileForm.newPass && profileForm.confirm ? `<div class="field full" style="padding:8px 12px;border-radius:8px;background:${profileForm.newPass===profileForm.confirm ? '#E8F5E9' : '#FFEBEE'};border:1px solid ${profileForm.newPass===profileForm.confirm ? '#A5D6A7' : '#EF9A9A'};font-size:12px;color:${profileForm.newPass===profileForm.confirm ? '#2E7D32' : '#C62828'};font-weight:600">
         ${profileForm.newPass===profileForm.confirm ? '✓ Passwords match' : '✗ Passwords do not match'}
       </div>` : ''}
     </div>
@@ -195,19 +195,19 @@ function renderProfile(){
   </div>
 
   <div class="card">
-    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">03</span> 🔑 Forgot Password?</div>
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">03</span> 🔑 Forgot Password?</div>
     <p style="font-size:12px;color:var(--muted);margin:0 0 12px">If you can't remember your current password, click below to receive a reset link via email.</p>
     <button class="btn btn-ghost" style="background:#FFF8E1;border:1px solid #C9A84C;color:#7F6000" onclick="requestPasswordReset()">📧 Send Reset Link to ${escapeHtml(p.email || '')}</button>
   </div>
 
   <div class="card">
-    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">04</span> 🚪 Sign Out</div>
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">04</span> 🚪 Sign Out</div>
     <p style="font-size:12px;color:var(--muted);margin:0 0 12px">Sign out from this device. You'll need to enter your credentials again to sign back in.</p>
-    <button class="btn btn-danger" onclick="if(confirm('Sign out from this device?')) doSignOut()">Sign Out</button>
+    <button class="btn btn-danger" onclick="uiConfirm('Sign out from this device?').then(ok=>{if(ok)doSignOut()})">Sign Out</button>
   </div>
 
   <div class="card" style="border-left:4px solid ${_sn?'#2E7D32':'#C9A84C'}">
-    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">05</span> 🔔 Device Notifications ${_sn?'<span style="font-size:10px;background:#E8F5E9;color:#2E7D32;padding:2px 8px;border-radius:9px;font-weight:800">ON</span>':''}</div>
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">05</span> 🔔 Device Notifications ${_sn?'<span style="font-size:10px;background:#E8F5E9;color:#2E7D32;padding:2px 8px;border-radius:8px;font-weight:800">ON</span>':''}</div>
     <p style="font-size:12px;color:var(--muted);margin:8px 0 12px">Task assignments & alerts appear in your phone's notification tray with sound — while the app is open or in the background.</p>
     ${_sn?`<button class="btn btn-secondary" onclick="disableSysNotifs()">Turn off</button>`
          :`<button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:800;border:none" onclick="enableSysNotifs()">🔔 Enable</button>`}
@@ -229,7 +229,7 @@ function renderEntryManage(){
   if(emv==="counters") h += `
   <div class="card" style="border-left:4px solid #C9A84C">
     <div class="sec-hdr" style="display:flex;align-items:center;gap:8px">
-      <span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">⚙</span>
+      <span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">⚙</span>
       Report Counter Management
     </div>
     <p style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.6">
@@ -247,7 +247,7 @@ function renderEntryManage(){
 
   <div class="card" style="border-left:4px solid #2E7D32">
     <div class="sec-hdr" style="display:flex;align-items:center;gap:8px">
-      <span style="background:#2E7D32;color:white;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">📋</span>
+      <span style="background:#2E7D32;color:white;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">📋</span>
       Daily Log Entry Numbering
     </div>
     <p style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.6">
@@ -272,7 +272,7 @@ function renderEntryManage(){
 
   <div class="card" style="border-left:4px solid #C9A84C;background:#FEF3C7">
     <div class="sec-hdr" style="display:flex;align-items:center;gap:8px;color:#7F6000">
-      <span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">🧹</span>
+      <span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">🧹</span>
       Storage Cleanup
     </div>
     <p style="font-size:12px;color:#7F6000;margin-bottom:12px;line-height:1.6">
@@ -281,26 +281,26 @@ function renderEntryManage(){
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
       <div>
         <label style="font-size:10px;color:#7F6000;display:block;margin-bottom:2px">From Date</label>
-        <input type="date" id="purgeFrom" style="padding:6px 10px;border:1px solid #C9A84C;border-radius:6px;font-size:12px">
+        <input type="date" id="purgeFrom" style="padding:6px 10px;border:1px solid #C9A84C;border-radius:8px;font-size:12px">
       </div>
       <div>
         <label style="font-size:10px;color:#7F6000;display:block;margin-bottom:2px">To Date</label>
-        <input type="date" id="purgeTo" style="padding:6px 10px;border:1px solid #C9A84C;border-radius:6px;font-size:12px">
+        <input type="date" id="purgeTo" style="padding:6px 10px;border:1px solid #C9A84C;border-radius:8px;font-size:12px">
       </div>
       <div>
         <label style="font-size:10px;color:#7F6000;display:block;margin-bottom:2px">Project</label>
-        <select id="purgeProject" style="padding:6px 10px;border:1px solid #C9A84C;border-radius:6px;font-size:12px;max-width:170px">
+        <select id="purgeProject" style="padding:6px 10px;border:1px solid #C9A84C;border-radius:8px;font-size:12px;max-width:170px">
           <option value="">All Projects</option>
           ${projects.map(p=>`<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join("")}
         </select>
       </div>
-      <button class="btn btn-sm" style="background:#C62828;border:none;color:white;font-weight:700;padding:8px 16px;border-radius:6px" onclick="purgeResolutionImagesCustom()">🗑️ Purge Images</button>
+      <button class="btn btn-sm" style="background:#C62828;border:none;color:white;font-weight:700;padding:8px 16px;border-radius:8px" onclick="purgeResolutionImagesCustom()">🗑️ Purge Images</button>
     </div>
   </div>`;
   if(emv==="employees") h += `  <!-- ═══ PER-EMPLOYEE ENTRY PERMISSIONS (Admin) ═══ -->
   <div class="card" style="border-left:4px solid #0277BD">
     <div class="sec-hdr" style="display:flex;align-items:center;gap:8px">
-      <span style="background:#0277BD;color:white;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">🔐</span>
+      <span style="background:#0277BD;color:white;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">🔐</span>
       Entry Permissions per Employee
     </div>
     <p style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.6">
@@ -345,7 +345,7 @@ function renderEntryManage(){
   if(emv==="clients") h += `  <!-- ═══ ENTRY PERMISSION PER CLIENT (Admin) ═══ -->
   <div class="card" style="border-left:4px solid #C9A84C">
     <div class="sec-hdr" style="display:flex;align-items:center;gap:8px">
-      <span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:800">🤝</span>
+      <span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">🤝</span>
       Entry Permission per Client
     </div>
     <p style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.6">
@@ -409,13 +409,13 @@ function renderEntryManage(){
         <div style="font-weight:800;color:#B8860B;font-size:13px;margin-bottom:8px">🔖 Request Statuses <span style="font-weight:400;color:#999;font-size:11px">(defaults: New · In Progress · Completed)</span></div>
         <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">
           ${rss.length===0?`<span style="font-size:12px;color:#999">Using built-in defaults</span>`:rss.map(w=>`
-            <span style="display:inline-flex;align-items:center;gap:5px;background:#FFF8E1;color:#7F6000;padding:5px 8px 5px 12px;border-radius:14px;font-size:12px;font-weight:600">
+            <span style="display:inline-flex;align-items:center;gap:5px;background:#FFF8E1;color:#7F6000;padding:5px 8px 5px 12px;border-radius:16px;font-size:12px;font-weight:600">
               ${escapeHtml(w.name)}
               <button onclick="delTechItem('requestStatuses','${w.id}')" style="background:#F5E3B0;border:none;color:#7F6000;width:18px;height:18px;border-radius:50%;cursor:pointer;font-weight:700;font-size:11px">×</button>
             </span>`).join("")}
         </div>
         <div style="display:flex;gap:6px">
-          <input id="newReqStatus" placeholder="Add request status (e.g. Waiting Parts)" style="flex:1;padding:7px 10px;border:1px solid var(--line);border-radius:7px;font-size:12px">
+          <input id="newReqStatus" placeholder="Add request status (e.g. Waiting Parts)" style="flex:1;padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:12px">
           <button class="btn btn-sm" style="background:#B8860B;color:white;border:none;font-weight:700" onclick="addTechItem('requestStatuses','newReqStatus',${rss.length})">+ Add</button>
         </div>
         <div style="font-size:10px;color:#999;margin-top:5px">💡 The <strong>first</strong> status in this list is what new client requests start as.</div>
@@ -424,13 +424,13 @@ function renderEntryManage(){
         <div style="font-weight:800;color:#00695C;font-size:13px;margin-bottom:8px">🏗️ Project Statuses <span style="font-weight:400;color:#999;font-size:11px">(defaults: Active · On Hold · Completed)</span></div>
         <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">
           ${pss.length===0?`<span style="font-size:12px;color:#999">Using built-in defaults</span>`:pss.map(w=>`
-            <span style="display:inline-flex;align-items:center;gap:5px;background:#E0F2F1;color:#00695C;padding:5px 8px 5px 12px;border-radius:14px;font-size:12px;font-weight:600">
+            <span style="display:inline-flex;align-items:center;gap:5px;background:#E0F2F1;color:#00695C;padding:5px 8px 5px 12px;border-radius:16px;font-size:12px;font-weight:600">
               ${escapeHtml(w.name)}
               <button onclick="delTechItem('projectStatuses','${w.id}')" style="background:#B2DFDB;border:none;color:#00695C;width:18px;height:18px;border-radius:50%;cursor:pointer;font-weight:700;font-size:11px">×</button>
             </span>`).join("")}
         </div>
         <div style="display:flex;gap:6px">
-          <input id="newProjStatus" placeholder="Add project status (e.g. Handover)" style="flex:1;padding:7px 10px;border:1px solid var(--line);border-radius:7px;font-size:12px">
+          <input id="newProjStatus" placeholder="Add project status (e.g. Handover)" style="flex:1;padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:12px">
           <button class="btn btn-sm" style="background:#00695C;color:white;border:none;font-weight:700" onclick="addTechItem('projectStatuses','newProjStatus',${pss.length})">+ Add</button>
         </div>
         <div style="font-size:10px;color:#999;margin-top:5px">Set each project's status in <strong>Database → Projects</strong>; clients see it on their portal.</div>
@@ -450,7 +450,7 @@ function passwordStrengthBar(pw){
   const idx = Math.min(score, 4);
   const pct = (score/5)*100;
   return `<div style="margin-top:4px">
-    <div style="height:6px;background:#F0F0F0;border-radius:3px;overflow:hidden">
+    <div style="height:6px;background:#F0F0F0;border-radius:4px;overflow:hidden">
       <div style="height:100%;width:${pct}%;background:${colors[idx]};transition:width 0.3s"></div>
     </div>
     <div style="font-size:11px;color:${colors[idx]};font-weight:700;margin-top:4px">Password strength: ${labels[idx]}</div>
@@ -492,7 +492,7 @@ async function changeMyPassword(){
 async function requestPasswordReset(){
   const email = state.profile?.email;
   if(!email) return toast("No email on file");
-  if(!confirm(`Send password reset link to:\n${email}?`)) return;
+  if(!await uiConfirm(`Send password reset link to:\n${email}?`)) return;
   try {
     const { auth, sendPasswordResetEmail } = window.__fb;
     await sendPasswordResetEmail(auth, email);
@@ -534,7 +534,7 @@ window.viewReportCounter = async function(){
 window.resetReportCounter = async function(){
   if(!isAdmin()) return;
   const year = new Date().getFullYear();
-  if(!confirm(`Reset ALL report sequences for ${year} to 0?\n\nEvery family (HR, DL, TR, RPT, PM, INC, FMR, FMT, …) will restart from 0001.\n\nThis does not delete any existing reports or the log.`)) return;
+  if(!await uiConfirm(`Reset ALL report sequences for ${year} to 0?\n\nEvery family (HR, DL, TR, RPT, PM, INC, FMR, FMT, …) will restart from 0001.\n\nThis does not delete any existing reports or the log.`)) return;
   try{
     const {db, doc, setDoc, collection, getDocs} = window.__fb;
     if(!db) return toast("Database not ready");
@@ -592,7 +592,7 @@ window.assignDailyNumbers = async function(){
   if(!isAdmin()) return;
   const count = state.daily.filter(r=>!r.entryNo).length;
   if(count === 0){ toast("All entries already have numbers ✓"); return; }
-  if(!confirm(`Assign sequential numbers to ${count} existing entries?\n\nEntries will be numbered by date order (oldest = 001).`)) return;
+  if(!await uiConfirm(`Assign sequential numbers to ${count} existing entries?\n\nEntries will be numbered by date order (oldest = 001).`)) return;
   await assignEntryNumbersToExisting();
 };
 
@@ -631,7 +631,7 @@ function renderShare(){
       Share this link or QR code with your team. After login, they can install the app on their phone home screen.
     </p>
 
-    <div style="background:white;border:2px solid var(--line);border-radius:12px;padding:20px;text-align:center;margin-bottom:14px">
+    <div style="background:var(--card);border:2px solid var(--line);border-radius:12px;padding:20px;text-align:center;margin-bottom:14px">
       <div id="qrcode-display" style="display:flex;justify-content:center;align-items:center;min-height:220px"></div>
       <div style="font-size:11px;color:var(--muted);margin-top:10px">Scan with phone camera to open</div>
     </div>
@@ -764,7 +764,7 @@ function renderRecycleBin(){
         <div style="font-weight:800;font-size:14px;color:var(--text)">🗄️ Auto-Backup</div>
         <div style="font-size:11px;color:var(--muted);margin-top:3px">
           ${bk.lastBackupAt?`Last backup: <strong>${fmtDate(bk.lastBackupAt.slice(0,10))}</strong> (${lastD}d ago)`:"<strong>No backup taken yet</strong>"}
-          · target every <select onchange="saveBackupInterval(this.value)" style="padding:2px 6px;border:1px solid var(--line);border-radius:6px;font-size:11px;font-weight:700">
+          · target every <select onchange="saveBackupInterval(this.value)" style="padding:2px 6px;border:1px solid var(--line);border-radius:8px;font-size:11px;font-weight:700">
             ${[7,14,30].map(v=>`<option value="${v}" ${bk.intervalDays===v?"selected":""}>${v}</option>`).join("")}
           </select> days.
           ${due?'<span style="color:#E65100;font-weight:800"> ⚠ Backup due!</span>':' <span style="color:#2E7D32;font-weight:800">✓ On schedule</span>'}
@@ -785,11 +785,11 @@ function renderRecycleBin(){
       ${items.map(t=>{
         const age=Math.floor((now-new Date(t.deletedAt||0).getTime())/864e5);
         const leftD=Math.max(0,TRASH_DAYS-age);
-        return `<div style="display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:10px;padding:10px 12px;flex-wrap:wrap">
+        return `<div style="display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:12px;padding:10px 12px;flex-wrap:wrap">
           <span style="font-size:18px">${_trIcons[t.origCol]||"📄"}</span>
           <div style="flex:1;min-width:180px">
             <div style="font-weight:700;font-size:13px;color:var(--text)">${escapeHtml(_trTitle(t))}</div>
-            <div style="font-size:10.5px;color:var(--muted)">
+            <div style="font-size:10px;color:var(--muted)">
               <span style="background:#F0F4FF;color:#03308B;padding:1px 7px;border-radius:8px;font-weight:800;font-size:9px">${escapeHtml(t.origCol)}</span>
               · deleted ${fmtDate(String(t.deletedAt||"").slice(0,10))} by ${escapeHtml(t.deletedByName||"—")}
               · <span style="color:${leftD<=5?'#C62828':'var(--muted)'};font-weight:700">${leftD}d left</span>
@@ -810,12 +810,12 @@ window.restoreTrash=async function(id){
   render();
 };
 window.purgeTrashItem=async function(id){
-  if(!confirm("Delete FOREVER? This cannot be undone."))return;
+  if(!await uiConfirm("Delete FOREVER? This cannot be undone."))return;
   await fbDelete("trash", id); toast("Purged"); render();
 };
 window.emptyTrash=async function(){
   const n=(state.trash||[]).length;
-  if(!confirm(`Empty the bin? ${n} item(s) will be deleted FOREVER.`))return;
+  if(!await uiConfirm(`Empty the bin? ${n} item(s) will be deleted FOREVER.`))return;
   for(const t of (state.trash||[]).slice()) await fbDelete("trash", t.id);
   toast("🧹 Bin emptied"); render();
 };

@@ -705,3 +705,34 @@ input,select,textarea,button{font-variant-numeric:tabular-nums}
 .dsh-count{font-size:11px;font-weight:800;background:var(--line);color:var(--muted);padding:2px 9px;border-radius:10px}
 .dsh-h2{font-size:11px;color:var(--muted);margin-top:2px;font-weight:600}
 
+
+/* ═══ Branded dialogs (v141) — replaces native confirm/prompt ═══ */
+.ui-dlg-wrap{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;
+  padding:var(--s-4);opacity:0;transition:opacity .17s ease}
+.ui-dlg-wrap.in{opacity:1}
+.ui-dlg-bd{position:absolute;inset:0;background:rgba(10,20,40,.55);backdrop-filter:blur(3px)}
+.ui-dlg{position:relative;width:100%;max-width:360px;background:var(--card);border-radius:var(--r-lg);
+  box-shadow:0 18px 50px rgba(10,20,40,.32);padding:var(--s-5) var(--s-4) var(--s-4);text-align:center;
+  transform:translateY(14px) scale(.97);transition:transform .2s cubic-bezier(.22,1,.36,1)}
+.ui-dlg-wrap.in .ui-dlg{transform:none}
+.ui-dlg-ic{width:46px;height:46px;border-radius:var(--r-pill);margin:0 auto var(--s-3);
+  display:flex;align-items:center;justify-content:center;font-size:var(--f-3xl);font-weight:800;
+  background:var(--info-bg);color:var(--info)}
+.ui-dlg-ic.dg{background:var(--danger-bg);color:var(--danger)}
+.ui-dlg-t{font-family:'DM Serif Display',serif;font-size:var(--f-3xl);color:var(--text);line-height:1.25}
+.ui-dlg-m{font-size:var(--f-md);color:var(--muted);margin-top:var(--s-2);line-height:1.65;
+  max-height:44vh;overflow:auto;text-align:left}
+.ui-dlg-in{width:100%;margin-top:var(--s-3);padding:10px 12px;border:1.5px solid var(--line);
+  border-radius:var(--r-sm);font-size:var(--f-lg);background:var(--card);color:var(--text)}
+.ui-dlg-in:focus{outline:none;border-color:var(--gold)}
+.ui-dlg-btns{display:flex;gap:var(--s-2);margin-top:var(--s-4)}
+.ui-dlg-b{flex:1;padding:11px var(--s-3);border-radius:var(--r-sm);font-size:var(--f-lg);font-weight:800;
+  cursor:pointer;border:1.5px solid var(--line);background:var(--card);color:var(--text);
+  transition:filter .15s ease,transform .1s ease}
+.ui-dlg-b:hover{filter:brightness(.97)}
+.ui-dlg-b:active{transform:scale(.97)}
+.ui-dlg-b:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.ui-dlg-b.ok{background:var(--navy);color:var(--on-brand);border-color:var(--navy)}
+.ui-dlg-b.ok.dg{background:var(--danger);border-color:var(--danger);color:#fff}
+[data-theme="dark"] .ui-dlg-b.ok.dg{color:#2A0F0F}
+@media (prefers-reduced-motion: reduce){.ui-dlg-wrap,.ui-dlg{transition:none}}

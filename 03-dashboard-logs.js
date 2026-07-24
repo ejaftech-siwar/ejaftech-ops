@@ -222,8 +222,8 @@ function dashFieldToday(){
       </button>`).join("")}
     </div>`:""}
     ${silent.length?`<div style="margin-top:10px;display:flex;gap:5px;flex-wrap:wrap;align-items:center">
-      <span style="font-size:10.5px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">Not logged yet</span>
-      ${silent.slice(0,10).map(e=>`<span style="font-size:11px;background:#FFF3E0;color:#E65100;padding:3px 9px;border-radius:11px;font-weight:700">${escapeHtml(e)}</span>`).join("")}
+      <span style="font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">Not logged yet</span>
+      ${silent.slice(0,10).map(e=>`<span style="font-size:11px;background:#FFF3E0;color:#E65100;padding:3px 9px;border-radius:12px;font-weight:700">${escapeHtml(e)}</span>`).join("")}
       ${silent.length>10?`<span style="font-size:11px;color:var(--muted)">+${silent.length-10}</span>`:""}
     </div>`:""}
   </div>`;
@@ -312,7 +312,7 @@ function dashProblemDevices(){
           <span style="font-weight:800;font-size:13px;color:#C62828">${d.n}×</span>
         </button>`;}).join("")}
     </div>
-    <p style="font-size:10.5px;color:var(--muted);margin:9px 0 0">Repeated failures on the same unit usually cost more than replacing it.</p>
+    <p style="font-size:10px;color:var(--muted);margin:9px 0 0">Repeated failures on the same unit usually cost more than replacing it.</p>
   </div>`;
 }
 
@@ -414,8 +414,8 @@ function dashStalledPanel(){
 function renderFiltersTab(){
   if(isEmployee()) return `<div class="card"><div class="empty">Filters are managed by your administrator.</div></div>`;
   return `<div class="card" style="background:linear-gradient(135deg,#1B3A6B 0%,#2E5FA3 100%);color:#fff;padding:16px">
-      <div style="font-family:'DM Serif Display',serif;font-size:20px">🔎 Filters</div>
-      <div style="font-size:11.5px;opacity:.85">Applies across the Dashboard, Logs, Reports and Analytics</div>
+      <div style="font-family:'DM Serif Display',serif;font-size:18px">🔎 Filters</div>
+      <div style="font-size:11px;opacity:.85">Applies across the Dashboard, Logs, Reports and Analytics</div>
     </div>` + renderEmployeeFilterUI("Filters");
 }
 Object.assign(window,{renderFiltersTab,dashStalledPanel});
@@ -741,7 +741,7 @@ function renderDailyLog(){
         <select onchange="window.dailyForm.site=this.value;render()">
           <option value="">— Select Site —</option>
           ${sites.map(s=>`<option value="${escapeHtml(s.name)}" ${s.name===(dailyForm.site||"")?"selected":""}>${escapeHtml(s.name)}</option>`).join("")}
-        </select></div>` : (dailyForm.area ? `<div class="field full"><div style="font-size:11px;color:#888;padding:6px 10px;background:#F7F7F7;border-radius:6px">No active sites in this area.</div></div>` : '')}`;
+        </select></div>` : (dailyForm.area ? `<div class="field full"><div style="font-size:11px;color:#888;padding:6px 10px;background:#F7F7F7;border-radius:8px">No active sites in this area.</div></div>` : '')}`;
       })()}
       ${(()=>{
         // ── Device Tracking: only for employees granted the permission (admin always sees it) ──
@@ -753,7 +753,7 @@ function renderDailyLog(){
         const siteDevices = (state.devices||[]).filter(d=>
           (d.project||"")===(dailyForm.project||"") && (d.site||"")===(dailyForm.site||"")
         );
-        if(siteDevices.length===0) return `<div class="field full"><div style="font-size:11px;color:#888;padding:6px 10px;background:#F7F7F7;border-radius:6px">📟 No devices registered at this site.</div></div>`;
+        if(siteDevices.length===0) return `<div class="field full"><div style="font-size:11px;color:#888;padding:6px 10px;background:#F7F7F7;border-radius:8px">📟 No devices registered at this site.</div></div>`;
         const canFull = isAdmin() || perms.fullDeviceEdit;
         const selDev = siteDevices.find(d=>d.serialNumber===dailyForm.deviceSerial);
         return `
@@ -763,32 +763,32 @@ function renderDailyLog(){
           ${siteDevices.map(d=>`<option value="${escapeHtml(d.serialNumber)}" ${d.serialNumber===(dailyForm.deviceSerial||"")?"selected":""}>${escapeHtml(d.deviceName||d.serialNumber)}${d.ipAddress?' · '+escapeHtml(d.ipAddress):''}</option>`).join("")}
         </select></div>
       ${selDev ? `
-      <div class="field full" style="background:#F0F7FF;border:1px solid #B3D4FF;border-radius:10px;padding:12px;margin-top:2px">
+      <div class="field full" style="background:#F0F7FF;border:1px solid #B3D4FF;border-radius:12px;padding:12px;margin-top:2px">
         <div style="font-size:12px;font-weight:800;color:#03308B;margin-bottom:8px">🔧 Update device: ${escapeHtml(selDev.deviceName||selDev.serialNumber)}
           <span style="font-size:10px;font-weight:600;color:#1565C0;background:#E3F2FD;padding:1px 7px;border-radius:8px;margin-left:4px">syncs centrally</span>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
           <div>
             <label style="font-size:11px;font-weight:700;color:#475569;display:block;margin-bottom:3px">Status</label>
-            <select onchange="window._setDevEdit('status',this.value)" style="width:100%;padding:7px 8px;border:1px solid #B3D4FF;border-radius:6px;font-size:12px;background:white">
+            <select onchange="window._setDevEdit('status',this.value)" style="width:100%;padding:7px 8px;border:1px solid #B3D4FF;border-radius:8px;font-size:12px;background:var(--card)">
               ${DEVICE_STATUSES.map(s=>`<option value="${escapeHtml(s)}" ${s===(window._devEdit?.status ?? selDev.status)?"selected":""}>${escapeHtml(s)}</option>`).join("")}
             </select>
           </div>
           <div>
             <label style="font-size:11px;font-weight:700;color:#475569;display:block;margin-bottom:3px">Install Date</label>
-            <input type="date" value="${escapeHtml(window._devEdit?.installDate ?? selDev.installDate ?? '')}" onchange="window._setDevEdit('installDate',this.value)" style="width:100%;padding:6px 8px;border:1px solid #B3D4FF;border-radius:6px;font-size:12px">
+            <input type="date" value="${escapeHtml(window._devEdit?.installDate ?? selDev.installDate ?? '')}" onchange="window._setDevEdit('installDate',this.value)" style="width:100%;padding:6px 8px;border:1px solid #B3D4FF;border-radius:8px;font-size:12px">
           </div>
           ${canFull ? `
           <div><label style="font-size:11px;font-weight:700;color:#475569;display:block;margin-bottom:3px">IP Address</label>
-            <input value="${escapeHtml(window._devEdit?.ipAddress ?? selDev.ipAddress ?? '')}" onchange="window._setDevEdit('ipAddress',this.value)" style="width:100%;padding:6px 8px;border:1px solid #B3D4FF;border-radius:6px;font-size:12px"></div>
+            <input value="${escapeHtml(window._devEdit?.ipAddress ?? selDev.ipAddress ?? '')}" onchange="window._setDevEdit('ipAddress',this.value)" style="width:100%;padding:6px 8px;border:1px solid #B3D4FF;border-radius:8px;font-size:12px"></div>
           <div><label style="font-size:11px;font-weight:700;color:#475569;display:block;margin-bottom:3px">Model</label>
-            <input value="${escapeHtml(window._devEdit?.model ?? selDev.model ?? '')}" onchange="window._setDevEdit('model',this.value)" style="width:100%;padding:6px 8px;border:1px solid #B3D4FF;border-radius:6px;font-size:12px"></div>
+            <input value="${escapeHtml(window._devEdit?.model ?? selDev.model ?? '')}" onchange="window._setDevEdit('model',this.value)" style="width:100%;padding:6px 8px;border:1px solid #B3D4FF;border-radius:8px;font-size:12px"></div>
           <div><label style="font-size:11px;font-weight:700;color:#475569;display:block;margin-bottom:3px">Vendor</label>
-            <input value="${escapeHtml(window._devEdit?.vendor ?? selDev.vendor ?? '')}" onchange="window._setDevEdit('vendor',this.value)" style="width:100%;padding:6px 8px;border:1px solid #B3D4FF;border-radius:6px;font-size:12px"></div>
+            <input value="${escapeHtml(window._devEdit?.vendor ?? selDev.vendor ?? '')}" onchange="window._setDevEdit('vendor',this.value)" style="width:100%;padding:6px 8px;border:1px solid #B3D4FF;border-radius:8px;font-size:12px"></div>
           <div><label style="font-size:11px;font-weight:700;color:#475569;display:block;margin-bottom:3px">Warranty Exp.</label>
-            <input type="date" value="${escapeHtml(window._devEdit?.warrantyExp ?? selDev.warrantyExp ?? '')}" onchange="window._setDevEdit('warrantyExp',this.value)" style="width:100%;padding:6px 8px;border:1px solid #B3D4FF;border-radius:6px;font-size:12px"></div>
+            <input type="date" value="${escapeHtml(window._devEdit?.warrantyExp ?? selDev.warrantyExp ?? '')}" onchange="window._setDevEdit('warrantyExp',this.value)" style="width:100%;padding:6px 8px;border:1px solid #B3D4FF;border-radius:8px;font-size:12px"></div>
           <div><label style="font-size:11px;font-weight:700;color:#475569;display:block;margin-bottom:3px">Stack</label>
-            <input value="${escapeHtml(window._devEdit?.stack ?? selDev.stack ?? '')}" onchange="window._setDevEdit('stack',this.value)" style="width:100%;padding:6px 8px;border:1px solid #B3D4FF;border-radius:6px;font-size:12px"></div>
+            <input value="${escapeHtml(window._devEdit?.stack ?? selDev.stack ?? '')}" onchange="window._setDevEdit('stack',this.value)" style="width:100%;padding:6px 8px;border:1px solid #B3D4FF;border-radius:8px;font-size:12px"></div>
           ` : `<div style="grid-column:1/3;font-size:10px;color:#94A3B8">Only Status & Install Date are editable. Full edit needs admin permission.</div>`}
         </div>
         <div style="font-size:10px;color:#64748B;margin-top:6px">Saving this entry will update the device in the central registry.</div>
@@ -822,9 +822,9 @@ function renderDailyLog(){
 
       <!-- ═══ RESOLUTION SECTION (MANDATORY) ═══ -->
       <div class="field full" style="margin-top:6px">
-        <div style="background:linear-gradient(135deg,#FFF8E1 0%,#FFFEF7 100%);border:2px solid #C9A84C;border-radius:10px;padding:14px">
+        <div style="background:linear-gradient(135deg,#FFF8E1 0%,#FFFEF7 100%);border:2px solid #C9A84C;border-radius:12px;padding:14px">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding-bottom:8px;border-bottom:1px dashed #C9A84C">
-            <span style="background:#C9A84C;color:#1B3A6B;padding:3px 10px;border-radius:6px;font-size:11px;font-weight:800;letter-spacing:0.5px">RESOLUTION</span>
+            <span style="background:#C9A84C;color:#1B3A6B;padding:3px 10px;border-radius:8px;font-size:11px;font-weight:800;letter-spacing:0.5px">RESOLUTION</span>
             <span style="font-size:12px;color:#7F6000;font-weight:600">📋 Required — Document work performed</span>
           </div>
 
@@ -833,7 +833,7 @@ function renderDailyLog(){
             const open=(typeof openWorkItemsFor==="function")?openWorkItemsFor(dailyForm).filter(w=>!dailyEditId||!w.entries.some(e=>e.id===dailyEditId)):[];
             const linked=dailyForm.threadId?open.find(w=>w.key===dailyForm.threadId||w.entries.some(e=>e.threadId===dailyForm.threadId)):null;
             if(!open.length && !dailyForm.threadId) return "";
-            return `<div style="background:#EEF4FF;border:1.5px solid #2E5FA3;border-radius:9px;padding:10px;margin-bottom:12px">
+            return `<div style="background:#EEF4FF;border:1.5px solid #2E5FA3;border-radius:8px;padding:10px;margin-bottom:12px">
               <div style="font-size:11px;font-weight:800;color:#1B3A6B;margin-bottom:7px">🧵 WORK ITEM ${linked?`— continuing`:`— ${open.length} open here`}</div>
               ${linked?`<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
                   <span style="flex:1;font-size:12px;color:#03308B;font-weight:700">${escapeHtml(linked.title)} · visit #${linked.visits+1} · since ${fmtDate(linked.firstDate)}</span>
@@ -849,28 +849,28 @@ function renderDailyLog(){
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
             <div>
               <label style="display:block;font-size:11px;font-weight:700;color:#5C4A12;margin-bottom:3px">🧭 Work Type</label>
-              <select onchange="window.dailyForm.workType=this.value" style="width:100%;padding:7px 8px;border:1px solid #C9A84C;border-radius:6px;font-size:12px;background:white">
+              <select onchange="window.dailyForm.workType=this.value" style="width:100%;padding:7px 8px;border:1px solid #C9A84C;border-radius:8px;font-size:12px;background:var(--card)">
                 <option value="">— Select —</option>
                 ${getWorkTypes().map(w=>`<option value="${escapeHtml(w)}" ${w===(dailyForm.workType||"")?"selected":""}>${escapeHtml(w)}</option>`).join("")}
               </select>
             </div>
             <div>
               <label style="display:block;font-size:11px;font-weight:700;color:#5C4A12;margin-bottom:3px">📊 Task Status</label>
-              <select onchange="window.dailyForm.taskStatus=this.value" style="width:100%;padding:7px 8px;border:1px solid #C9A84C;border-radius:6px;font-size:12px;background:white">
+              <select onchange="window.dailyForm.taskStatus=this.value" style="width:100%;padding:7px 8px;border:1px solid #C9A84C;border-radius:8px;font-size:12px;background:var(--card)">
                 <option value="">— Select —</option>
                 ${getTaskStatuses().map(s=>`<option value="${escapeHtml(s)}" ${s===(dailyForm.taskStatus||"")?"selected":""}>${escapeHtml(s)}</option>`).join("")}
               </select>
             </div>
             <div>
               <label style="display:block;font-size:11px;font-weight:700;color:#5C4A12;margin-bottom:3px">🗂️ Category</label>
-              <select onchange="window.dailyForm.taskCategory=this.value;window.dailyForm.taskSubcategory='';render()" style="width:100%;padding:7px 8px;border:1px solid #C9A84C;border-radius:6px;font-size:12px;background:white">
+              <select onchange="window.dailyForm.taskCategory=this.value;window.dailyForm.taskSubcategory='';render()" style="width:100%;padding:7px 8px;border:1px solid #C9A84C;border-radius:8px;font-size:12px;background:var(--card)">
                 <option value="">— Select —</option>
                 ${Object.keys(getTaskCategories()).map(c=>`<option value="${escapeHtml(c)}" ${c===(dailyForm.taskCategory||"")?"selected":""}>${escapeHtml(c)}</option>`).join("")}
               </select>
             </div>
             <div>
               <label style="display:block;font-size:11px;font-weight:700;color:#5C4A12;margin-bottom:3px">📁 Subcategory</label>
-              <select onchange="window.dailyForm.taskSubcategory=this.value" style="width:100%;padding:7px 8px;border:1px solid #C9A84C;border-radius:6px;font-size:12px;background:white" ${!dailyForm.taskCategory?'disabled':''}>
+              <select onchange="window.dailyForm.taskSubcategory=this.value" style="width:100%;padding:7px 8px;border:1px solid #C9A84C;border-radius:8px;font-size:12px;background:var(--card)" ${!dailyForm.taskCategory?'disabled':''}>
                 <option value="">${dailyForm.taskCategory?'— Select —':'Pick category first'}</option>
                 ${(getTaskCategories()[dailyForm.taskCategory]||[]).map(sc=>`<option value="${escapeHtml(sc)}" ${sc===(dailyForm.taskSubcategory||"")?"selected":""}>${escapeHtml(sc)}</option>`).join("")}
               </select>
@@ -886,7 +886,7 @@ function renderDailyLog(){
               rows="3"
               placeholder="Briefly describe what was done, troubleshooting steps, issues resolved..."
               oninput="window.dailyForm.resolutionText=this.value"
-              style="width:100%;padding:8px 10px;border:1px solid #C9A84C;border-radius:6px;font-family:inherit;font-size:13px;resize:vertical;background:white">${escapeHtml(dailyForm.resolutionText||"")}</textarea>
+              style="width:100%;padding:8px 10px;border:1px solid #C9A84C;border-radius:8px;font-family:inherit;font-size:13px;resize:vertical;background:var(--card)">${escapeHtml(dailyForm.resolutionText||"")}</textarea>
             <div style="font-size:10px;color:#7F6000;margin-top:3px">
               ${(dailyForm.resolutionText||"").length} characters · minimum 10 required
             </div>
@@ -905,7 +905,7 @@ function renderDailyLog(){
               id="resImageInput"
               onchange="handleResolutionImages(this.files)"
               ${(dailyForm.resolutionImages||[]).length >= 3 ? 'disabled' : ''}
-              style="width:100%;padding:8px;border:1px dashed #C9A84C;border-radius:6px;background:white;font-size:12px;cursor:pointer">
+              style="width:100%;padding:8px;border:1px dashed #C9A84C;border-radius:8px;background:var(--card);font-size:12px;cursor:pointer">
             <div style="font-size:10px;color:#7F6000;margin-top:3px">
               ${(dailyForm.resolutionImages||[]).length}/3 images uploaded
               ${(dailyForm.resolutionImages||[]).length >= 3 ? ' · Maximum reached. Remove one to add another.' : ''}
@@ -915,7 +915,7 @@ function renderDailyLog(){
             ${(dailyForm.resolutionImages||[]).length > 0 ? `
               <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px;margin-top:10px">
                 ${(dailyForm.resolutionImages||[]).map((img,idx)=>`
-                  <div style="position:relative;border:2px solid #C9A84C;border-radius:8px;overflow:hidden;background:white;aspect-ratio:1">
+                  <div style="position:relative;border:2px solid #C9A84C;border-radius:8px;overflow:hidden;background:var(--card);aspect-ratio:1">
                     <img src="${img.data}" style="width:100%;height:100%;object-fit:cover;display:block" alt="Resolution ${idx+1}">
                     <div style="position:absolute;bottom:0;left:0;right:0;background:rgba(27,58,107,0.85);color:white;padding:3px 5px;font-size:9px;font-weight:600;text-align:center">
                       ${img.sizeKB || base64SizeKB(img.data)} KB
@@ -939,9 +939,9 @@ function renderDailyLog(){
     <div class="card-title">📍 Location Statistics</div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px">
       ${locStats.map(l=>`
-        <div style="border:1px solid var(--line);border-left:4px solid #2E5FA3;border-radius:8px;padding:10px 12px;background:white">
+        <div style="border:1px solid var(--line);border-left:4px solid #2E5FA3;border-radius:8px;padding:10px 12px;background:var(--card)">
           <div style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:0.5px">📍 ${escapeHtml(l.name)}</div>
-          <div style="font-family:'DM Serif Display',serif;font-size:20px;color:#2E5FA3;margin-top:2px">${fmtHM(l.hours)}</div>
+          <div style="font-family:'DM Serif Display',serif;font-size:18px;color:#2E5FA3;margin-top:2px">${fmtHM(l.hours)}</div>
           <div style="font-size:10px;color:var(--muted)">${l.count} ${l.count===1?'entry':'entries'}</div>
         </div>
       `).join("")}
@@ -953,7 +953,7 @@ function renderDailyLog(){
       <span class="card-title" style="margin:0">Work Log</span>
       <span class="count-pill">${rows.length}</span>
       <div style="display:flex;gap:6px;margin-left:auto;flex-wrap:wrap;align-items:center">
-        <div style="display:flex;align-items:center;gap:3px;background:#f5f7ff;border:1px solid var(--line);border-radius:6px;padding:0 6px">
+        <div style="display:flex;align-items:center;gap:3px;background:#f5f7ff;border:1px solid var(--line);border-radius:8px;padding:0 6px">
           <span style="font-size:10px;color:#888;white-space:nowrap"># Entry</span>
           <input type="number" min="1" placeholder="e.g. 12" value="${dailyEntryNo}"
             onchange="window.dailyEntryNo=this.value;render()"
@@ -977,7 +977,7 @@ function renderDailyLog(){
           ${!isEmployee()?`<td>${employeeBadge(r.employee)}</td>`:""}
           <td>${escapeHtml(r.project||"")}${r.projectCode?` <span style="font-size:9px;background:#FFF3E0;color:#E65100;border:1px solid #EAD3AE;padding:1px 6px;border-radius:8px;font-weight:800">${escapeHtml(r.projectCode)}</span>`:""}${(r.area||r.site)?`<div style="font-size:10px;color:#1565C0;margin-top:2px">${r.area?`🗺️ ${escapeHtml(r.area)}`:''}${r.site?` · 📍 ${escapeHtml(r.site)}`:''}</div>`:''}</td>
           <td>${deptBadge(r.dept)}</td>
-          <td>${r.location?`<span style="background:#E3F2FD;color:#1565C0;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600">📍 ${escapeHtml(r.location)}</span>`:'<span style="color:#bbb;font-style:italic;font-size:11px">—</span>'} ${gpsBadgeHTML(r)}</td>
+          <td>${r.location?`<span style="background:#E3F2FD;color:#1565C0;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600">📍 ${escapeHtml(r.location)}</span>`:'<span style="color:#bbb;font-style:italic;font-size:11px">—</span>'} ${gpsBadgeHTML(r)}</td>
           <td><strong style="color:#2E7D32">${fmtHM(r.duration)}</strong></td>
           <td>${hasRes?`<button class="btn btn-sm" style="background:#FFF8E1;border:1px solid #C9A84C;color:#7F6000;font-weight:700" onclick="viewResolution('${r.id}')" title="View resolution">📷 ${imgs.length}</button>`:'<span style="color:#bbb;font-style:italic;font-size:11px">—</span>'}</td>
           <td>${canEdit?`<button class="btn btn-sm btn-secondary" onclick="editDaily('${r.id}')">${ICN.edit}</button>
@@ -1264,12 +1264,12 @@ async function handleResolutionImages(fileList){
   }
 }
 
-function removeResolutionImage(index){
+async function removeResolutionImage(index){
   if(!isAdmin()){
     toast("Only Admin can remove resolution images");
     return;
   }
-  if(!confirm("Remove this resolution image?")) return;
+  if(!await uiConfirm("Remove this resolution image?")) return;
   const arr = dailyForm.resolutionImages || [];
   arr.splice(index, 1);
   dailyForm.resolutionImages = arr;
@@ -1283,7 +1283,7 @@ async function deleteResolutionImageFromRecord(recordId, imageIndex){
     toast("Only Admin can delete resolution images from records");
     return;
   }
-  if(!confirm(`Permanently remove image ${imageIndex+1} from this record?\nThis cannot be undone.`)) return;
+  if(!await uiConfirm(`Permanently remove image ${imageIndex+1} from this record?\nThis cannot be undone.`)) return;
   const rec = state.daily.find(r => r.id === recordId);
   if(!rec) return toast("Record not found");
   const imgs = (rec.resolutionImages || []).slice();
@@ -1302,8 +1302,8 @@ function viewResolution(recordId){
   overlay.style.cssText = "position:fixed;inset:0;background:rgba(15,35,71,0.85);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px";
   overlay.onclick = (e) => { if(e.target === overlay) overlay.remove(); };
   overlay.innerHTML = `
-    <div style="background:white;border-radius:14px;max-width:700px;width:100%;max-height:90vh;overflow-y:auto;padding:0;box-shadow:0 24px 64px rgba(0,0,0,0.4)">
-      <div style="background:linear-gradient(135deg,#1B3A6B 0%,#2E5FA3 100%);color:white;padding:16px 20px;border-radius:14px 14px 0 0;display:flex;justify-content:space-between;align-items:center">
+    <div style="background:var(--card);border-radius:16px;max-width:700px;width:100%;max-height:90vh;overflow-y:auto;padding:0;box-shadow:0 24px 64px rgba(0,0,0,0.4)">
+      <div style="background:linear-gradient(135deg,#1B3A6B 0%,#2E5FA3 100%);color:white;padding:16px 20px;border-radius:16px 14px 0 0;display:flex;justify-content:space-between;align-items:center">
         <div>
           <div style="font-size:11px;letter-spacing:2px;color:#C9A84C;font-weight:700">RESOLUTION</div>
           <div style="font-size:16px;font-weight:700;margin-top:2px">${escapeHtml(r.employee||"")} · ${fmtDate(r.date)}</div>
@@ -1327,14 +1327,14 @@ function viewResolution(recordId){
             const w=buildWorkItems(all).find(x=>x.entries.some(e=>e.id===r.id));
             if(!w||w.visits<2) return "";
             const idx=w.entries.findIndex(e=>e.id===r.id)+1;
-            return `<div style="margin:0 0 14px;background:#F7F9FF;border:1px solid #DCE6F7;border-radius:9px;padding:10px 12px">
+            return `<div style="margin:0 0 14px;background:#F7F9FF;border:1px solid #DCE6F7;border-radius:8px;padding:10px 12px">
               <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">
-                <span style="font-size:10.5px;font-weight:800;color:#1B3A6B;letter-spacing:.4px">🧵 WORK ITEM · VISIT ${idx}/${w.visits}</span>
-                <span style="font-size:10px;background:${w.closed?'#E8F5E9':'#FFF3E0'};color:${w.closed?'#2E7D32':'#E65100'};padding:2px 9px;border-radius:9px;font-weight:800">${escapeHtml(w.status)}</span>
+                <span style="font-size:10px;font-weight:800;color:#1B3A6B;letter-spacing:.4px">🧵 WORK ITEM · VISIT ${idx}/${w.visits}</span>
+                <span style="font-size:10px;background:${w.closed?'#E8F5E9':'#FFF3E0'};color:${w.closed?'#2E7D32':'#E65100'};padding:2px 9px;border-radius:8px;font-weight:800">${escapeHtml(w.status)}</span>
                 <span style="font-size:10px;color:#7A8AA0">${fmtHM(w.hours)} total</span>
               </div>
               <div style="display:flex;align-items:center;gap:0;flex-wrap:wrap">
-                ${w.timeline.map((t,i)=>`${i?`<span style="color:#B8C6DC;margin:0 5px;font-size:11px">→</span>`:""}<span title="${escapeHtml(t.by)}" style="font-size:10.5px;background:#fff;border:1px solid #DCE6F7;color:#1B3A6B;padding:3px 9px;border-radius:8px;font-weight:700">${escapeHtml(t.status)} <span style="color:#8A9AB0;font-weight:500">${fmtDate(t.date)}</span></span>`).join("")}
+                ${w.timeline.map((t,i)=>`${i?`<span style="color:#B8C6DC;margin:0 5px;font-size:11px">→</span>`:""}<span title="${escapeHtml(t.by)}" style="font-size:10px;background:var(--card);border:1px solid #DCE6F7;color:#1B3A6B;padding:3px 9px;border-radius:8px;font-weight:700">${escapeHtml(t.status)} <span style="color:#8A9AB0;font-weight:500">${fmtDate(t.date)}</span></span>`).join("")}
               </div>
             </div>`;
           }catch(e){ return ""; }
@@ -1342,7 +1342,7 @@ function viewResolution(recordId){
         ${txt ? `
           <div style="margin-bottom:16px">
             <div style="font-size:11px;color:#7F6000;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">📋 Description</div>
-            <div style="background:#FFFEF7;border-left:3px solid #C9A84C;padding:12px 14px;border-radius:6px;font-size:13px;line-height:1.7;color:#1A202C;white-space:pre-wrap">${escapeHtml(txt)}</div>
+            <div style="background:#FFFEF7;border-left:3px solid #C9A84C;padding:12px 14px;border-radius:8px;font-size:13px;line-height:1.7;color:#1A202C;white-space:pre-wrap">${escapeHtml(txt)}</div>
           </div>
         ` : ''}
         ${imgs.length > 0 ? `
@@ -1354,7 +1354,7 @@ function viewResolution(recordId){
                   <img src="${img.data}" style="width:100%;height:auto;display:block;cursor:pointer" onclick="window.open('${img.data}','_blank')" alt="Photo ${idx+1}">
                   <div style="padding:5px 8px;background:#1B3A6B;color:white;font-size:10px;font-weight:600;display:flex;justify-content:space-between;align-items:center">
                     <span>📷 ${idx+1} · ${img.sizeKB||base64SizeKB(img.data)} KB</span>
-                    ${isAdmin() ? `<button onclick="if(confirm('Delete this image from this record?')){deleteResolutionImageFromRecord('${recordId}',${idx});this.closest('div[style*=position]').remove()}" style="background:#C53030;color:white;border:none;padding:2px 6px;border-radius:4px;cursor:pointer;font-size:10px;font-weight:700" title="Admin: Delete">×</button>` : ''}
+                    ${isAdmin() ? `<button onclick="uiConfirm('Delete this image from this record?').then(ok=>{if(ok)deleteResolutionImageFromRecord('${recordId}',${idx});this.closest('div[style*=position]').remove()})" style="background:#C53030;color:white;border:none;padding:2px 6px;border-radius:4px;cursor:pointer;font-size:10px;font-weight:700" title="Admin: Delete">×</button>` : ''}
                   </div>
                 </div>
               `).join("")}
@@ -1391,7 +1391,7 @@ async function purgeResolutionImagesCustom(){
     from||to ? `Period: ${from||"start"} → ${to||"today"}` : "",
     proj ? `Project: ${proj}` : ""
   ].filter(Boolean).join("\n");
-  if(!confirm(`Purge images from ${candidates.length} record(s)?\n${desc}\n\nText descriptions will be kept.\nThis cannot be undone.`)) return;
+  if(!await uiConfirm(`Purge images from ${candidates.length} record(s)?\n${desc}\n\nText descriptions will be kept.\nThis cannot be undone.`)) return;
   let cleaned = 0;
   for(const rec of candidates){
     await fbSave("daily", { ...rec, id: rec.id, resolutionImages: [] });
@@ -1417,7 +1417,7 @@ function editDaily(id){
     window.scrollTo(0,0);
   }
 }
-async function delDaily(id){if(confirm("Delete this entry?")){await fbDelete("daily",id);toast("Deleted");}}
+async function delDaily(id){if(await uiConfirm("Delete this entry?")){await fbDelete("daily",id);toast("Deleted");}}
 function cancelDaily(){dailyForm=null;dailyEditId=null;render();}
 Object.assign(window,{
   saveDaily,saveDailyAndNext,editDaily,delDaily,cancelDaily,
@@ -1525,7 +1525,7 @@ async function saveOTAndNext(){
   toast(`Saved for ${savedEmp} ✓ — Select next employee`);
 }
 function editOT(id){const r=state.overtime.find(x=>x.id===id);if(r){otForm={...r,hours:String(r.hours||""),start:r.start||"",end:r.end||""};otEditId=id;render();window.scrollTo(0,0);}}
-async function delOT(id){if(confirm("Delete?")){await fbDelete("overtime",id);toast("Deleted");}}
+async function delOT(id){if(await uiConfirm("Delete?")){await fbDelete("overtime",id);toast("Deleted");}}
 function cancelOT(){otForm=null;otEditId=null;render();}
 Object.assign(window,{saveOT,saveOTAndNext,editOT,delOT,cancelOT});
 window.updateOTDuration = function(){
@@ -1606,7 +1606,7 @@ function renderTravel(){
           <td>${fmtDate(r.date)}</td><td>${(()=>{const t=trEnd(r);return (t&&t!==r.date)?fmtDate(t):'<span style="color:#9AA7B8">—</span>';})()}</td><td>${r.days}</td>
           <td>${escapeHtml(r.project||"—")}</td><td>${escapeHtml(r.location||"—")}</td>
           <td><strong style="color:#7F6000">${fmtMoney(r.perDiem)}</strong></td>
-          <td><span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:${pdRec?'#E8F5E9':'#FFEBEE'};color:${pdRec?'#2E7D32':'#C62828'}">${pdRec?'✅ Received':'❌ Not Received'}</span></td>
+          <td><span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:12px;background:${pdRec?'#E8F5E9':'#FFEBEE'};color:${pdRec?'#2E7D32':'#C62828'}">${pdRec?'✅ Received':'❌ Not Received'}</span></td>
           <td>${canEdit?`<button class="btn btn-sm btn-secondary" onclick="editTr('${r.id}')">${ICN.edit}</button>
               <button class="btn btn-sm btn-danger" onclick="delTr('${r.id}')">${ICN.del}</button>`:""}</td>
         </tr>`;}).join("")}</tbody>
@@ -1671,7 +1671,7 @@ function editTr(id){
   trForm={...r,days:String(r.days),dateTo:to||r.date,dateAuto:false};
   trEditId=id; render(); window.scrollTo(0,0);
 }
-async function delTr(id){if(confirm("Delete?")){await fbDelete("travel",id);toast("Deleted");}}
+async function delTr(id){if(await uiConfirm("Delete?")){await fbDelete("travel",id);toast("Deleted");}}
 function cancelTr(){trForm=null;trEditId=null;render();}
 Object.assign(window,{saveTr,saveTrAndNext,editTr,delTr,cancelTr});
 Object.defineProperty(window,'trForm',{get:()=>trForm,set:v=>trForm=v});
@@ -1740,7 +1740,7 @@ function leaveKindBadge(kind){
     hourly:  { label: "Hourly",    color: "#1565C0" },
   };
   const m = map[kind || "full"];
-  return `<span style="background:${m.color}22;color:${m.color};padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.3px">${m.label}</span>`;
+  return `<span style="background:${m.color}22;color:${m.color};padding:2px 8px;border-radius:12px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.3px">${m.label}</span>`;
 }
 
 function renderLeaves(){
@@ -1846,7 +1846,7 @@ function renderLeaves(){
       <div class="field"><label>Equivalent</label>
         <input value="${formAmount.hours.toFixed(2)}h = ${formAmount.days.toFixed(2)} day${formAmount.days===1?'':'s'}" disabled style="background:#F0F4FA;color:#1B3A6B;font-weight:700;font-family:Georgia,serif"></div>
       <div class="field full"><label>Preview</label>
-        <div style="padding:10px 14px;border:1px solid var(--line);border-radius:8px;background:white;display:flex;align-items:center;gap:8px;flex-wrap:wrap">${leaveTypeBadge(leaveForm.type)} ${leaveKindBadge(leaveForm.kind)}</div></div>
+        <div style="padding:10px 14px;border:1px solid var(--line);border-radius:8px;background:var(--card);display:flex;align-items:center;gap:8px;flex-wrap:wrap">${leaveTypeBadge(leaveForm.type)} ${leaveKindBadge(leaveForm.kind)}</div></div>
       <div class="field full"><label>Notes</label>
         <input value="${escapeHtml(leaveForm.notes||'')}" oninput="window.leaveForm.notes=this.value" placeholder="Reason or additional info (optional)"></div>
     </div>
@@ -1860,7 +1860,7 @@ function renderLeaves(){
     <div class="card-title">📊 Leave Summary</div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px">
       ${stats.filter(s=>s.count>0).map(s=>`
-        <div style="border:1px solid var(--line);border-left:4px solid ${s.color};border-radius:8px;padding:10px 12px;background:white">
+        <div style="border:1px solid var(--line);border-left:4px solid ${s.color};border-radius:8px;padding:10px 12px;background:var(--card)">
           <div style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:0.5px">${s.label}</div>
           <div style="font-family:'DM Serif Display',serif;font-size:22px;color:${s.color};margin-top:2px">${s.days.toFixed(2)} <span style="font-size:12px;color:var(--muted);font-family:inherit">days</span></div>
           <div style="font-size:11px;color:${s.color};font-weight:600">${s.hours.toFixed(1)}h equivalent</div>
@@ -1868,7 +1868,7 @@ function renderLeaves(){
         </div>
       `).join("") || '<div class="empty">No leaves recorded yet</div>'}
     </div>
-    <div style="margin-top:10px;padding:8px 12px;background:#F0F4FA;border-radius:6px;font-size:11px;color:var(--muted);font-style:italic">
+    <div style="margin-top:10px;padding:8px 12px;background:#F0F4FA;border-radius:8px;font-size:11px;color:var(--muted);font-style:italic">
       💡 Equivalent days = total hours ÷ ${WORK_HOURS_PER_DAY} (work day length)
     </div>
   </div>` : ""}
@@ -1991,7 +1991,7 @@ function editLeave(id){
   }
 }
 async function delLeave(id){
-  if(confirm("Delete this leave entry?")){ await fbDelete("leaves", id); toast("Deleted"); }
+  if(await uiConfirm("Delete this leave entry?")){ await fbDelete("leaves", id); toast("Deleted"); }
 }
 function cancelLeave(){ leaveForm = null; leaveEditId = null; render(); }
 Object.assign(window, {saveLeave, saveLeaveAndNext, editLeave, delLeave, cancelLeave});
@@ -2036,7 +2036,7 @@ window.exportTechPDF = async function(){
       <br><br><button onclick="window.print()">🖨️ Print / Save as PDF</button>
       <button onclick="window.close()" style="background:#888">Close</button>
     </div>
-    ${lbl?`<div style="font-size:11px;color:#03308B;background:#f0f4ff;border-radius:6px;padding:7px 12px;margin-bottom:12px"><strong>Filter:</strong> ${escapeHtml(lbl)}</div>`:''}
+    ${lbl?`<div style="font-size:11px;color:#03308B;background:#f0f4ff;border-radius:8px;padding:7px 12px;margin-bottom:12px"><strong>Filter:</strong> ${escapeHtml(lbl)}</div>`:''}
     <div class="ksec"><span class="kbad">01</span><h3>Executive Summary</h3></div>
     <div class="kr">
       <div class="kc kb"><div class="kl">Total Tasks</div><div class="kv">${totalTasks}</div><div class="ks">tasks</div></div>
