@@ -424,7 +424,7 @@ function dashStalledPanel(){
           <span style="display:block;font-size:var(--f-sm);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(w.scopeLabel||"—")} · ${escapeHtml(w.status)}</span>
           <span style="display:block;font-size:var(--f-2xs);color:var(--muted);margin-top:2px">${w.visits} entr${w.visits===1?"y":"ies"} · idle ${days(w.lastDate)}d · last ${fmtDate(w.lastDate)}</span>
         </span>
-        <button class="btn btn-sm" style="background:var(--ok);color:#fff;border:none;font-weight:800;white-space:nowrap" onclick="closeWorkItem('${escapeHtml(w.key).replace(/'/g,"\\'")}')">✓ Close job</button>
+        <button class="btn btn-sm" style="background:var(--ok);color:#fff;border:none;font-weight:800;white-space:nowrap;flex:0 0 auto" onclick="closeWorkItem('${escapeHtml(w.key).replace(/'/g,"\\'")}')">✓ Close job</button>
       </div>`).join("")}
     </div>${list.length>25?`<div style="font-size:11px;color:var(--muted);margin-top:7px">Showing the 25 longest-idle of ${list.length}.</div>`:""}`
     :`<div class="empty empty2" style="margin-top:8px"><span class="e-ic">✅</span><div class="e-t">Nothing stalled</div><div class="e-m">Every open job has been visited recently</div></div>`}

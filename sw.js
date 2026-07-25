@@ -3,7 +3,7 @@
 // This file MUST sit next to index.html on the server (same folder),
 // alongside: theme.css, app.css, pwa-manifest.js, firebase-init.js, app.js
 
-const CACHE = 'ejaftech-v146';
+const CACHE = 'ejaftech-v147';
 
 // Everything needed to cold-start with no network. The Firebase SDK files are
 // immutable, version-pinned URLs — caching them is what makes offline launch
@@ -13,6 +13,9 @@ const SHELL = [
   './01-core.js','./02-report-engine.js','./03-dashboard-logs.js','./04-reports.js',
   './05-assets.js','./06-database.js','./07-instructions.js','./08-clients.js',
   './09-tasks-requests.js','./10-integrations.js','./11-settings.js','./12-exports.js',
+  // If these exist in the repo they are precached and offline launch is
+  // guaranteed; if not, the .catch() below simply skips them.
+  './sdk/firebase-app.js','./sdk/firebase-auth.js','./sdk/firebase-firestore.js',
   'https://www.gstatic.com/firebasejs/10.13.1/firebase-app.js',
   'https://www.gstatic.com/firebasejs/10.13.1/firebase-auth.js',
   'https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js',
@@ -27,16 +30,14 @@ self.addEventListener('install', (e) => {
       //
       // cache.add() REJECTS opaque responses, which is what a cross-origin CDN
       // returns without CORS — so the SDK was silently never precached. fetch +
-      // put accepts them, with a no-cors retry as a last resort.
       Promise.all(SHELL.map(async (u) => {
         try {
           const r = await fetch(u, {cache:'reload'});
-          if (r && (r.ok || r.type === 'opaque')) { await c.put(u, r.clone()); return; }
+          if (r && r.ok && r.type !== 'opaque') { await c.put(u, r.clone()); return; }
         } catch (e) {}
-        try {
-          const r2 = await fetch(u, {mode:'no-cors', cache:'reload'});
-          if (r2) await c.put(u, r2.clone());
-        } catch (e) {}
+        // NO no-cors fallback here: an opaque response is REJECTED by the ES
+        // module loader, so caching one would guarantee the offline import
+        // fails. Better an empty slot than a poisoned one.
       }))
     )
   );
@@ -46,7 +47,10 @@ self.addEventListener('activate', (e) => {
   // Delete ALL old caches so users always get the latest version
   e.waitUntil(
     caches.keys().then(keys =>
-      Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
+      // Keep the SDK mirror: it is version-pinned, costly to rebuild, and wiping
+      // it on every upgrade would silently break offline launch all over again.
+      Promise.all(keys.filter(k => k !== CACHE && k !== 'ejaftech-sdk-mirror')
+                      .map(k => caches.delete(k)))
     ).then(() => self.clients.claim())
   );
 });
@@ -69,7 +73,8 @@ self.addEventListener('fetch', (e) => {
       caches.match(e.request).then(hit => hit || fetch(e.request).then(resp => {
         // status 0 + type 'opaque' is a valid cross-origin script response and
         // must be cached too, or the SDK is re-fetched on every single launch.
-        if (resp && (resp.status === 200 || resp.type === 'opaque')) {
+        // Only genuine CORS responses: opaque ones cannot satisfy a module import.
+        if (resp && resp.status === 200 && resp.type !== 'opaque') {
           const copy = resp.clone();
           caches.open(CACHE).then(c => c.put(e.request, copy)).catch(()=>{});
         }
