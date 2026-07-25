@@ -1715,7 +1715,18 @@ async function forceLogoutElsewhere(label){
 
 function watchAuth(){
   const{auth,onAuthStateChanged}=window.__fb;
+  // Firebase Auth restores the signed-in user from IndexedDB, but offline it can
+  // stall trying to refresh the token — and then this callback never runs at all,
+  // which is another way to sit on the spinner forever.
+  let _authFired = false;
+  setTimeout(()=>{
+    if(!_authFired && !state.initialized){
+      console.warn("Girêk: auth did not report in time — showing the sign-in screen.");
+      try{ renderLogin(); }catch(e){ console.error(e); }
+    }
+  }, 9000);
   onAuthStateChanged(auth,async(user)=>{
+    _authFired = true;
     if(user){
       state.user=user;
       // Distinguish "profile is absent" from "we could not read it yet".
@@ -1853,6 +1864,24 @@ async function subscribeData(){
   ];
   let firstCount=0;
   const firstSeen=new Set();
+  // THE ETERNAL SPINNER (found in v155):
+  // The gate waited for ALL ~30 collections to report before showing the app.
+  // Online they all answer in a second. Offline, Firestore serves each one from
+  // its local cache — but a collection that was never cached (a feature this
+  // company does not use, or one added after the last online session) has
+  // nothing to replay and simply never fires. One silent collection out of
+  // thirty was enough to hang the launch forever, with no error anywhere.
+  //
+  // A deadline fixes it in general: after 6 seconds we show the app with
+  // whatever has arrived. Late collections still stream in normally afterwards.
+  clearTimeout(window._gateTimer);
+  window._gateTimer = setTimeout(()=>{
+    if(!state.initialized){
+      console.warn(`Girêk: opening with ${firstSeen.size}/${subs.length} collections — the rest will stream in.`);
+      state.initialized=true;
+      try{ renderApp(); }catch(e){ console.error(e); }
+    }
+  }, 6000);
 
   // Safety net: if collections haven't all loaded within 8 seconds (e.g. a missing
   // Firestore rule blocks one), show the app anyway so it never freezes on loading.
@@ -1892,6 +1921,7 @@ async function subscribeData(){
       firstSeen.add(col); firstCount=firstSeen.size;
       try{ noteSyncState(key, snap.metadata && snap.metadata.hasPendingWrites); }catch(e){}
       if(firstCount>=subs.length && !state.initialized){
+        clearTimeout(window._gateTimer);
         state.initialized=true;
         renderApp();
       } else if(state.initialized){
@@ -1909,6 +1939,7 @@ async function subscribeData(){
       // loading screen if one collection fails (e.g. missing Firestore rule).
       firstSeen.add(col); firstCount=firstSeen.size;
       if(firstCount>=subs.length && !state.initialized){
+        clearTimeout(window._gateTimer);
         state.initialized=true;
         renderApp();
       }
