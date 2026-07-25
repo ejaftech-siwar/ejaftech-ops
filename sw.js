@@ -3,7 +3,7 @@
 // This file MUST sit next to index.html on the server (same folder),
 // alongside: theme.css, app.css, pwa-manifest.js, firebase-init.js, app.js
 
-const CACHE = 'ejaftech-v145';
+const CACHE = 'ejaftech-v146';
 
 // Everything needed to cold-start with no network. The Firebase SDK files are
 // immutable, version-pinned URLs — caching them is what makes offline launch
@@ -24,7 +24,20 @@ self.addEventListener('install', (e) => {
     caches.open(CACHE).then(c =>
       // addAll is all-or-nothing, so warm them one by one: a single CDN hiccup
       // must not leave the whole shell uncached.
-      Promise.all(SHELL.map(u => c.add(new Request(u, {cache:'reload'})).catch(()=>{})))
+      //
+      // cache.add() REJECTS opaque responses, which is what a cross-origin CDN
+      // returns without CORS — so the SDK was silently never precached. fetch +
+      // put accepts them, with a no-cors retry as a last resort.
+      Promise.all(SHELL.map(async (u) => {
+        try {
+          const r = await fetch(u, {cache:'reload'});
+          if (r && (r.ok || r.type === 'opaque')) { await c.put(u, r.clone()); return; }
+        } catch (e) {}
+        try {
+          const r2 = await fetch(u, {mode:'no-cors', cache:'reload'});
+          if (r2) await c.put(u, r2.clone());
+        } catch (e) {}
+      }))
     )
   );
 });
@@ -54,12 +67,14 @@ self.addEventListener('fetch', (e) => {
       url.includes('cdn.jsdelivr.net') || url.includes('unpkg.com')) {
     e.respondWith(
       caches.match(e.request).then(hit => hit || fetch(e.request).then(resp => {
-        if (resp && resp.status === 200) {
+        // status 0 + type 'opaque' is a valid cross-origin script response and
+        // must be cached too, or the SDK is re-fetched on every single launch.
+        if (resp && (resp.status === 200 || resp.type === 'opaque')) {
           const copy = resp.clone();
-          caches.open(CACHE).then(c => c.put(e.request, copy));
+          caches.open(CACHE).then(c => c.put(e.request, copy)).catch(()=>{});
         }
         return resp;
-      }).catch(() => hit))
+      }).catch(() => caches.match(e.request)))
     );
     return;
   }

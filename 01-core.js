@@ -1465,7 +1465,28 @@ Object.assign(window, {
 // ═══════════════════════════════════════════════════════════════════════
 //  FIREBASE INIT & AUTH
 // ═══════════════════════════════════════════════════════════════════════
+// If the SDK itself could not load, say so plainly. An endless spinner with no
+// explanation is the worst possible failure mode for someone standing on site.
+function showSdkOffline(msg){
+  renderRoot(`<div class="login-bg"><div class="login-card" style="text-align:center">
+    <div style="font-size:34px">📡</div>
+    <h2 style="margin-top:10px">Offline — first launch needs a connection</h2>
+    <div class="sub" style="margin-top:8px;line-height:1.7">Girêk stores everything on your device, but the very first launch has to download its engine once.<br><br>Connect to the internet and open the app one time; after that it will start with no signal at all.</div>
+    <button class="login-btn" onclick="location.reload()" style="margin-top:18px">Try again</button>
+    ${msg?`<div style="font-size:var(--f-2xs);color:var(--muted);margin-top:12px">${escapeHtml(String(msg))}</div>`:""}
+  </div></div>`);
+}
+window.showSdkOffline = showSdkOffline;
+// Watchdog: if 'fb-ready' never arrives at all (the module file itself is
+// missing from the cache), nothing downstream can ever run.
+window._bootWatchdog = setTimeout(()=>{
+  if(!window.__fb || (!window.__fb.auth && !window._bootHandled)) showSdkOffline("Engine did not load");
+}, 12000);
+
 window.addEventListener('fb-ready',()=>{
+  window._bootHandled = true;
+  clearTimeout(window._bootWatchdog);
+  if(window.__fb.sdkError){ showSdkOffline(window.__fb.sdkError); return; }
   if(!window.__fb.isConfigured){showSetupNeeded();return;}
   // ── Public live-share mode: ?share=TOKEN opens a read-only client view
   //    with NO login. It can only read publicShares/{token} — a curated
@@ -1697,14 +1718,36 @@ function watchAuth(){
   onAuthStateChanged(auth,async(user)=>{
     if(user){
       state.user=user;
-      // 4s is generous online and irrelevant offline — the cache answers instantly
-      await bootRace(loadProfile(), 4000, null);
+      // Distinguish "profile is absent" from "we could not read it yet".
+      // 12s, and on timeout we RETRY in the background rather than concluding
+      // the account does not exist.
+      const _pOk = await bootRace(loadProfile().then(()=>"ok"), 12000, "timeout");
+      if(!state.profile && _pOk==="timeout"){
+        renderRoot(`<div class="login-bg"><div class="login-card" style="text-align:center">
+          <div style="font-size:34px">📡</div>
+          <h2 style="margin-top:10px">Still connecting…</h2>
+          <div class="sub" style="margin-top:8px">Your account is fine — we just could not reach your profile yet.<br>Retrying automatically.</div>
+        </div></div>`);
+        for(let i=0;i<5 && !state.profile;i++){
+          await new Promise(r=>setTimeout(r,3000));
+          await bootRace(loadProfile(), 8000, null);
+        }
+        if(!state.profile){
+          renderRoot(`<div class="login-bg"><div class="login-card" style="text-align:center">
+            <div style="font-size:34px">📡</div>
+            <h2 style="margin-top:10px">Cannot reach your profile</h2>
+            <div class="sub" style="margin-top:8px">You are still signed in. Check your connection and try again — nothing has been lost.</div>
+            <button class="login-btn" onclick="location.reload()" style="margin-top:18px">Try again</button>
+          </div></div>`);
+          return;                    // never fall through to "Account Not Configured"
+        }
+      }
       if(state.profile){
         // ── Single-device session lock ──
         // The single-device lock needs the server to be meaningful. Offline it
         // cannot be evaluated, so we let the user in rather than lock them out
         // of their own field data.
-        const claim = await bootRace(claimSession(state.profile), 4000, {ok:true, offline:true});
+        const claim = await bootRace(claimSession(state.profile), 8000, {ok:true, offline:true});
         if(!claim.ok){
           // Another device holds the session → block this login
           const {auth:a, signOut} = window.__fb;
