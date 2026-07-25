@@ -1,27 +1,26 @@
 // ═══════════════════════════════════════════════════════════════════════
-//  Girêk — Firebase bootstrap (v147)
+//  Girêk — Firebase bootstrap (v148)
 //
-//  THE OFFLINE COLD-START PROBLEM, and why the obvious fixes failed:
+//  WHY THE OFFLINE COLD START KEPT FAILING — four distinct causes, in order:
 //
-//  1. Static top-level imports meant an unreachable SDK stopped the module
-//     body from running at all, so 'fb-ready' never fired → dead spinner.
-//     (Fixed in v146 with dynamic imports inside try/catch.)
+//  1. Static top-level imports: an unreachable SDK stopped the module body from
+//     running, so 'fb-ready' never fired and the app hung on its spinner.
+//  2. The service worker excluded every 'gstatic' URL from caching — and the
+//     Firebase SDK is served from gstatic.
+//  3. Caching it with no-cors produced an OPAQUE response, and the ES module
+//     loader refuses to execute an opaque module. The file was cached and the
+//     import still failed.
+//  4. A background job that copied the SDK into a mirror could silently not run.
 //
-//  2. Caching the CDN files was still unreliable: a cross-origin response
-//     cached without CORS is OPAQUE, and the ES module loader REFUSES to
-//     execute an opaque module. So the cache could hold the file and the
-//     import would still fail.
-//
-//  The reliable answer is to stop depending on cross-origin behaviour at all:
-//  on the first successful online launch we copy the three SDK files into a
-//  SAME-ORIGIN mirror in the Cache API. Same-origin scripts have no CORS
-//  dimension, and the service worker already serves same-origin files
-//  offline. Every later launch imports the mirror first.
+//  The fix removes cross-origin behaviour from the equation entirely: the page
+//  imports a SAME-ORIGIN path, and the service worker fetches the real bytes
+//  once, re-serves them under our own origin, and caches them. Same-origin
+//  modules have no CORS dimension to fail on.
 // ═══════════════════════════════════════════════════════════════════════
-const SDK      = "https://www.gstatic.com/firebasejs/10.13.1/";
-const MIRROR   = "sdk-mirror/10.13.1/";          // same-origin, relative to the app
-const SDK_CACHE = "ejaftech-sdk-mirror";
-const FILES    = ["firebase-app.js", "firebase-auth.js", "firebase-firestore.js"];
+const SDK_VER = "10.13.1";
+const SDK     = "https://www.gstatic.com/firebasejs/" + SDK_VER + "/";
+const FILES   = ["firebase-app.js", "firebase-auth.js", "firebase-firestore.js"];
+const mirrorUrl = (f) => new URL("sdk-mirror/" + SDK_VER + "/" + f, location.href).href;
 
 const firebaseConfig = {
   apiKey: "AIzaSyAmb1Wj_cGqazyG5tJjl_AzOFu-8IaxSt4",
@@ -35,67 +34,47 @@ const firebaseConfig = {
 const isConfigured = firebaseConfig.apiKey !== "PASTE_YOUR_API_KEY_HERE";
 window.__fb = { isConfigured };
 
-const mirrorUrl = (f) => new URL(MIRROR + f, location.href).href;
-
-// Copy the CDN files into a same-origin mirror. Runs quietly in the background
-// after a successful online start; failure is harmless.
-async function buildMirror(){
-  try{
-    if(!("caches" in window)) return;
-    const c = await caches.open(SDK_CACHE);
-    for(const f of FILES){
-      const already = await c.match(mirrorUrl(f));
-      if(already) continue;
-      const r = await fetch(SDK + f, {mode:"cors", cache:"reload"});
-      if(!r.ok) continue;
-      const body = await r.text();
-      await c.put(mirrorUrl(f), new Response(body, {
-        status:200,
-        headers:{ "Content-Type":"text/javascript; charset=utf-8" }
-      }));
-    }
-  }catch(e){ console.warn("SDK mirror not built:", e && e.message); }
-}
-
-// Load order, most reliable first:
-//   1. BUNDLED files in ./sdk/ — if you drop the three SDK files there, offline
-//      launch is guaranteed forever with no caching involved at all.
-//   2. The same-origin mirror built on a previous online run.
-//   3. The CDN.
 async function loadSDK(){
-  let viaMirror = false;
-  // ── 1. bundled copy ──
+  // ── 1. bundled copy in ./sdk/ — offline guaranteed, no caching involved ──
   try{
     const probe = await fetch("sdk/firebase-app.js", {method:"HEAD"});
     if(probe && probe.ok){
       const mods = await Promise.all(FILES.map(f => import(new URL("sdk/"+f, location.href).href)));
-      return { mods, viaMirror:"bundled" };
+      return { mods, source:"bundled" };
     }
   }catch(e){ /* not bundled — carry on */ }
-  try{
-    if("caches" in window){
-      const c = await caches.open(SDK_CACHE);
-      const hits = await Promise.all(FILES.map(f => c.match(mirrorUrl(f))));
-      if(hits.every(Boolean)){
-        const mods = await Promise.all(FILES.map(f => import(mirrorUrl(f))));
-        viaMirror = true;
-        return { mods, viaMirror };
+
+  // ── 2. same-origin path served by the service worker ──
+  if("serviceWorker" in navigator){
+    try{
+      if(!navigator.serviceWorker.controller){
+        // First-ever visit: give the worker a moment to take control, otherwise
+        // it cannot proxy anything yet.
+        await Promise.race([
+          navigator.serviceWorker.ready.then(()=>new Promise(r=>setTimeout(r,400))),
+          new Promise(r=>setTimeout(r,3500))
+        ]);
       }
+      if(navigator.serviceWorker.controller){
+        const mods = await Promise.all(FILES.map(f => import(mirrorUrl(f))));
+        return { mods, source:"mirror" };
+      }
+    }catch(e){
+      console.warn("Mirror import failed, falling back to CDN:", e && e.message);
+      // A mirrored file that will not execute is worse than none.
+      try{ await caches.delete("ejaftech-sdk-mirror"); }catch(_){}
     }
-  }catch(e){
-    // A mirrored file that will not execute is worse than none — drop it so the
-    // next online launch rebuilds a clean copy.
-    console.warn("Mirror import failed, falling back to CDN:", e && e.message);
-    try{ await caches.delete(SDK_CACHE); }catch(_){}
   }
+
+  // ── 3. straight from the CDN ──
   const mods = await Promise.all(FILES.map(f => import(SDK + f)));
-  return { mods, viaMirror };
+  return { mods, source:"cdn" };
 }
 
 try {
   if (!isConfigured) throw new Error("not-configured");
 
-  const { mods, viaMirror } = await loadSDK();
+  const { mods, source } = await loadSDK();
   const [appMod, authMod, fsMod] = mods;
 
   const { initializeApp } = appMod;
@@ -125,15 +104,13 @@ try {
   }
 
   window.__fb = {
-    isConfigured: true, app, auth, db, viaMirror,
+    isConfigured: true, app, auth, db, sdkSource: source,
     signInWithEmailAndPassword, signOut, onAuthStateChanged, createUserWithEmailAndPassword,
     updatePassword, sendPasswordResetEmail, reauthenticateWithCredential, EmailAuthProvider,
     collection, doc, getDoc, setDoc, updateDoc, deleteDoc, onSnapshot, query, where,
     getDocs, addDoc, runTransaction, deleteField
   };
-
-  // Keep the mirror warm for the next launch — never block startup on it.
-  if (navigator.onLine !== false) setTimeout(buildMirror, 1500);
+  console.log("Girêk: Firebase SDK loaded via " + source);
 
 } catch (e) {
   console.error("Firebase init failed:", e);

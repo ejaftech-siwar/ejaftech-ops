@@ -2554,6 +2554,16 @@ function renderTab(){
 // same frame collapses into ONE renderTab (was: 27+ full renders on load).
 let _renderQueued=false;
 function scheduleRender(){
+  // During the opening seconds Firebase delivers ~30 collection snapshots. One
+  // render per animation frame meant ~30 full DOM rebuilds in about a second,
+  // and the layout visibly jumped as each batch of data arrived — that is the
+  // rapid shake on first launch. While the stream is still flowing we coalesce
+  // far more aggressively; once it settles we go back to frame-accurate paints.
+  if(!window._bootSettled){
+    clearTimeout(window._bootRenderTimer);
+    window._bootRenderTimer = setTimeout(()=>{ if(state.initialized) renderTab(); }, 260);
+    return;
+  }
   if(_renderQueued) return;
   _renderQueued=true;
   requestAnimationFrame(()=>{ _renderQueued=false; if(state.initialized) renderTab(); });

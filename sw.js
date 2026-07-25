@@ -3,7 +3,7 @@
 // This file MUST sit next to index.html on the server (same folder),
 // alongside: theme.css, app.css, pwa-manifest.js, firebase-init.js, app.js
 
-const CACHE = 'ejaftech-v147';
+const CACHE = 'ejaftech-v149';
 
 // Everything needed to cold-start with no network. The Firebase SDK files are
 // immutable, version-pinned URLs — caching them is what makes offline launch
@@ -64,8 +64,37 @@ self.addEventListener('fetch', (e) => {
       url.includes('google-analytics') || url.includes('firebaselogging')) {
     return;
   }
-  // The Firebase SDK bundle and other CDN libraries are immutable, version-
-  // pinned files. CACHE-FIRST so the app can boot and export with no network.
+  // ── SDK PROXY ──────────────────────────────────────────────────────────
+  // The page imports ./sdk-mirror/<ver>/<file>. That is same-origin, so the ES
+  // module loader has no CORS requirement to fail on. We fetch the real bytes
+  // from the CDN once, re-serve them under our own origin, and cache them.
+  // Every previous attempt failed because the page imported the CROSS-ORIGIN
+  // url directly: cached without CORS it becomes an opaque response, and the
+  // module loader refuses to execute an opaque module.
+  const mirror = url.match(/\/sdk-mirror\/([\d.]+)\/(firebase-[a-z]+\.js)$/);
+  if (mirror) {
+    e.respondWith((async () => {
+      const c = await caches.open('ejaftech-sdk-mirror');
+      const hit = await c.match(e.request.url);
+      if (hit) return hit;
+      try {
+        const r = await fetch(`https://www.gstatic.com/firebasejs/${mirror[1]}/${mirror[2]}`, {mode:'cors'});
+        if (!r.ok) throw new Error('cdn ' + r.status);
+        const body = await r.text();
+        const resp = new Response(body, {status:200,
+          headers:{'Content-Type':'text/javascript; charset=utf-8'}});
+        await c.put(e.request.url, resp.clone());
+        return resp;
+      } catch (err) {
+        // Offline with nothing cached — a clear 504 lets the page show a real
+        // message instead of hanging.
+        return new Response('', {status:504, statusText:'SDK unavailable offline'});
+      }
+    })());
+    return;
+  }
+  // Other CDN libraries are immutable, version-pinned files. CACHE-FIRST so
+  // exports keep working with no network.
   if (url.includes('gstatic.com/firebasejs') || url.includes('cdnjs.cloudflare.com') ||
       url.includes('fonts.googleapis.com') || url.includes('fonts.gstatic.com') ||
       url.includes('cdn.jsdelivr.net') || url.includes('unpkg.com')) {
@@ -85,7 +114,8 @@ self.addEventListener('fetch', (e) => {
   }
   // Our own split JS/CSS (same-origin) — treat like the app shell
   const sameOrigin = url.startsWith(self.location.origin);
-  const isAppAsset = sameOrigin && (url.includes('.js') || url.includes('.css'));
+  const isAppAsset = sameOrigin && !url.includes('/sdk-mirror/') &&
+                     (url.includes('.js') || url.includes('.css'));
   // NETWORK-FIRST for HTML navigation AND our own JS/CSS (always get the latest)
   if (e.request.mode === 'navigate' ||
       e.request.destination === 'document' ||

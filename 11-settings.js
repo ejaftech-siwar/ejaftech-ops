@@ -206,6 +206,15 @@ function renderProfile(){
     <button class="btn btn-danger" onclick="uiConfirm('Sign out from this device?').then(ok=>{if(ok)doSignOut()})">Sign Out</button>
   </div>
 
+  ${isAdmin()?(()=>{ const src=(window.__fb&&window.__fb.sdkSource)||"unknown";
+    const ok = src==="bundled" || src==="mirror";
+    return `<div class="card" style="border-left:4px solid ${ok?'var(--ok)':'var(--warn)'}">
+      <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:var(--f-sm);padding:2px 8px;border-radius:var(--r-md);font-weight:800">📡</span> Offline readiness</div>
+      <p style="font-size:var(--f-md);color:var(--muted);margin:8px 0 0;line-height:1.65">Engine loaded via <strong style="color:${ok?'var(--ok)':'var(--warn)'}">${escapeHtml(src)}</strong>.<br>${
+        src==="bundled" ? "✅ Guaranteed — the engine ships with the app, so it starts with no signal at all."
+        : src==="mirror" ? "✅ Cached on this device — offline launch should work."
+        : "⚠️ Loaded straight from the internet, so a cold start with no signal will fail. Put the three Firebase SDK files in a <strong>sdk/</strong> folder beside index.html to fix this permanently."}</p>
+    </div>`; })():""}
   <div class="card" style="border-left:4px solid ${_sn?'#2E7D32':'#C9A84C'}">
     <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">05</span> 🔔 Device Notifications ${_sn?'<span style="font-size:10px;background:#E8F5E9;color:#2E7D32;padding:2px 8px;border-radius:8px;font-weight:800">ON</span>':''}</div>
     <p style="font-size:12px;color:var(--muted);margin:8px 0 12px">Task assignments & alerts appear in your phone's notification tray with sound — while the app is open or in the background.</p>
