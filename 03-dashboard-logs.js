@@ -509,7 +509,7 @@ function renderDashboard(){
       <div class="kpi-sub">${sub} ${_trendChip(cur,prev)}</div>
       ${_sparkline(series,accent)}
     </div>`;
-  let h = hero + exportBar + (isEmployee()&&typeof dashMyDay==="function"?dashMyDay():"") + `<div class="kpi-grid">
+  let h = (typeof partialDataNotice==="function"?partialDataNotice():"") + hero + exportBar + (isEmployee()&&typeof dashMyDay==="function"?dashMyDay():"") + `<div class="kpi-grid">
     ${_kpi("#2E5FA3","Total Hours",tHrs,"hm",isEmployee()?"your hours":apprFilter(applyReportFilters(visibleRows(state.daily))).length+" sessions",_pHrs,tHrs,_dailySeries(_mine(state.daily),"duration",_R))}
     ${_kpi("#E65100","Overtime",tOT,"hm",applyReportFilters(visibleRows(state.overtime)).length+" entries",_pOT,tOT,_dailySeries(_mine(state.overtime),"hours",_R))}
     ${_kpi("#2E7D32","Travel Days",tTr,"int",applyReportFilters(visibleRows(state.travel)).length+" trips",_pTr,tTr,_dailySeries(_mine(state.travel),"days",_R))}

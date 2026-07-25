@@ -99,6 +99,7 @@ try {
   } = authMod;
   const {
     getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
+    CACHE_SIZE_UNLIMITED,
     collection, doc, getDoc, setDoc, updateDoc, deleteDoc, onSnapshot, query, where,
     getDocs, addDoc, runTransaction, deleteField
   } = fsMod;
@@ -127,7 +128,19 @@ try {
   let db;
   try {
     db = initializeFirestore(app, {
-      localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+      // WHY UNLIMITED:
+      // Firestore's default local cache is 40 MB, and once it fills the SDK
+      // silently garbage-collects the OLDEST documents. Girêk stores resolution
+      // photos as base64 inside daily entries, so `daily` alone can pass 40 MB —
+      // and it is exactly the collection that gets evicted first. Offline, the
+      // small collections (staff, projects) came back while the work log was
+      // simply gone: the app opened with every figure at zero.
+      // The field data is the whole point of working offline; it must not be
+      // thrown away to save space on a device that has gigabytes free.
+      localCache: persistentLocalCache({
+        tabManager: persistentMultipleTabManager(),
+        cacheSizeBytes: CACHE_SIZE_UNLIMITED
+      })
     });
   } catch (e) {
     console.warn("Persistent cache unavailable, falling back:", e && e.message);

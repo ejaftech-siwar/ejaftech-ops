@@ -685,6 +685,26 @@ function readLocalSession(){
 function clearLocalSession(){ try{ localStorage.removeItem(LOCAL_SESSION_KEY); }catch(e){} }
 Object.assign(window,{saveLocalSession,readLocalSession,clearLocalSession});
 
+// When the app opens offline on a partial cache, every figure reads zero and
+// looks like a data-loss bug. Say what is actually missing instead.
+function partialDataNotice(){
+  try{
+    if(!state.offlineSession && navigator.onLine !== false) return "";
+    const loaded = window._loadedCols ? window._loadedCols.size : 0;
+    const total  = window._totalCols || 0;
+    if(!total || loaded >= total) return "";
+    return `<div class="card" style="border-left:4px solid var(--warn);background:var(--warn-bg)">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <span style="font-size:var(--f-2xl)">📴</span>
+        <div style="flex:1;min-width:180px">
+          <div style="font-size:var(--f-lg);font-weight:800;color:var(--warn-ink)">Showing ${loaded} of ${total} data sets</div>
+          <div style="font-size:var(--f-sm);color:var(--warn-ink);opacity:.85;margin-top:2px;line-height:1.55">The rest was not saved on this device yet. Figures below cover only what is here — connect once and everything fills in.</div>
+        </div>
+      </div></div>`;
+  }catch(e){ return ""; }
+}
+window.partialDataNotice = partialDataNotice;
+
 function _dtDoc(){ return (state.settingsDocs||[]).find(x=>x.id==="dateTime")||{}; }
 function getAppTZ(){ return _dtDoc().tz || "Asia/Baghdad"; }
 window.getAppTZ=getAppTZ;
@@ -1944,6 +1964,7 @@ async function subscribeData(){
   ];
   let firstCount=0;
   const firstSeen=new Set();
+  window._totalCols = subs.length;
   // THE ETERNAL SPINNER (found in v155):
   // The gate waited for ALL ~30 collections to report before showing the app.
   // Online they all answer in a second. Offline, Firestore serves each one from
@@ -1999,6 +2020,7 @@ async function subscribeData(){
       }
 
       firstSeen.add(col); firstCount=firstSeen.size;
+      window._loadedCols = firstSeen;
       try{ noteSyncState(key, snap.metadata && snap.metadata.hasPendingWrites); }catch(e){}
       if(firstCount>=subs.length && !state.initialized){
         clearTimeout(window._gateTimer);
