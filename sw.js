@@ -3,7 +3,7 @@
 // This file MUST sit next to index.html on the server (same folder),
 // alongside: theme.css, app.css, pwa-manifest.js, firebase-init.js, app.js
 
-const CACHE = 'ejaftech-v150';
+const CACHE = 'ejaftech-v151';
 
 // Everything needed to cold-start with no network. The Firebase SDK files are
 // immutable, version-pinned URLs — caching them is what makes offline launch
@@ -21,8 +21,18 @@ const SHELL = [
   'https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js',
 ];
 self.addEventListener('install', (e) => {
-  // NOTE (v90): no skipWaiting here. The new version WAITS until the user taps
-  // "Update now" in the in-app banner — no surprise reloads mid-work.
+  // NOTE (v90): no blanket skipWaiting — the new version waits for "Update now"
+  // so nobody gets a surprise reload mid-work.
+  //
+  // BUT (v151): waiting also meant the PREVIOUS worker stayed in control, and
+  // an older worker knows nothing about ./sdk/ — so those files were never
+  // cached and the offline cold start kept failing even though the folder was
+  // deployed correctly. When there is no controller yet (a genuinely fresh
+  // install) there is no work to interrupt, so we take over at once.
+  e.waitUntil((async () => {
+    const clients = await self.clients.matchAll();
+    if (!clients.length) { try { await self.skipWaiting(); } catch (_) {} }
+  })());
   e.waitUntil(
     caches.open(CACHE).then(c =>
       // addAll is all-or-nothing, so warm them one by one: a single CDN hiccup
@@ -124,6 +134,20 @@ self.addEventListener('fetch', (e) => {
   }
   // Our own split JS/CSS (same-origin) — treat like the app shell
   const sameOrigin = url.startsWith(self.location.origin);
+  // ./sdk/ holds the Firebase engine: it must be CACHE-FIRST, never
+  // network-first. Version-pinned and unchanging, and treating it like ordinary
+  // app code meant an offline launch waited on a network request that could
+  // never succeed.
+  if (sameOrigin && url.includes('/sdk/firebase-')) {
+    e.respondWith(
+      caches.match(e.request).then(hit => hit || fetch(e.request).then(resp => {
+        if (resp && resp.ok) { const c2 = resp.clone();
+          caches.open(CACHE).then(c => c.put(e.request, c2)).catch(()=>{}); }
+        return resp;
+      }).catch(() => caches.match(e.request)))
+    );
+    return;
+  }
   const isAppAsset = sameOrigin && !url.includes('/sdk-mirror/') &&
                      (url.includes('.js') || url.includes('.css'));
   // NETWORK-FIRST for HTML navigation AND our own JS/CSS (always get the latest)
