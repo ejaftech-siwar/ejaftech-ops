@@ -3,7 +3,7 @@
 // This file MUST sit next to index.html on the server (same folder),
 // alongside: theme.css, app.css, pwa-manifest.js, firebase-init.js, app.js
 
-const CACHE = 'ejaftech-v149';
+const CACHE = 'ejaftech-v150';
 
 // Everything needed to cold-start with no network. The Firebase SDK files are
 // immutable, version-pinned URLs — caching them is what makes offline launch
@@ -80,7 +80,17 @@ self.addEventListener('fetch', (e) => {
       try {
         const r = await fetch(`https://www.gstatic.com/firebasejs/${mirror[1]}/${mirror[2]}`, {mode:'cors'});
         if (!r.ok) throw new Error('cdn ' + r.status);
-        const body = await r.text();
+        let body = await r.text();
+        // CRITICAL: the auth and firestore bundles import firebase-app from an
+        // ABSOLUTE CDN url baked inside them. Served as-is, that pulls a SECOND
+        // copy of firebase-app: auth registers itself into that copy while
+        // initializeApp() uses ours, and Firebase throws
+        //   "Component auth has not been registered yet".
+        // Rewriting the import to a sibling path keeps every module on one
+        // single firebase-app instance.
+        body = body.replace(
+          /((?:from|import)\s*)(["'])https:\/\/www\.gstatic\.com\/firebasejs\/[\d.]+\/firebase-app\.js\2/g,
+          '$1$2./firebase-app.js$2');
         const resp = new Response(body, {status:200,
           headers:{'Content-Type':'text/javascript; charset=utf-8'}});
         await c.put(e.request.url, resp.clone());

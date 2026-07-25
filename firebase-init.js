@@ -36,13 +36,13 @@ window.__fb = { isConfigured };
 
 async function loadSDK(){
   // ── 1. bundled copy in ./sdk/ — offline guaranteed, no caching involved ──
+  // Import directly rather than probing with HEAD first: some static hosts and
+  // service-worker paths answer HEAD unhelpfully, and a failed probe silently
+  // demoted a perfectly good local bundle to the network path.
   try{
-    const probe = await fetch("sdk/firebase-app.js", {method:"HEAD"});
-    if(probe && probe.ok){
-      const mods = await Promise.all(FILES.map(f => import(new URL("sdk/"+f, location.href).href)));
-      return { mods, source:"bundled" };
-    }
-  }catch(e){ /* not bundled — carry on */ }
+    const mods = await Promise.all(FILES.map(f => import(new URL("sdk/"+f, location.href).href)));
+    if(mods[0] && mods[0].initializeApp) return { mods, source:"bundled" };
+  }catch(e){ /* no bundle present — carry on */ }
 
   // ── 2. same-origin path served by the service worker ──
   if("serviceWorker" in navigator){
