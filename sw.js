@@ -3,7 +3,7 @@
 // This file MUST sit next to index.html on the server (same folder),
 // alongside: theme.css, app.css, pwa-manifest.js, firebase-init.js, app.js
 
-const CACHE = 'ejaftech-v152';
+const CACHE = 'ejaftech-v153';
 
 // Everything needed to cold-start with no network. The Firebase SDK files are
 // immutable, version-pinned URLs — caching them is what makes offline launch
@@ -156,20 +156,36 @@ self.addEventListener('fetch', (e) => {
       url.endsWith('/') ||
       url.includes('index.html') ||
       isAppAsset) {
-    e.respondWith(
-      // cache:'no-store' bypasses the BROWSER's own HTTP cache (not just the
-      // Cache API) — without this, GitHub Pages' Cache-Control headers let the
-      // browser serve a stale file straight from disk, so "network-first"
-      // wasn't actually reaching the network. This is why Update-now needed a
-      // manual cache clear before.
-      fetch(e.request, {cache: 'no-store'}).then(resp => {
-        const c = resp.clone();
-        caches.open(CACHE).then(ca => ca.put(e.request, c));
+    e.respondWith((async () => {
+      // THE BUG THAT BROKE OFFLINE LAUNCH (introduced in v107, found in v153):
+      //   fetch(e.request, {cache:'no-store'})
+      // A navigation request has mode 'navigate', and the spec FORBIDS building
+      // a Request from one with any init options — so this threw a TypeError
+      // SYNCHRONOUSLY. respondWith() then never received a promise, the worker
+      // dropped out of the request entirely, and the browser fell back to the
+      // network. Online that silently succeeded, which is why everything looked
+      // fine; offline there was nothing to fall back to and the app would not
+      // start — no matter how perfectly the cache was populated.
+      //
+      // no-store is still applied to sub-resources (where it is legal and does
+      // keep GitHub Pages from serving stale JS), just never to navigations.
+      const isNav = e.request.mode === 'navigate' || e.request.destination === 'document';
+      try {
+        const resp = isNav ? await fetch(e.request) : await fetch(e.request, {cache:'no-store'});
+        if (resp && resp.ok) {
+          const copy = resp.clone();
+          caches.open(CACHE).then(ca => ca.put(e.request, copy)).catch(()=>{});
+        }
         return resp;
-      }).catch(() => caches.match(e.request, {ignoreSearch:true})
-          .then(r => r || caches.match('./index.html', {ignoreSearch:true}))
-          .then(r => r || caches.match('./', {ignoreSearch:true})))
-    );
+      } catch (err) {
+        // Offline (or any failure): serve the cached copy. ignoreSearch matters
+        // because an installed PWA launches with its own query string appended.
+        return (await caches.match(e.request, {ignoreSearch:true}))
+            || (isNav ? await caches.match('./index.html', {ignoreSearch:true}) : null)
+            || (isNav ? await caches.match('./', {ignoreSearch:true}) : null)
+            || Response.error();
+      }
+    })());
     return;
   }
   // CACHE-FIRST for other assets (fonts, CDN libraries)
