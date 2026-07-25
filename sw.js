@@ -3,7 +3,7 @@
 // This file MUST sit next to index.html on the server (same folder),
 // alongside: theme.css, app.css, pwa-manifest.js, firebase-init.js, app.js
 
-const CACHE = 'ejaftech-v153';
+const CACHE = 'ejaftech-v154';
 
 // Everything needed to cold-start with no network. The Firebase SDK files are
 // immutable, version-pinned URLs — caching them is what makes offline launch
@@ -19,6 +19,15 @@ const SHELL = [
   'https://www.gstatic.com/firebasejs/10.13.1/firebase-app.js',
   'https://www.gstatic.com/firebasejs/10.13.1/firebase-auth.js',
   'https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js',
+  // Export libraries. Not needed to LAUNCH, but without them Excel, PDF and QR
+  // quietly stop working the moment there is no signal — precaching them keeps
+  // the whole app usable in the field, not just the parts that read data.
+  'https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js',
+  'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js',
+  'https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.0/dist/jspdf.plugin.autotable.min.js',
+  'https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js',
+  'https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js',
+  'https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js',
 ];
 self.addEventListener('install', (e) => {
   // NOTE (v90): no blanket skipWaiting — the new version waits for "Update now"
