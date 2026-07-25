@@ -1,0 +1,61 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Girêk — Offline Check</title>
+<style>
+ body{font-family:-apple-system,Segoe UI,Roboto,sans-serif;background:#0F1A2E;color:#E7EDF6;margin:0;padding:18px}
+ h1{font-size:19px;margin:0 0 4px} .sub{font-size:12px;color:#8FA3BF;margin-bottom:18px}
+ .row{background:#152238;border:1px solid #24354F;border-radius:10px;padding:11px 13px;margin-bottom:9px}
+ .k{font-size:11px;color:#8FA3BF;text-transform:uppercase;letter-spacing:.5px;font-weight:700}
+ .v{font-size:14px;font-weight:700;margin-top:3px;word-break:break-all}
+ .ok{color:#7CDA8C}.bad{color:#FF8F8F}.warn{color:#FFC49B}
+ pre{font-size:11px;background:#0B1424;padding:9px;border-radius:8px;overflow:auto;max-height:190px;color:#A9CBFF}
+</style></head><body>
+<h1>📡 Girêk — Offline Check</h1>
+<div class="sub">Open this page, screenshot it, and send it. It reports exactly what is cached.</div>
+<div id="out">Checking…</div>
+<script>
+(async function(){
+  const R=[];
+  const add=(k,v,cls)=>R.push(`<div class="row"><div class="k">${k}</div><div class="v ${cls||''}">${v}</div></div>`);
+  add("Page URL", location.href);
+  // service worker
+  if(!("serviceWorker" in navigator)){ add("Service worker","NOT SUPPORTED","bad"); }
+  else{
+    const regs = await navigator.serviceWorker.getRegistrations();
+    add("Registrations", regs.length ? regs.length : "0 — none registered", regs.length?"ok":"bad");
+    regs.forEach((r,i)=>{
+      add(`Reg ${i+1} scope`, r.scope);
+      add(`Reg ${i+1} state`,
+        `active: ${r.active?r.active.state:"—"} | waiting: ${r.waiting?"YES (update pending)":"no"} | installing: ${r.installing?"yes":"no"}`,
+        r.active?"ok":"warn");
+    });
+    add("Controlling this page", navigator.serviceWorker.controller ? "YES" : "NO — offline will fail",
+        navigator.serviceWorker.controller?"ok":"bad");
+  }
+  // caches
+  if(!("caches" in window)) add("Cache API","NOT SUPPORTED","bad");
+  else{
+    const names = await caches.keys();
+    add("Caches", names.length? names.join(", ") : "none","");
+    for(const n of names){
+      const c = await caches.open(n);
+      const keys = (await c.keys()).map(k=>k.url);
+      const sdk = keys.filter(u=>u.includes("/sdk/")).length;
+      const idx = keys.some(u=>u.endsWith("/") || u.includes("index.html"));
+      const man = keys.some(u=>u.includes("manifest.json"));
+      add(`Cache "${n}"`,
+        `${keys.length} entries · index.html: ${idx?"✓":"✗"} · manifest: ${man?"✓":"✗"} · sdk files: ${sdk}/3`,
+        (idx && sdk===3) ? "ok" : "bad");
+      R.push(`<pre>${keys.map(u=>u.replace(location.origin,"")).sort().join("\n")}</pre>`);
+    }
+  }
+  // are the sdk files actually reachable?
+  for(const f of ["firebase-app.js","firebase-auth.js","firebase-firestore.js"]){
+    try{ const r = await fetch("sdk/"+f, {method:"GET"});
+      add("sdk/"+f, r.ok ? `reachable (${r.status})` : `HTTP ${r.status}`, r.ok?"ok":"bad");
+    }catch(e){ add("sdk/"+f, "FAILED: "+e.message, "bad"); }
+  }
+  add("Online right now", navigator.onLine ? "yes" : "no (offline)");
+  document.getElementById("out").innerHTML = R.join("");
+})();
+</script></body></html>

@@ -22,6 +22,9 @@
   };
   var blob = new Blob([JSON.stringify(manifest)], {type: "application/manifest+json"});
   var url = URL.createObjectURL(blob);
-  var link = document.getElementById("manifest-placeholder");
+  // v152: a real manifest.json now ships with the app. A blob manifest made
+  // start_url resolve against a temporary blob URL, so the installed app's
+  // launch URL matched nothing in the cache and it could not start offline.
+  var link = null;
   if(link) link.setAttribute("href", url);
 })();

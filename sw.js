@@ -3,13 +3,13 @@
 // This file MUST sit next to index.html on the server (same folder),
 // alongside: theme.css, app.css, pwa-manifest.js, firebase-init.js, app.js
 
-const CACHE = 'ejaftech-v151';
+const CACHE = 'ejaftech-v152';
 
 // Everything needed to cold-start with no network. The Firebase SDK files are
 // immutable, version-pinned URLs — caching them is what makes offline launch
 // possible at all; without them the module imports fail and nothing boots.
 const SHELL = [
-  './', './index.html', './theme.css', './app.css', './firebase-init.js', './pwa-manifest.js',
+  './', './index.html', './manifest.json', './theme.css', './app.css', './firebase-init.js', './pwa-manifest.js',
   './01-core.js','./02-report-engine.js','./03-dashboard-logs.js','./04-reports.js',
   './05-assets.js','./06-database.js','./07-instructions.js','./08-clients.js',
   './09-tasks-requests.js','./10-integrations.js','./11-settings.js','./12-exports.js',
@@ -166,7 +166,9 @@ self.addEventListener('fetch', (e) => {
         const c = resp.clone();
         caches.open(CACHE).then(ca => ca.put(e.request, c));
         return resp;
-      }).catch(() => caches.match(e.request).then(r => r || caches.match('./')))
+      }).catch(() => caches.match(e.request, {ignoreSearch:true})
+          .then(r => r || caches.match('./index.html', {ignoreSearch:true}))
+          .then(r => r || caches.match('./', {ignoreSearch:true})))
     );
     return;
   }
