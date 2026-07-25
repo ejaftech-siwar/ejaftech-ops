@@ -627,6 +627,24 @@ window.toggleApprEnforce = async function(on){
 Object.assign(window,{APPR,apprOf,isPendingAppr,isRejectedAppr,isApprovedAppr,canApprove,
   apprRequired,apprFilter,apprPendingRows,apprBadge,setApproval});
 
+// ═══════════════════════════════════════════════════════════════════════
+//  OFFLINE BOOT GUARD (v145)
+//  A Firestore write promise resolves only when the SERVER acknowledges it.
+//  Offline, the data is applied to the local cache instantly but the promise
+//  never settles — so `await claimSession(...)` on the boot path hung forever
+//  and the app sat on its spinner. Nothing after it ever ran.
+//
+//  Every boot-path call is now raced against a short deadline: the work still
+//  happens (and syncs later), it just cannot block the launch.
+// ═══════════════════════════════════════════════════════════════════════
+function bootRace(promise, ms, fallback){
+  return Promise.race([
+    Promise.resolve(promise).catch(()=>fallback),
+    new Promise(res=>setTimeout(()=>res(fallback), ms))
+  ]);
+}
+window.bootRace = bootRace;
+
 function _dtDoc(){ return (state.settingsDocs||[]).find(x=>x.id==="dateTime")||{}; }
 function getAppTZ(){ return _dtDoc().tz || "Asia/Baghdad"; }
 window.getAppTZ=getAppTZ;
@@ -1679,10 +1697,14 @@ function watchAuth(){
   onAuthStateChanged(auth,async(user)=>{
     if(user){
       state.user=user;
-      await loadProfile();
+      // 4s is generous online and irrelevant offline — the cache answers instantly
+      await bootRace(loadProfile(), 4000, null);
       if(state.profile){
         // ── Single-device session lock ──
-        const claim = await claimSession(state.profile);
+        // The single-device lock needs the server to be meaningful. Offline it
+        // cannot be evaluated, so we let the user in rather than lock them out
+        // of their own field data.
+        const claim = await bootRace(claimSession(state.profile), 4000, {ok:true, offline:true});
         if(!claim.ok){
           // Another device holds the session → block this login
           const {auth:a, signOut} = window.__fb;
@@ -1787,6 +1809,7 @@ async function subscribeData(){
     ["trash","trash"],
   ];
   let firstCount=0;
+  const firstSeen=new Set();
 
   // Safety net: if collections haven't all loaded within 8 seconds (e.g. a missing
   // Firestore rule blocks one), show the app anyway so it never freezes on loading.
@@ -1823,7 +1846,7 @@ async function subscribeData(){
         await seedDefaults();
       }
 
-      firstCount++;
+      firstSeen.add(col); firstCount=firstSeen.size;
       try{ noteSyncState(key, snap.metadata && snap.metadata.hasPendingWrites); }catch(e){}
       if(firstCount>=subs.length && !state.initialized){
         state.initialized=true;
@@ -1831,12 +1854,17 @@ async function subscribeData(){
       } else if(state.initialized){
         scheduleRender();
       }
+      // Each incoming snapshot pushes the "settled" moment further out, so the
+      // animation gate only opens once the stream has actually gone quiet.
+      window._bootSettled=false;
+      clearTimeout(window._settleTimer);
+      window._settleTimer=setTimeout(()=>{ window._bootSettled=true; }, 1200);
     },(err)=>{
       console.error(`${col} sync error:`,err);
       toast(`Sync error: ${col}`);
       // IMPORTANT: still count this collection so the app doesn't freeze on the
       // loading screen if one collection fails (e.g. missing Firestore rule).
-      firstCount++;
+      firstSeen.add(col); firstCount=firstSeen.size;
       if(firstCount>=subs.length && !state.initialized){
         state.initialized=true;
         renderApp();
@@ -2457,9 +2485,11 @@ function renderTab(){
         c.classList.remove("view-in"); void c.offsetWidth; c.classList.add("view-in");
         // Open the animation gate for this view change only. Any re-render
         // caused by incoming data lands after it has closed, so nothing replays.
-        document.body.classList.add("anim-in");
-        clearTimeout(window._animGate);
-        window._animGate = setTimeout(()=>document.body.classList.remove("anim-in"), 800);
+        if(window._bootSettled){
+          document.body.classList.add("anim-in");
+          clearTimeout(window._animGate);
+          window._animGate = setTimeout(()=>document.body.classList.remove("anim-in"), 800);
+        }
         if(typeof window._runCountUps==="function") window._runCountUps(c);
       } else if(typeof _cntFmt==="function"){
         c.querySelectorAll(".cnt").forEach(el=>{ if(!el.dataset.done){ el.dataset.done="1"; el.textContent=_cntFmt(el); } });

@@ -386,6 +386,25 @@ window.dashShowStalled=function(){
   setTimeout(()=>{ const el=document.getElementById("stalledPanel");
     if(el) el.scrollIntoView({behavior:"smooth",block:"center"}); },260);
 };
+// Close a whole work item in one action. A job's status is the status of its
+// LATEST entry, so closing the job means closing that entry — but hunting for
+// it among twenty tickets is exactly the friction that leaves jobs open.
+window.closeWorkItem = async function(key){
+  const w=(window._staleWI||[]).find(x=>x.key===key);
+  if(!w) return;
+  const last=w.entries[w.entries.length-1];
+  if(!last) return;
+  // Prefer one of the statuses this company actually configured
+  const configured=(state.techStatuses||[]).map(s=>s.name).filter(Boolean);
+  const closer=configured.find(s=>isClosedStatus(s)) || "Closed";
+  if(!await uiConfirm(
+      `Close this work item?\n\n${w.title}\n${w.scopeLabel||""}\n\nAll ${w.visits} entr${w.visits===1?"y":"ies"} in this job are covered — its latest entry (#${last.entryNo||"—"}, ${fmtDate(last.date)}) will be set to "${closer}".`,
+      {danger:false, okText:"Close job", title:"Close work item"})) return;
+  await fbSave("daily",{...last, taskStatus:closer});
+  saveToast(`Work item closed — ${w.visits} entr${w.visits===1?"y":"ies"} ✓`);
+  render();
+};
+
 function dashStalledPanel(){
   if(!window._showStalled) return "";
   const list=window._staleWI||[];
@@ -396,16 +415,17 @@ function dashStalledPanel(){
       <span class="dsh-h1">🧵 Stalled work items</span>
       <button class="btn btn-sm btn-secondary" onclick="window._showStalled=false;render()">Hide</button>
     </div>
-    <div class="dsh-h2">Open jobs with no visit for 14+ days — close them or book a follow-up</div>
+    <div class="dsh-h2">Open jobs with no visit for 14+ days. Entries group into one job by project · area · site · device · category — closing a job covers every entry inside it. Rows that differ in any of those are separate jobs.</div>
     ${list.length?`<div style="display:grid;gap:7px;margin-top:9px">
-      ${list.slice(0,25).map(w=>`<button class="dsh-row" onclick="dashOpenWorkItem('${escapeHtml(w.key).replace(/'/g,"\\'")}')">
-        <span class="dsh-dot" style="background:#E65100"></span>
-        <span style="flex:1;min-width:0">
-          <span style="font-weight:700;font-size:13px;color:var(--text)">${escapeHtml(w.title)}</span>
-          <span style="display:block;font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(w.scopeLabel||"—")} · ${escapeHtml(w.status)}</span>
+      ${list.slice(0,25).map(w=>`<div class="dsh-row" style="cursor:default">
+        <span class="dsh-dot" style="background:var(--warn)"></span>
+        <span style="flex:1;min-width:0;cursor:pointer" onclick="dashOpenWorkItem('${escapeHtml(w.key).replace(/'/g,"\\'")}')">
+          <span style="font-weight:700;font-size:var(--f-lg);color:var(--text)">${escapeHtml(w.title)}</span>
+          <span style="display:block;font-size:var(--f-sm);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(w.scopeLabel||"—")} · ${escapeHtml(w.status)}</span>
+          <span style="display:block;font-size:var(--f-2xs);color:var(--muted);margin-top:2px">${w.visits} entr${w.visits===1?"y":"ies"} · idle ${days(w.lastDate)}d · last ${fmtDate(w.lastDate)}</span>
         </span>
-        <span style="font-weight:800;font-size:12px;color:#E65100;white-space:nowrap">${days(w.lastDate)}d</span>
-      </button>`).join("")}
+        <button class="btn btn-sm" style="background:var(--ok);color:#fff;border:none;font-weight:800;white-space:nowrap" onclick="closeWorkItem('${escapeHtml(w.key).replace(/'/g,"\\'")}')">✓ Close job</button>
+      </div>`).join("")}
     </div>${list.length>25?`<div style="font-size:11px;color:var(--muted);margin-top:7px">Showing the 25 longest-idle of ${list.length}.</div>`:""}`
     :`<div class="empty empty2" style="margin-top:8px"><span class="e-ic">✅</span><div class="e-t">Nothing stalled</div><div class="e-m">Every open job has been visited recently</div></div>`}
   </div>`;
