@@ -645,6 +645,46 @@ function bootRace(promise, ms, fallback){
 }
 window.bootRace = bootRace;
 
+// ═══════════════════════════════════════════════════════════════════════
+//  LOCAL SESSION SNAPSHOT (v158)
+//  Firebase Auth is supposed to restore the signed-in user from IndexedDB with
+//  no network. On some Android/Chrome builds it simply does not — the listener
+//  never fires and auth.currentUser stays null, so a technician with a full
+//  local database is left staring at "Restoring your session…".
+//
+//  So we stop depending on it: every successful sign-in writes a small snapshot
+//  of WHO is signed in. If Firebase goes quiet while offline, we restore from
+//  our own copy and open the app on the cached data. Firestore's local cache
+//  answers reads without needing a fresh token, so everything still works.
+//
+//  This is identity for OFFLINE READING only. It grants nothing on the server:
+//  any write still carries a real Firebase token, and security rules are
+//  untouched. Without a valid token the server simply rejects it.
+// ═══════════════════════════════════════════════════════════════════════
+const LOCAL_SESSION_KEY = "girek-session-v1";
+function saveLocalSession(user, profile){
+  try{
+    if(!user || !profile) return;
+    localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify({
+      uid:user.uid, email:user.email||"", profile, at:Date.now()
+    }));
+  }catch(e){}
+}
+function readLocalSession(){
+  try{
+    const raw = localStorage.getItem(LOCAL_SESSION_KEY);
+    if(!raw) return null;
+    const s = JSON.parse(raw);
+    if(!s || !s.uid || !s.profile) return null;
+    // 30 days: long enough for any field rotation, short enough to expire a
+    // device that stopped being used.
+    if(Date.now() - (s.at||0) > 30*24*3600*1000) return null;
+    return s;
+  }catch(e){ return null; }
+}
+function clearLocalSession(){ try{ localStorage.removeItem(LOCAL_SESSION_KEY); }catch(e){} }
+Object.assign(window,{saveLocalSession,readLocalSession,clearLocalSession});
+
 function _dtDoc(){ return (state.settingsDocs||[]).find(x=>x.id==="dateTime")||{}; }
 function getAppTZ(){ return _dtDoc().tz || "Asia/Baghdad"; }
 window.getAppTZ=getAppTZ;
@@ -1730,7 +1770,7 @@ function watchAuth(){
   // in is impossible — Firebase must reach its servers — so an already-signed-in
   // user was locked out of their own cached data by the very safety net meant to
   // help them. A slow session restore is not a signed-out user.
-  setTimeout(()=>{
+  setTimeout(async ()=>{
     if(_authFired || state.initialized) return;
     // The session may already be restored even though the listener has not run.
     const persisted = (()=>{ try{ return auth.currentUser; }catch(e){ return null; } })();
@@ -1738,13 +1778,25 @@ function watchAuth(){
       console.warn("Girêk: using the persisted session while auth catches up.");
       return;                      // the listener will still fire; do not disturb it
     }
+    // Firebase has gone quiet. Fall back to OUR snapshot rather than stranding
+    // someone who is signed in and holding a full local database.
+    const local = readLocalSession();
+    if(local){
+      console.warn("Girêk: Firebase Auth silent — opening from the local session snapshot.");
+      state.user    = {uid:local.uid, email:local.email};
+      state.profile = local.profile;
+      state.offlineSession = true;          // surfaced in the header
+      try{ await subscribeData(); }catch(e){ console.error(e); }
+      if(!state.initialized){ state.initialized = true; try{ renderApp(); }catch(e){} }
+      return;
+    }
     if(navigator.onLine === false){
-      // Offline with nothing restored yet: wait visibly, never demand a password
-      // that cannot possibly be checked.
+      // Offline and never signed in on this device — nothing to restore, and a
+      // password cannot be checked without a server.
       renderRoot(`<div class="login-bg"><div class="login-card" style="text-align:center">
         <div style="font-size:34px">📡</div>
-        <h2 style="margin-top:10px">Restoring your session…</h2>
-        <div class="sub" style="margin-top:8px;line-height:1.7">You are offline and still signed in — Girêk is bringing your saved data back.<br><br>If this stays here, connect once and it will resume.</div>
+        <h2 style="margin-top:10px">Sign in once while connected</h2>
+        <div class="sub" style="margin-top:8px;line-height:1.7">This device has no saved session yet. Connect to the internet and sign in once — after that Girêk opens with no signal at all.</div>
         <button class="login-btn" onclick="location.reload()" style="margin-top:18px">Retry</button>
       </div></div>`);
       return;
@@ -1799,6 +1851,7 @@ function watchAuth(){
           </div></div>`);
           return;
         }
+        saveLocalSession(state.user, state.profile);   // for the next offline launch
         await subscribeData();
         watchSessionLock();
       } else {
@@ -2115,6 +2168,7 @@ async function doSignIn(email,password){
 }
 
 async function doSignOut(){
+  clearLocalSession();
   try{
     const{auth,signOut}=window.__fb;
     await releaseSession();  // free this device's session claim
@@ -2214,7 +2268,7 @@ function renderApp(){
           <h1>Girêk</h1>
           ${`<p><span id="periodLabelInline" onclick="editPeriod(event)" style="cursor:pointer;white-space:nowrap;display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;vertical-align:bottom;font-size:10px;${(getPeriodFrom()||getPeriodTo())?'background:#C9A84C;color:#03308B;padding:2px 10px;border-radius:12px;font-weight:700':'text-decoration:underline dotted;opacity:0.9'}">${(getPeriodFrom()||getPeriodTo())?'📅 ':''}${escapeHtml(shortPeriod())}${(getPeriodFrom()||getPeriodTo())?' ✕':''}</span></p>`}
         </div>
-        <span id="syncPill" class="sync-pill ok" onclick="paintSyncPill()"></span><span id="netDot" title="You are offline — changes will sync when back online" style="display:${(typeof navigator!=='undefined'&&navigator.onLine===false)?'inline-flex':'none'};align-items:center;gap:5px;background:#7A1F1F;color:#FFD9D9;font-size:10px;font-weight:800;padding:4px 9px;border-radius:12px;margin-right:4px">📴 OFFLINE</span><button id="themeBtn" onclick="toggleTheme()" title="Light / Dark mode" style="background:rgba(255,255,255,0.14);border:none;border-radius:8px;width:32px;height:32px;font-size:14px;cursor:pointer;margin-right:2px;line-height:1">${document.documentElement.getAttribute('data-theme')==='dark'?ICON_SUN:ICON_MOON}</button><span id="notifBell" onclick="openNotifPanel()" style="position:relative;cursor:pointer;font-size:18px;padding:4px 6px;margin-right:2px;user-select:none" class="bell-btn ${bellCount()>0?'ring':''}">${ICON_BELL}<span id="notifBellBadge" style="position:absolute;top:0;right:-2px;background:#C62828;color:#fff;font-size:9px;font-weight:800;min-width:15px;height:15px;border-radius:8px;display:${bellCount()>0?'flex':'none'};align-items:center;justify-content:center;padding:0 3px">${bellCount()>99?'99+':bellCount()}</span></span>
+        <span id="syncPill" class="sync-pill ok" onclick="paintSyncPill()"></span>${state.offlineSession?`<span class="sync-pill off" title="Opened from the session saved on this device. It will re-authenticate the moment you reconnect." style="margin-left:4px">📴 Local session</span>`:""}<span id="netDot" title="You are offline — changes will sync when back online" style="display:${(typeof navigator!=='undefined'&&navigator.onLine===false)?'inline-flex':'none'};align-items:center;gap:5px;background:#7A1F1F;color:#FFD9D9;font-size:10px;font-weight:800;padding:4px 9px;border-radius:12px;margin-right:4px">📴 OFFLINE</span><button id="themeBtn" onclick="toggleTheme()" title="Light / Dark mode" style="background:rgba(255,255,255,0.14);border:none;border-radius:8px;width:32px;height:32px;font-size:14px;cursor:pointer;margin-right:2px;line-height:1">${document.documentElement.getAttribute('data-theme')==='dark'?ICON_SUN:ICON_MOON}</button><span id="notifBell" onclick="openNotifPanel()" style="position:relative;cursor:pointer;font-size:18px;padding:4px 6px;margin-right:2px;user-select:none" class="bell-btn ${bellCount()>0?'ring':''}">${ICON_BELL}<span id="notifBellBadge" style="position:absolute;top:0;right:-2px;background:#C62828;color:#fff;font-size:9px;font-weight:800;min-width:15px;height:15px;border-radius:8px;display:${bellCount()>0?'flex':'none'};align-items:center;justify-content:center;padding:0 3px">${bellCount()>99?'99+':bellCount()}</span></span>
         <button onclick="switchTab('Profile')" title="My Profile" style="width:40px;height:40px;border-radius:50%;padding:0;border:2px solid var(--gold);background:var(--navy);color:var(--gold);font-weight:800;font-size:14px;cursor:pointer;overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.25)">${(state.profile&&state.profile.photoData)?`<img src="${state.profile.photoData}" alt="" style="width:100%;height:100%;object-fit:cover">`:escapeHtml(((state.profile&&(state.profile.name||state.profile.employeeName||state.profile.email))||"?").charAt(0).toUpperCase())}</button>
       </div>
       ${(()=>{
