@@ -81,7 +81,8 @@ try {
   const {
     getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged,
     createUserWithEmailAndPassword, updatePassword, sendPasswordResetEmail,
-    reauthenticateWithCredential, EmailAuthProvider
+    reauthenticateWithCredential, EmailAuthProvider,
+    setPersistence, indexedDBLocalPersistence, browserLocalPersistence
   } = authMod;
   const {
     getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
@@ -91,6 +92,14 @@ try {
 
   const app  = initializeApp(firebaseConfig);
   const auth = getAuth(app);
+  // Say it explicitly rather than trusting the default: the session must survive
+  // the app being closed, and it must be readable with no network. IndexedDB is
+  // the durable store; localStorage is the fallback where it is unavailable.
+  try{
+    if(setPersistence && indexedDBLocalPersistence) await setPersistence(auth, indexedDBLocalPersistence);
+  }catch(e){
+    try{ if(setPersistence && browserLocalPersistence) await setPersistence(auth, browserLocalPersistence); }catch(_){}
+  }
 
   // OFFLINE-FIRST: reads serve from device storage, writes queue and replay.
   let db;

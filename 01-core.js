@@ -1719,12 +1719,32 @@ function watchAuth(){
   // stall trying to refresh the token — and then this callback never runs at all,
   // which is another way to sit on the spinner forever.
   let _authFired = false;
+  // MY MISTAKE IN v155: this deadline showed the SIGN-IN screen. Offline, signing
+  // in is impossible — Firebase must reach its servers — so an already-signed-in
+  // user was locked out of their own cached data by the very safety net meant to
+  // help them. A slow session restore is not a signed-out user.
   setTimeout(()=>{
-    if(!_authFired && !state.initialized){
-      console.warn("Girêk: auth did not report in time — showing the sign-in screen.");
-      try{ renderLogin(); }catch(e){ console.error(e); }
+    if(_authFired || state.initialized) return;
+    // The session may already be restored even though the listener has not run.
+    const persisted = (()=>{ try{ return auth.currentUser; }catch(e){ return null; } })();
+    if(persisted){
+      console.warn("Girêk: using the persisted session while auth catches up.");
+      return;                      // the listener will still fire; do not disturb it
     }
-  }, 9000);
+    if(navigator.onLine === false){
+      // Offline with nothing restored yet: wait visibly, never demand a password
+      // that cannot possibly be checked.
+      renderRoot(`<div class="login-bg"><div class="login-card" style="text-align:center">
+        <div style="font-size:34px">📡</div>
+        <h2 style="margin-top:10px">Restoring your session…</h2>
+        <div class="sub" style="margin-top:8px;line-height:1.7">You are offline and still signed in — Girêk is bringing your saved data back.<br><br>If this stays here, connect once and it will resume.</div>
+        <button class="login-btn" onclick="location.reload()" style="margin-top:18px">Retry</button>
+      </div></div>`);
+      return;
+    }
+    console.warn("Girêk: auth did not report in time — showing the sign-in screen.");
+    try{ renderLogin(); }catch(e){ console.error(e); }
+  }, 15000);
   onAuthStateChanged(auth,async(user)=>{
     _authFired = true;
     if(user){
@@ -2081,7 +2101,7 @@ async function doSignIn(email,password){
     let msg="Sign in failed";
     if(e.code==="auth/invalid-credential"||e.code==="auth/wrong-password"||e.code==="auth/user-not-found")msg="Invalid email or password";
     if(e.code==="auth/invalid-email")msg="Invalid email format";
-    if(e.code==="auth/network-request-failed")msg="Network error — check connection";
+    if(e.code==="auth/network-request-failed")msg="No connection — signing in for the first time needs internet. If you have signed in before on this device, close and reopen the app.";
     return msg;
   }
   return null;
