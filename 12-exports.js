@@ -67,7 +67,7 @@ function renderFlexReports(){
     : allowedEmpsBase;
   allowedEmps = _identityAllowed(allowedEmps);   // staff-dept + branch (was ignored — the reported bug)
   const projF = f.project || ""; // project filter
-  const dailyFiltered = state.daily.filter(r=>inRange(r) && allowedEmps.includes(r.employee) && _reportRowOK(r) && (!projF || r.project===projF));
+  const dailyFiltered = apprFilter(state.daily).filter(r=>inRange(r) && allowedEmps.includes(r.employee) && _reportRowOK(r) && (!projF || r.project===projF));
   const otFiltered = state.overtime.filter(r=>inRange(r) && allowedEmps.includes(r.employee) && _reportRowOK(r) && (!projF || r.project===projF));
   const trFiltered = state.travel.filter(r=>inRange(r) && allowedEmps.includes(r.employee) && _reportRowOK(r) && (!projF || r.project===projF));
   const lvFiltered = state.leaves.filter(r=>leaveInRange(r) && allowedEmps.includes(r.employee) && _reportRowOK(r));
@@ -118,7 +118,7 @@ function renderFlexReports(){
   const totLv=empStats.reduce((s,e)=>s+e.leaveDays,0);
 
   // ═══════ HEADER (Unified Brand Style) ═══════
-  let h=`<div class="card" style="background:linear-gradient(135deg,#1B3A6B 0%,#2E5FA3 100%);color:white;border:2px solid #C9A84C;position:relative;overflow:hidden">
+  let h=(typeof apprNotice==="function"?apprNotice():"")+`<div class="card" style="background:linear-gradient(135deg,#1B3A6B 0%,#2E5FA3 100%);color:white;border:2px solid #C9A84C;position:relative;overflow:hidden">
     <div style="position:absolute;top:0;right:0;width:120px;height:120px;background:radial-gradient(circle,#C9A84C22,transparent);border-radius:50%"></div>
     <div style="display:flex;align-items:center;gap:14px;position:relative">
       <div style="width:56px;height:56px;border:2px solid #C9A84C;border-radius:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:#1B3A6B">
@@ -298,7 +298,7 @@ async function exportFilteredExcel(){
     if(_selX.length>0 && !isEmployee()) allowedEmps = allowedEmps.filter(x=>_selX.includes(x));
     allowedEmps = _identityAllowed(allowedEmps);
     const projF = f.project || "";
-    const dr = state.daily.filter(r=>inRange(r) && allowedEmps.includes(r.employee) && _reportRowOK(r) && (!projF||r.project===projF));
+    const dr = apprFilter(state.daily).filter(r=>inRange(r) && allowedEmps.includes(r.employee) && _reportRowOK(r) && (!projF||r.project===projF));
     const or = state.overtime.filter(r=>inRange(r) && allowedEmps.includes(r.employee) && _reportRowOK(r) && (!projF||r.project===projF));
     const tr = state.travel.filter(r=>inRange(r) && allowedEmps.includes(r.employee) && _reportRowOK(r) && (!projF||r.project===projF));
     const lv = state.leaves.filter(r=>leaveInRange(r) && allowedEmps.includes(r.employee) && _reportRowOK(r));
@@ -514,7 +514,7 @@ async function exportFilteredPDF(){
     if(_selX.length>0 && !isEmployee()) allowedEmps = allowedEmps.filter(x=>_selX.includes(x));
     allowedEmps = _identityAllowed(allowedEmps);
     const projF = f.project || "";
-    const dr = state.daily.filter(r=>inRange(r) && allowedEmps.includes(r.employee) && _reportRowOK(r) && (!projF||r.project===projF));
+    const dr = apprFilter(state.daily).filter(r=>inRange(r) && allowedEmps.includes(r.employee) && _reportRowOK(r) && (!projF||r.project===projF));
     const or = state.overtime.filter(r=>inRange(r) && allowedEmps.includes(r.employee) && _reportRowOK(r) && (!projF||r.project===projF));
     const tr = state.travel.filter(r=>inRange(r) && allowedEmps.includes(r.employee) && _reportRowOK(r) && (!projF||r.project===projF));
     const lv = state.leaves.filter(r=>leaveInRange(r) && allowedEmps.includes(r.employee) && _reportRowOK(r));
@@ -1141,7 +1141,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v141';"
+      var swCode = "const CACHE='ejaftech-v144';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"

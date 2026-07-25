@@ -776,5 +776,5 @@ const WA_FIELDS = [
 window.saveSLA=async function(k,v){
   const cur=getSLA();
   await fbSave("settings",{id:"sla",...cur,[k]:Math.max(1,Number(v)||cur[k])});
-  toast("⏱ SLA target saved ✓");
+  saveToast("⏱ SLA target saved ✓");
 };

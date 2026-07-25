@@ -484,6 +484,149 @@ function uiPrompt(message, defaultValue, opts){
 }
 Object.assign(window,{uiConfirm,uiPrompt});
 
+// ═══════════════════════════════════════════════════════════════════════
+//  OFFLINE SYNC STATUS (v143)
+//  Firestore already queues writes locally and replays them on reconnect —
+//  what was missing is the technician KNOWING it. Someone standing in a
+//  server room with no signal, having just attached six photos, needs proof
+//  the work is safe. Silence is indistinguishable from data loss.
+// ═══════════════════════════════════════════════════════════════════════
+window._syncPending = 0;      // documents written locally, not yet acknowledged
+window._syncLastOk  = null;   // when the server last confirmed everything
+
+function isOffline(){ return typeof navigator!=="undefined" && navigator.onLine===false; }
+
+// Called by every listener with metadata: counts collections still holding
+// unacknowledged local writes.
+window._syncFlags = window._syncFlags || {};
+function noteSyncState(key, hasPending){
+  const before = window._syncPending;
+  window._syncFlags[key] = !!hasPending;
+  window._syncPending = Object.values(window._syncFlags).filter(Boolean).length;
+  if(before>0 && window._syncPending===0){
+    window._syncLastOk = new Date();
+    if(!isOffline()) toast("☁️ All changes synced");
+  }
+  paintSyncPill();
+}
+window.noteSyncState = noteSyncState;
+
+function paintSyncPill(){
+  const el = document.getElementById("syncPill");
+  if(!el) return;
+  const off = isOffline(), pend = window._syncPending;
+  if(off){
+    el.className = "sync-pill off";
+    el.innerHTML = `<span class="sp-dot"></span>Offline${pend?` · ${pend} queued`:""}`;
+    el.title = "Working offline — everything you enter is saved on this device and uploads automatically when you reconnect.";
+  } else if(pend){
+    el.className = "sync-pill busy";
+    el.innerHTML = `<span class="sp-dot"></span>Syncing ${pend}`;
+    el.title = `${pend} change(s) uploading…`;
+  } else {
+    el.className = "sync-pill ok";
+    el.innerHTML = `<span class="sp-dot"></span>Synced`;
+    el.title = window._syncLastOk ? "Last confirmed "+window._syncLastOk.toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"}) : "Up to date";
+  }
+}
+window.paintSyncPill = paintSyncPill;
+
+// A save that happens offline must SAY so — "Saved ✓" while the network is
+// down reads as a lie the moment the app is closed and reopened.
+function saveToast(msg){
+  if(isOffline()) saveToast(`📥 ${msg} — saved on this device, will upload automatically`);
+  else toast(msg);
+}
+window.saveToast = saveToast;
+
+// ═══════════════════════════════════════════════════════════════════════
+//  TIMESHEET APPROVAL (v144)
+//  Until now an entry entered HR reports the instant it was typed: payroll
+//  figures rested on unreviewed data, and a mistyped duration reached the
+//  final report unchallenged. Entries now carry a review state.
+//
+//  Backward compatibility is deliberate: an entry with NO approval field is
+//  treated as APPROVED. Hundreds of historical entries predate this feature
+//  and must not vanish from reports the moment it ships.
+//
+//  Reports keep counting everything by default and simply DECLARE what is
+//  still pending. Excluding unapproved work is a switch the admin flips when
+//  the team is ready — silently changing payroll totals on upgrade day would
+//  be a liability, not an improvement.
+// ═══════════════════════════════════════════════════════════════════════
+const APPR = { SUBMITTED:"submitted", APPROVED:"approved", REJECTED:"rejected" };
+function apprOf(r){
+  const v = r && r.approval;
+  if(v===APPR.SUBMITTED || v===APPR.APPROVED || v===APPR.REJECTED) return v;
+  return APPR.APPROVED;               // legacy entry — grandfathered
+}
+const isPendingAppr  = (r)=>apprOf(r)===APPR.SUBMITTED;
+const isRejectedAppr = (r)=>apprOf(r)===APPR.REJECTED;
+const isApprovedAppr = (r)=>apprOf(r)===APPR.APPROVED;
+// Only admins / HR review, and never their own entries — self-approval would
+// defeat the whole point of the control.
+function canApprove(r){
+  if(!(isAdmin()||isHR())) return false;
+  const me = (state.profile && (state.profile.employeeName||state.profile.name)) || "";
+  return !(me && r && (r.employee||"")===me);
+}
+function apprRequired(){
+  const d=(state.settingsDocs||[]).find(x=>x.id==="approval")||{};
+  return !!d.enforce;                 // OFF until the admin turns it on
+}
+function apprFilter(rows){ return apprRequired() ? (rows||[]).filter(isApprovedAppr) : (rows||[]); }
+function apprPendingRows(rows){ return (rows||[]).filter(r=>isPendingAppr(r)||isRejectedAppr(r)); }
+const APPR_STYLE = {
+  submitted:{lb:"Pending review", bg:"var(--warn-bg)",   fg:"var(--warn)",   ic:"⏳"},
+  approved: {lb:"Approved",       bg:"var(--ok-bg)",     fg:"var(--ok)",     ic:"✓"},
+  rejected: {lb:"Returned",       bg:"var(--danger-bg)", fg:"var(--danger)", ic:"↩"},
+};
+// Approved legacy rows stay silent — a wall of green ticks over years of
+// history is noise, not information.
+function apprBadge(r, always){
+  const st = apprOf(r);
+  if(st===APPR.APPROVED && !always) return "";
+  const s = APPR_STYLE[st];
+  const why = (st===APPR.REJECTED && r.approvalNote) ? " — "+r.approvalNote : "";
+  return `<span class="appr-badge" style="background:${s.bg};color:${s.fg}" title="${escapeHtml(s.lb+why)}">${s.ic} ${s.lb}</span>`;
+}
+async function setApproval(id, next, note){
+  const r=(state.daily||[]).find(x=>x.id===id);
+  if(!r) return false;
+  if(!canApprove(r)){ toast("You cannot review your own entries"); return false; }
+  const by=(state.profile&&(state.profile.name||state.profile.employeeName))||"";
+  await fbSave("daily",{...r, approval:next, approvalNote:note||"",
+    approvalBy:by, approvalAt:new Date().toISOString()});
+  return true;
+}
+window.approveEntry = async function(id){
+  if(await setApproval(id, APPR.APPROVED, "")) { saveToast("Entry approved ✓"); render(); }
+};
+window.rejectEntry = async function(id){
+  const note = await uiPrompt("Why is this entry being returned?\n\nThe employee will see this note.",
+    "", {title:"Return entry", okText:"Return", placeholder:"e.g. duration looks wrong"});
+  if(note===null) return;
+  if(await setApproval(id, APPR.REJECTED, String(note||"").trim())){
+    saveToast("Entry returned to the employee ✓"); render();
+  }
+};
+window.approveAllFor = async function(emp){
+  const list=(state.daily||[]).filter(r=>(r.employee||"")===emp && isPendingAppr(r) && canApprove(r));
+  if(!list.length) return toast("Nothing pending for this person");
+  if(!await uiConfirm(`Approve all ${list.length} pending entr${list.length===1?"y":"ies"} for ${emp}?`,
+      {danger:false, okText:"Approve all", title:"Bulk approval"})) return;
+  for(const r of list) await setApproval(r.id, APPR.APPROVED, "");
+  saveToast(`${list.length} entr${list.length===1?"y":"ies"} approved ✓`); render();
+};
+window.toggleApprEnforce = async function(on){
+  const d=(state.settingsDocs||[]).find(x=>x.id==="approval")||{};
+  await fbSave("settings",{...d, id:"approval", enforce:!!on});
+  toast(on ? "🔒 Reports now count approved entries only" : "🔓 Reports count all entries again");
+  render();
+};
+Object.assign(window,{APPR,apprOf,isPendingAppr,isRejectedAppr,isApprovedAppr,canApprove,
+  apprRequired,apprFilter,apprPendingRows,apprBadge,setApproval});
+
 function _dtDoc(){ return (state.settingsDocs||[]).find(x=>x.id==="dateTime")||{}; }
 function getAppTZ(){ return _dtDoc().tz || "Asia/Baghdad"; }
 window.getAppTZ=getAppTZ;
@@ -537,7 +680,7 @@ function _checkDayRollover(){
     window._lastKnownDay=t;
     let hit=false;
     [dailyForm,otForm,trForm].forEach(f=>{ if(rollAutoDate(f)) hit=true; });   // lexical bindings — same objects the renderers mutate
-    if(hit){ toast("📅 New day — date updated automatically"); }
+    if(hit){ saveToast("📅 New day — date updated automatically"); }
     render();
   }catch(e){}
 }
@@ -1656,7 +1799,7 @@ async function subscribeData(){
   }, 8000);
 
   subs.forEach(([col,key])=>{
-    const unsub=onSnapshot(collection(db,col),async(snap)=>{
+    const unsub=onSnapshot(collection(db,col),{includeMetadataChanges:true},async(snap)=>{
       const items=[];
       snap.forEach(d=>items.push({id:d.id,...d.data()}));
       if(col==="notifications"){ try{ _sysNotifyNew(items); }catch(e){} }
@@ -1681,6 +1824,7 @@ async function subscribeData(){
       }
 
       firstCount++;
+      try{ noteSyncState(key, snap.metadata && snap.metadata.hasPendingWrites); }catch(e){}
       if(firstCount>=subs.length && !state.initialized){
         state.initialized=true;
         renderApp();
@@ -1941,7 +2085,7 @@ function renderApp(){
           <h1>Girêk</h1>
           ${`<p><span id="periodLabelInline" onclick="editPeriod(event)" style="cursor:pointer;white-space:nowrap;display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;vertical-align:bottom;font-size:10px;${(getPeriodFrom()||getPeriodTo())?'background:#C9A84C;color:#03308B;padding:2px 10px;border-radius:12px;font-weight:700':'text-decoration:underline dotted;opacity:0.9'}">${(getPeriodFrom()||getPeriodTo())?'📅 ':''}${escapeHtml(shortPeriod())}${(getPeriodFrom()||getPeriodTo())?' ✕':''}</span></p>`}
         </div>
-        <span id="netDot" title="You are offline — changes will sync when back online" style="display:${(typeof navigator!=='undefined'&&navigator.onLine===false)?'inline-flex':'none'};align-items:center;gap:5px;background:#7A1F1F;color:#FFD9D9;font-size:10px;font-weight:800;padding:4px 9px;border-radius:12px;margin-right:4px">📴 OFFLINE</span><button id="themeBtn" onclick="toggleTheme()" title="Light / Dark mode" style="background:rgba(255,255,255,0.14);border:none;border-radius:8px;width:32px;height:32px;font-size:14px;cursor:pointer;margin-right:2px;line-height:1">${document.documentElement.getAttribute('data-theme')==='dark'?ICON_SUN:ICON_MOON}</button><span id="notifBell" onclick="openNotifPanel()" style="position:relative;cursor:pointer;font-size:18px;padding:4px 6px;margin-right:2px;user-select:none" class="bell-btn ${bellCount()>0?'ring':''}">${ICON_BELL}<span id="notifBellBadge" style="position:absolute;top:0;right:-2px;background:#C62828;color:#fff;font-size:9px;font-weight:800;min-width:15px;height:15px;border-radius:8px;display:${bellCount()>0?'flex':'none'};align-items:center;justify-content:center;padding:0 3px">${bellCount()>99?'99+':bellCount()}</span></span>
+        <span id="syncPill" class="sync-pill ok" onclick="paintSyncPill()"></span><span id="netDot" title="You are offline — changes will sync when back online" style="display:${(typeof navigator!=='undefined'&&navigator.onLine===false)?'inline-flex':'none'};align-items:center;gap:5px;background:#7A1F1F;color:#FFD9D9;font-size:10px;font-weight:800;padding:4px 9px;border-radius:12px;margin-right:4px">📴 OFFLINE</span><button id="themeBtn" onclick="toggleTheme()" title="Light / Dark mode" style="background:rgba(255,255,255,0.14);border:none;border-radius:8px;width:32px;height:32px;font-size:14px;cursor:pointer;margin-right:2px;line-height:1">${document.documentElement.getAttribute('data-theme')==='dark'?ICON_SUN:ICON_MOON}</button><span id="notifBell" onclick="openNotifPanel()" style="position:relative;cursor:pointer;font-size:18px;padding:4px 6px;margin-right:2px;user-select:none" class="bell-btn ${bellCount()>0?'ring':''}">${ICON_BELL}<span id="notifBellBadge" style="position:absolute;top:0;right:-2px;background:#C62828;color:#fff;font-size:9px;font-weight:800;min-width:15px;height:15px;border-radius:8px;display:${bellCount()>0?'flex':'none'};align-items:center;justify-content:center;padding:0 3px">${bellCount()>99?'99+':bellCount()}</span></span>
         <button onclick="switchTab('Profile')" title="My Profile" style="width:40px;height:40px;border-radius:50%;padding:0;border:2px solid var(--gold);background:var(--navy);color:var(--gold);font-weight:800;font-size:14px;cursor:pointer;overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.25)">${(state.profile&&state.profile.photoData)?`<img src="${state.profile.photoData}" alt="" style="width:100%;height:100%;object-fit:cover">`:escapeHtml(((state.profile&&(state.profile.name||state.profile.employeeName||state.profile.email))||"?").charAt(0).toUpperCase())}</button>
       </div>
       ${(()=>{
@@ -1988,7 +2132,7 @@ function renderApp(){
 // ═══════════════════════════════════════════════════════════════════════
 const TAB_GROUPS = [
   { id:"Dashboard", label:"Dashboard", icon:"<svg viewBox='0 0 24 24' width='15' height='15' fill='currentColor' style='vertical-align:-2px'><path d='M4 20h3v-8H4v8zm6.5 0h3V4h-3v16zm6.5 0h3v-5h-3v5z'/></svg>", children:["Dashboard"] },
-  { id:"Logs",      label:"Logs",      icon:"<svg viewBox='0 0 24 24' width='15' height='15' fill='none' stroke='currentColor' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round' style='vertical-align:-2px'><path d='M12 20h9'/><path d='M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z'/></svg>", children:["Filters","Daily Log","Overtime","Travel","Leaves","My Tasks"] },
+  { id:"Logs",      label:"Logs",      icon:"<svg viewBox='0 0 24 24' width='15' height='15' fill='none' stroke='currentColor' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round' style='vertical-align:-2px'><path d='M12 20h9'/><path d='M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z'/></svg>", children:["Filters","Daily Log","Approvals","Overtime","Travel","Leaves","My Tasks"] },
   { id:"Reports",   label:"Reports",   icon:"<svg viewBox='0 0 24 24' width='15' height='15' fill='none' stroke='currentColor' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round' style='vertical-align:-2px'><polyline points='3 17 9 11 13 15 21 7'/><polyline points='15 7 21 7 21 13'/></svg>", children:["HR Report","Daily Log Report","Reports","Technical Report","Analytics","Executive"] },
   { id:"Database",  label:"Database",  icon:"<svg viewBox='0 0 24 24' width='15' height='15' fill='none' stroke='currentColor' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round' style='vertical-align:-2px'><ellipse cx='12' cy='5' rx='8' ry='3'/><path d='M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5'/><path d='M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6'/></svg>", children:["Branches","Departments","Locations","Projects","Assets","Maintenance","Incidents"] },
   { id:"Clients",   label:"Clients",   icon:"<svg viewBox='0 0 24 24' width='15' height='15' fill='none' stroke='currentColor' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round' style='vertical-align:-2px'><path d='M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2'/><circle cx='9' cy='7' r='4'/><path d='M22 21v-2a4 4 0 0 0-3-3.87'/><path d='M16 3.13a4 4 0 0 1 0 7.75'/></svg>", children:["Clients","Requests"] },
@@ -2036,20 +2180,20 @@ function getTabs(){
   }
   // HR: full ops but no Users/Share/Clients
   if(role === "hr"){
-    const base = ["Dashboard","Filters","Daily Log","Overtime","Travel","Leaves","My Tasks","Work Instructions",
+    const base = ["Dashboard","Filters","Daily Log","Approvals","Overtime","Travel","Leaves","My Tasks","Work Instructions",
                   "HR Report","Daily Log Report","Technical Report","Reports","Analytics","Requests","Projects","Locations","Departments","Profile"];
     if(!base.includes(state.tab)) state.tab = base[0];
     return base;
   }
   // Support: full access except Users and Share
   if(role === "support"){
-    const base = ["Dashboard","Filters","Daily Log","Overtime","Travel","Leaves","My Tasks","Work Instructions",
+    const base = ["Dashboard","Filters","Daily Log","Approvals","Overtime","Travel","Leaves","My Tasks","Work Instructions",
                   "HR Report","Daily Log Report","Technical Report","Reports","Requests","Projects","Locations","Departments","Profile"];
     if(!base.includes(state.tab)) state.tab = base[0];
     return base;
   }
   // Admin / Owner: everything
-  const base = ["Dashboard","Filters","Daily Log","Overtime","Travel","Leaves","Work Instructions",
+  const base = ["Dashboard","Filters","Daily Log","Approvals","Overtime","Travel","Leaves","Work Instructions",
                 "HR Report","Daily Log Report","Technical Report","Reports","Analytics","Executive","Requests","Clients","Projects","Assets","Maintenance","Incidents","Locations","Departments","Branches","Users","WhatsApp","Email","Share","Profile","Technical Classifications","Date & Time","Entry Manage","Recycle Bin","My Tasks"];
   if(!base.includes(state.tab)) state.tab = base[0];
   return base;
@@ -2290,7 +2434,7 @@ function renderTab(){
 
   const fn={
     "Dashboard":renderDashboard,"Daily Log":renderDailyLog,"Overtime":renderOvertime,
-    "Travel":renderTravel,"Leaves":renderLeaves,"Filters":renderFiltersTab,"HR Report":renderHRReport,"Technical Report":renderTechReport,"Reports":renderFlexReports,"Analytics":renderAnalytics,
+    "Travel":renderTravel,"Leaves":renderLeaves,"Filters":renderFiltersTab,"Approvals":renderApprovals,"HR Report":renderHRReport,"Technical Report":renderTechReport,"Reports":renderFlexReports,"Analytics":renderAnalytics,
     "Projects":renderProjects,"Assets":renderAssets,"Maintenance":renderMaintenance,"Locations":renderLocations,"Users":renderUsers,
     "Departments":renderDepartments,"Branches":renderBranches,"Work Instructions":renderWorkInstructions,
     "Share":renderShare,"Profile":renderProfile,"Date & Time":renderDateTime,"Incidents":renderIncidents,"Recycle Bin":renderRecycleBin,"Executive":renderExecutive,"Permissions":renderPermissions,
@@ -2540,7 +2684,7 @@ async function saveEmpPermissions(employeeName, perms){
     updatedBy: state.profile.uid,
     updatedAt: new Date().toISOString(),
   });
-  toast(`Permissions updated for ${employeeName} ✓`);
+  saveToast(`Permissions updated for ${employeeName} ✓`);
 }
 window.toggleEmpPerm = async function(employeeName, field){
   const cur = getEmpPermissions(employeeName);
@@ -2580,7 +2724,7 @@ async function saveClientPermissions(clientId, perms){
     updatedBy: state.profile.uid,
     updatedAt: new Date().toISOString(),
   });
-  toast("Client permissions updated ✓");
+  saveToast("Client permissions updated ✓");
 }
 window.toggleClientPerm = async function(clientId, field){
   const cur = getClientPermissions(clientId);
@@ -2667,8 +2811,8 @@ window.toggleTheme = toggleTheme;
 window.addEventListener('scroll',()=>{try{document.body.classList.toggle('hdr-compact',(window.scrollY||0)>40)}catch(e){}} ,{passive:true});
 
 // ── Connection awareness: badge + toasts, so field staff always know ──
-window.addEventListener('offline',()=>{try{if(window._shareMode)return;const d=document.getElementById('netDot');if(d)d.style.display='inline-flex';toast('⚠ Offline — your changes are saved locally and will sync automatically');}catch(e){}});
-window.addEventListener('online',()=>{try{if(window._shareMode)return;const d=document.getElementById('netDot');if(d)d.style.display='none';toast('Back online — syncing ✓');}catch(e){}});
+window.addEventListener('offline',()=>{try{if(window._shareMode)return;paintSyncPill();const d=document.getElementById('netDot');if(d)d.style.display='inline-flex';toast('⚠ Offline — your changes are saved locally and will sync automatically');}catch(e){}});
+window.addEventListener('online',()=>{try{if(window._shareMode)return;paintSyncPill();const d=document.getElementById('netDot');if(d)d.style.display='none';toast('Back online — syncing ✓');}catch(e){}});
 
 // ═══════════════════════════════════════════════════════════════════════
 //  SMART ALERTS — proactive, computed from state (offline-safe, read-only)

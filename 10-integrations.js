@@ -178,7 +178,7 @@ window.toggleWaTrigger = async function(trig){
 };
 window.setWaHeader = async function(v){
   await waSaveSettings({messageHeader: v});
-  toast("Header updated ✓");
+  saveToast("Header updated ✓");
 };
 
 // ── Build message text from a record using enabled fields ──
@@ -541,7 +541,7 @@ window.toggleSchedEnabled = async function(){
   await schedSave({enabled: !s.enabled});
   toast(!s.enabled ? "Automatic sending ENABLED — activates on server ✓" : "Automatic sending OFF — manual button still works");
 };
-window.setSchedField = async function(field, val){ await schedSave({[field]: val}); toast("Saved ✓"); };
+window.setSchedField = async function(field, val){ await schedSave({[field]: val}); saveToast("Saved ✓"); };
 
 // ── Group management ──
 window.addSchedGroup = async function(){
@@ -556,7 +556,7 @@ window.addSchedGroup = async function(){
     message: "Please find attached the operations reports for the specified period.",
   });
   await schedSave({groups});
-  toast("Group added ✓");
+  saveToast("Group added ✓");
 };
 window.delSchedGroup = async function(gi){
   const s = schedGetSettings();
@@ -572,7 +572,7 @@ window.setSchedGroupField = async function(gi, field, val){
   if(!groups[gi]) return;
   groups[gi] = {...groups[gi], [field]: val};
   await schedSave({groups});
-  toast("Saved ✓");
+  saveToast("Saved ✓");
 };
 window.toggleSchedGroupReport = async function(gi, id){
   const s = schedGetSettings();
@@ -591,11 +591,11 @@ window.addSchedGroupRecipient = async function(gi){
   const groups = [...(s.groups||[])];
   if(!groups[gi]) return;
   const list = [...(groups[gi].recipients||[])];
-  if(list.map(e=>e.toLowerCase()).includes(email.toLowerCase())) return toast("Already added");
+  if(list.map(e=>e.toLowerCase()).includes(email.toLowerCase())) return saveToast("Already added");
   list.push(email);
   groups[gi] = {...groups[gi], recipients: list};
   await schedSave({groups});
-  toast("Recipient added ✓");
+  saveToast("Recipient added ✓");
 };
 window.removeSchedGroupRecipient = async function(gi, ri){
   const s = schedGetSettings();
@@ -616,7 +616,7 @@ window.toggleSchedManager = async function(emp){
   const arr = [...cur];
   const i = arr.indexOf(emp); if(i>=0) arr.splice(i,1); else arr.push(emp);
   await setDoc(doc(db,"settings","scheduledReports"), {managers: arr}, {merge:true});
-  toast("Updated ✓");
+  saveToast("Updated ✓");
 };
 
 // Resolve an employee's branch from users/nametag records
@@ -981,8 +981,8 @@ window.toggleEmailEnabled = async function(){
   await emailSaveSettings({enabled: !s.enabled});
   toast(!s.enabled ? "Email service ON ✓" : "Email service OFF — budget saved");
 };
-window.setEmailKey = async function(key,val){ await emailSaveSettings({[key]:val.trim()}); toast("Saved ✓"); };
-window.setEmailSubject = async function(v){ await emailSaveSettings({subject:v}); toast("Subject updated ✓"); };
+window.setEmailKey = async function(key,val){ await emailSaveSettings({[key]:val.trim()}); saveToast("Saved ✓"); };
+window.setEmailSubject = async function(v){ await emailSaveSettings({subject:v}); saveToast("Subject updated ✓"); };
 window.toggleEmailField = async function(fid){
   const s=emailGetSettings(); const arr=[...(s.enabledFields||[])];
   const i=arr.indexOf(fid); if(i>=0)arr.splice(i,1);else arr.push(fid);
@@ -1017,10 +1017,10 @@ window.addRequestRecipient = async function(){
   if(!email || !email.includes("@") || !email.includes(".")) return toast("Enter a valid email");
   const s = emailGetSettings();
   const list = [...(s.requestRecipients||[])];
-  if(list.map(e=>e.toLowerCase()).includes(email.toLowerCase())) return toast("Already added");
+  if(list.map(e=>e.toLowerCase()).includes(email.toLowerCase())) return saveToast("Already added");
   list.push(email);
   await emailSaveSettings({requestRecipients:list});
-  toast("Recipient added ✓");
+  saveToast("Recipient added ✓");
 };
 window.removeRequestRecipient = async function(idx){
   const s = emailGetSettings();

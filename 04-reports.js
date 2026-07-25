@@ -64,7 +64,7 @@ function renderTechReport(){
   if(trv==="sys")   return hub + renderSystemReports();
 
   // Apply the unified filters to Daily Log only
-  const rows = applyReportFilters(visibleRows(state.daily)).sort((a,b)=>{
+  const rows = apprFilter(applyReportFilters(visibleRows(state.daily))).sort((a,b)=>{
     const d=(a.date||"").localeCompare(b.date||"");
     return d!==0?d:(a.entryNo||0)-(b.entryNo||0);
   });
@@ -90,7 +90,7 @@ function renderTechReport(){
 
   const _wis = (typeof buildWorkItems==="function") ? buildWorkItems(rows) : [];
   const _wiOpen = _wis.filter(w=>!w.closed).length;
-  let h = hub + (_wis.length?`<div class="card" style="border-left:4px solid #2E5FA3">
+  let h = hub + (typeof apprNotice==="function"?apprNotice():"") + (_wis.length?`<div class="card" style="border-left:4px solid #2E5FA3">
     <div class="card-title">🧵 Work Items <span style="font-size:11px;font-weight:500;color:var(--muted)">— ${_wis.length} job${_wis.length>1?"s":""} across ${rows.length} entr${rows.length>1?"ies":"y"} · ${_wiOpen} still open</span></div>
     <div class="tbl-wrap"><table class="tbl">
       <thead><tr><th>Work item</th><th>Scope</th><th>Journey</th><th>Status</th><th>Visits</th><th>Hours</th></tr></thead>

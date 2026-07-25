@@ -425,7 +425,7 @@ window.approveDeviceSuggestion = async function(id){
   const applied={}; Object.entries(s.changes||{}).forEach(([k,ch])=>{applied[k]=ch.to||"";});
   await fbSave("devices",{...d, ...applied, updatedAt:new Date().toISOString()});
   await fbSave("deviceEditSuggestions",{...s, id, status:"approved", reviewedAt:new Date().toISOString(), reviewedBy:state.profile.uid});
-  toast("Suggestion approved — device updated ✓");
+  saveToast("Suggestion approved — device updated ✓");
 };
 window.rejectDeviceSuggestion = async function(id){
   if(!isAdmin()) return toast("Admin only");

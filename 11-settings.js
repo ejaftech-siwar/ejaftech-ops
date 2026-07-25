@@ -29,7 +29,7 @@ const TZ_GROUPS=[
 ];
 window.saveAppTZ=async function(tz){
   await fbSave("settings",{..._dtDoc(),id:"dateTime",tz});   // merge: keep manual mode/offset
-  toast("🌍 Timezone updated ✓");
+  saveToast("🌍 Timezone updated ✓");
 };
 window.applyManualDT=async function(){
   const el=document.getElementById("dtManual");
@@ -475,7 +475,7 @@ async function changeMyPassword(){
     // Update to new password
     await updatePassword(user, profileForm.newPass);
 
-    toast("✓ Password updated successfully!");
+    saveToast("✓ Password updated successfully!");
     profileForm = { current:"", newPass:"", confirm:"", showOldPass:false, showNewPass:false };
     render();
   } catch(e) {
@@ -832,7 +832,7 @@ window.emptyTrash=async function(){
 window.saveBackupInterval=async function(v){
   const b=_backupCfg();
   await fbSave("settings",{id:"backup",intervalDays:Number(v)||7,lastBackupAt:b.lastBackupAt||""});
-  toast("Backup interval saved ✓");
+  saveToast("Backup interval saved ✓");
 };
 window.runFullBackup=async function(){
   try{

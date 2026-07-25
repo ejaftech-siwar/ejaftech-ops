@@ -148,7 +148,7 @@ async function saveLoc(){
     const synced = await cascadeRenameLocation(oldName, name);
     toast(`✓ Renamed & synced ${synced} record(s)`);
   } else {
-    toast("Saved ✓");
+    saveToast("Saved ✓");
   }
   locForm="";locEditId=null;
 }
@@ -404,7 +404,7 @@ async function saveUser(){
     try{
       const{db,doc,setDoc}=window.__fb;
       await setDoc(doc(db,"users",userEditId), userData, {merge:true});
-      userForm=null;userEditId=null;toast("Updated ✓");
+      userForm=null;userEditId=null;saveToast("Updated ✓");
     }catch(e){console.error(e);toast("Update failed");}
     return;
   }
@@ -847,7 +847,7 @@ window.addTechItem = async function(col, inputId, count){
   if(exists) return toast("Already exists");
   const {db, collection, addDoc} = window.__fb;
   await addDoc(collection(db, col), {name, order: count});
-  toast("Added ✓");
+  saveToast("Added ✓");
 };
 
 window.delTechItem = async function(col, id){
@@ -867,7 +867,7 @@ window.addTechCategory = async function(count){
   if(exists) return toast("Category already exists");
   const {db, collection, addDoc} = window.__fb;
   await addDoc(collection(db, "techCategories"), {name, subcategories: [], order: count});
-  toast("Category added ✓");
+  saveToast("Category added ✓");
 };
 
 window.addSubcategory = async function(catId){
@@ -882,7 +882,7 @@ window.addSubcategory = async function(catId){
   subs.push(sub);
   const {db, doc, setDoc} = window.__fb;
   await setDoc(doc(db, "techCategories", catId), {name: cat.name, subcategories: subs, order: cat.order||0});
-  toast("Subcategory added ✓");
+  saveToast("Subcategory added ✓");
 };
 
 window.delSubcategory = async function(catId, subIndex){
@@ -1036,7 +1036,7 @@ async function saveDept(){
     const synced = await cascadeRenameDepartment(oldName, name);
     toast(`✓ Renamed & synced ${synced} record(s)`);
   } else {
-    toast("Saved ✓");
+    saveToast("Saved ✓");
   }
   deptForm = null; deptEditId = null;
 }

@@ -164,7 +164,7 @@ async function mergeImport(map, deptName){
       created++;
     }
   }
-  toast(`✓ Import done: ${created} new, ${updated} updated`);
+  saveToast(`✓ Import done: ${created} new, ${updated} updated`);
 
   // Auto-open the Areas/Sites editor for review (if a single project was imported)
   if(lastProjId && Object.keys(map).length===1){
@@ -319,7 +319,7 @@ window.addProjectCode = async function(){
   await fbSave("projects",{id:proj.id, name:proj.name, dept:proj.dept, status:proj.status||"", estimatedHours:Number(proj.estimatedHours||0), areas:getProjectAreas(proj), codes});
   newCodeName = "";
   showSitesModal();
-  toast("Code added ✓");
+  saveToast("Code added ✓");
 };
 window.delProjectCode = async function(ci){
   if(!isAdmin()) return toast("Admin only");
@@ -352,7 +352,7 @@ window.addArea = async function(){
   await saveAreasToProject(proj, areas);
   newAreaName = "";
   showSitesModal();
-  toast("Area added ✓");
+  saveToast("Area added ✓");
 };
 window.delArea = async function(ai){
   if(!isAdmin()) return toast("Admin only");
@@ -388,7 +388,7 @@ window.addSite = async function(ai){
   await saveAreasToProject(proj, areas);
   newSiteInputs[ai] = "";
   showSitesModal();
-  toast("Site added ✓");
+  saveToast("Site added ✓");
 };
 window.delSite = async function(ai, si){
   if(!isAdmin()) return toast("Admin only");
@@ -668,7 +668,7 @@ async function processAssetImport(rows, ci){
     else { await addDoc(collection(db,"devices"), w.data); }
   }
 
-  toast(`✓ Import done: ${newDevices} new + ${updDevices} updated devices`);
+  saveToast(`✓ Import done: ${newDevices} new + ${updDevices} updated devices`);
 }
 
 // ── Column mapper fallback ──
@@ -1539,7 +1539,7 @@ async function savePM(){
       toast(`🔖 "Preventive Maintenance" code added to ${pr.name}`);
     }
   }
-  pmForm=null; pmEditId=null; toast("Schedule saved ✓"); render();
+  pmForm=null; pmEditId=null; saveToast("Schedule saved ✓"); render();
 }
 // Mark one site of a multi-site round complete (or undo it). Completing the
 // last outstanding site closes the round and renews the due date.

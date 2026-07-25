@@ -409,7 +409,7 @@ async function exportDailyPDF(){
   const period = getPeriod();
   // Use the UNIFIED global filters + the local "# Entry" filter
   const filterENo = dailyEntryNo ? Number(dailyEntryNo) : null;
-  const rows = applyReportFilters(visibleRows(state.daily))
+  const rows = apprFilter(applyReportFilters(visibleRows(state.daily)))
     .filter(r => {
       if(filterENo !== null && Number(r.entryNo||0) !== filterENo) return false;
       return true;
@@ -492,7 +492,7 @@ async function exportDailyExcel(){
     const refNo = await generateRefNo('EXCEL_DAILY');
     const period = getPeriod();
     const filterENo = dailyEntryNo ? Number(dailyEntryNo) : null;
-    const rows = applyReportFilters(visibleRows(state.daily))
+    const rows = apprFilter(applyReportFilters(visibleRows(state.daily)))
       .filter(r => {
         if(filterENo !== null && Number(r.entryNo||0) !== filterENo) return false;
         return true;

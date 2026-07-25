@@ -31,7 +31,7 @@ function summary(){
   const emps = visibleEmployees();
   const depts = deptNames();
   return emps.filter(Boolean).map(emp=>{
-    const d=applyReportFilters(state.daily).filter(r=>r.employee===emp);
+    const d=apprFilter(applyReportFilters(state.daily)).filter(r=>r.employee===emp);
     const o=applyReportFilters(state.overtime).filter(r=>r.employee===emp);
     const t=applyReportFilters(state.travel).filter(r=>r.employee===emp);
     const lv=applyReportFilters(state.leaves,"from").filter(r=>r.employee===emp);
@@ -457,6 +457,11 @@ function renderDashboard(){
     const nw=(state.clientRequests||[]).filter(r=>(r.status||init)===init).length;
     if(nw>0) _acts.push({ic:"📨",t:`${nw} new client request${nw>1?"s":""}`,m:"Not yet reviewed",go:"Requests",c:"#6A1B9A"}); } }catch(e){}
   try{ if(typeof dashAlerts==="function") dashAlerts().forEach(a=>_acts.push(a)); }catch(e){}
+  try{ if(isAdmin()||isHR()){
+    const pv=visibleRows(state.daily||[]).filter(r=>isPendingAppr(r)&&canApprove(r)).length;
+    if(pv) _acts.push({ic:"✅",t:`${pv} entr${pv===1?"y":"ies"} awaiting your approval`,
+      m:"Review them before they reach payroll reports",go:"Approvals",c:"#2E7D32"});
+  } }catch(e){}
   const hero=`<div class="card day-hero">
     <div class="dh-top">
       <div><div class="dh-greet">${_greet}${_fname?`, ${escapeHtml(_fname)}`:""} ${_gIcon}</div>
@@ -485,7 +490,7 @@ function renderDashboard(){
       ${_sparkline(series,accent)}
     </div>`;
   let h = hero + exportBar + (isEmployee()&&typeof dashMyDay==="function"?dashMyDay():"") + `<div class="kpi-grid">
-    ${_kpi("#2E5FA3","Total Hours",tHrs,"hm",isEmployee()?"your hours":applyReportFilters(visibleRows(state.daily)).length+" sessions",_pHrs,tHrs,_dailySeries(_mine(state.daily),"duration",_R))}
+    ${_kpi("#2E5FA3","Total Hours",tHrs,"hm",isEmployee()?"your hours":apprFilter(applyReportFilters(visibleRows(state.daily))).length+" sessions",_pHrs,tHrs,_dailySeries(_mine(state.daily),"duration",_R))}
     ${_kpi("#E65100","Overtime",tOT,"hm",applyReportFilters(visibleRows(state.overtime)).length+" entries",_pOT,tOT,_dailySeries(_mine(state.overtime),"hours",_R))}
     ${_kpi("#2E7D32","Travel Days",tTr,"int",applyReportFilters(visibleRows(state.travel)).length+" trips",_pTr,tTr,_dailySeries(_mine(state.travel),"days",_R))}
     ${_kpi("#6A1B9A","Per Diem",tPD,"money","IQD total",_pPD,tPD,_dailySeries(_mine(state.travel),"perDiem",_R))}
@@ -634,7 +639,7 @@ function renderDailyLog(){
     if(dailyForm.dateAuto===undefined) dailyForm.dateAuto = true;   // legacy draft
     const _was=dailyForm.date;
     if(rollAutoDate(dailyForm) && _was){
-      setTimeout(()=>toast(`📅 Draft was from ${fmtDate(_was)} — date updated to today`),700);
+      setTimeout(()=>saveToast(`📅 Draft was from ${fmtDate(_was)} — date updated to today`),700);
     }
   }
   // Ensure fields exist (backward compat for edit)
@@ -652,7 +657,12 @@ function renderDailyLog(){
   const dept=projDept(dailyForm.project);
   // Use the UNIFIED global filters (employees/branch/staff-dept/task-dept/projects/locations)
   // plus the local "# Entry" filter which only makes sense here in the Daily Log.
-  const rows=applyReportFilters(visibleRows(state.daily)).filter(r=>{
+  const _jumped = !!(window._logEmpFilter || window._logProjFilter || window._logWiIds || dailyEntryNo);
+  // When the user has deliberately jumped to specific records (a stalled work
+  // item, a person, a project, an entry number), the period filter is bypassed
+  // — those records are usually OLDER than the active period by definition.
+  const _base = _jumped ? visibleRows(state.daily) : apprFilter(applyReportFilters(visibleRows(state.daily)));
+  const rows=_base.filter(r=>{
     if(dailyEntryNo && Number(r.entryNo||0) !== Number(dailyEntryNo)) return false;
     if(window._logEmpFilter && (r.employee||"") !== window._logEmpFilter) return false;   // jump-from-alert filter
     if(window._logProjFilter && (r.project||"").trim() !== window._logProjFilter) return false;  // jump-from-dashboard project filter
@@ -670,7 +680,7 @@ function renderDailyLog(){
   // Active jump-filter banner (set by Smart Alerts)
   const _jumpWhat = window._logEmpFilter || window._logProjFilter || (window._logWiIds ? (window._logWiLabel||"work item") : "") || "";
   const _jumpBanner = _jumpWhat ? `<div class="card" style="border-left:4px solid #E65100;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
-      <span style="font-size:13px;font-weight:700;color:var(--text)">🔎 Showing entries for: <span style="color:#E65100">${escapeHtml(_jumpWhat)}</span> <span style="font-size:11px;color:var(--muted)">(${rows.length} entr${rows.length===1?'y':'ies'})</span></span>
+      <span style="font-size:13px;font-weight:700;color:var(--text)">🔎 Showing entries for: <span style="color:#E65100">${escapeHtml(_jumpWhat)}</span> <span style="font-size:11px;color:var(--muted)">(${rows.length} entr${rows.length===1?'y':'ies'}${getPeriodFrom()||getPeriodTo()?" · period filter bypassed":""})</span></span>
       <button class="btn btn-sm" style="background:#C62828;color:white;border:none;font-weight:700" onclick="window._logEmpFilter='';window._logProjFilter='';window._logWiIds=null;window._logWiLabel='';render()">${ICN.x} Clear filter</button>
     </div>` : "";
   // Project options for filter
@@ -973,7 +983,10 @@ function renderDailyLog(){
         const hasRes = imgs.length > 0 || (r.resolutionText||"").length > 0;
         return `<tr>
           <td style="text-align:center;font-size:11px;font-weight:700;color:#03308B;background:#f0f4ff;white-space:nowrap">${r.entryNo ? formatEntryNo(r.entryNo) : '<span style="color:#bbb">—</span>'}</td>
-          <td>${fmtDate(r.date)}</td>
+          <td>${fmtDate(r.date)}${(()=>{ const b=apprBadge(r); if(!b) return "";
+            const note = isRejectedAppr(r)&&r.approvalNote
+              ? `<div style="font-size:var(--f-2xs);color:var(--danger);margin-top:3px;line-height:1.45;max-width:150px;white-space:normal">↩ ${escapeHtml(r.approvalNote)}</div>` : "";
+            return `<div style="margin-top:4px">${b}${note}</div>`; })()}</td>
           ${!isEmployee()?`<td>${employeeBadge(r.employee)}</td>`:""}
           <td>${escapeHtml(r.project||"")}${r.projectCode?` <span style="font-size:9px;background:#FFF3E0;color:#E65100;border:1px solid #EAD3AE;padding:1px 6px;border-radius:8px;font-weight:800">${escapeHtml(r.projectCode)}</span>`:""}${(r.area||r.site)?`<div style="font-size:10px;color:#1565C0;margin-top:2px">${r.area?`🗺️ ${escapeHtml(r.area)}`:''}${r.site?` · 📍 ${escapeHtml(r.site)}`:''}</div>`:''}</td>
           <td>${deptBadge(r.dept)}</td>
@@ -1057,7 +1070,7 @@ async function saveDaily(){
     const gps = await captureGPS();
     if(gps.denied){
       gpsData = { gpsDenied: gps.reason || "Location denied" };
-      toast("⚠ Location unavailable — entry saved with 'GPS denied' note");
+      saveToast("⚠ Location unavailable — entry saved with 'GPS denied' note");
     } else {
       gpsData = { gpsLat: gps.lat, gpsLng: gps.lng, gpsAccuracy: gps.accuracy };
     }
@@ -1072,9 +1085,19 @@ async function saveDaily(){
     ...(entryNoToSave ? {entryNo: entryNoToSave} : {}),
   };
   const isNewDailyEntry = !dailyEditId;
+  // New work enters the review queue. A reviewer's OWN entry is auto-approved
+  // (nobody reviews themselves), and re-saving a RETURNED entry resubmits it —
+  // which is precisely what acting on the reviewer's note means.
+  const _prevRow  = dailyEditId ? (state.daily||[]).find(x=>x.id===dailyEditId) : null;
+  const _selfRev  = (isAdmin()||isHR()) && !canApprove({employee: savedRecord.employee});
+  const _apprNext = _selfRev ? APPR.APPROVED
+                  : (isNewDailyEntry || !_prevRow || isRejectedAppr(_prevRow)) ? APPR.SUBMITTED
+                  : apprOf(_prevRow);
   await fbSave("daily",{
     id:dailyEditId||undefined,
     ...savedRecord,
+    approval:_apprNext,
+    approvalNote: _apprNext===APPR.SUBMITTED ? "" : ((_prevRow&&_prevRow.approvalNote)||""),
     createdBy:state.profile.uid,
     ...gpsData,
   });
@@ -1110,7 +1133,7 @@ async function saveDaily(){
       try{
         const {db, doc, setDoc} = window.__fb;
         await setDoc(doc(db,"devices",dev.id), patch, {merge:true});
-        toast("📟 Device updated centrally ✓");
+        saveToast("📟 Device updated centrally ✓");
       }catch(e){ /* device sync is best-effort; entry already saved */ }
     }
   }
@@ -1121,7 +1144,7 @@ async function saveDaily(){
   dailyForm=null;dailyEditId=null;
   render();
   window.scrollTo({top:0, behavior:'smooth'});   // fresh blank form, back at Employee
-  toast("Saved ✓");
+  saveToast("Saved ✓");
   // WhatsApp stays manual (📲 button per row).
   // Email logic:
   //  - If a "Save & Add" sequence is in progress, this entry is the FINAL one:
@@ -1158,6 +1181,7 @@ async function saveDailyAndNext(){
   await fbSave("daily",{
     id:undefined,
     ...recordForEmail,
+    approval: ((isAdmin()||isHR()) && !canApprove({employee: recordForEmail.employee})) ? APPR.APPROVED : APPR.SUBMITTED,
     createdBy:state.profile.uid,
   });
   // Accumulate this entry for a SINGLE combined email (all employees on the task).
@@ -1176,7 +1200,7 @@ async function saveDailyAndNext(){
   render();
   // Scroll back to the top of the form so the user clearly sees the fresh entry
   window.scrollTo({top:0, behavior:'smooth'});
-  toast(`Saved for ${savedEmp} ✓ — same task ready for next employee`);
+  saveToast(`Saved for ${savedEmp} ✓ — same task ready for next employee`);
 }
 
 // ── Combined email buffer for "Save & Add for Another Employee" ──
@@ -1321,6 +1345,10 @@ function viewResolution(recordId){
             ${r.site?`<span style="background:#E3F2FD;color:#1565C0;padding:4px 10px;border-radius:12px;font-size:11px;font-weight:700">📍 ${escapeHtml(r.site)}</span>`:''}
           </div>
         ` : ''}
+        ${(()=>{ const b=apprBadge(r); if(!b) return "";
+          const note = isRejectedAppr(r)&&r.approvalNote
+            ? `<div style="font-size:var(--f-sm);color:var(--danger);margin-top:5px;line-height:1.55">↩ ${escapeHtml(r.approvalNote)}${r.approvalBy?` — ${escapeHtml(r.approvalBy)}`:""}</div>` : "";
+          return `<div style="margin:0 0 10px">${b}${note}</div>`; })()}
         ${(()=>{   // ═══ WORK ITEM JOURNEY — this entry's place in the job's history ═══
           try{
             const all=(state.daily||[]).filter(x=>(x.project||"")===(r.project||"")&&(x.area||"")===(r.area||"")&&(x.site||"")===(r.site||""));
@@ -1522,7 +1550,7 @@ async function saveOTAndNext(){
   const savedEmp = otForm.employee;
   otForm = {...otForm, employee:""};
   render();
-  toast(`Saved for ${savedEmp} ✓ — Select next employee`);
+  saveToast(`Saved for ${savedEmp} ✓ — Select next employee`);
 }
 function editOT(id){const r=state.overtime.find(x=>x.id===id);if(r){otForm={...r,hours:String(r.hours||""),start:r.start||"",end:r.end||""};otEditId=id;render();window.scrollTo(0,0);}}
 async function delOT(id){if(await uiConfirm("Delete?")){await fbDelete("overtime",id);toast("Deleted");}}
@@ -1655,7 +1683,7 @@ async function saveTrAndNext(){
   const savedEmp = trForm.employee;
   trForm = {...trForm, employee:""};
   render();
-  toast(`Saved for ${savedEmp} ✓ — Select next employee`);
+  saveToast(`Saved for ${savedEmp} ✓ — Select next employee`);
 }
 function editTr(id){
   const r=state.travel.find(x=>x.id===id);
@@ -1974,7 +2002,7 @@ async function saveLeaveAndNext(){
   const savedEmp = leaveForm.employee;
   leaveForm = {...leaveForm, employee:""};
   render();
-  toast(`Saved for ${savedEmp} ✓ — Select next employee`);
+  saveToast(`Saved for ${savedEmp} ✓ — Select next employee`);
 }
 function editLeave(id){
   const r = state.leaves.find(x=>x.id===id);
@@ -2006,7 +2034,7 @@ Object.defineProperty(window, 'leaveForm', {get:()=>leaveForm, set:v=>leaveForm=
 // ═══════════════════════════════════════════════════════════════════════
 window.exportTechPDF = async function(){
   if(!canSeeReports()) return toast("Access denied");
-  const rows = applyReportFilters(visibleRows(state.daily)).sort((a,b)=>{
+  const rows = apprFilter(applyReportFilters(visibleRows(state.daily))).sort((a,b)=>{
     const d=(a.date||"").localeCompare(b.date||"");
     return d!==0?d:(a.entryNo||0)-(b.entryNo||0);
   });
@@ -2061,7 +2089,7 @@ window.exportTechPDF = async function(){
 window.exportTechExcel = async function(){
   if(!canSeeReports()) return toast("Access denied");
   try{
-    const rows = applyReportFilters(visibleRows(state.daily)).sort((a,b)=>{
+    const rows = apprFilter(applyReportFilters(visibleRows(state.daily))).sort((a,b)=>{
       const d=(a.date||"").localeCompare(b.date||"");
       return d!==0?d:(a.entryNo||0)-(b.entryNo||0);
     });
@@ -2161,3 +2189,126 @@ function _cntFmt(el,v){
   if(f==="money") return fmtMoney(Math.round(t));
   return String(Math.round(t));
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+//  APPROVALS — the supervisor's review queue (v144)
+//  Grouped by person, because that is how a supervisor thinks: "what did
+//  Ali submit this week?" — not "here are 40 unrelated rows".
+// ═══════════════════════════════════════════════════════════════════════
+window._apprView = window._apprView || "pending";
+
+// Reports must never quietly omit work. When entries are pending the report
+// says so, whether or not the exclusion switch is on.
+function apprNotice(){
+  try{
+    const scope = applyReportFilters(visibleRows(state.daily||[]));
+    const pend  = scope.filter(isPendingAppr).length;
+    const ret   = scope.filter(isRejectedAppr).length;
+    if(!pend && !ret) return "";
+    const on = apprRequired();
+    const bits=[]; if(pend) bits.push(`${pend} pending review`); if(ret) bits.push(`${ret} returned`);
+    return `<div class="card" style="border-left:4px solid var(--warn);background:var(--warn-bg)">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <span style="font-size:var(--f-2xl)">⏳</span>
+        <div style="flex:1;min-width:180px">
+          <div style="font-size:var(--f-lg);font-weight:800;color:var(--warn-ink)">${bits.join(" · ")}</div>
+          <div style="font-size:var(--f-sm);color:var(--warn-ink);opacity:.85;margin-top:2px;line-height:1.5">${on
+            ? "These entries are EXCLUDED from the figures below until approved."
+            : "These entries ARE included in the figures below — they have not been reviewed yet."}</div>
+        </div>
+        ${(isAdmin()||isHR())?`<button class="btn btn-sm btn-secondary" onclick="switchTab('Approvals')">Review →</button>`:""}
+      </div></div>`;
+  }catch(e){ return ""; }
+}
+window.apprNotice=apprNotice;
+
+function renderApprovals(){
+  if(!(isAdmin()||isHR())) return `<div class="card"><div class="empty">Reviewers only.</div></div>`;
+  const all = visibleRows(state.daily||[]);
+  const pending  = all.filter(isPendingAppr);
+  const returned = all.filter(isRejectedAppr);
+  const view = window._apprView;
+  const rows = view==="returned" ? returned : pending;
+
+  // group by employee, newest first inside each group
+  const byEmp = {};
+  rows.forEach(r=>{ const e=r.employee||"—"; (byEmp[e]=byEmp[e]||[]).push(r); });
+  Object.values(byEmp).forEach(l=>l.sort((a,b)=>String(b.date).localeCompare(String(a.date))));
+  const groups = Object.entries(byEmp)
+    .map(([emp,list])=>({emp,list,hours:list.reduce((s,r)=>s+Number(r.duration||0),0)}))
+    .sort((a,b)=>b.list.length-a.list.length);
+
+  const enforce = apprRequired();
+  const row = (r)=>{
+    const mine = !canApprove(r);
+    return `<div class="appr-row">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:var(--f-lg);font-weight:700;color:var(--text)">
+          #${r.entryNo||"—"} · ${fmtDate(r.date)} · ${fmtHM(r.duration)}
+          ${apprBadge(r)}
+        </div>
+        <div style="font-size:var(--f-sm);color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+          ${escapeHtml([r.project,r.area,r.site].filter(Boolean).join(" › ")||"—")}
+          ${r.taskStatus?` · ${escapeHtml(r.taskStatus)}`:""}
+        </div>
+        ${r.resolutionText?`<div style="font-size:var(--f-sm);color:var(--muted);margin-top:3px;line-height:1.5">${escapeHtml(String(r.resolutionText).slice(0,140))}${String(r.resolutionText).length>140?"…":""}</div>`:""}
+      </div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center">
+        <button class="btn btn-sm btn-secondary" onclick="editDaily('${r.id}')" title="Open the full entry">${ICN.edit}</button>
+        ${mine?`<span style="font-size:var(--f-2xs);color:var(--muted);max-width:96px;line-height:1.4">your own entry</span>`
+        :`<button class="btn btn-sm" style="background:var(--ok);color:#fff;border:none;font-weight:800" onclick="approveEntry('${r.id}')">✓ Approve</button>
+          <button class="btn btn-sm" style="background:var(--danger-bg);color:var(--danger);border:none;font-weight:800" onclick="rejectEntry('${r.id}')">↩ Return</button>`}
+      </div>
+    </div>`;
+  };
+
+  return `
+  <div class="card" style="background:linear-gradient(135deg,#1B3A6B 0%,#2E5FA3 100%);color:#fff;padding:16px">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+      <div>
+        <div style="font-family:'DM Serif Display',serif;font-size:var(--f-4xl)">✅ Approvals</div>
+        <div style="font-size:var(--f-sm);opacity:.85">Review work entries before they reach payroll reports</div>
+      </div>
+      <div style="text-align:center">
+        <div style="font-family:'DM Serif Display',serif;font-size:var(--f-5xl);color:${pending.length?'#FFD54F':'#A5D6A7'}">${pending.length}</div>
+        <div style="font-size:var(--f-2xs);letter-spacing:1px;opacity:.8">PENDING</div>
+      </div>
+    </div>
+  </div>
+
+  ${isAdmin()?`<div class="card" style="border-left:4px solid ${enforce?'var(--ok)':'var(--warn)'}">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <div style="flex:1;min-width:190px">
+        <div style="font-size:var(--f-lg);font-weight:800;color:var(--text)">${enforce?"🔒":"🔓"} Reports count ${enforce?"approved entries only":"all entries"}</div>
+        <div style="font-size:var(--f-sm);color:var(--muted);margin-top:3px;line-height:1.55">${enforce
+          ? "Pending and returned entries are excluded from HR and Daily Log reports until approved."
+          : "Nothing is excluded yet — reports show every entry and simply state how many are still pending. Turn this on once the team is used to submitting."}</div>
+      </div>
+      <button class="btn btn-sm ${enforce?"btn-secondary":""}" style="${enforce?"":"background:var(--ok);color:#fff;border:none;"}font-weight:800" onclick="toggleApprEnforce(${enforce?"false":"true"})">${enforce?"Turn off":"Turn on"}</button>
+    </div>
+  </div>`:""}
+
+  <div class="card" style="padding:10px 12px">
+    <div style="display:flex;gap:6px">
+      <button class="btn ${view!=="returned"?"btn-primary":"btn-secondary"}" style="flex:1" onclick="window._apprView='pending';render()">⏳ Pending ${pending.length?`(${pending.length})`:""}</button>
+      <button class="btn ${view==="returned"?"btn-primary":"btn-secondary"}" style="flex:1" onclick="window._apprView='returned';render()">↩ Returned ${returned.length?`(${returned.length})`:""}</button>
+    </div>
+  </div>
+
+  ${groups.length===0
+    ? `<div class="card"><div class="empty empty2"><span class="e-ic">${view==="returned"?"↩":"✅"}</span>
+        <div class="e-t">${view==="returned"?"Nothing returned":"Everything reviewed"}</div>
+        <div class="e-m">${view==="returned"?"No entries are waiting for an employee to fix":"No entries are waiting for your review"}</div></div></div>`
+    : groups.map(g=>`<div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:var(--s-2)">
+          <div>
+            <div style="font-family:'DM Serif Display',serif;font-size:var(--f-3xl);color:var(--text)">${escapeHtml(g.emp)}</div>
+            <div style="font-size:var(--f-sm);color:var(--muted)">${g.list.length} entr${g.list.length===1?"y":"ies"} · ${fmtHM(g.hours)}</div>
+          </div>
+          ${view!=="returned" && g.list.some(r=>canApprove(r))
+            ? `<button class="btn btn-sm" style="background:var(--ok);color:#fff;border:none;font-weight:800" onclick="approveAllFor('${escapeHtml(g.emp).replace(/'/g,"\\'")}')">✓ Approve all</button>`:""}
+        </div>
+        ${g.list.map(row).join("")}
+      </div>`).join("")}`;
+}
+Object.assign(window,{renderApprovals});

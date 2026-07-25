@@ -363,7 +363,7 @@ async function saveWITask(){
   });
   wiTaskForm = null;
   wiTaskEditId = null;
-  toast("Task saved ✓");
+  saveToast("Task saved ✓");
 }
 
 function editWITask(id){
@@ -514,7 +514,7 @@ window.addSysCheck=async function(tpl,order){
   if(!name) return toast("⚠ Type the check item first");
   await fbSave("systemChecks",{template:tpl,name,order:order||0});
   if(el) el.value="";
-  toast("✓ Check item added");
+  saveToast("✓ Check item added");
   render();
 };
 // Copy the standards defaults into editable records so they can be reworded
