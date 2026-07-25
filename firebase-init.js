@@ -71,10 +71,23 @@ async function loadSDK(){
   return { mods, source:"cdn" };
 }
 
+// ═══ THE BOOT CONTRACT ═══════════════════════════════════════════════════
+// Every offline failure in this app has had the same shape: one await on the
+// startup path that never settled, and a blank screen with no explanation.
+// Rather than fix them one at a time, the whole SDK setup is now RACED against
+// a hard deadline. If anything stalls — for any reason, now or in the future —
+// the app stops waiting and says so instead of hanging.
+function withDeadline(promise, ms, label){
+  return Promise.race([
+    promise,
+    new Promise((_, rej) => setTimeout(() => rej(new Error("timeout: " + label)), ms))
+  ]);
+}
+
 try {
   if (!isConfigured) throw new Error("not-configured");
 
-  const { mods, source } = await loadSDK();
+  const { mods, source } = await withDeadline(loadSDK(), 12000, "loading the engine");
   const [appMod, authMod, fsMod] = mods;
 
   const { initializeApp } = appMod;
@@ -92,14 +105,23 @@ try {
 
   const app  = initializeApp(firebaseConfig);
   const auth = getAuth(app);
-  // Say it explicitly rather than trusting the default: the session must survive
-  // the app being closed, and it must be readable with no network. IndexedDB is
-  // the durable store; localStorage is the fallback where it is unavailable.
+  // Session persistence: requested, never AWAITED.
+  //
+  // v156 awaited this and it became the newest way to hang the launch — offline
+  // it can stall, and it sits before window.__fb is published and before
+  // 'fb-ready' is dispatched, so the whole app waited on it and the watchdog
+  // eventually reported "Engine did not load".
+  //
+  // Firebase applies it to subsequent operations regardless, so there is no
+  // reason to block startup on the answer. NOTHING on the boot path may await
+  // something that can hang.
   try{
-    if(setPersistence && indexedDBLocalPersistence) await setPersistence(auth, indexedDBLocalPersistence);
-  }catch(e){
-    try{ if(setPersistence && browserLocalPersistence) await setPersistence(auth, browserLocalPersistence); }catch(_){}
-  }
+    if(setPersistence && indexedDBLocalPersistence){
+      setPersistence(auth, indexedDBLocalPersistence).catch(()=>{
+        try{ if(browserLocalPersistence) setPersistence(auth, browserLocalPersistence).catch(()=>{}); }catch(_){}
+      });
+    }
+  }catch(e){ /* persistence stays at its default — never fatal */ }
 
   // OFFLINE-FIRST: reads serve from device storage, writes queue and replay.
   let db;

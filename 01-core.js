@@ -1479,9 +1479,16 @@ function showSdkOffline(msg){
 window.showSdkOffline = showSdkOffline;
 // Watchdog: if 'fb-ready' never arrives at all (the module file itself is
 // missing from the cache), nothing downstream can ever run.
+// Last line of defence. If the page is still blank after 20 seconds — for ANY
+// reason, including one nobody has thought of yet — say something rather than
+// leave a technician staring at nothing.
 window._bootWatchdog = setTimeout(()=>{
-  if(!window.__fb || (!window.__fb.auth && !window._bootHandled)) showSdkOffline("Engine did not load");
-}, 12000);
+  if(window._bootHandled || state.initialized) return;
+  const why = (window.__fb && window.__fb.sdkError) ? window.__fb.sdkError
+            : !window.__fb ? "the engine file did not run"
+            : "startup did not finish";
+  showSdkOffline(why);
+}, 20000);
 
 window.addEventListener('fb-ready',()=>{
   window._bootHandled = true;
