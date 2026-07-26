@@ -412,7 +412,7 @@ function renderEntryManage(){
       <div class="card-title" style="color:#7F6000">📨 Client Request Entry</div>
       <p style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.6">
         Options used in the client <strong>Requests</strong> workflow. Leave a list empty to keep the built-in defaults.<br>
-        Deleting an option never touches existing requests — they keep their status; the option just disappears from pickers.
+        ✎ renames the option <strong>and migrates every record using it</strong>. Deleting leaves records holding the old text — the option simply disappears from pickers, so rename when you want them updated.
       </p>
       <div style="margin-bottom:18px">
         <div style="font-weight:800;color:#B8860B;font-size:13px;margin-bottom:8px">🔖 Request Statuses <span style="font-weight:400;color:#999;font-size:11px">(defaults: New · In Progress · Completed)</span></div>
@@ -420,7 +420,7 @@ function renderEntryManage(){
           ${rss.length===0?`<span style="font-size:12px;color:#999">Using built-in defaults</span>`:rss.map(w=>`
             <span style="display:inline-flex;align-items:center;gap:5px;background:#FFF8E1;color:#7F6000;padding:5px 8px 5px 12px;border-radius:16px;font-size:12px;font-weight:600">
               ${escapeHtml(w.name)}
-              <button onclick="delTechItem('requestStatuses','${w.id}')" style="background:#F5E3B0;border:none;color:#7F6000;width:18px;height:18px;border-radius:50%;cursor:pointer;font-weight:700;font-size:11px">×</button>
+              <button onclick="renameTechItem('requestStatuses','${w.id}',{col:'clientRequests',field:'status',label:'client request'})" title="Rename" style="background:#F5E3B0;border:none;color:#7F6000;width:18px;height:18px;border-radius:50%;cursor:pointer;font-size:10px;line-height:1">✎</button><button onclick="delTechItem('requestStatuses','${w.id}',{col:'clientRequests',field:'status',label:'client request'})" style="background:#F5E3B0;border:none;color:#7F6000;width:18px;height:18px;border-radius:50%;cursor:pointer;font-weight:700;font-size:11px">×</button>
             </span>`).join("")}
         </div>
         <div style="display:flex;gap:6px">
@@ -435,7 +435,7 @@ function renderEntryManage(){
           ${pss.length===0?`<span style="font-size:12px;color:#999">Using built-in defaults</span>`:pss.map(w=>`
             <span style="display:inline-flex;align-items:center;gap:5px;background:#E0F2F1;color:#00695C;padding:5px 8px 5px 12px;border-radius:16px;font-size:12px;font-weight:600">
               ${escapeHtml(w.name)}
-              <button onclick="delTechItem('projectStatuses','${w.id}')" style="background:#B2DFDB;border:none;color:#00695C;width:18px;height:18px;border-radius:50%;cursor:pointer;font-weight:700;font-size:11px">×</button>
+              <button onclick="renameTechItem('projectStatuses','${w.id}',{col:'projects',field:'status',label:'project'})" title="Rename" style="background:#B2DFDB;border:none;color:#00695C;width:18px;height:18px;border-radius:50%;cursor:pointer;font-size:10px;line-height:1">✎</button><button onclick="delTechItem('projectStatuses','${w.id}',{col:'projects',field:'status',label:'project'})" style="background:#B2DFDB;border:none;color:#00695C;width:18px;height:18px;border-radius:50%;cursor:pointer;font-weight:700;font-size:11px">×</button>
             </span>`).join("")}
         </div>
         <div style="display:flex;gap:6px">

@@ -790,6 +790,13 @@ input,select,textarea,button{font-variant-numeric:tabular-nums}
    Header + bottom nav alone ate ~42% of the height.
    These rules key off HEIGHT, not width, so real tablets and
    desktops (tall viewports) keep the roomy layout.
+
+   WHETHER the app rotates at all is the DEVICE's decision: the
+   manifest deliberately omits "orientation" (v170). Setting it to
+   "any" maps to a full-sensor lock on Android and overrides the
+   user's auto-rotate switch. Omitting it defers to the phone.
+   Everything below is reactive only — it applies if and when the
+   device chooses to be landscape, and never asks for it.
    ═══════════════════════════════════════════════════════════ */
 @media (orientation:landscape) and (max-height:560px){
   /* Header: one tight row, subtitle dropped */

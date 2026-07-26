@@ -58,8 +58,18 @@ function renderProjects(){
       </select></div>
       <div class="field"><label>Status</label><select onchange="window.projForm.status=this.value">
         <option value="">—</option>
-        ${getProjStatusList().map(s=>`<option ${projForm.status===s?"selected":""}>${escapeHtml(s)}</option>`).join("")}
-      </select></div>
+        ${(()=>{
+          const opts=getProjStatusList(), cur=projForm.status||"";
+          // Keep a status that is no longer in the list: without this the browser
+          // falls back to the first option and the form silently shows "\u2014"
+          // while the record still holds the old value.
+          const all=(cur && !opts.includes(cur)) ? [cur, ...opts] : opts;
+          return all.map(s=>`<option ${cur===s?"selected":""}>${escapeHtml(s)}</option>`).join("");
+        })()}
+      </select>
+      ${(projForm.status && !getProjStatusList().includes(projForm.status))
+        ? `<div style="font-size:10px;color:#E65100;margin-top:4px;line-height:1.5">\u26a0 "${escapeHtml(projForm.status)}" is no longer in the status list \u2014 kept so it is not lost. Re-add or rename it in <strong>Entry Manage \u2192 Requests</strong>.</div>`
+        : ""}</div>
     </div>
     <div class="btn-row">
       <button class="btn btn-primary" onclick="saveProj()">${projEditId?"Update":"Add"}</button>
@@ -876,9 +886,42 @@ window.addTechItem = async function(col, inputId, count){
   saveToast("Added ✓");
 };
 
-window.delTechItem = async function(col, id){
+// A status is stored on each record as a PLAIN STRING, so renaming the option
+// without migrating leaves every record holding a name that no longer exists.
+// `use` describes where the value lives: {col, field, label}.
+window.renameTechItem = async function(col, id, use){
   if(!isAdmin()) return toast("Admin only");
-  if(!await uiConfirm("Delete this item?")) return;
+  const rec = (state[col]||[]).find(x=>x.id===id);
+  if(!rec) return toast("Item not found");
+  const oldName = rec.name || "";
+  const typed = await uiPrompt("Rename this option", oldName);
+  if(typed===null || typed===undefined) return;             // cancelled
+  const name = String(typed).trim();
+  if(!name) return toast("Enter a value");
+  if(name === oldName) return;
+  if((state[col]||[]).some(x=>x.id!==id && (x.name||"").toLowerCase()===name.toLowerCase()))
+    return toast("Already exists");
+  const users = use ? (state[use.col]||[]).filter(r=>(r[use.field]||"")===oldName) : [];
+  if(users.length && !await uiConfirm(
+      `Rename "${oldName}" to "${name}"?\n\n${users.length} ${use.label}${users.length>1?"s":""} ${users.length>1?"currently use":"currently uses"} it and will be updated to match.`)) return;
+  const {db, doc, updateDoc} = window.__fb;
+  await updateDoc(doc(db, col, id), {name});
+  for(const r of users) await updateDoc(doc(db, use.col, r.id), {[use.field]: name});
+  saveToast(users.length ? `Renamed \u2713 \u2014 ${users.length} record(s) migrated` : "Renamed \u2713");
+};
+
+window.delTechItem = async function(col, id, use){
+  if(!isAdmin()) return toast("Admin only");
+  // Warn when records still carry this value: they keep the old text and the
+  // option vanishes from every picker, so the count matters before deleting.
+  let msg = "Delete this item?";
+  if(use){
+    const rec = (state[col]||[]).find(x=>x.id===id);
+    const oldName = rec ? (rec.name||"") : "";
+    const users = (state[use.col]||[]).filter(r=>(r[use.field]||"")===oldName);
+    if(users.length) msg = `Delete "${oldName}"?\n\n${users.length} ${use.label}${users.length>1?"s":""} still ${users.length>1?"use":"uses"} it. They keep the value, but it will no longer appear in the picker \u2014 rename instead if you want them updated.`;
+  }
+  if(!await uiConfirm(msg)) return;
   const {db, doc, deleteDoc} = window.__fb;
   await deleteDoc(doc(db, col, id));
   toast("Deleted");
