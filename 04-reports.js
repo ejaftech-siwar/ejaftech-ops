@@ -662,6 +662,52 @@ function renderAnalytics(){
 // ═══════════════════════════════════════════════════════════════════════
 //  👑 EXECUTIVE VIEW — one screen for leadership decisions (admin only)
 // ═══════════════════════════════════════════════════════════════════════
+// SLA compliance + contract margin, the two numbers a manager is actually
+// answerable for — and the two nothing in the app could show before.
+function execSLAPanel(){
+  try{
+    const overall = (typeof slaCompliance==="function") ? slaCompliance(null) : null;
+    const projects = (state.projects||[]).map(p=>{
+      const nm=(p.name||"").trim(); if(!nm) return null;
+      const c = slaCompliance(nm), e = projectEconomics(nm);
+      if(!c && !e) return null;
+      return {nm, c, e};
+    }).filter(Boolean)
+      .sort((a,b)=>{
+        const bad = x => (x.e && x.e.level==="loss" ? 0 : x.c && x.c.breached ? 1 : 2);
+        return bad(a)-bad(b);
+      });
+    if(!overall && !projects.length) return "";
+    const COL = {healthy:"var(--ok)", tight:"var(--warn)", loss:"var(--danger)", unknown:"var(--muted)"};
+    return `<div class="card">
+      <div class="dsh-head"><span class="dsh-h1">⏱ SLA &amp; contract health</span></div>
+      <div class="dsh-h2">Response performance against each contract, and what the work has cost against what it pays</div>
+      ${overall?`<div class="sla-strip">
+        <div class="sla-cell"><div class="sla-num" style="color:${overall.pct>=95?'var(--ok)':overall.pct>=85?'var(--warn)':'var(--danger)'}">${overall.pct}%</div><div class="sla-lab">compliance</div></div>
+        <div class="sla-cell"><div class="sla-num" style="color:var(--text)">${overall.total}</div><div class="sla-lab">requests</div></div>
+        <div class="sla-cell"><div class="sla-num" style="color:${overall.breached?'var(--danger)':'var(--ok)'}">${overall.breached}</div><div class="sla-lab">breached</div></div>
+        <div class="sla-cell"><div class="sla-num" style="color:${overall.open?'var(--warn)':'var(--ok)'}">${overall.open}</div><div class="sla-lab">still open</div></div>
+      </div>`:`<div class="dsh-h2" style="margin-top:8px">No client requests with timestamps yet — SLA starts measuring from the first one.</div>`}
+      ${projects.length?`<div class="tbl-wrap" style="margin-top:12px"><table class="tbl">
+        <thead><tr><th>Project</th><th>SLA</th><th>Response</th><th>Logged cost</th><th>Contract</th><th>Margin</th></tr></thead>
+        <tbody>${projects.slice(0,14).map(x=>{
+          const e=x.e, c=x.c;
+          const col = e ? COL[e.level] : "var(--muted)";
+          return `<tr>
+            <td style="font-weight:700">${escapeHtml(x.nm)}</td>
+            <td style="font-size:var(--f-sm)">${projectSLA(x.nm).responseHrs}h${projectSLA(x.nm).perProject?"":" <span style='color:var(--muted)'>(global)</span>"}</td>
+            <td>${c?`<span style="font-weight:800;color:${c.pct>=95?'var(--ok)':c.pct>=85?'var(--warn)':'var(--danger)'}">${c.pct}%</span>
+                  <span style="font-size:var(--f-2xs);color:var(--muted)"> ${c.met}/${c.total}</span>`:"—"}</td>
+            <td>${e?e.cost.toLocaleString():"—"}</td>
+            <td>${e&&e.value?e.value.toLocaleString():"—"}</td>
+            <td style="font-weight:800;color:${col}">${e&&e.margin!==null?`${e.margin.toLocaleString()} (${e.marginPct}%)`:"—"}</td>
+          </tr>`;}).join("")}</tbody></table></div>
+      <p style="font-size:var(--f-2xs);color:var(--muted);margin:9px 0 0;line-height:1.6">Set each contract's response target, value and hourly cost in <strong>Database → Projects</strong>. Blank targets fall back to the global SLA in Settings.</p>`:""}
+    </div>`;
+  }catch(e){ console.error("execSLAPanel",e); return ""; }
+}
+window.execSLAPanel=execSLAPanel;
+
 function renderExecutive(){
   if(!isAdmin()) return `<div class="card"><div class="empty">Admin only.</div></div>`;
   const now=new Date();
@@ -698,7 +744,7 @@ function renderExecutive(){
   const top3=Object.entries(by).sort((a,b)=>b[1]-a[1]).slice(0,3);
   const kpi=(v,l,c2,sub)=>`<div class="ex-k" style="border-top:3px solid ${c2}"><div class="ex-kv" style="color:${c2}">${v}</div><div class="ex-kl">${l}</div>${sub?`<div class="ex-ks">${sub}</div>`:""}</div>`;
   const sevc={high:"#C62828",med:"#E65100",low:"#2E5FA3"};
-  return `
+  return (typeof execSLAPanel==="function"?execSLAPanel():"") + `
   <div class="card" style="background:linear-gradient(135deg,#101F3C,#1B3A6B);border:1px solid #C9A84C;color:#fff">
     <div style="font-size:16px;font-weight:800">👑 Executive View</div>
     <div style="font-size:11px;opacity:.72;margin-top:2px">${now.toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long",year:"numeric"})} · live company snapshot</div>

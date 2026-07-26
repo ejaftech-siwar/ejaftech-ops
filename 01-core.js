@@ -3216,3 +3216,206 @@ function bellCount(){
 }
 
 function refreshAlertBadge(){ try{ window._alertsCache=computeAlerts(); }catch(e){} }
+
+// ═══════════════════════════════════════════════════════════════════════
+//  ELECTRONIC SIGNATURE (v160)
+//  Every report already had two signature boxes — printed blank, signed by
+//  hand, then scanned. Capturing the signature on the device closes that loop:
+//  the PDF leaves the app already executed.
+//  Pointer events cover finger, stylus and mouse with one code path.
+// ═══════════════════════════════════════════════════════════════════════
+window._sigStore = window._sigStore || {};          // { key: dataURL }
+
+function signaturePad(key, label, hint){
+  const has = !!window._sigStore[key];
+  return `<div class="sig-wrap" data-sig="${key}">
+    <div class="sig-head">
+      <span class="sig-label">✍️ ${escapeHtml(label||"Signature")}</span>
+      ${has?`<span class="sig-done">✓ Signed</span>`:""}
+      <button type="button" class="btn btn-sm btn-secondary" style="margin-left:auto" onclick="sigClear('${key}')">Clear</button>
+    </div>
+    ${has
+      ? `<img src="${window._sigStore[key]}" class="sig-preview" alt="signature">`
+      : `<canvas class="sig-canvas" id="sig_${key}" width="600" height="200"
+           onpointerdown="sigStart(event,'${key}')" onpointermove="sigMove(event,'${key}')"
+           onpointerup="sigEnd(event,'${key}')" onpointercancel="sigEnd(event,'${key}')"
+           onpointerleave="sigEnd(event,'${key}')"></canvas>`}
+    <div class="sig-hint">${escapeHtml(hint||"Sign inside the box with your finger")}</div>
+  </div>`;
+}
+function _sigCtx(key){
+  const cv = document.getElementById("sig_"+key);
+  if(!cv) return null;
+  if(!cv._ready){
+    // Match the backing store to the displayed size so strokes land under the
+    // finger instead of being offset — the usual signature-pad bug.
+    const r = cv.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    cv.width = Math.round(r.width*dpr);
+    cv.height = Math.round(r.height*dpr);
+    const c = cv.getContext("2d");
+    c.scale(dpr,dpr);
+    c.lineWidth = 2.2; c.lineCap = "round"; c.lineJoin = "round";
+    c.strokeStyle = "#1B2A44";
+    cv._ready = true;
+  }
+  return cv.getContext("2d");
+}
+function _sigPos(e,key){
+  const cv = document.getElementById("sig_"+key);
+  const r = cv.getBoundingClientRect();
+  return { x:e.clientX-r.left, y:e.clientY-r.top };
+}
+window.sigStart=function(e,key){
+  e.preventDefault();
+  const c=_sigCtx(key); if(!c) return;
+  const p=_sigPos(e,key);
+  c.beginPath(); c.moveTo(p.x,p.y);
+  const cv=document.getElementById("sig_"+key);
+  cv._drawing=true; cv._dirty=true;
+};
+window.sigMove=function(e,key){
+  const cv=document.getElementById("sig_"+key);
+  if(!cv||!cv._drawing) return;
+  e.preventDefault();
+  const c=_sigCtx(key); const p=_sigPos(e,key);
+  c.lineTo(p.x,p.y); c.stroke();
+};
+window.sigEnd=function(e,key){
+  const cv=document.getElementById("sig_"+key);
+  if(!cv||!cv._drawing) return;
+  cv._drawing=false;
+  if(cv._dirty){
+    // Trim the transparent margin so the signature sits tight in the PDF cell.
+    try{ window._sigStore[key]=_sigTrim(cv); }catch(_){ window._sigStore[key]=cv.toDataURL("image/png"); }
+  }
+};
+function _sigTrim(cv){
+  const c=cv.getContext("2d");
+  const {width:w,height:h}=cv;
+  const d=c.getImageData(0,0,w,h).data;
+  let x0=w,y0=h,x1=0,y1=0,found=false;
+  for(let y=0;y<h;y++) for(let x=0;x<w;x++){
+    if(d[(y*w+x)*4+3]>8){ found=true;
+      if(x<x0)x0=x; if(x>x1)x1=x; if(y<y0)y0=y; if(y>y1)y1=y; }
+  }
+  if(!found) return cv.toDataURL("image/png");
+  const pad=8;
+  x0=Math.max(0,x0-pad); y0=Math.max(0,y0-pad);
+  x1=Math.min(w-1,x1+pad); y1=Math.min(h-1,y1+pad);
+  const out=document.createElement("canvas");
+  out.width=x1-x0+1; out.height=y1-y0+1;
+  out.getContext("2d").drawImage(cv,x0,y0,out.width,out.height,0,0,out.width,out.height);
+  return out.toDataURL("image/png");
+}
+window.sigClear=function(key){
+  delete window._sigStore[key];
+  const cv=document.getElementById("sig_"+key);
+  if(cv){ const c=cv.getContext("2d"); c.clearRect(0,0,cv.width,cv.height); cv._dirty=false; cv._ready=false; }
+  render();
+};
+// Signature block for the branded PDFs — the captured image, or the ruled line
+// to sign by hand when nobody signed on the device.
+function sigBlockHTML(key, name, title, org){
+  const img = window._sigStore[key];
+  return `<td style="border:1px solid #ccc;padding:14px;width:50%;vertical-align:top;font-size:12px">
+    <strong>${escapeHtml(name||"—")}</strong><br>${escapeHtml(title||"")}<br>${escapeHtml(org||"")}
+    ${img ? `<div style="margin-top:10px"><img src="${img}" style="max-height:52px;max-width:190px"></div>
+             <div style="border-top:1px solid #999;margin-top:2px;padding-top:3px;color:#666;font-size:9.5px">Signed electronically · ${fmtDate(today())}</div>`
+          : `<div style="height:46px"></div><div style="border-top:1px solid #999;padding-top:3px;color:#888;font-size:10.5px">Date &amp; Signature</div>`}
+  </td>`;
+}
+Object.assign(window,{signaturePad,sigBlockHTML});
+
+// ═══════════════════════════════════════════════════════════════════════
+//  SLA CLOCK & CONTRACT PROFITABILITY (v161)
+//  A global 24h target says nothing about a specific contract. Asiacell may
+//  owe 4-hour response while a small site owes 48 — and nobody could see
+//  whether either was met, or whether a project was earning or losing money,
+//  until long after the fact.
+//
+//  Response time is measured from the moment a client request is raised to the
+//  first work entry logged against that project afterwards: the first time
+//  someone actually turned up. Profitability is real logged hours × cost,
+//  plus per diem, against the contract value.
+// ═══════════════════════════════════════════════════════════════════════
+function projectSLA(project){
+  const p = (state.projects||[]).find(x=>(x.name||"").trim()===(project||"").trim());
+  const g = getSLA();
+  return {
+    responseHrs: Number(p&&p.slaResponseHrs) || g.responseHrs,
+    resolveHrs:  Number(p&&p.slaResolveHrs)  || g.completeHrs,
+    perProject:  !!(p && (p.slaResponseHrs || p.slaResolveHrs)),
+  };
+}
+// Hours between a request being raised and the first attendance after it.
+function slaResponseFor(req){
+  if(!req || !req.createdAt) return null;
+  const raised = new Date(req.createdAt);
+  if(isNaN(raised)) return null;
+  const proj = (req.project||"").trim();
+  // Firestore keeps entry dates as YYYY-MM-DD, so same-day attendance counts as
+  // the start of that day at the earliest — we compare on dates, not clock time.
+  const rows = (state.daily||[])
+    .filter(r=>(r.project||"").trim()===proj && r.date && new Date(r.date+"T23:59:59") >= raised)
+    .sort((a,b)=>String(a.date).localeCompare(String(b.date)));
+  const first = rows[0];
+  const answered = first ? new Date(first.date+"T"+((first.start||"09:00")+":00")) : null;
+  const end = answered || appNow();
+  const hrs = Math.max(0, (end - raised) / 3600000);
+  return { hrs:+hrs.toFixed(1), answered:!!answered, at:first?first.date:null, entryNo:first?first.entryNo:null };
+}
+function slaStateOf(req){
+  const r = slaResponseFor(req);
+  if(!r) return null;
+  const target = projectSLA(req.project).responseHrs;
+  const pct = target>0 ? r.hrs/target : 0;
+  const level = pct>1 ? "breached" : pct>0.75 ? "atRisk" : "met";
+  return {...r, target, pct:Math.round(pct*100), level, open:!r.answered};
+}
+const SLA_STYLE = {
+  met:     {lb:"Within SLA", bg:"var(--ok-bg)",     fg:"var(--ok)"},
+  atRisk:  {lb:"At risk",    bg:"var(--warn-bg)",   fg:"var(--warn)"},
+  breached:{lb:"Breached",   bg:"var(--danger-bg)", fg:"var(--danger)"},
+};
+function slaBadge(req){
+  const s = slaStateOf(req);
+  if(!s) return "";
+  const st = SLA_STYLE[s.level];
+  const detail = s.answered
+    ? `answered in ${fmtHM(s.hrs)} of ${s.target}h`
+    : `${fmtHM(s.hrs)} elapsed, target ${s.target}h — still open`;
+  return `<span class="sla-badge" style="background:${st.bg};color:${st.fg}" title="${escapeHtml(detail)}">
+    ⏱ ${st.lb} · ${s.pct}%</span>`;
+}
+// Portfolio compliance — the number that goes in front of a client.
+function slaCompliance(project){
+  const reqs = (state.clientRequests||[]).filter(r=>
+    r.createdAt && (!project || (r.project||"").trim()===String(project).trim()));
+  const scored = reqs.map(slaStateOf).filter(Boolean);
+  if(!scored.length) return null;
+  const met = scored.filter(s=>s.level!=="breached").length;
+  return { total:scored.length, met, breached:scored.length-met,
+           pct:Math.round(met/scored.length*100),
+           open:scored.filter(s=>s.open).length };
+}
+// Money. Cost of the work actually logged against the contract value.
+function projectEconomics(name){
+  const p = (state.projects||[]).find(x=>(x.name||"").trim()===(name||"").trim());
+  if(!p) return null;
+  const rate  = Number(p.hourlyCost)||0;
+  const value = Number(p.contractValue)||0;
+  const rows  = (state.daily||[]).filter(r=>(r.project||"").trim()===(name||"").trim());
+  const hours = rows.reduce((s,r)=>s+Number(r.duration||0),0);
+  const perDiem = (state.travel||[])
+    .filter(t=>(t.project||"").trim()===(name||"").trim())
+    .reduce((s,t)=>s+Number(t.perDiem||0),0);
+  const cost = hours*rate + perDiem;
+  if(!value && !rate) return null;         // nothing to compare against yet
+  const margin = value ? value-cost : null;
+  return { hours:+hours.toFixed(1), rate, perDiem, cost:Math.round(cost), value,
+           margin: margin===null?null:Math.round(margin),
+           marginPct: (value>0) ? Math.round((value-cost)/value*100) : null,
+           level: value<=0 ? "unknown" : cost>value ? "loss" : cost>value*0.85 ? "tight" : "healthy" };
+}
+Object.assign(window,{projectSLA,slaResponseFor,slaStateOf,slaBadge,slaCompliance,projectEconomics});

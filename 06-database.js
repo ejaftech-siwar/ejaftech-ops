@@ -31,6 +31,28 @@ function renderProjects(){
         <input type="number" min="0" step="1" value="${projForm.estimatedHours||""}" oninput="window.projForm.estimatedHours=this.value" onchange="render()" placeholder="e.g. 108"></div>
       <div class="field"><label>Estimated Days <span style="font-size:10px;color:var(--muted)">(1 day = 9 man-hours, auto-syncs)</span></label>
         <input type="number" min="0" step="0.5" value="${projForm.estimatedHours?(Math.round(Number(projForm.estimatedHours)/9*10)/10):""}" oninput="window.projForm.estimatedHours=String(Math.round(Number(this.value||0)*9*10)/10)" onchange="render()" placeholder="e.g. 12"></div>
+      <div class="field" style="grid-column:1/-1">
+        <label>📜 Contract terms <span style="font-size:var(--f-2xs);color:var(--muted)">(optional — leave blank to use the global SLA)</span></label>
+      </div>
+      <div class="field"><label>SLA response (hours)</label>
+        <input type="number" min="0" step="0.5" value="${projForm.slaResponseHrs||""}" oninput="window.projForm.slaResponseHrs=this.value" placeholder="e.g. 4"></div>
+      <div class="field"><label>SLA resolve (hours)</label>
+        <input type="number" min="0" step="1" value="${projForm.slaResolveHrs||""}" oninput="window.projForm.slaResolveHrs=this.value" placeholder="e.g. 24"></div>
+      <div class="field"><label>Contract value (IQD)</label>
+        <input type="number" min="0" step="1000" value="${projForm.contractValue||""}" oninput="window.projForm.contractValue=this.value" placeholder="e.g. 12000000"></div>
+      <div class="field"><label>Cost per hour (IQD)</label>
+        <input type="number" min="0" step="500" value="${projForm.hourlyCost||""}" oninput="window.projForm.hourlyCost=this.value" placeholder="e.g. 15000"></div>
+      ${(()=>{ const e = (typeof projectEconomics==="function") ? projectEconomics(projForm.name) : null;
+        if(!e) return "";
+        const col = e.level==="loss"?"var(--danger)":e.level==="tight"?"var(--warn)":"var(--ok)";
+        return `<div class="field" style="grid-column:1/-1">
+          <div style="border:1px solid var(--line);border-left:4px solid ${col};border-radius:var(--r-md);padding:var(--s-3)">
+            <div style="font-size:var(--f-sm);color:var(--muted);font-weight:700">LOGGED SO FAR</div>
+            <div style="font-size:var(--f-lg);margin-top:4px;line-height:1.7">
+              ${fmtHM(e.hours)} × ${e.rate.toLocaleString()} + ${e.perDiem.toLocaleString()} per diem
+              = <strong>${e.cost.toLocaleString()} IQD</strong>${e.value?` of ${e.value.toLocaleString()}`:""}
+              ${e.margin!==null?`<br><strong style="color:${col}">Margin: ${e.margin.toLocaleString()} IQD (${e.marginPct}%)</strong>`:""}
+            </div></div></div>`; })()}
       <div class="field"><label>Department</label><select onchange="window.projForm.dept=this.value;render()">
         ${allDepts.map(d=>`<option ${projForm.dept===d?"selected":""}>${escapeHtml(d)}</option>`).join("")}
       </select></div>
@@ -88,6 +110,10 @@ async function saveProj(){
     dept: projForm.dept||"",
     status: projForm.status||"",
     estimatedHours: Number(projForm.estimatedHours||0),
+    slaResponseHrs: Number(projForm.slaResponseHrs||0),
+    slaResolveHrs:  Number(projForm.slaResolveHrs||0),
+    contractValue:  Number(projForm.contractValue||0),
+    hourlyCost:     Number(projForm.hourlyCost||0),
     areas, codes,
   });
   toast(projEditId?"Project updated ✓":"Project added ✓");

@@ -1141,7 +1141,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v159';"
+      var swCode = "const CACHE='ejaftech-v161';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
@@ -1789,6 +1789,8 @@ function renderFM200Section(){
       <div class="field"><label>Client approver name</label><input value="${escapeHtml(m.repName||"")}" oninput="window._fm.repName=this.value" placeholder="Mr. …"></div>
       <div class="field"><label>Client approver title</label><input value="${escapeHtml(m.repTitle||"")}" oninput="window._fm.repTitle=this.value" placeholder="e.g. IT Manager"></div>
     </div>
+    ${signaturePad("fm_eng","EJAF engineer signature","The engineer signs here")}
+    ${signaturePad("fm_rep","Client signature","Hand the device to the client representative")}
   </div>`:""}
 
   <div class="card">
@@ -1904,12 +1906,8 @@ window.generateFM200Test=async function(){
     ${_rptPhotoGrid(window._fmPhotos,"Photos")}
     <div class="ksec"><span class="kbad">05</span><h3>Report Approval</h3></div>
     <table style="border-collapse:collapse;width:100%"><tr>
-      <td style="border:1px solid #ccc;padding:14px;width:50%;vertical-align:top;font-size:12px">
-        <strong>${escapeHtml(m.engName||"Eng.")}</strong><br>Technical Engineer<br>EJAF Technology<br><br><span style="color:#888;font-size:10px">Date &amp; Signature</span>
-      </td>
-      <td style="border:1px solid #ccc;padding:14px;width:50%;vertical-align:top;font-size:12px">
-        <strong>${escapeHtml(m.repName||"Mr.")}</strong><br>${escapeHtml(m.repTitle||"")}<br>${escapeHtml(m.client||"")}<br><br><span style="color:#888;font-size:10px">Date &amp; Signature</span>
-      </td>
+      ${sigBlockHTML("fm_eng", m.engName||"Eng.", "Technical Engineer", "EJAF Technology")}
+      ${sigBlockHTML("fm_rep", m.repName||"Mr.", m.repTitle||"", m.client||"")}
     </tr></table>
     <div style="margin-top:14px;border:1px solid #ddd;border-radius:8px;padding:10px 12px;display:flex;gap:14px;align-items:center">
       <div style="flex:1;font-size:10px;font-style:italic;color:#555;line-height:1.7">The test and check report have been conducted by EJAF's competent engineers on the dates mentioned above. This report is made for the purpose of protecting the tangible and intangible components of the FM200 cylinders in compliance with the applicable standards ISO 14520 and NFPA 2001.</div>
@@ -2099,6 +2097,8 @@ function renderSystemReports(){
       <div class="field"><label>Client approver</label><input value="${escapeHtml(m.repName||"")}" oninput="window._sr.repName=this.value" placeholder="Mr. …"></div>
       <div class="field"><label>Approver title</label><input value="${escapeHtml(m.repTitle||"")}" oninput="window._sr.repTitle=this.value" placeholder="e.g. IT Manager"></div>
     </div>
+    ${signaturePad("sr_eng","EJAF engineer signature","The engineer signs here")}
+    ${signaturePad("sr_rep","Client signature","Hand the device to the client representative")}
   </div>
 
   <div class="card" style="background:linear-gradient(135deg,#1B3A6B 0%,#2E5FA3 100%);border:2px solid #C9A84C">
@@ -2163,12 +2163,8 @@ window.generateSystemReport=async function(){
     ${_rptPhotoGrid(window._srPhotos,"Photos")}
     <div class="ksec"><span class="kbad">${devs.length?"06":"05"}</span><h3>Report Approval</h3></div>
     <table style="border-collapse:collapse;width:100%"><tr>
-      <td style="border:1px solid #ccc;padding:14px;width:50%;vertical-align:top;font-size:12px">
-        <strong>${escapeHtml(m.engName||m.technician||"Eng.")}</strong><br>Technical Engineer<br>EJAF Technology<br><br><span style="color:#888;font-size:10px">Date &amp; Signature</span>
-      </td>
-      <td style="border:1px solid #ccc;padding:14px;width:50%;vertical-align:top;font-size:12px">
-        <strong>${escapeHtml(m.repName||m.representative||"Mr.")}</strong><br>${escapeHtml(m.repTitle||"")}<br>${escapeHtml(m.client||"")}<br><br><span style="color:#888;font-size:10px">Date &amp; Signature</span>
-      </td>
+      ${sigBlockHTML("sr_eng", m.engName||m.technician||"Eng.", "Technical Engineer", "EJAF Technology")}
+      ${sigBlockHTML("sr_rep", m.repName||m.representative||"Mr.", m.repTitle||"", m.client||"")}
     </tr></table>
     <div style="margin-top:14px;border:1px solid #ddd;border-radius:8px;padding:10px 12px;display:flex;gap:14px;align-items:center">
       <div style="flex:1;font-size:10px;font-style:italic;color:#555;line-height:1.7">This inspection and test report has been carried out by EJAF's competent engineers on the date stated above, in accordance with the applicable international standards for this system.</div>
@@ -2397,6 +2393,8 @@ function renderProgressReport(kind){
       <div class="field"><label>Client approver</label><input value="${escapeHtml(m.repName||"")}" oninput="window._pr.repName=this.value" placeholder="Mr. …"></div>
       <div class="field"><label>Approver title</label><input value="${escapeHtml(m.repTitle||"")}" oninput="window._pr.repTitle=this.value" placeholder="e.g. Project Manager"></div>
     </div>
+    ${signaturePad("pr_eng","EJAF engineer signature","The engineer signs here")}
+    ${signaturePad("pr_rep","Client signature","Hand the device to the client representative")}
   </div>
 
   <div class="card" style="background:linear-gradient(135deg,#1B3A6B 0%,#2E5FA3 100%);border:2px solid #C9A84C">
@@ -2497,12 +2495,8 @@ window.generateProgressReport = async function(kind){
 
     <div class="ksec"><span class="kbad">${K()}</span><h3>Approval</h3></div>
     <table style="border-collapse:collapse;width:100%"><tr>
-      <td style="border:1px solid #ccc;padding:14px;width:50%;vertical-align:top;font-size:12px">
-        <strong>${escapeHtml(m.engName||m.preparedBy||"Eng.")}</strong><br>Project / Technical Engineer<br>EJAF Technology<br><br><span style="color:#888;font-size:10px">Date &amp; Signature</span>
-      </td>
-      <td style="border:1px solid #ccc;padding:14px;width:50%;vertical-align:top;font-size:12px">
-        <strong>${escapeHtml(m.repName||m.representative||"Mr.")}</strong><br>${escapeHtml(m.repTitle||"")}<br>${escapeHtml(m.client||"")}<br><br><span style="color:#888;font-size:10px">Date &amp; Signature</span>
-      </td>
+      ${sigBlockHTML("pr_eng", m.engName||m.preparedBy||"Eng.", "Project / Technical Engineer", "EJAF Technology")}
+      ${sigBlockHTML("pr_rep", m.repName||m.representative||"Mr.", m.repTitle||"", m.client||"")}
     </tr></table>
     <div style="margin-top:14px;border:1px solid #ddd;border-radius:8px;padding:10px 12px;display:flex;gap:14px;align-items:center">
       <div style="flex:1;font-size:10px;font-style:italic;color:#555;line-height:1.7">This progress report has been prepared by EJAF Technology for the period stated above as part of the project monitoring and control process.</div>
