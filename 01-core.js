@@ -203,13 +203,213 @@ const SYS_TEMPLATES = [
       "Outstanding defects from the previous visit closed",
     ],
   },
+  {
+    id:"elvi", short:"ELV+", name:"ELV \u2014 Integrated Systems", icon:"\ud83e\udde9", color:"#4527A0",
+    multi:true,          // reports SEVERAL sub-systems in one document
+    match:[],            // never auto-matched from a device System field
+    standards:"EN 50130-4 (EMC immunity \u2014 product family standard) \u00b7 EN 50130-5 (environmental classes) \u00b7 plus the governing standards of every sub-system included in the scope below",
+    fields:[
+      {k:"integ",  l:"Integration platform"},
+      {k:"integv", l:"Platform version / build"},
+      {k:"visit",  l:"Visit type (PM / CM / handover)"},
+      {k:"scope",  l:"Contract / scope reference"},
+    ],
+    checks:[
+      "Integrated platform operational \u2014 no unacknowledged alarms or offline devices",
+      "All sub-system panels and head-end equipment inspected and in normal state",
+      "Interfaces between sub-systems verified against the cause & effect matrix",
+      "Time synchronisation across all sub-systems verified (single reference source)",
+      "Power supplies, UPS and battery autonomy verified for each sub-system",
+      "Earthing and bonding verified",
+      "EMC and environmental conditions acceptable (EN 50130-4 / -5)",
+      "Containment, trunking, cable routes and labelling inspected",
+      "Server and database backups verified, restore path tested",
+      "User accounts, roles and privileges reviewed across all platforms",
+      "Firmware and software versions recorded, update status assessed",
+      "As-built documentation, O&M manuals and drawings current",
+      "Operator training records verified",
+      "Spare parts inventory verified",
+      "Outstanding defects from the previous visit closed",
+    ],
+  },
 ];
+
+// \u2550\u2550\u2550 ELV SUB-SYSTEMS \u2014 the scope catalogue of the integrated report \u2550\u2550\u2550
+// Entries whose id equals a SYS_TEMPLATES id inherit that discipline's full
+// checklist and standards (so an admin edit to the CCTV list flows straight
+// through here). Entries carrying their own `checks` are standalone.
+// `sup:true` marks supporting infrastructure rather than an ELV discipline.
+const ELV_SUBS = [
+  {id:"cctv", name:"CCTV / Video Surveillance",   icon:"\ud83d\udcf9", color:"#1565C0", match:["cctv","camera","video","surveillance"]},
+  {id:"acs",  name:"Access Control System",       icon:"\ud83d\udeaa", color:"#00695C", match:["access","acs"]},
+  {id:"ids",  name:"Intrusion / Hold-up System",  icon:"\ud83d\udea8", color:"#7B1FA2", match:["intrusion","intruder","burglar","ids"]},
+  {id:"fire", name:"Fire Alarm System",           icon:"\ud83d\udd25", color:"#C62828", match:["fire alarm","fire"]},
+  {id:"net",  name:"Network / Structured Cabling",icon:"\ud83c\udf10", color:"#2E5FA3", match:["network","networking","lan","cabling","structured"]},
+  {
+    id:"pava", name:"Public Address / Voice Alarm", icon:"\ud83d\udce3", color:"#00838F",
+    match:["public address","voice alarm","voice evacuation","pava","pa/va","pa system"],
+    standards:"EN 54-16 (voice alarm control and indicating equipment) \u00b7 EN 54-24 (loudspeakers) \u00b7 ISO 7240-16 \u00b7 IEC 60849 \u00b7 NFPA 72 Chapter 24 (emergency communications)",
+    checks:[
+      "Amplifier racks and power supplies inspected \u2014 no fault indications",
+      "Standby amplifier automatic changeover tested",
+      "Loudspeaker line impedance and earth-fault monitoring verified (EN 54-16)",
+      "Sound pressure level measured per zone against the design target",
+      "Speech intelligibility verified (STI-PA where specified)",
+      "Zone selection, priority and override logic verified",
+      "Emergency microphone and pre-recorded messages tested",
+      "Interface with fire alarm \u2014 alert and evacuation messages verified",
+      "Standby battery autonomy verified",
+      "Cable fault monitoring and reporting verified",
+      "Background music separation and volume limits verified",
+    ],
+  },
+  {
+    id:"ups", name:"UPS / DC Power", icon:"\ud83d\udd0b", color:"#EF6C00", sup:true,
+    match:["ups","uninterruptible","battery","dc power","rectifier"],
+    standards:"IEC 62040-3 (UPS performance and test requirements) \u00b7 EN 50171 (central power supply systems) \u00b7 IEEE 1188 (valve-regulated battery maintenance) \u00b7 IEC 62485-2 (battery safety)",
+    checks:[
+      "Input and output voltage, frequency and phase readings recorded",
+      "Load percentage and power factor within the rated capacity",
+      "Battery block voltages, internal resistance and terminal torque verified (IEEE 1188)",
+      "Battery autonomy / runtime test performed at the declared load",
+      "Battery installation date and replacement due date recorded",
+      "Charger float and boost voltages verified",
+      "Static and maintenance bypass transfer tested",
+      "Alarms, fault indications and event log reviewed",
+      "Cooling fans, air filters and ventilation inspected",
+      "Battery room / cabinet temperature within limits (IEC 62485-2)",
+      "Earthing and bonding of the UPS and battery frame verified",
+      "Downstream distribution and breaker coordination verified",
+      "Remote monitoring / SNMP notification verified",
+      "Firmware version recorded",
+    ],
+  },
+  {
+    id:"bms", name:"BMS / Building Management", icon:"\ud83c\udfe2", color:"#546E7A",
+    match:["bms","building management","building automation","bacnet","hvac control"],
+    standards:"ISO 16484 (building automation and control systems) \u00b7 ASHRAE 135 / ISO 16484-5 (BACnet) \u00b7 EN 15232 (energy performance of building automation)",
+    checks:[
+      "Head-end workstation and servers operational \u2014 no unacknowledged alarms",
+      "Controllers and field panels inspected, communications healthy",
+      "Sensor calibration verified (temperature, humidity, pressure, CO / CO2)",
+      "Actuators, valves and dampers stroked and verified",
+      "Setpoints, time schedules and trend logs reviewed",
+      "Alarm routing and notification tested",
+      "Interlocks with fire alarm verified (HVAC shutdown / smoke dampers)",
+      "Protocol gateways and network integration verified (BACnet / Modbus)",
+      "Database backup taken and restore path verified",
+      "Graphics and as-built points list current",
+    ],
+  },
+  {
+    id:"icom", name:"Intercom / Video Door Entry", icon:"\ud83d\udcde", color:"#5D4037",
+    match:["intercom","door entry","video door","door phone"],
+    standards:"EN 50486 (audio and video door entry systems) \u00b7 EN/IEC 60839-11-1 where linked to access control",
+    checks:[
+      "Entrance panels and call buttons operational",
+      "Audio quality verified in both directions",
+      "Video image quality at door stations verified",
+      "Door release integration with access control verified",
+      "Indoor monitors / handsets tested per unit",
+      "Power supplies and battery backup verified",
+      "Cabling, terminations and enclosures inspected",
+      "Directory and unit programming verified",
+    ],
+  },
+  {
+    id:"gate", name:"Barriers / Gates / ANPR", icon:"\ud83d\udea7", color:"#795548",
+    match:["barrier","gate","anpr","lpr","boom","turnstile"],
+    standards:"EN 12453 (safety in use of power-operated doors and gates) \u00b7 EN 12978 (safety devices) \u00b7 EN 12604 / EN 12605 (mechanical aspects)",
+    checks:[
+      "Mechanical operation, alignment and lubrication verified",
+      "Safety devices tested \u2014 photocells, loops, pressure-sensitive edges (EN 12978)",
+      "Force limitation and closing force verified (EN 12453)",
+      "Emergency manual release tested",
+      "Vehicle detection loops verified",
+      "ANPR / LPR read accuracy verified against a test sample",
+      "Integration with access control and visitor management verified",
+      "Warning lights, signage and audible alerts operational",
+      "Control panel, motor and gearbox inspected",
+    ],
+  },
+  {
+    id:"nurse", name:"Nurse Call", icon:"\ud83d\udecf\ufe0f", color:"#AD1457",
+    match:["nurse call","nurse","patient call"],
+    standards:"EN 50134 series (social alarm systems) \u00b7 VDE 0834 (nurse call systems) \u00b7 HTM 08-03 where applicable",
+    checks:[
+      "Bedside and bathroom call points tested per room",
+      "Pull-cord and pressure-mat devices verified",
+      "Corridor lamps and zone indicators verified",
+      "Nurse station display and call queue verified",
+      "Call escalation and timeout logic verified",
+      "Presence / attendance and reassurance functions verified",
+      "Standby battery autonomy verified",
+      "Event log and response-time report reviewed",
+    ],
+  },
+  {
+    id:"clock", name:"Master Clock / Time Sync", icon:"\ud83d\udd50", color:"#37474F", sup:true,
+    match:["master clock","time sync","ntp","clock system"],
+    standards:"IEEE 1588 (Precision Time Protocol) \u00b7 RFC 5905 (NTPv4) \u00b7 EN 60950 for the equipment",
+    checks:[
+      "Master clock GPS / radio reference lock verified",
+      "Time distribution verified to all sub-systems (NTP / PTP)",
+      "Slave clock accuracy checked at sample locations",
+      "Daylight-saving and time-zone configuration verified",
+      "Holdover accuracy on reference loss verified",
+      "Battery backup verified",
+    ],
+  },
+];
+
+// \u2550\u2550\u2550 CROSS-SYSTEM INTERFACES \u2014 only shown when BOTH sides are in scope \u2550\u2550\u2550
+const ELV_INTEG = [
+  {a:"fire", b:"acs",   d:"Fire alarm releases access-controlled doors on evacuation"},
+  {a:"fire", b:"pava",  d:"Fire alarm triggers alert and voice evacuation messages"},
+  {a:"fire", b:"bms",   d:"Fire alarm initiates HVAC shutdown and smoke damper control"},
+  {a:"fire", b:"cctv",  d:"Fire event calls up associated cameras and bookmarks video"},
+  {a:"fire", b:"gate",  d:"Fire alarm opens barriers for emergency vehicle access"},
+  {a:"fire", b:"nurse", d:"Fire alarm indication repeated at the nurse station"},
+  {a:"ids",  b:"cctv",  d:"Intrusion alarm calls up the camera and starts alarm recording"},
+  {a:"ids",  b:"acs",   d:"Arming inhibited while doors are held open or occupancy is present"},
+  {a:"ids",  b:"pava",  d:"Intrusion alarm announced over the public address system"},
+  {a:"acs",  b:"cctv",  d:"Access events tagged to video \u2014 cardholder image verification"},
+  {a:"acs",  b:"icom",  d:"Intercom door release routed through access control"},
+  {a:"acs",  b:"gate",  d:"Credential or ANPR read grants vehicle access"},
+  {a:"cctv", b:"net",   d:"Video VLAN, QoS and bandwidth verified end to end"},
+  {a:"ups",  b:"net",   d:"Network core and edge switches on the protected UPS supply"},
+  {a:"ups",  b:"cctv",  d:"Recorders and PoE switches on the protected UPS supply"},
+  {a:"ups",  b:"acs",   d:"Controllers and locking supplies on the protected UPS supply"},
+  {a:"ups",  b:"fire",  d:"Fire panel supply independent of the UPS, per the fire strategy"},
+  {a:"clock",b:"net",   d:"Single time reference distributed \u2014 event logs correlate across systems"},
+  {a:"nurse",b:"pava",  d:"Nurse call escalation announced over public address where configured"},
+  {a:"bms",  b:"net",   d:"BMS controller network segregated and reachable"},
+];
+
 const sysTemplate = (id)=> SYS_TEMPLATES.find(t=>t.id===id) || SYS_TEMPLATES[0];
+const elvSub = (id)=> ELV_SUBS.find(s=>s.id===id) || null;
+// A "check group" is anything holding an editable checklist: a system template
+// OR a standalone ELV sub-system. Template-backed subs resolve to the template,
+// so one admin edit serves both the single and the integrated report.
+const chkGroup = (id)=> SYS_TEMPLATES.find(t=>t.id===id) || ELV_SUBS.find(s=>s.id===id) || SYS_TEMPLATES[0];
+// Groups the admin can customise in Technical Classifications -> Check Lists
+const chkGroups = ()=> SYS_TEMPLATES.concat(ELV_SUBS.filter(s=>s.checks));
+// Best-guess mapping from a device's System field to an ELV sub-system
+function elvSubForName(name){
+  const n=String(name||"").trim().toLowerCase();
+  if(!n) return null;
+  return ELV_SUBS.find(s=>(s.match||[]).some(m=>n.includes(m))) || null;
+}
+// Interfaces whose BOTH endpoints are in the selected scope
+function elvInterfaces(subs){
+  const set=new Set(subs||[]);
+  return ELV_INTEG.filter(x=>set.has(x.a)&&set.has(x.b));
+}
 // Effective checklist: admin-edited items for this template, else the standards defaults
 function getSysCheckItems(tplId){
   const custom=(state.systemChecks||[]).filter(x=>x.template===tplId)
     .slice().sort((a,b)=>(a.order||0)-(b.order||0)).map(x=>x.name).filter(Boolean);
-  return custom.length ? custom : sysTemplate(tplId).checks;
+  return custom.length ? custom : (chkGroup(tplId).checks||[]);
 }
 // Best-guess mapping from a device's System field to a report template
 function sysTemplateForName(name){
@@ -217,7 +417,8 @@ function sysTemplateForName(name){
   if(!n) return null;
   return SYS_TEMPLATES.find(t=>t.match.some(m=>n.includes(m))) || null;
 }
-Object.assign(window,{SYS_TEMPLATES,sysTemplate,getSysCheckItems,sysTemplateForName});
+Object.assign(window,{SYS_TEMPLATES,ELV_SUBS,ELV_INTEG,sysTemplate,elvSub,chkGroup,chkGroups,
+  getSysCheckItems,sysTemplateForName,elvSubForName,elvInterfaces});
 
 // ═══════════════════════════════════════════════════════════════════════
 //  WORK ITEMS (threads) — v125

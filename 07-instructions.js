@@ -186,19 +186,19 @@ function renderTechClassifications(){
       `;
   if(tv==="checks"){
     const ct=window._chkTpl||"cctv";
-    const tpl=sysTemplate(ct);
+    const tpl=chkGroup(ct);
     const items=getSysCheckItems(ct);
     const custom=(state.systemChecks||[]).filter(x=>x.template===ct).slice().sort((a,b)=>(a.order||0)-(b.order||0));
     h += `<!-- SYSTEM CHECK LISTS -->
       <div style="margin-bottom:14px">
         <div style="font-weight:800;color:#1B3A6B;font-size:13px;margin-bottom:8px">📋 Inspection Check Lists <span style="font-weight:500;font-size:11px;color:var(--muted)">— used by Technical Report → System Reports</span></div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
-          ${SYS_TEMPLATES.map(t=>`<button class="btn btn-sm ${ct===t.id?"":"btn-secondary"}" style="${ct===t.id?`background:${t.color};color:#fff;border:none;`:""}font-weight:700" onclick="window._chkTpl='${t.id}';render()">${t.icon} ${escapeHtml(t.name.split(" ")[0])}</button>`).join("")}
+          ${chkGroups().map(t=>`<button class="btn btn-sm ${ct===t.id?"":"btn-secondary"}" style="${ct===t.id?`background:${t.color};color:#fff;border:none;`:""}font-weight:700" onclick="window._chkTpl='${t.id}';render()">${t.icon} ${escapeHtml(t.short||t.name.split(" ")[0])}</button>`).join("")}
         </div>
         <div style="background:#F5F8FC;border-left:3px solid ${tpl.color};border-radius:8px;padding:10px 12px;margin-bottom:10px">
           <div style="font-size:12px;font-weight:800;color:#1B3A6B">${tpl.icon} ${escapeHtml(tpl.name)}</div>
-          <div style="font-size:10px;color:var(--muted);margin-top:4px;line-height:1.6">📐 ${escapeHtml(tpl.standards)}</div>
-          <div style="font-size:10px;margin-top:6px;color:${custom.length?"#00695C":"#8A6D00"};font-weight:700">${custom.length?`✏️ Customised — ${custom.length} item(s)`:`📘 Using the ${tpl.checks.length} standards defaults`}</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:4px;line-height:1.6">📐 ${escapeHtml(tpl.standards||"")}</div>
+          <div style="font-size:10px;margin-top:6px;color:${custom.length?"#00695C":"#8A6D00"};font-weight:700">${custom.length?`✏️ Customised — ${custom.length} item(s)`:`📘 Using the ${(tpl.checks||[]).length} standards defaults`}</div>
         </div>
         <div style="display:grid;gap:5px;margin-bottom:10px">
           ${items.map((it,i)=>{

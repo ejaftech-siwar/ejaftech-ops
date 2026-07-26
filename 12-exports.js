@@ -1141,7 +1141,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v161';"
+      var swCode = "const CACHE='ejaftech-v163';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
@@ -1296,6 +1296,13 @@ window._pmRptFrom=window._pmRptFrom||""; window._pmRptTo=window._pmRptTo||"";
 window._pmRptDesc=window._pmRptDesc||""; window._incRptSel=window._incRptSel||"";
 window._incRptProj=window._incRptProj||""; window._incRptSys=window._incRptSys||"";
 
+function _refField(bind,val){
+  return `<div class="field" style="grid-column:1/-1">
+    <label>Reference <span style="font-weight:500;color:var(--muted);font-size:10px">— contract / work order traceability</span></label>
+    <input value="${escapeHtml(val||"")}" oninput="${bind}=this.value" placeholder="PO-2026-1187 / WO-4412 / Prev: RPT-2026-0031">
+    <div style="font-size:10px;color:var(--muted);margin-top:4px;line-height:1.6">The report's own Ref No. is issued automatically. Use this field for the <strong>client's</strong> chain: purchase order or contract · work order or service request · previous report being closed · as-built drawing revision.</div>
+  </div>`;
+}
 function _rptHero(icon,title,sub,grad){
   return `<div class="card" style="background:${grad};color:#fff;padding:18px 16px">
     <div style="font-family:'DM Serif Display',serif;font-size:22px">${icon} ${title}</div>
@@ -1762,7 +1769,7 @@ function renderFM200Section(){
       <div class="field"><label>Cylinder Model</label><input value="${escapeHtml(m.cylModel||"")}" oninput="window._fm.cylModel=this.value" placeholder="e.g. AKRONEX"></div>
       <div class="field"><label>FM200 Clean Agent Weight</label><input value="${escapeHtml(m.agentWt||"")}" oninput="window._fm.agentWt=this.value" placeholder="e.g. 20 Kg"></div>
       <div class="field"><label>Installation Date</label><input type="date" value="${m.installDate||""}" onchange="window._fm.installDate=this.value"></div>
-      <div class="field"><label>Reference</label><input value="${escapeHtml(m.reference||"")}" oninput="window._fm.reference=this.value" placeholder="e.g. #S03890"></div>
+      ${_refField("window._fm.reference",m.reference)}
       <div class="field"><label>🕐 Test Time</label><input type="time" value="${m.time||""}" onchange="window._fm.time=this.value"></div>
       <div class="field"><label>👤 Client Representative</label><input value="${escapeHtml(m.representative||"")}" oninput="window._fm.representative=this.value"></div>
     </div>
@@ -1937,6 +1944,35 @@ window._sr=window._sr||{client:"",clientOther:false,project:"",projectOther:fals
 window._srDevs=window._srDevs||[];   // [{name,model,serial,location,result,remark}]
 window._srChk=window._srChk||{};     // {tplId: {idx: {s,r}}}
 window._srPhotos=window._srPhotos||[];
+window._srSubs=window._srSubs||[];    // selected ELV sub-system ids (integrated report)
+window._srInt=window._srInt||{};      // {"a>b": {s,r}} interface verification results
+window._srIntX=window._srIntX||[];    // custom interfaces [{d,s,r}]
+
+// ── Integrated-report helpers ──
+window.srToggleSub=function(id){
+  const a=window._srSubs, i=a.indexOf(id);
+  if(i<0) a.push(id); else a.splice(i,1);
+  render();
+};
+window.srAllSubs=function(on){
+  window._srSubs = on ? ELV_SUBS.map(s=>s.id) : [];
+  render();
+};
+function _srIntState(k){
+  if(!window._srInt[k]) window._srInt[k]={s:"Pass",r:""};
+  return window._srInt[k];
+}
+window.srSetInt=function(k,v){ _srIntState(k).s=v; render(); };
+window.srSetIntRemark=function(k,v){ _srIntState(k).r=v; };
+window.srAddInt=function(){ window._srIntX.push({d:"",s:"Pass",r:""}); render(); };
+window.srDelInt=function(i){ window._srIntX.splice(i,1); render(); };
+// Every checklist block the report prints: one per sub-system, then the common one
+function _srBlocks(tpl){
+  if(!tpl.multi) return [{key:tpl.id,name:tpl.name,icon:tpl.icon,color:tpl.color,items:getSysCheckItems(tpl.id)}];
+  const subs=window._srSubs.map(id=>elvSub(id)).filter(Boolean)
+    .map(s=>({key:s.id,name:s.name,icon:s.icon,color:s.color,items:getSysCheckItems(s.id)}));
+  return subs.concat([{key:tpl.id,name:"Common Infrastructure & Integration",icon:tpl.icon,color:tpl.color,items:getSysCheckItems(tpl.id)}]);
+}
 
 function _srChkState(tpl,i){
   window._srChk[tpl]=window._srChk[tpl]||{};
@@ -1945,7 +1981,7 @@ function _srChkState(tpl,i){
 }
 window.srSetChk=function(tpl,i,v){ _srChkState(tpl,i).s=v; render(); };
 window.srSetChkRemark=function(tpl,i,v){ _srChkState(tpl,i).r=v; };
-window.srAddDev=function(){ window._srDevs.push({name:"",model:"",serial:"",location:"",result:"Pass",remark:""}); render(); };
+window.srAddDev=function(){ window._srDevs.push({name:"",model:"",serial:"",location:"",sub:"",result:"Pass",remark:""}); render(); };
 window.srDelDev=function(i){ window._srDevs.splice(i,1); render(); };
 window.srAddPhotos=async function(input){
   try{
@@ -1966,16 +2002,25 @@ window.srLoadDevices=function(){
   const tpl=sysTemplate(window._srTpl);
   const proj=(window._sr.project||"").trim();
   if(!proj) return toast("⚠ Pick the project first");
+  if(tpl.multi && !window._srSubs.length) return toast("⚠ Select the sub-systems in scope first");
+  const inScope=new Set(window._srSubs);
   const pool=(state.devices||[]).filter(d=>{
     if((d.project||"").trim()!==proj) return false;
     if(window._sr.site && ![d.site,d.area].includes(window._sr.site) &&
        [d.area,d.site].filter(Boolean).join(" › ")!==window._sr.site) return false;
+    if(tpl.multi){ const s=elvSubForName(d.system); return s ? inScope.has(s.id) : false; }
     const t=sysTemplateForName(d.system);
     return t ? t.id===tpl.id : false;
   });
-  if(!pool.length) return toast(`No devices tagged "${tpl.name.split(" ")[0]}" in this project — tag them in Assets → System, or add rows manually`);
-  window._srDevs=pool.map(d=>({name:d.deviceName||"",model:d.model||"",serial:d.serialNumber||"",
-    location:[d.area,d.site].filter(Boolean).join(" › "),result:"Pass",remark:""}));
+  if(!pool.length) return toast(tpl.multi
+    ? "No devices in this project match the selected sub-systems — tag them in Assets → System, or add rows manually"
+    : `No devices tagged "${tpl.name.split(" ")[0]}" in this project — tag them in Assets → System, or add rows manually`);
+  window._srDevs=pool.map(d=>{
+    const s=tpl.multi?elvSubForName(d.system):null;
+    return {name:d.deviceName||"",model:d.model||"",serial:d.serialNumber||"",
+      location:[d.area,d.site].filter(Boolean).join(" › "),
+      sub:s?s.id:"",result:"Pass",remark:""};
+  });
   toast(`✓ ${pool.length} device(s) loaded from Assets`);
   render();
 };
@@ -1991,7 +2036,6 @@ function renderSystemReports(){
     return _pills('_srTpl',_srPillList()) + renderProgressReport(window._srTpl);
   }
   const tpl=sysTemplate(window._srTpl), m=window._sr, mode=window._srMode;
-  const items=getSysCheckItems(tpl.id);
   const clientOpts=(state.clients||[]).map(c=>c.name).filter(Boolean).sort();
   const projOpts=(state.projects||[]).map(p=>(p.name||"").trim()).filter(Boolean).sort();
   const pr=(state.projects||[]).find(p=>(p.name||"").trim()===m.project);
@@ -1999,7 +2043,11 @@ function renderSystemReports(){
     const ss=(a.sites||[]).filter(x=>x.active!==false);
     return ss.length?ss.map(x=>[a.name,x.name].filter(Boolean).join(" › ")):[a.name];
   }):[];
-  const fails=items.filter((_,i)=>_srChkState(tpl.id,i).s==="Fail").length;
+  const blocks=_srBlocks(tpl);
+  const fails=blocks.reduce((t,bk)=>t+bk.items.filter((_,i)=>_srChkState(bk.key,i).s==="Fail").length,0);
+  const ifaces=tpl.multi?elvInterfaces(window._srSubs):[];
+  // Section numbers are counted, not hard-coded: the integrated report adds sections
+  const N=(()=>{let n=0;return()=>String(++n).padStart(2,"0");})();
 
   return `
   ${_pills('_srTpl',_srPillList())}
@@ -2012,7 +2060,7 @@ function renderSystemReports(){
   </div>
 
   <div class="card">
-    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">01</span> General Information</div>
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">${N()}</span> General Information</div>
     <div class="form-grid" style="margin-top:10px">
       ${_syncSel("👤 Client",clientOpts,"window._sr.client","window._sr.clientOther",m.client,m.clientOther,"Client name")}
       ${mode==="manual"
@@ -2024,14 +2072,29 @@ function renderSystemReports(){
               : `<div class="field"><label>📍 Site / Room</label><input value="${escapeHtml(m.site||"")}" oninput="window._sr.site=this.value"></div>`)}
       <div class="field"><label>📅 Date</label><input type="date" value="${m.date||""}" onchange="window._sr.date=this.value"></div>
       <div class="field"><label>🕐 Time</label><input type="time" value="${m.time||""}" onchange="window._sr.time=this.value"></div>
-      <div class="field"><label>Reference</label><input value="${escapeHtml(m.reference||"")}" oninput="window._sr.reference=this.value" placeholder="e.g. #S03890"></div>
+      ${_refField("window._sr.reference",m.reference)}
       <div class="field"><label>👤 Client Representative</label><input value="${escapeHtml(m.representative||"")}" oninput="window._sr.representative=this.value"></div>
       <div class="field"><label>👷 Technician</label><input value="${escapeHtml(m.technician||"")}" oninput="window._sr.technician=this.value"></div>
     </div>
   </div>
 
+  ${tpl.multi?`<div class="card" style="border:2px solid ${tpl.color}">
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">${N()}</span> Sub-systems in Scope <span style="font-size:10px;color:var(--muted);font-weight:500">(${window._srSubs.length} selected)</span></div>
+    <p style="font-size:11px;color:var(--muted);margin:8px 0 10px;line-height:1.6">Everything you tick is inspected and printed as its own section. Anything left unticked is <strong>outside the scope</strong> of this report.</p>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      ${ELV_SUBS.map(s=>{const on=window._srSubs.includes(s.id);
+        return `<button class="btn btn-sm ${on?"":"btn-secondary"}" style="${on?`background:${s.color};color:#fff;border:none;`:""}font-weight:700;font-size:11px" onclick="srToggleSub('${s.id}')">${on?"✓ ":""}${s.icon} ${escapeHtml(s.name.split(" / ")[0])}${s.sup?" · sup":""}</button>`;}).join("")}
+    </div>
+    <div style="display:flex;gap:6px;margin-top:10px">
+      <button class="btn btn-sm btn-secondary" onclick="srAllSubs(true)">Select all</button>
+      ${window._srSubs.length?`<button class="btn btn-sm btn-secondary" onclick="srAllSubs(false)">Clear</button>`:""}
+    </div>
+    ${window._srSubs.length?"":`<div style="background:#FFF3E0;border:1px solid #FFB74D;border-radius:8px;padding:9px 11px;margin-top:10px;font-size:11px;color:#E65100;line-height:1.6">Nothing selected yet — only the common infrastructure checklist will print. Tick the sub-systems this visit covered.</div>`}
+    ${window._srSubs.some(id=>(elvSub(id)||{}).sup)?`<div style="font-size:10px;color:var(--muted);margin-top:8px;line-height:1.6">ℹ️ Items marked <strong>sup</strong> (UPS, master clock) are supporting infrastructure rather than ELV disciplines — they print under <em>Supporting Services</em> in the scope table.</div>`:""}
+  </div>`:""}
+
   <div class="card">
-    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">02</span> System Information</div>
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">${N()}</span> ${tpl.multi?"Integration Platform":"System Information"}</div>
     <div class="form-grid" style="margin-top:10px">
       ${tpl.fields.map(f=>`<div class="field"><label>${escapeHtml(f.l)}</label>
         <input value="${escapeHtml((m.fields||{})[f.k]||"")}" oninput="window._sr.fields['${f.k}']=this.value"></div>`).join("")}
@@ -2039,7 +2102,7 @@ function renderSystemReports(){
   </div>
 
   <div class="card">
-    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">03</span> Device Inventory & Results <span style="font-size:10px;color:var(--muted);font-weight:500">(${window._srDevs.length})</span></div>
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">${N()}</span> Device Inventory & Results <span style="font-size:10px;color:var(--muted);font-weight:500">(${window._srDevs.length})</span></div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin:10px 0">
       ${mode!=="manual"?`<button class="btn btn-sm" style="background:${tpl.color};color:#fff;border:none;font-weight:700" onclick="srLoadDevices()">⬇ Load from Assets</button>`:""}
       <button class="btn btn-sm btn-secondary" onclick="srAddDev()">+ Add device</button>
@@ -2047,7 +2110,7 @@ function renderSystemReports(){
     </div>
     ${window._srDevs.map((d,i)=>`<div style="border:1px solid var(--line);border-radius:8px;padding:9px;margin-bottom:8px;background:var(--card,#fff)">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-        <span style="font-size:10px;font-weight:800;color:${tpl.color}">${tpl.icon} DEVICE ${i+1}</span>
+        <span style="font-size:10px;font-weight:800;color:${(tpl.multi&&elvSub(d.sub))?elvSub(d.sub).color:tpl.color}">${(tpl.multi&&elvSub(d.sub))?elvSub(d.sub).icon:tpl.icon} DEVICE ${i+1}${(tpl.multi&&elvSub(d.sub))?` · ${escapeHtml(elvSub(d.sub).name.split(" / ")[0])}`:""}</span>
         <div style="display:flex;gap:4px;align-items:center">
           ${["Pass","Fail","N/A"].map(o=>`<button class="btn btn-sm ${d.result===o?"":"btn-secondary"}" style="${d.result===o?`background:${o==="Pass"?"#2E7D32":o==="Fail"?"#C62828":"#5B6C86"};color:#fff;border:none;`:""}font-size:10px;font-weight:800" onclick="window._srDevs[${i}].result='${o}';render()">${o}</button>`).join("")}
           <button class="btn btn-sm" style="background:#FDECEA;color:#C62828;border:none" onclick="srDelDev(${i})">×</button>
@@ -2058,32 +2121,62 @@ function renderSystemReports(){
         <div class="field"><label>Model</label><input value="${escapeHtml(d.model||"")}" oninput="window._srDevs[${i}].model=this.value"></div>
         <div class="field"><label>Serial</label><input value="${escapeHtml(d.serial||"")}" oninput="window._srDevs[${i}].serial=this.value"></div>
         <div class="field"><label>Location</label><input value="${escapeHtml(d.location||"")}" oninput="window._srDevs[${i}].location=this.value"></div>
+        ${tpl.multi?`<div class="field"><label>Sub-system</label><select onchange="window._srDevs[${i}].sub=this.value;render()">
+          <option value="">— unassigned —</option>
+          ${ELV_SUBS.map(s=>`<option value="${s.id}" ${d.sub===s.id?"selected":""}>${s.icon} ${escapeHtml(s.name)}</option>`).join("")}
+        </select></div>`:""}
         <div class="field" style="grid-column:1/-1"><label>Remarks</label><input value="${escapeHtml(d.remark||"")}" oninput="window._srDevs[${i}].remark=this.value"></div>
       </div>
     </div>`).join("")}
   </div>
 
-  <div class="card">
-    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">04</span> Inspection Check List <span style="font-size:10px;color:var(--muted);font-weight:500">(${items.length}${fails?` · ${fails} failed`:""})</span></div>
-    ${items.map((it,i)=>{const st=_srChkState(tpl.id,i);
+  ${blocks.map(bk=>{const bf=bk.items.filter((_,i)=>_srChkState(bk.key,i).s==="Fail").length;
+    return `<div class="card"${tpl.multi?` style="border-left:4px solid ${bk.color}"`:""}>
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">${N()}</span> ${tpl.multi?`${bk.icon} ${escapeHtml(bk.name)}`:"Inspection Check List"} <span style="font-size:10px;color:var(--muted);font-weight:500">(${bk.items.length}${bf?` · ${bf} failed`:""})</span></div>
+    ${bk.items.map((it,i)=>{const st=_srChkState(bk.key,i);
       return `<div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap;padding-bottom:8px;border-bottom:1px solid var(--line)">
         <span style="font-size:10px;font-weight:800;color:var(--muted);min-width:22px">${String(i+1).padStart(2,"0")}</span>
         <span style="flex:2;min-width:170px;font-size:12px">${escapeHtml(it)}</span>
         <div style="display:flex;gap:4px">
-          ${["Pass","Fail","N/A"].map(o=>`<button class="btn btn-sm ${st.s===o?"":"btn-secondary"}" style="${st.s===o?`background:${o==="Pass"?"#2E7D32":o==="Fail"?"#C62828":"#5B6C86"};color:#fff;border:none;`:""}font-size:10px;font-weight:800" onclick="srSetChk('${tpl.id}',${i},'${o}')">${o}</button>`).join("")}
+          ${["Pass","Fail","N/A"].map(o=>`<button class="btn btn-sm ${st.s===o?"":"btn-secondary"}" style="${st.s===o?`background:${o==="Pass"?"#2E7D32":o==="Fail"?"#C62828":"#5B6C86"};color:#fff;border:none;`:""}font-size:10px;font-weight:800" onclick="srSetChk('${bk.key}',${i},'${o}')">${o}</button>`).join("")}
         </div>
-        <input value="${escapeHtml(st.r||"")}" oninput="srSetChkRemark('${tpl.id}',${i},this.value)" placeholder="Remarks" style="flex:1;min-width:120px">
+        <input value="${escapeHtml(st.r||"")}" oninput="srSetChkRemark('${bk.key}',${i},this.value)" placeholder="Remarks" style="flex:1;min-width:120px">
       </div>`;}).join("")}
-    <p style="font-size:10px;color:var(--muted);margin-top:10px">Per ${escapeHtml(tpl.standards.split("·")[0].replace(/\s*\(.*/,"").trim())} — edit in <strong>Technical Classifications → Check Lists</strong>.</p>
-  </div>
+    <p style="font-size:10px;color:var(--muted);margin-top:10px">Per ${escapeHtml(String(chkGroup(bk.key).standards||"").split("·")[0].replace(/\s*\(.*/,"").trim())} — edit in <strong>Technical Classifications → Check Lists</strong>.</p>
+  </div>`;}).join("")}
+
+  ${tpl.multi?`<div class="card" style="border-left:4px solid ${tpl.color}">
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">${N()}</span> 🔗 Integration Verification Matrix <span style="font-size:10px;color:var(--muted);font-weight:500">(${ifaces.length+window._srIntX.length})</span></div>
+    <p style="font-size:11px;color:var(--muted);margin:8px 0 4px;line-height:1.6">Interfaces appear automatically when <strong>both</strong> sides are in scope — this is the cause &amp; effect verification an auditor looks for.</p>
+    ${(ifaces.length||window._srIntX.length)?"":`<div style="background:#F5F8FC;border:1px dashed var(--line);border-radius:8px;padding:11px;margin-top:8px;font-size:11px;color:var(--muted);line-height:1.6">Select two or more related sub-systems above and their interfaces will be listed here.</div>`}
+    ${ifaces.map(x=>{const k=x.a+">"+x.b, st=_srIntState(k), Ax=elvSub(x.a), Bx=elvSub(x.b);
+      return `<div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap;padding-bottom:8px;border-bottom:1px solid var(--line)">
+        <span style="font-size:12px;min-width:52px;font-weight:800">${Ax.icon}→${Bx.icon}</span>
+        <span style="flex:2;min-width:170px;font-size:12px">${escapeHtml(x.d)}</span>
+        <div style="display:flex;gap:4px">
+          ${["Pass","Fail","N/A"].map(o=>`<button class="btn btn-sm ${st.s===o?"":"btn-secondary"}" style="${st.s===o?`background:${o==="Pass"?"#2E7D32":o==="Fail"?"#C62828":"#5B6C86"};color:#fff;border:none;`:""}font-size:10px;font-weight:800" onclick="srSetInt('${k}','${o}')">${o}</button>`).join("")}
+        </div>
+        <input value="${escapeHtml(st.r||"")}" oninput="srSetIntRemark('${k}',this.value)" placeholder="Remarks" style="flex:1;min-width:120px">
+      </div>`;}).join("")}
+    ${window._srIntX.map((x,i)=>`<div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap;padding-bottom:8px;border-bottom:1px solid var(--line)">
+        <span style="font-size:10px;font-weight:800;color:var(--muted);min-width:52px">CUSTOM</span>
+        <input value="${escapeHtml(x.d||"")}" oninput="window._srIntX[${i}].d=this.value" placeholder="Describe the interface…" style="flex:2;min-width:170px">
+        <div style="display:flex;gap:4px">
+          ${["Pass","Fail","N/A"].map(o=>`<button class="btn btn-sm ${x.s===o?"":"btn-secondary"}" style="${x.s===o?`background:${o==="Pass"?"#2E7D32":o==="Fail"?"#C62828":"#5B6C86"};color:#fff;border:none;`:""}font-size:10px;font-weight:800" onclick="window._srIntX[${i}].s='${o}';render()">${o}</button>`).join("")}
+          <button class="btn btn-sm" style="background:#FDECEA;color:#C62828;border:none" onclick="srDelInt(${i})">×</button>
+        </div>
+        <input value="${escapeHtml(x.r||"")}" oninput="window._srIntX[${i}].r=this.value" placeholder="Remarks" style="flex:1;min-width:120px">
+      </div>`).join("")}
+    <button class="btn btn-sm btn-secondary" style="margin-top:10px" onclick="srAddInt()">+ Add interface</button>
+  </div>`:""}
 
   <div class="card">
-    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">05</span> Result of Test</div>
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">${N()}</span> Result of Test</div>
     <textarea rows="4" oninput="window._sr.resultText=this.value" placeholder="Overall condition, findings and recommendations…" style="width:100%;margin-top:8px">${escapeHtml(m.resultText||"")}</textarea>
   </div>
 
   <div class="card">
-    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">06</span> Photos <span style="font-size:10px;color:var(--muted);font-weight:500">(max 12)</span></div>
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">${N()}</span> Photos <span style="font-size:10px;color:var(--muted);font-weight:500">(max 12)</span></div>
     <input type="file" accept="image/*" multiple onchange="srAddPhotos(this)" style="margin-top:8px">
     ${window._srPhotos.length?`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
       ${window._srPhotos.map((p,i)=>`<div style="position:relative"><img src="${p.data}" style="width:76px;height:76px;object-fit:cover;border-radius:8px;border:1px solid var(--line)"><button onclick="srDelPhoto(${i})" style="position:absolute;top:-6px;right:-6px;background:#C62828;color:#fff;border:none;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:11px;font-weight:800">×</button></div>`).join("")}
@@ -2091,7 +2184,7 @@ function renderSystemReports(){
   </div>
 
   <div class="card">
-    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">07</span> Report Approval</div>
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">${N()}</span> Report Approval</div>
     <div class="form-grid" style="margin-top:10px">
       <div class="field"><label>EJAF Engineer</label><input value="${escapeHtml(m.engName||"")}" oninput="window._sr.engName=this.value" placeholder="Eng. …"></div>
       <div class="field"><label>Client approver</label><input value="${escapeHtml(m.repName||"")}" oninput="window._sr.repName=this.value" placeholder="Mr. …"></div>
@@ -2103,18 +2196,32 @@ function renderSystemReports(){
 
   <div class="card" style="background:linear-gradient(135deg,#1B3A6B 0%,#2E5FA3 100%);border:2px solid #C9A84C">
     ${rptFormatToggle()}
-    <button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:800;border:none;width:100%" onclick="generateSystemReport()">${window._rptFormat==="word"?"📝":"📄"} Generate ${escapeHtml(tpl.name.split(" ")[0])} Report (${window._rptFormat==="word"?"Word":"PDF"})</button>
+    <button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:800;border:none;width:100%" onclick="generateSystemReport()">${window._rptFormat==="word"?"📝":"📄"} Generate ${escapeHtml(tpl.multi?"ELV Integrated":tpl.name.split(" ")[0])} Report (${window._rptFormat==="word"?"Word":"PDF"})</button>
   </div>`;
 }
 
 window.generateSystemReport=async function(){
   const tpl=sysTemplate(window._srTpl), m=window._sr;
   if(!(m.client||m.project)) return toast("⚠ Enter at least the client or project");
-  const items=getSysCheckItems(tpl.id);
   const box="\u2610", tick="\u2611";
-  const devs=window._srDevs.filter(d=>d.name||d.serial||d.model);
+  const blocks=_srBlocks(tpl);
+  const subsAll=tpl.multi?window._srSubs.map(id=>elvSub(id)).filter(Boolean):[];
+  const subOrder=ELV_SUBS.map(s=>s.id);
+  let devs=window._srDevs.filter(d=>d.name||d.serial||d.model);
+  // Group the inventory by sub-system so each discipline reads as one block
+  if(tpl.multi) devs=devs.slice().sort((a,b)=>subOrder.indexOf(a.sub)-subOrder.indexOf(b.sub));
   const devFail=devs.filter(d=>d.result==="Fail").length;
-  const chkFail=items.filter((_,i)=>_srChkState(tpl.id,i).s==="Fail").length;
+  const chkFail=blocks.reduce((t,bk)=>t+bk.items.filter((_,i)=>_srChkState(bk.key,i).s==="Fail").length,0);
+  const chkTotal=blocks.reduce((t,bk)=>t+bk.items.length,0);
+  const ifaces=tpl.multi?elvInterfaces(window._srSubs):[];
+  const intRows=tpl.multi
+    ? ifaces.map(x=>{const st=_srIntState(x.a+">"+x.b), Ax=elvSub(x.a), Bx=elvSub(x.b);
+        return {pair:(Ax?Ax.name.split(" / ")[0]:x.a)+" → "+(Bx?Bx.name.split(" / ")[0]:x.b),d:x.d,s:st.s,r:st.r};})
+        .concat(window._srIntX.filter(x=>(x.d||"").trim()).map(x=>({pair:"Custom",d:x.d,s:x.s,r:x.r})))
+    : [];
+  const intFail=intRows.filter(r=>r.s==="Fail").length;
+  // Section numbers are counted so the integrated report can add sections
+  const K=(()=>{let n=0;return()=>String(++n).padStart(2,"0");})();
   const infoRow=(l,v)=>`<tr><td style="border:1px solid #ccc;background:#F0F4FA;padding:6px 10px;font-weight:800;font-size:11px;width:42%">${l}</td><td style="border:1px solid #ccc;padding:6px 10px;font-size:12px">${v||"&nbsp;"}</td></tr>`;
 
   const bodyHTML=`${_fmPrintBar}
@@ -2129,52 +2236,85 @@ window.generateSystemReport=async function(){
         <tr><td style="padding:2px 8px;font-weight:800;color:#555">Test Time</td><td style="padding:2px 8px">${m.time||"—"}</td></tr>
       </table>
     </div>
-    <div class="ksec"><span class="kbad">01</span><h3>Client Information</h3></div>
+    <div class="ksec"><span class="kbad">${K()}</span><h3>Client Information</h3></div>
     <table style="border-collapse:collapse;width:100%">
       ${infoRow("Company",escapeHtml(m.client))}
       ${infoRow("Location",escapeHtml([m.project,m.site].filter(Boolean).join(" — ")))}
       ${infoRow("Representative",escapeHtml(m.representative))}
     </table>
-    ${tpl.fields.length?`<div class="ksec"><span class="kbad">02</span><h3>System Information</h3></div>
+    ${tpl.fields.length?`<div class="ksec"><span class="kbad">${K()}</span><h3>${tpl.multi?"Integration Platform":"System Information"}</h3></div>
     <table style="border-collapse:collapse;width:100%">
       ${tpl.fields.map(f=>infoRow(escapeHtml(f.l),escapeHtml((m.fields||{})[f.k]||""))).join("")}
     </table>`:""}
-    ${devs.length?`<div class="ksec"><span class="kbad">03</span><h3>Device Inventory &amp; Test Results (${devs.length})</h3></div>
-    <table><thead><tr><th style="width:32px">No.</th><th>Device</th><th>Model</th><th>Serial</th><th>Location</th><th style="width:48px">PASS</th><th style="width:48px">FAIL</th><th>Remarks</th></tr></thead>
+    ${tpl.multi?`<div class="ksec"><span class="kbad">${K()}</span><h3>Scope of Report — Sub-systems Covered</h3></div>
+    <table><thead><tr><th style="width:32px">No.</th><th>Sub-system</th><th style="width:92px">Classification</th><th>Governing standards</th><th style="width:44px">Items</th></tr></thead>
+    <tbody>${subsAll.length?subsAll.map((s,i)=>`<tr>
+      <td style="text-align:center">${String(i+1).padStart(2,"0")}</td>
+      <td><strong>${escapeHtml(s.name)}</strong></td>
+      <td style="font-size:10px">${s.sup?"Supporting service":"ELV discipline"}</td>
+      <td style="font-size:9px;line-height:1.5">${escapeHtml(chkGroup(s.id).standards||"")}</td>
+      <td style="text-align:center">${getSysCheckItems(s.id).length}</td></tr>`).join("")
+      :`<tr><td colspan="5" style="text-align:center;font-size:11px">No sub-system selected — common infrastructure only</td></tr>`}</tbody></table>
+    <div style="margin-top:5px;font-size:10px;font-style:italic;color:#555">Any ELV sub-system not listed above was <strong>not</strong> inspected and is outside the scope of this report.</div>`:""}
+    ${devs.length?`<div class="ksec"><span class="kbad">${K()}</span><h3>Device Inventory &amp; Test Results (${devs.length})</h3></div>
+    <table><thead><tr><th style="width:32px">No.</th><th>Device</th>${tpl.multi?`<th style="width:92px">Sub-system</th>`:""}<th>Model</th><th>Serial</th><th>Location</th><th style="width:48px">PASS</th><th style="width:48px">FAIL</th><th>Remarks</th></tr></thead>
     <tbody>${devs.map((d,i)=>`<tr>
       <td style="text-align:center">${String(i+1).padStart(2,"0")}</td>
-      <td><strong>${escapeHtml(d.name||"—")}</strong></td><td style="font-size:10px">${escapeHtml(d.model||"—")}</td>
+      <td><strong>${escapeHtml(d.name||"—")}</strong></td>${tpl.multi?`<td style="font-size:9.5px">${elvSub(d.sub)?escapeHtml(elvSub(d.sub).name.split(" / ")[0]):"—"}</td>`:""}<td style="font-size:10px">${escapeHtml(d.model||"—")}</td>
       <td style="font-size:10px">${escapeHtml(d.serial||"—")}</td><td style="font-size:10px">${escapeHtml(d.location||"—")}</td>
       <td style="text-align:center;font-size:14px">${d.result==="Pass"?tick:box}</td>
       <td style="text-align:center;font-size:14px">${d.result==="Fail"?tick:box}</td>
       <td style="font-size:10px">${escapeHtml(d.remark||(d.result==="N/A"?"N/A":"—"))}</td></tr>`).join("")}</tbody></table>
     <div style="margin-top:5px;font-size:11px;font-weight:700;color:${devFail?"#C62828":"#2E7D32"}">${devFail?`${devFail} device(s) FAILED`:`All ${devs.length} device(s) passed \u2713`}</div>`:""}
-    <div class="ksec"><span class="kbad">${devs.length?"04":"03"}</span><h3>Inspection Check List</h3></div>
+    ${blocks.map(bk=>{const bFail=bk.items.filter((_,i)=>_srChkState(bk.key,i).s==="Fail").length;
+      return `<div class="ksec"><span class="kbad">${K()}</span><h3>${tpl.multi?escapeHtml(bk.name)+" — Check List":"Inspection Check List"}</h3></div>
+    ${tpl.multi?`<div style="font-size:9px;color:#555;font-style:italic;margin:-2px 0 6px;line-height:1.5">${escapeHtml(chkGroup(bk.key).standards||"")}</div>`:""}
     <table><thead><tr><th style="width:32px">No.</th><th>Description</th><th style="width:48px">PASS</th><th style="width:48px">FAIL</th><th>Remarks</th></tr></thead>
-    <tbody>${items.map((it,i)=>{const st=_srChkState(tpl.id,i);
+    <tbody>${bk.items.map((it,i)=>{const st=_srChkState(bk.key,i);
       return `<tr><td style="text-align:center">${String(i+1).padStart(2,"0")}</td>
         <td style="font-size:11px">${escapeHtml(it)}</td>
         <td style="text-align:center;font-size:14px">${st.s==="Pass"?tick:box}</td>
         <td style="text-align:center;font-size:14px">${st.s==="Fail"?tick:box}</td>
         <td style="font-size:10px">${escapeHtml(st.r||(st.s==="N/A"?"N/A":"—"))}</td></tr>`;}).join("")}</tbody></table>
-    <div style="margin-top:5px;font-size:11px;font-weight:700;color:${chkFail?"#C62828":"#2E7D32"}">Overall: ${chkFail?`${chkFail} item(s) FAILED — corrective action required`:`all ${items.length} items PASSED \u2713`}</div>
-    <div class="ksec"><span class="kbad">${devs.length?"05":"04"}</span><h3>Result of Test</h3></div>
+    <div style="margin-top:5px;font-size:11px;font-weight:700;color:${bFail?"#C62828":"#2E7D32"}">${bFail?`${bFail} of ${bk.items.length} item(s) FAILED — corrective action required`:`all ${bk.items.length} items PASSED \u2713`}</div>`;}).join("")}
+    ${tpl.multi?`<div class="ksec"><span class="kbad">${K()}</span><h3>Integration Verification Matrix</h3></div>
+    <table><thead><tr><th style="width:32px">No.</th><th style="width:150px">Interface</th><th>Verified function</th><th style="width:48px">PASS</th><th style="width:48px">FAIL</th><th>Remarks</th></tr></thead>
+    <tbody>${intRows.length?intRows.map((r,i)=>`<tr>
+      <td style="text-align:center">${String(i+1).padStart(2,"0")}</td>
+      <td style="font-size:9.5px;font-weight:700">${escapeHtml(r.pair)}</td>
+      <td style="font-size:11px">${escapeHtml(r.d)}</td>
+      <td style="text-align:center;font-size:14px">${r.s==="Pass"?tick:box}</td>
+      <td style="text-align:center;font-size:14px">${r.s==="Fail"?tick:box}</td>
+      <td style="font-size:10px">${escapeHtml(r.r||(r.s==="N/A"?"N/A":"—"))}</td></tr>`).join("")
+      :`<tr><td colspan="6" style="text-align:center;font-size:11px">No cross-system interfaces within the reported scope</td></tr>`}</tbody></table>
+    <div style="margin-top:5px;font-size:11px;font-weight:700;color:${intFail?"#C62828":"#2E7D32"}">${intFail?`${intFail} interface(s) FAILED — cause &amp; effect requires correction`:intRows.length?`all ${intRows.length} interfaces verified \u2713`:"Not applicable"}</div>
+    <div class="ksec"><span class="kbad">${K()}</span><h3>Consolidated Result</h3></div>
+    <table style="border-collapse:collapse;width:100%">
+      ${infoRow("Sub-systems inspected",String(subsAll.length))}
+      ${infoRow("Check items assessed",String(chkTotal))}
+      ${infoRow("Items failed",`<span style="font-weight:800;color:${chkFail?"#C62828":"#2E7D32"}">${chkFail}</span>`)}
+      ${infoRow("Devices assessed",String(devs.length))}
+      ${infoRow("Devices failed",`<span style="font-weight:800;color:${devFail?"#C62828":"#2E7D32"}">${devFail}</span>`)}
+      ${infoRow("Interfaces verified",String(intRows.length))}
+      ${infoRow("Interfaces failed",`<span style="font-weight:800;color:${intFail?"#C62828":"#2E7D32"}">${intFail}</span>`)}
+    </table>`:""}
+    <div class="ksec"><span class="kbad">${K()}</span><h3>Result of Test</h3></div>
     <div style="border:1px solid #ccc;border-radius:8px;padding:12px;font-size:12px;line-height:1.8;min-height:60px;white-space:pre-wrap">${escapeHtml((m.resultText||"").trim())||"&nbsp;"}</div>
     ${_rptPhotoGrid(window._srPhotos,"Photos")}
-    <div class="ksec"><span class="kbad">${devs.length?"06":"05"}</span><h3>Report Approval</h3></div>
+    <div class="ksec"><span class="kbad">${K()}</span><h3>Report Approval</h3></div>
     <table style="border-collapse:collapse;width:100%"><tr>
       ${sigBlockHTML("sr_eng", m.engName||m.technician||"Eng.", "Technical Engineer", "EJAF Technology")}
       ${sigBlockHTML("sr_rep", m.repName||m.representative||"Mr.", m.repTitle||"", m.client||"")}
     </tr></table>
     <div style="margin-top:14px;border:1px solid #ddd;border-radius:8px;padding:10px 12px;display:flex;gap:14px;align-items:center">
-      <div style="flex:1;font-size:10px;font-style:italic;color:#555;line-height:1.7">This inspection and test report has been carried out by EJAF's competent engineers on the date stated above, in accordance with the applicable international standards for this system.</div>
-      <div style="font-size:9px;font-style:italic;font-weight:700;color:#333;max-width:200px;line-height:1.6">Reference Standards<br><span style="font-weight:500">${escapeHtml(tpl.standards)}</span></div>
+      <div style="flex:1;font-size:10px;font-style:italic;color:#555;line-height:1.7">This inspection and test report has been carried out by EJAF's competent engineers on the date stated above, in accordance with the applicable international standards for ${tpl.multi?`the ${subsAll.length} sub-system(s) recorded in the Scope of Report`:"this system"}.</div>
+      <div style="font-size:9px;font-style:italic;font-weight:700;color:#333;max-width:200px;line-height:1.6">Reference Standards<br><span style="font-weight:500">${escapeHtml(tpl.standards)}${tpl.multi?`<br><br>Each sub-system was assessed against its own governing standards, stated in the Scope of Report table and above every check list.`:""}</span></div>
     </div>
     <script>setTimeout(()=>window.print(),500)<\/script>`;
 
-  const type={cctv:"CCTV_REPORT",fire:"FIRE_ALARM_REPORT",acs:"ACCESS_CONTROL_REPORT",ids:"INTRUSION_REPORT",net:"NETWORK_REPORT",elv:"ELV_REPORT"}[tpl.id]||"SYSTEM_REPORT";
+  const type={cctv:"CCTV_REPORT",fire:"FIRE_ALARM_REPORT",acs:"ACCESS_CONTROL_REPORT",ids:"INTRUSION_REPORT",net:"NETWORK_REPORT",elv:"ELV_REPORT",elvi:"ELV_INTEGRATED_REPORT"}[tpl.id]||"SYSTEM_REPORT";
   await openReportPDF(type,[m.date?fmtDate(m.date):"",m.client,m.project].filter(Boolean).join(" · ")||"Manual",bodyHTML);
-  toast(`${tpl.name.split(" ")[0]} report ready!`);
+  toast(`${tpl.multi?"ELV Integrated":tpl.name.split(" ")[0]} report ready!`);
 };
 Object.assign(window,{renderSystemReports});
 
@@ -2295,7 +2435,7 @@ function renderProgressReport(kind){
            <div class="field"><label>To <span class="req">*</span></label><input type="date" min="${m.from||""}" value="${m.to||""}" onchange="window._pr.to=this.value;render()"></div>
            <div class="field"><label>Week no.</label><input value="${escapeHtml(m.weekNo||"")}" oninput="window._pr.weekNo=this.value" placeholder="e.g. W29"></div>`}
       <div class="field"><label>Contract / PO no.</label><input value="${escapeHtml(m.contractNo||"")}" oninput="window._pr.contractNo=this.value"></div>
-      <div class="field"><label>Reference</label><input value="${escapeHtml(m.reference||"")}" oninput="window._pr.reference=this.value" placeholder="e.g. #S03890"></div>
+      ${_refField("window._pr.reference",m.reference)}
       <div class="field"><label>👷 Prepared by</label><input value="${escapeHtml(m.preparedBy||"")}" oninput="window._pr.preparedBy=this.value"></div>
       <div class="field"><label>👤 Client representative</label><input value="${escapeHtml(m.representative||"")}" oninput="window._pr.representative=this.value"></div>
     </div>

@@ -7,6 +7,7 @@ const REF_PREFIX = {
   FM200_REFILLING:"FMR", FM200_TEST:"FMT",
   CCTV_REPORT:"CCTV", FIRE_ALARM_REPORT:"FA", ACCESS_CONTROL_REPORT:"ACS",
   INTRUSION_REPORT:"IDS", NETWORK_REPORT:"NET", ELV_REPORT:"ELV", SYSTEM_REPORT:"SYS",
+  ELV_INTEGRATED_REPORT:"ELVI",
   DAILY_PROGRESS:"DPR", WEEKLY_PROGRESS:"WPR",
   ASSET_REPORT:"AST", CLIENT_REPORT:"CLR", DASHBOARD:"DSH", GENERAL:"RPT",
 };
@@ -15,6 +16,7 @@ const REF_TYPE_LABEL = {
   PM:"PM Report", INC:"Incident Report", FMR:"FM-200 Refilling", FMT:"FM-200 Test",
   CCTV:"CCTV Report", FA:"Fire Alarm Report", ACS:"Access Control Report",
   IDS:"Intrusion Report", NET:"Network Report", ELV:"ELV Report", SYS:"System Report",
+  ELVI:"ELV Integrated Report",
   DPR:"Daily Progress Report", WPR:"Weekly Progress Report",
   AST:"Asset Report", CLR:"Client Report", DSH:"Dashboard Export",
 };
