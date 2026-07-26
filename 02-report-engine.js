@@ -7,7 +7,7 @@ const REF_PREFIX = {
   FM200_REFILLING:"FMR", FM200_TEST:"FMT",
   CCTV_REPORT:"CCTV", FIRE_ALARM_REPORT:"FA", ACCESS_CONTROL_REPORT:"ACS",
   INTRUSION_REPORT:"IDS", NETWORK_REPORT:"NET", ELV_REPORT:"ELV", SYSTEM_REPORT:"SYS",
-  ELV_INTEGRATED_REPORT:"ELVI",
+  ELV_INTEGRATED_REPORT:"ELVI", HANDOVER_DOSSIER:"HOD",
   DAILY_PROGRESS:"DPR", WEEKLY_PROGRESS:"WPR",
   ASSET_REPORT:"AST", CLIENT_REPORT:"CLR", DASHBOARD:"DSH", GENERAL:"RPT",
 };
@@ -16,13 +16,16 @@ const REF_TYPE_LABEL = {
   PM:"PM Report", INC:"Incident Report", FMR:"FM-200 Refilling", FMT:"FM-200 Test",
   CCTV:"CCTV Report", FA:"Fire Alarm Report", ACS:"Access Control Report",
   IDS:"Intrusion Report", NET:"Network Report", ELV:"ELV Report", SYS:"System Report",
-  ELVI:"ELV Integrated Report",
+  ELVI:"ELV Integrated Report", HOD:"Handover Dossier",
   DPR:"Daily Progress Report", WPR:"Weekly Progress Report",
   AST:"Asset Report", CLR:"Client Report", DSH:"Dashboard Export",
 };
 window.REF_PREFIX=REF_PREFIX; window.REF_TYPE_LABEL=REF_TYPE_LABEL;
 
-async function generateRefNo(reportType="GENERAL"){
+// `meta` lets a generator record WHICH project a document belongs to. Without
+// it reportLog knew the type and the period but not the subject, so a project's
+// document trail could never be reconstructed.
+async function generateRefNo(reportType="GENERAL", meta){
   const prefix = REF_PREFIX[reportType] || "RPT";
   try{
     const {db, doc, getDoc, setDoc, runTransaction, collection, addDoc} = window.__fb;
@@ -50,6 +53,8 @@ async function generateRefNo(reportType="GENERAL"){
       exportedBy:     state.user?.email,
       exportedByName: state.profile?.name || state.profile?.employeeName,
       period:         getPeriod(),
+      project:        (meta && meta.project) ? String(meta.project).trim() : "",
+      client:         (meta && meta.client)  ? String(meta.client).trim()  : "",
       at:             new Date().toISOString()
     }).catch(()=>{});
 
@@ -218,8 +223,8 @@ ${watermark}
 // Word export from one place.
 window._rptFormat = window._rptFormat || "pdf";
 
-async function openReportPDF(reportType, periodLabel, bodyHTML){
-  const refNo=await generateRefNo(reportType);
+async function openReportPDF(reportType, periodLabel, bodyHTML, meta){
+  const refNo=await generateRefNo(reportType, meta);
   const html=buildReportHTML(refNo,reportType,periodLabel,bodyHTML);
   if(window._rptFormat==="word") return downloadReportWord(refNo,reportType,html,periodLabel);
   const win=window.open("","_blank");

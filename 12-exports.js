@@ -1141,7 +1141,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v170';"
+      var swCode = "const CACHE='ejaftech-v173';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
@@ -1246,7 +1246,7 @@ window.generatePMReport=async function(){
     <script>setTimeout(()=>window.print(),500)<\/script>`;
 
   const period=(from||to)?`${from||"start"} → ${to||"today"}`:"All time";
-  await openReportPDF("PREVENTIVE_MAINTENANCE", [period,proj,sys].filter(Boolean).join(" · "), bodyHTML);
+  await openReportPDF("PREVENTIVE_MAINTENANCE", [period,proj,sys].filter(Boolean).join(" · "), bodyHTML,{project:proj||""});
   toast("PM Report ready!");
 };
 
@@ -1283,7 +1283,7 @@ window.generateIncidentReport=async function(){
     ${i.notes?`<div class="ksec"><span class="kbad">📝</span><h3>Notes</h3></div><div style="font-size:12px;line-height:1.7;white-space:pre-wrap">${escapeHtml(i.notes)}</div>`:""}
     <script>setTimeout(()=>window.print(),500)<\/script>`;
 
-  await openReportPDF("INCIDENT", `${fmtDate(i.date)} · ${i.project||""}${i.system?" · "+i.system:""}`, bodyHTML);
+  await openReportPDF("INCIDENT", `${fmtDate(i.date)} · ${i.project||""}${i.system?" · "+i.system:""}`, bodyHTML, {project:i.project||""});
   toast("Incident Report ready!");
 };
 
@@ -1546,7 +1546,7 @@ async function _generatePMManual(){
     ${_rptPhotoGrid(window._pmRptPhotos,"Maintenance Photos")}
     <script>setTimeout(()=>window.print(),500)<\/script>`;
   const period=(m.from||m.to)?`${m.from||"start"} → ${m.to||"today"}`:"Manual";
-  await openReportPDF("PREVENTIVE_MAINTENANCE",[period,m.project,m.system].filter(Boolean).join(" · "),bodyHTML);
+  await openReportPDF("PREVENTIVE_MAINTENANCE",[period,m.project,m.system].filter(Boolean).join(" · "),bodyHTML,{project:m.project||""});
   toast("PM Report ready!");
 }
 
@@ -1635,7 +1635,7 @@ async function _generateIncManual(){
     <div style="font-size:12px;line-height:1.7;white-space:pre-wrap">${escapeHtml(i.actionTaken||"—")}</div>
     ${_rptPhotoGrid(i.photos,"Incident Photos")}
     <script>setTimeout(()=>window.print(),500)<\/script>`;
-  await openReportPDF("INCIDENT",[i.date?fmtDate(i.date):"Manual",i.project,i.system].filter(Boolean).join(" · "),bodyHTML);
+  await openReportPDF("INCIDENT",[i.date?fmtDate(i.date):"Manual",i.project,i.system].filter(Boolean).join(" · "),bodyHTML,{project:i.project||""});
   toast("Incident Report ready!");
 }
 Object.assign(window,{_pmManualLayout,_incManualLayout,_generatePMManual,_generateIncManual});
@@ -1865,7 +1865,7 @@ window.generateFM200Refill=async function(){
       <div style="flex:1;border-top:1.5px solid #333;padding-top:5px;font-size:10px;color:#555">Client representative<br>Signature &amp; date</div>
     </div>
     <script>setTimeout(()=>window.print(),500)<\/script>`;
-  await openReportPDF("FM200_REFILLING",[m.date?fmtDate(m.date):"",m.client,m.project].filter(Boolean).join(" · ")||"Manual",bodyHTML);
+  await openReportPDF("FM200_REFILLING",[m.date?fmtDate(m.date):"",m.client,m.project].filter(Boolean).join(" · ")||"Manual",bodyHTML,{project:m.project||"",client:m.client||""});
   toast("FM-200 Refilling Report ready!");
 };
 
@@ -1932,7 +1932,7 @@ window.generateFM200Test=async function(){
     const cyls=window._fmCyls.filter(c=>(c.serial||c.type||c.gross));
     return cyls.length?`<div class="ksec"><span class="kbad">＋</span><h3>Cylinder Weight &amp; Pressure Verification (${cyls.length})</h3></div>${_fmCylsTable()}`:"";
   }
-  await openReportPDF("FM200_TEST",[m.date?fmtDate(m.date):"",m.client].filter(Boolean).join(" · ")||"Manual",bodyHTML);
+  await openReportPDF("FM200_TEST",[m.date?fmtDate(m.date):"",m.client].filter(Boolean).join(" · ")||"Manual",bodyHTML,{project:m.project||"",client:m.client||""});
   toast("FM-200 Test Report ready!");
 };
 Object.assign(window,{renderFM200Section});
@@ -2355,10 +2355,542 @@ window.generateSystemReport=async function(){
     <script>setTimeout(()=>window.print(),500)<\/script>`;
 
   const type={cctv:"CCTV_REPORT",fire:"FIRE_ALARM_REPORT",acs:"ACCESS_CONTROL_REPORT",ids:"INTRUSION_REPORT",net:"NETWORK_REPORT",elv:"ELV_REPORT",elvi:"ELV_INTEGRATED_REPORT"}[tpl.id]||"SYSTEM_REPORT";
-  await openReportPDF(type,[m.date?fmtDate(m.date):"",m.client,m.project].filter(Boolean).join(" · ")||"Manual",bodyHTML);
+  await openReportPDF(type,[m.date?fmtDate(m.date):"",m.client,m.project].filter(Boolean).join(" · ")||"Manual",bodyHTML,{project:m.project||"",client:m.client||""});
   toast(`${tpl.multi?"ELV Integrated":tpl.name.split(" ")[0]} report ready!`);
 };
 Object.assign(window,{renderSystemReports});
+
+// ═══════════════════════════════════════════════════════════════════════
+//  HANDOVER DOSSIER (v172)
+//  One button, one indexed PDF: everything a client's acceptance committee
+//  asks for at project handover, assembled from live data rather than from
+//  files someone remembered to keep.
+//
+//  Why this exists: every artefact already lives in Girêk — the asset
+//  register, the PM record, the incident log, the work log, the SLA figures
+//  and the governing standards per sub-system. What was missing was the act
+//  of BINDING them into one document an auditor can sign. That binding is
+//  what wins an ELV contract, and no generic PM tool can produce it because
+//  none of them know what EN 50131 or NFPA 72 mean.
+// ═══════════════════════════════════════════════════════════════════════
+
+window._hd = window._hd || {
+  project:"", from:"", to:"", contractRef:"",
+  engName:"", engTitle:"Project Engineer",
+  repName:"", repTitle:"", repOrg:"",
+  notes:"",
+};
+window._hdDocs = window._hdDocs || null;   // {project, rows, error?} once fetched
+window._hdDocsBusy = false;
+// reportLog is append-only and unbounded, so it is queried on demand rather
+// than kept in a live listener like the working collections. One equality
+// filter only \u2014 ordering server-side would demand a composite index.
+window.hdLoadDocs = async function(pname){
+  const p = String(pname||"").trim();
+  if(!p){ window._hdDocs=null; return; }
+  if(window._hdDocsBusy) return;
+  window._hdDocsBusy = true; render();
+  try{
+    const {db, collection, query, where, getDocs} = window.__fb;
+    const snap = await getDocs(query(collection(db,"reportLog"), where("project","==",p)));
+    const rows = [];
+    snap.forEach(d=>rows.push(d.data()));
+    rows.sort((a,b)=>String(b.at||"").localeCompare(String(a.at||"")));
+    window._hdDocs = {project:p, rows};
+  }catch(e){
+    console.warn("document trail unavailable", e && e.message);
+    window._hdDocs = {project:p, rows:[], error:(e&&e.message)||"unavailable"};
+  }
+  window._hdDocsBusy = false; render();
+};
+
+window._hdSec = window._hdSec || {
+  particulars:true, conformity:true, assets:true, pm:true,
+  incidents:true, worklog:true, sla:true, warranty:true, docs:true,
+};
+
+// ── Data gathering: one pass, every section reads from this ──────────────
+function hdCollect(){
+  const m = window._hd;
+  const pname = (m.project||"").trim();
+  const proj  = (state.projects||[]).find(p=>(p.name||"").trim()===pname) || null;
+  const from  = m.from || "";
+  const to    = m.to   || "";
+  const inRange = (d)=>{ if(!d) return false; if(from && d<from) return false; if(to && d>to) return false; return true; };
+
+  const devices = (state.devices||[]).filter(d=>(d.project||"").trim()===pname);
+  // Which ELV disciplines does this project actually contain? Derived from the
+  // asset register, so the conformity page can never claim a system that is
+  // not installed.
+  const subs = [];
+  devices.forEach(d=>{
+    const s = elvSubForName(d.system);
+    const key = s ? s.id : ("other:"+String(d.system||"Unclassified").trim());
+    if(!subs.some(x=>x.key===key)) subs.push({key, sub:s, label:s?s.name:(String(d.system||"Unclassified").trim()||"Unclassified")});
+  });
+  subs.forEach(x=>{ x.count = devices.filter(d=>{
+    const s=elvSubForName(d.system);
+    return (s?s.id:("other:"+String(d.system||"Unclassified").trim()))===x.key;
+  }).length; });
+
+  const pms       = (state.pmSchedules||[]).filter(s=>(s.project||"").trim()===pname);
+  const incidents = (state.incidents||[]).filter(i=>(i.project||"").trim()===pname && (!i.date || inRange(i.date)));
+  const entries   = (state.daily||[]).filter(r=>(r.project||"").trim()===pname && inRange(r.date));
+  const requests  = (state.clientRequests||[]).filter(r=>(r.project||"").trim()===pname);
+
+  const hours = entries.reduce((s,r)=>s+Number(r.duration||0),0);
+  const est   = Number(proj&&proj.estimatedHours||0);
+
+  const byCat = {};
+  entries.forEach(r=>{ const k=(r.taskCategory||"Uncategorised"); byCat[k]=(byCat[k]||0)+Number(r.duration||0); });
+  const byEmp = {};
+  entries.forEach(r=>{ const k=(r.employee||"—"); byEmp[k]=(byEmp[k]||0)+Number(r.duration||0); });
+
+  const today = (typeof todayStr==="function") ? todayStr() : new Date().toISOString().slice(0,10);
+  const warranty = devices
+    .filter(d=>d.warrantyEnd)
+    .map(d=>({...d, expired: String(d.warrantyEnd) < today}))
+    .sort((a,b)=>String(a.warrantyEnd).localeCompare(String(b.warrantyEnd)));
+
+  const areas = proj ? (typeof getProjectAreas==="function" ? getProjectAreas(proj) : (proj.areas||[])) : [];
+  const sla   = (typeof slaCompliance==="function") ? slaCompliance(pname) : null;
+
+  // Only a trail fetched for THIS project counts: a stale one left over from a
+  // previously selected project must never be printed against another.
+  const trail = (window._hdDocs && window._hdDocs.project===pname) ? window._hdDocs : null;
+  const docs  = trail ? trail.rows.filter(r=>{
+    const d = String(r.at||"").slice(0,10);
+    if(!d) return true;
+    if(from && d<from) return false;
+    if(to   && d>to)   return false;
+    return true;
+  }) : [];
+  return {m, proj, pname, from, to, devices, subs, pms, incidents, entries,
+          requests, hours, est, byCat, byEmp, warranty, areas, sla,
+          docs, docsError: trail ? (trail.error||null) : null, docsLoaded: !!trail};
+}
+window.hdCollect = hdCollect;
+
+// Only the sections the user kept, numbered in document order.
+function hdSections(D){
+  const on = window._hdSec, out = [];
+  const add=(id,title)=>{ if(on[id]) out.push({id,title,no:String(out.length+1).padStart(2,"0")}); };
+  add("particulars","Project Particulars");
+  add("conformity","Scope of Works & Standards Conformity");
+  add("assets",     `Asset Register (${D.devices.length})`);
+  add("pm",         `Preventive Maintenance Record (${D.pms.length})`);
+  add("incidents",  `Incident Log (${D.incidents.length})`);
+  add("worklog",    "Work Record Summary");
+  add("sla",        `Client Requests & Service Levels (${D.requests.length})`);
+  add("warranty",   `Warranty Register (${D.warranty.length})`);
+  add("docs",       `Documents Issued (${D.docs.length})`);
+  return out;
+}
+window.hdSections = hdSections;
+
+// ── Document body ───────────────────────────────────────────────────────
+const _hdEsc = (v)=>escapeHtml(v==null?"":String(v));
+const _hdDash = (v)=>{ const s=String(v==null?"":v).trim(); return s?escapeHtml(s):"—"; };
+function _hdRow(l,v){
+  return `<tr><td style="padding:6px 10px;border:1px solid #D6E4F0;background:#F5F8FC;font-weight:700;width:36%">${l}</td>
+              <td style="padding:6px 10px;border:1px solid #D6E4F0">${v}</td></tr>`;
+}
+// Every numbered section opens a new page, so the cover and contents keep
+// page one to themselves.
+function _hdHead(no,title){
+  return `<div class="ksec" style="page-break-before:always">
+    <span class="kbad">${no}</span><h3>${escapeHtml(title)}</h3></div>`;
+}
+function _hdEmpty(what){
+  return `<div style="padding:14px;border:1px dashed #C9D3E4;border-radius:8px;color:#6B7B8F;font-style:italic">No ${escapeHtml(what)} recorded for this project in the stated period.</div>`;
+}
+
+function buildHandoverBody(){
+  const D = hdCollect();
+  const secs = hdSections(D);
+  const m = D.m;
+  const period = (D.from||D.to) ? `${D.from?fmtDate(D.from):"start"} \u2192 ${D.to?fmtDate(D.to):"date"}` : "Full project history";
+  const S = (id)=>secs.find(x=>x.id===id);
+  let body = "";
+
+  // ── Cover ──
+  body += `<div style="border:2px solid #03308B;border-radius:10px;padding:22px;margin-bottom:16px;text-align:center">
+    <div style="font-size:11px;letter-spacing:3px;color:#6B7B8F;font-weight:800">PROJECT HANDOVER DOSSIER</div>
+    <div style="font-size:22px;font-weight:800;color:#03308B;margin:10px 0 4px">${_hdDash(D.pname)}</div>
+    <div style="font-size:13px;color:#1B2A44">${_hdDash(D.proj&&D.proj.client)}</div>
+    <div style="margin-top:14px;font-size:11px;color:#6B7B8F;line-height:1.9">
+      Period covered: <strong style="color:#1B2A44">${escapeHtml(period)}</strong><br>
+      ${m.contractRef?`Contract reference: <strong style="color:#1B2A44">${_hdEsc(m.contractRef)}</strong><br>`:""}
+      Compiled from the live operational record held in Gir\u00eak.
+    </div>
+  </div>`;
+
+  // ── Contents ──
+  body += `<div class="ksec"><span class="kbad">\u2630</span><h3>Contents</h3></div>
+  <table style="border-collapse:collapse;width:100%">
+    ${secs.map(s=>`<tr>
+      <td style="padding:5px 10px;border:1px solid #D6E4F0;width:44px;text-align:center;font-weight:800;color:#03308B">${s.no}</td>
+      <td style="padding:5px 10px;border:1px solid #D6E4F0">${escapeHtml(s.title)}</td></tr>`).join("")}
+    <tr><td style="padding:5px 10px;border:1px solid #D6E4F0;text-align:center;font-weight:800;color:#03308B">\u270e</td>
+        <td style="padding:5px 10px;border:1px solid #D6E4F0">Declaration &amp; Acceptance</td></tr>
+  </table>`;
+
+  // ── 1. Particulars ──
+  if(S("particulars")){
+    const s=S("particulars");
+    const pct = D.est ? Math.round(D.hours/D.est*100) : null;
+    body += _hdHead(s.no,s.title) + `<table style="border-collapse:collapse;width:100%">
+      ${_hdRow("Client",           _hdDash(D.proj&&D.proj.client))}
+      ${_hdRow("Project",          _hdDash(D.pname))}
+      ${_hdRow("Department",       _hdDash(D.proj&&D.proj.dept))}
+      ${_hdRow("Current status",   _hdDash(D.proj&&D.proj.status))}
+      ${_hdRow("Period covered",   escapeHtml(period))}
+      ${m.contractRef?_hdRow("Contract reference", _hdEsc(m.contractRef)):""}
+      ${_hdRow("Areas &amp; sites", D.areas.length
+          ? D.areas.map(a=>`<strong>${escapeHtml(a.name)}</strong>${(a.sites||[]).length?" \u2014 "+(a.sites||[]).map(x=>escapeHtml(x.name)).join(", "):""}`).join("<br>")
+          : "\u2014")}
+      ${_hdRow("Estimated man-hours", D.est?`${fmtHM(D.est)} (${fmtDays(D.est/9)} day equivalent)`:"\u2014")}
+      ${_hdRow("Recorded man-hours",  `${fmtHM(D.hours)}${pct!=null?` \u2014 <strong style="color:${pct>100?"#C62828":"#2E7D32"}">${pct}% of estimate</strong>`:""}`)}
+      ${_hdRow("Work entries",     String(D.entries.length))}
+      ${_hdRow("Devices on register", String(D.devices.length))}
+    </table>
+    ${m.notes?`<div style="margin-top:10px;padding:10px 12px;border-left:3px solid #C9A84C;background:#FFFDF5;font-size:11px;line-height:1.7">${_hdEsc(m.notes)}</div>`:""}`;
+  }
+
+  // ── 2. Conformity — the centrepiece ──
+  if(S("conformity")){
+    const s=S("conformity");
+    body += _hdHead(s.no,s.title) + `
+    <p style="font-size:11px;line-height:1.7;margin-bottom:9px">The sub-systems below are those present on this project's asset register. Each was maintained and inspected against the standards stated beside it.</p>
+    <table style="border-collapse:collapse;width:100%">
+      <thead><tr>
+        <th style="padding:6px 9px;border:1px solid #D6E4F0;background:#03308B;color:#fff;width:34px">#</th>
+        <th style="padding:6px 9px;border:1px solid #D6E4F0;background:#03308B;color:#fff;text-align:left">Sub-system</th>
+        <th style="padding:6px 9px;border:1px solid #D6E4F0;background:#03308B;color:#fff;width:52px">Devices</th>
+        <th style="padding:6px 9px;border:1px solid #D6E4F0;background:#03308B;color:#fff;text-align:left">Governing standards</th>
+      </tr></thead>
+      <tbody>${D.subs.length ? D.subs.map((x,i)=>`<tr>
+        <td style="padding:6px 9px;border:1px solid #D6E4F0;text-align:center">${String(i+1).padStart(2,"0")}</td>
+        <td style="padding:6px 9px;border:1px solid #D6E4F0"><strong>${escapeHtml(x.label)}</strong></td>
+        <td style="padding:6px 9px;border:1px solid #D6E4F0;text-align:center">${x.count}</td>
+        <td style="padding:6px 9px;border:1px solid #D6E4F0;font-size:9.5px;line-height:1.5">${x.sub?escapeHtml(chkGroup(x.sub.id).standards||""):"<em>Not an ELV discipline \u2014 no standard mapped</em>"}</td>
+      </tr>`).join("") : `<tr><td colspan="4" style="padding:10px;border:1px solid #D6E4F0;text-align:center;font-style:italic;color:#6B7B8F">No devices are registered against this project, so no sub-system can be certified.</td></tr>`}</tbody>
+    </table>
+    <div style="margin-top:8px;font-size:10px;font-style:italic;color:#555;line-height:1.6">Any sub-system not listed above is not part of this handover and was not inspected.</div>`;
+  }
+
+  // ── 3. Asset register, grouped by sub-system ──
+  if(S("assets")){
+    const s=S("assets");
+    body += _hdHead(s.no,s.title);
+    if(!D.devices.length){ body += _hdEmpty("devices"); }
+    else {
+      D.subs.forEach(grp=>{
+        const rows = D.devices.filter(d=>{
+          const sub=elvSubForName(d.system);
+          return (sub?sub.id:("other:"+String(d.system||"Unclassified").trim()))===grp.key;
+        });
+        body += `<div style="font-weight:800;color:#03308B;font-size:12px;margin:12px 0 5px">${escapeHtml(grp.label)} <span style="font-weight:400;color:#6B7B8F">(${rows.length})</span></div>
+        <table style="border-collapse:collapse;width:100%">
+          <thead><tr>
+            <th style="padding:6px 9px;border:1px solid #D6E4F0;background:#03308B;color:#fff;text-align:left">#</th><th style="padding:6px 9px;border:1px solid #D6E4F0;background:#03308B;color:#fff;text-align:left">Device</th><th style="padding:6px 9px;border:1px solid #D6E4F0;background:#03308B;color:#fff;text-align:left">Model</th>
+            <th style="padding:6px 9px;border:1px solid #D6E4F0;background:#03308B;color:#fff;text-align:left">Serial</th><th style="padding:6px 9px;border:1px solid #D6E4F0;background:#03308B;color:#fff;text-align:left">Location</th>
+            <th style="padding:6px 9px;border:1px solid #D6E4F0;background:#03308B;color:#fff;text-align:left">Installed</th><th style="padding:6px 9px;border:1px solid #D6E4F0;background:#03308B;color:#fff;text-align:left">Status</th>
+          </tr></thead>
+          <tbody>${rows.map((d,i)=>`<tr>
+            <td style="padding:6px 9px;border:1px solid #D6E4F0">${String(i+1).padStart(2,"0")}</td>
+            <td style="padding:6px 9px;border:1px solid #D6E4F0"><strong>${_hdDash(d.deviceName)}</strong></td>
+            <td style="padding:6px 9px;border:1px solid #D6E4F0">${_hdDash(d.model)}</td>
+            <td style="padding:6px 9px;border:1px solid #D6E4F0">${_hdDash(d.serialNumber)}</td>
+            <td style="padding:6px 9px;border:1px solid #D6E4F0">${_hdDash([d.area,d.site].filter(Boolean).join(" \u203a "))}</td>
+            <td style="padding:6px 9px;border:1px solid #D6E4F0">${d.installDate?escapeHtml(fmtDate(d.installDate)):"\u2014"}</td>
+            <td style="padding:6px 9px;border:1px solid #D6E4F0">${_hdDash(d.status)}</td></tr>`).join("")}</tbody>
+        </table>`;
+      });
+    }
+  }
+
+  // ── 4. Preventive maintenance record ──
+  if(S("pm")){
+    const s=S("pm");
+    body += _hdHead(s.no,s.title);
+    if(!D.pms.length){ body += _hdEmpty("preventive maintenance schedules"); }
+    else {
+      body += `<table style="border-collapse:collapse;width:100%">
+        <thead><tr>
+          <th style="padding:6px 9px;border:1px solid #D6E4F0;background:#03308B;color:#fff;text-align:left">#</th><th style="padding:6px 9px;border:1px solid #D6E4F0;background:#03308B;color:#fff;text-align:left">Schedule</th><th style="padding:6px 9px;border:1px solid #D6E4F0;background:#03308B;color:#fff;text-align:left">System</th>
+          <th style="padding:6px 9px;border:1px solid #D6E4F0;background:#03308B;color:#fff;text-align:left">Every</th><th style="padding:6px 9px;border:1px solid #D6E4F0;background:#03308B;color:#fff;text-align:left">Last done</th><th style="padding:6px 9px;border:1px solid #D6E4F0;background:#03308B;color:#fff;text-align:left">Next due</th><th style="padding:6px 9px;border:1px solid #D6E4F0;background:#03308B;color:#fff;text-align:left">Round</th>
+        </tr></thead>
+        <tbody>${D.pms.map((p,i)=>{
+          const units=(typeof _pmUnitsOf==="function")?_pmUnitsOf(p):[];
+          const done =(typeof _pmRoundDone==="function")?_pmRoundDone(p):[];
+          const due  =(typeof pmNextDue==="function")?pmNextDue(p):"";
+          return `<tr>
+            <td style="padding:6px 9px;border:1px solid #D6E4F0">${String(i+1).padStart(2,"0")}</td>
+            <td style="padding:6px 9px;border:1px solid #D6E4F0"><strong>${_hdDash(p.title)}</strong></td>
+            <td style="padding:6px 9px;border:1px solid #D6E4F0">${_hdDash(p.system)}</td>
+            <td style="padding:6px 9px;border:1px solid #D6E4F0">${p.freqDays?escapeHtml(p.freqDays+" days"):"\u2014"}</td>
+            <td style="padding:6px 9px;border:1px solid #D6E4F0">${p.lastDone?escapeHtml(fmtDate(p.lastDone)):"\u2014"}</td>
+            <td style="padding:6px 9px;border:1px solid #D6E4F0">${due?escapeHtml(fmtDate(due)):"\u2014"}</td>
+            <td style="padding:6px 9px;border:1px solid #D6E4F0">${units.length?`${done.length}/${units.length} sites`:"single"}</td></tr>`;
+        }).join("")}</tbody></table>`;
+    }
+  }
+
+  // ── 5. Incident log ──
+  if(S("incidents")){
+    const s=S("incidents");
+    body += _hdHead(s.no,s.title);
+    if(!D.incidents.length){ body += _hdEmpty("incidents"); }
+    else {
+      const open=D.incidents.filter(i=>String(i.status||"").toLowerCase()!=="closed").length;
+      body += `<table style="border-collapse:collapse;width:100%">
+        <thead><tr>
+          <th style="padding:6px 9px;border:1px solid #D6E4F0;background:#03308B;color:#fff;text-align:left">#</th><th style="padding:6px 9px;border:1px solid #D6E4F0;background:#03308B;color:#fff;text-align:left">Date</th><th style="padding:6px 9px;border:1px solid #D6E4F0;background:#03308B;color:#fff;text-align:left">System</th>
+          <th style="padding:6px 9px;border:1px solid #D6E4F0;background:#03308B;color:#fff;text-align:left">Title</th><th style="padding:6px 9px;border:1px solid #D6E4F0;background:#03308B;color:#fff;text-align:left">Severity</th><th style="padding:6px 9px;border:1px solid #D6E4F0;background:#03308B;color:#fff;text-align:left">Status</th>
+        </tr></thead>
+        <tbody>${D.incidents.map((x,i)=>`<tr>
+          <td style="padding:6px 9px;border:1px solid #D6E4F0">${String(i+1).padStart(2,"0")}</td>
+          <td style="padding:6px 9px;border:1px solid #D6E4F0">${x.date?escapeHtml(fmtDate(x.date)):"\u2014"}</td>
+          <td style="padding:6px 9px;border:1px solid #D6E4F0">${_hdDash(x.system)}</td>
+          <td style="padding:6px 9px;border:1px solid #D6E4F0">${_hdDash(x.title)}</td>
+          <td style="padding:6px 9px;border:1px solid #D6E4F0">${_hdDash(x.severity)}</td>
+          <td style="padding:6px 9px;border:1px solid #D6E4F0">${_hdDash(x.status)}</td></tr>`).join("")}</tbody></table>
+      <div style="margin-top:6px;font-size:11px;font-weight:700;color:${open?"#C62828":"#2E7D32"}">${open?`${open} incident(s) remain open at the date of this dossier.`:"All recorded incidents are closed."}</div>`;
+    }
+  }
+
+  // ── 6. Work record summary ──
+  if(S("worklog")){
+    const s=S("worklog");
+    const cats=Object.entries(D.byCat).sort((a,b)=>b[1]-a[1]);
+    const emps=Object.entries(D.byEmp).sort((a,b)=>b[1]-a[1]);
+    body += _hdHead(s.no,s.title);
+    if(!D.entries.length){ body += _hdEmpty("work entries"); }
+    else {
+      body += `<table style="border-collapse:collapse;width:100%;margin-bottom:12px">
+        ${_hdRow("Entries in period", String(D.entries.length))}
+        ${_hdRow("Total man-hours",   fmtHM(D.hours))}
+        ${_hdRow("Day equivalent",    fmtDays(D.hours/9)+" days at 9 man-hours")}
+        ${_hdRow("Engineers involved",String(emps.length))}
+      </table>
+      <div style="font-weight:800;color:#03308B;font-size:12px;margin:10px 0 5px">By work category</div>
+      <table style="border-collapse:collapse;width:100%">
+        <thead><tr><th style="padding:6px 9px;border:1px solid #D6E4F0;background:#03308B;color:#fff;text-align:left">Category</th><th style="padding:6px 9px;border:1px solid #D6E4F0;background:#03308B;color:#fff;text-align:left">Man-hours</th><th style="padding:6px 9px;border:1px solid #D6E4F0;background:#03308B;color:#fff;text-align:left">Share</th></tr></thead>
+        <tbody>${cats.map(([k,v])=>`<tr>
+          <td style="padding:6px 9px;border:1px solid #D6E4F0">${escapeHtml(k)}</td>
+          <td style="padding:6px 9px;border:1px solid #D6E4F0">${fmtHM(v)}</td>
+          <td style="padding:6px 9px;border:1px solid #D6E4F0">${D.hours?Math.round(v/D.hours*100):0}%</td></tr>`).join("")}</tbody></table>
+      <div style="font-weight:800;color:#03308B;font-size:12px;margin:12px 0 5px">By engineer</div>
+      <table style="border-collapse:collapse;width:100%">
+        <thead><tr><th style="padding:6px 9px;border:1px solid #D6E4F0;background:#03308B;color:#fff;text-align:left">Engineer</th><th style="padding:6px 9px;border:1px solid #D6E4F0;background:#03308B;color:#fff;text-align:left">Man-hours</th></tr></thead>
+        <tbody>${emps.map(([k,v])=>`<tr>
+          <td style="padding:6px 9px;border:1px solid #D6E4F0">${escapeHtml(k)}</td>
+          <td style="padding:6px 9px;border:1px solid #D6E4F0">${fmtHM(v)}</td></tr>`).join("")}</tbody></table>`;
+    }
+  }
+
+  // ── 7. Requests & service levels ──
+  if(S("sla")){
+    const s=S("sla");
+    body += _hdHead(s.no,s.title);
+    if(!D.requests.length){ body += _hdEmpty("client requests"); }
+    else {
+      body += `${D.sla?`<table style="border-collapse:collapse;width:100%;margin-bottom:10px">
+        ${_hdRow("Requests measured", String(D.sla.total))}
+        ${_hdRow("Within service level", `<strong style="color:#2E7D32">${D.sla.met}</strong>`)}
+        ${_hdRow("Breached", `<strong style="color:${D.sla.breached?"#C62828":"#2E7D32"}">${D.sla.breached}</strong>`)}
+        ${_hdRow("Compliance", `<strong style="color:${D.sla.pct>=95?"#2E7D32":D.sla.pct>=85?"#8F6E22":"#C62828"}">${D.sla.pct}%</strong>`)}
+        ${_hdRow("Still open", String(D.sla.open))}
+      </table>`:""}
+      <table style="border-collapse:collapse;width:100%">
+        <thead><tr>
+          <th style="padding:6px 9px;border:1px solid #D6E4F0;background:#03308B;color:#fff;text-align:left">#</th><th style="padding:6px 9px;border:1px solid #D6E4F0;background:#03308B;color:#fff;text-align:left">Raised</th><th style="padding:6px 9px;border:1px solid #D6E4F0;background:#03308B;color:#fff;text-align:left">Request</th><th style="padding:6px 9px;border:1px solid #D6E4F0;background:#03308B;color:#fff;text-align:left">Status</th>
+        </tr></thead>
+        <tbody>${D.requests.map((r,i)=>`<tr>
+          <td style="padding:6px 9px;border:1px solid #D6E4F0">${String(i+1).padStart(2,"0")}</td>
+          <td style="padding:6px 9px;border:1px solid #D6E4F0">${r.createdAt?escapeHtml(fmtDate(String(r.createdAt).slice(0,10))):"\u2014"}</td>
+          <td style="padding:6px 9px;border:1px solid #D6E4F0">${_hdDash(r.title)}</td>
+          <td style="padding:6px 9px;border:1px solid #D6E4F0">${_hdDash(r.status)}</td></tr>`).join("")}</tbody></table>`;
+    }
+  }
+
+  // ── 8. Warranty register ──
+  if(S("warranty")){
+    const s=S("warranty");
+    body += _hdHead(s.no,s.title);
+    if(!D.warranty.length){ body += _hdEmpty("devices carrying a warranty date"); }
+    else {
+      const exp=D.warranty.filter(d=>d.expired).length;
+      body += `<table style="border-collapse:collapse;width:100%">
+        <thead><tr>
+          <th style="padding:6px 9px;border:1px solid #D6E4F0;background:#03308B;color:#fff;text-align:left">#</th><th style="padding:6px 9px;border:1px solid #D6E4F0;background:#03308B;color:#fff;text-align:left">Device</th><th style="padding:6px 9px;border:1px solid #D6E4F0;background:#03308B;color:#fff;text-align:left">Serial</th>
+          <th style="padding:6px 9px;border:1px solid #D6E4F0;background:#03308B;color:#fff;text-align:left">Warranty until</th><th style="padding:6px 9px;border:1px solid #D6E4F0;background:#03308B;color:#fff;text-align:left">State</th>
+        </tr></thead>
+        <tbody>${D.warranty.map((d,i)=>`<tr>
+          <td style="padding:6px 9px;border:1px solid #D6E4F0">${String(i+1).padStart(2,"0")}</td>
+          <td style="padding:6px 9px;border:1px solid #D6E4F0">${_hdDash(d.deviceName)}</td>
+          <td style="padding:6px 9px;border:1px solid #D6E4F0">${_hdDash(d.serialNumber)}</td>
+          <td style="padding:6px 9px;border:1px solid #D6E4F0">${escapeHtml(fmtDate(d.warrantyEnd))}</td>
+          <td style="padding:6px 9px;border:1px solid #D6E4F0";color:${d.expired?"#C62828":"#2E7D32"};font-weight:700">${d.expired?"Expired":"In warranty"}</td></tr>`).join("")}</tbody></table>
+      <div style="margin-top:6px;font-size:11px;font-weight:700;color:${exp?"#C62828":"#2E7D32"}">${exp?`${exp} device(s) are outside warranty at the date of this dossier.`:"All listed devices remain within warranty."}</div>`;
+    }
+  }
+
+  // ── Declaration ──
+  // Section 9 — the document trail
+  if(S("docs")){
+    const s=S("docs");
+    body += _hdHead(s.no,s.title);
+    if(!D.docsLoaded){
+      body += _hdEmpty("document trail (not loaded)");
+    } else if(D.docsError){
+      body += `<div style="padding:12px;border:1px solid #FFB74D;background:#FFF8E1;border-radius:8px;font-size:11px;color:#7F6000;line-height:1.7">The document register could not be read (${escapeHtml(D.docsError)}). Every report issued from Gir\u00eak carries its own reference number, which remains valid independently of this index.</div>`;
+    } else if(!D.docs.length){
+      body += `<div style="padding:12px;border:1px dashed #C9D3E4;border-radius:8px;color:#6B7B8F;font-size:11px;line-height:1.7">No referenced documents are on record against this project for the stated period.<br><em>Documents issued before the project reference was introduced are not indexed here; their reference numbers remain valid.</em></div>`;
+    } else {
+      const TH9='padding:6px 9px;border:1px solid #D6E4F0;background:#03308B;color:#fff;text-align:left';
+      const TD9='padding:6px 9px;border:1px solid #D6E4F0';
+      body += `<p style="font-size:11px;line-height:1.7;margin-bottom:9px">Every document below was issued from Gir\u00eak against this project and carries the reference number shown. Numbering is sequential per document type and per year.</p>
+      <table style="border-collapse:collapse;width:100%">
+        <thead><tr>
+          <th style="${TH9};width:34px;text-align:center">#</th>
+          <th style="${TH9}">Reference</th><th style="${TH9}">Document</th>
+          <th style="${TH9}">Period</th><th style="${TH9}">Issued</th><th style="${TH9}">By</th>
+        </tr></thead>
+        <tbody>${D.docs.map((r,i)=>`<tr>
+          <td style="${TD9};text-align:center">${String(i+1).padStart(2,"0")}</td>
+          <td style="${TD9};font-weight:800;color:#03308B">${_hdDash(r.refNo)}</td>
+          <td style="${TD9}">${escapeHtml((window.REF_TYPE_LABEL&&window.REF_TYPE_LABEL[r.prefix])||r.reportType||"\u2014")}</td>
+          <td style="${TD9};font-size:10px">${_hdDash(r.period)}</td>
+          <td style="${TD9}">${r.at?escapeHtml(fmtDate(String(r.at).slice(0,10))):"\u2014"}</td>
+          <td style="${TD9};font-size:10px">${_hdDash(r.exportedByName||r.exportedBy)}</td>
+        </tr>`).join("")}</tbody></table>`;
+    }
+  }
+
+  body += `<div class="ksec" style="page-break-before:always"><span class="kbad">\u270e</span><h3>Declaration &amp; Acceptance</h3></div>
+  <p style="font-size:11px;line-height:1.8;margin-bottom:12px">
+    EJAF Technology confirms that the works described in this dossier were carried out by competent engineers,
+    that the asset register above reflects the equipment installed and maintained on this project, and that each
+    sub-system was assessed against the standards stated in the conformity section.
+    This dossier was compiled from the live operational record on the date of issue shown in the document header.
+  </p>
+  <table style="border-collapse:collapse;width:100%"><tr>
+    ${sigBlockHTML("hd_eng", m.engName, m.engTitle, "EJAF Technology")}
+    ${sigBlockHTML("hd_rep", m.repName, m.repTitle, m.repOrg || (D.proj&&D.proj.client) || "")}
+  </tr></table>`;
+
+  return {D, secs, body};
+}
+window.buildHandoverBody = buildHandoverBody;
+
+// ── Screen ──────────────────────────────────────────────────────────────
+window.hdSet = function(k,v){ window._hd[k]=v; };
+window.hdToggle = function(k){ window._hdSec[k]=!window._hdSec[k]; render(); };
+window.hdPickProject = function(v){
+  window._hd.project = v;
+  // Default the period to the project's own dates the first time one is picked.
+  const p = (state.projects||[]).find(x=>(x.name||"").trim()===String(v||"").trim());
+  if(p && !window._hd.from) window._hd.from = p.startDate || "";
+  if(!window._hd.to) window._hd.to = (typeof todayStr==="function") ? todayStr() : new Date().toISOString().slice(0,10);
+  if(p && !window._hd.contractRef && p.codes && p.codes.length) window._hd.contractRef = p.codes[0];
+  window._hdDocs = null;          // never carry another project's trail across
+  render();
+  hdLoadDocs(v);                  // async; re-renders when it lands
+};
+
+const HD_SECTIONS = [
+  {k:"particulars", ic:"\u{1F4CB}", lb:"Particulars"},
+  {k:"conformity",  ic:"\u{1F4D0}", lb:"Standards conformity"},
+  {k:"assets",      ic:"\u{1F5A5}\uFE0F", lb:"Asset register"},
+  {k:"pm",          ic:"\u{1F6E0}\uFE0F", lb:"PM record"},
+  {k:"incidents",   ic:"\u{1F6A8}", lb:"Incident log"},
+  {k:"worklog",     ic:"\u23F1\uFE0F", lb:"Work record"},
+  {k:"sla",         ic:"\u{1F4E8}", lb:"Requests & SLA"},
+  {k:"warranty",    ic:"\u{1F6E1}\uFE0F", lb:"Warranty"},
+  {k:"docs",        ic:"\u{1F4C4}", lb:"Documents issued"},
+];
+
+function renderHandoverDossier(){
+  if(!(isAdmin()||hasCap("canViewReports"))) return `<div class="card"><div class="empty">Admin only.</div></div>`;
+  const m = window._hd;
+  const projects = (state.projects||[]).map(p=>p.name).filter(Boolean).sort();
+  const D = m.project ? hdCollect() : null;
+  const secs = D ? hdSections(D) : [];
+
+  return `
+  ${_rptHero("\u{1F4E6}","Handover Dossier","One indexed document for the acceptance committee","linear-gradient(135deg,#0F2347 0%,#03308B 60%,#2E5FA3 100%)")}
+
+  <div class="card">
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">01</span> Project &amp; Period</div>
+    <div class="form-grid">
+      <div class="field" style="grid-column:1/-1"><label>Project <span class="req">*</span></label>
+        <select onchange="hdPickProject(this.value)">
+          <option value="">\u2014 select \u2014</option>
+          ${projects.map(p=>`<option ${m.project===p?"selected":""}>${escapeHtml(p)}</option>`).join("")}
+        </select></div>
+      <div class="field"><label>From</label><input type="date" value="${escapeHtml(m.from||"")}" onchange="hdSet('from',this.value);render()"></div>
+      <div class="field"><label>To</label><input type="date" value="${escapeHtml(m.to||"")}" onchange="hdSet('to',this.value);render()"></div>
+      <div class="field" style="grid-column:1/-1"><label>Contract / PO reference</label>
+        <input value="${escapeHtml(m.contractRef||"")}" oninput="hdSet('contractRef',this.value)" placeholder="e.g. PO-2026-1187"></div>
+      <div class="field" style="grid-column:1/-1"><label>Closing note <span style="font-weight:500;color:var(--muted);font-size:10px">\u2014 optional, printed under Particulars</span></label>
+        <textarea rows="2" oninput="hdSet('notes',this.value)" placeholder="Anything the committee should read first\u2026">${escapeHtml(m.notes||"")}</textarea></div>
+    </div>
+    ${!m.project?`<div style="background:#FFF3E0;border:1px solid #FFB74D;border-radius:8px;padding:9px 11px;margin-top:10px;font-size:11px;color:#E65100;line-height:1.6">Pick a project to see exactly what the dossier will contain.</div>`:""}
+  </div>
+
+  ${D?`<div class="card">
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">02</span> Sections <span style="font-size:10px;color:var(--muted);font-weight:500">(${secs.length} included)</span></div>
+    <p style="font-size:11px;color:var(--muted);margin:6px 0 10px;line-height:1.6">Everything is drawn from live data \u2014 nothing is typed twice. Untick anything the committee does not need.</p>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      ${HD_SECTIONS.map(s=>{const on=!!window._hdSec[s.k];
+        return `<button class="btn btn-sm ${on?"":"btn-secondary"}" style="${on?"background:#03308B;color:#fff;border:none;":""}font-weight:700;font-size:11px" onclick="hdToggle('${s.k}')">${on?"\u2713 ":""}${s.ic} ${escapeHtml(s.lb)}</button>`;}).join("")}
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(92px,1fr));gap:8px;margin-top:14px">
+      ${[["Devices",D.devices.length],["Sub-systems",D.subs.length],["PM schedules",D.pms.length],
+         ["Incidents",D.incidents.length],["Work entries",D.entries.length],["Requests",D.requests.length],
+         ["Documents",window._hdDocsBusy?"\u2026":D.docs.length]]
+        .map(([l,n])=>`<div style="background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px;text-align:center">
+          <div style="font-size:18px;font-weight:800;color:${n?"#03308B":"var(--muted)"}">${n}</div>
+          <div style="font-size:10px;color:var(--muted)">${l}</div></div>`).join("")}
+    </div>
+    ${window._hdSec.docs && D.docsLoaded && !D.docs.length && !D.docsError
+      ? `<div style="background:#F5F8FC;border:1px solid var(--line);border-radius:8px;padding:9px 11px;margin-top:10px;font-size:11px;color:var(--muted);line-height:1.6">\u{1F4C4} No documents are indexed against this project yet. Reports record their project from v173 onward \u2014 anything issued before that keeps its reference number but will not appear here.</div>`
+      : ""}
+    ${D.docsError?`<div style="background:#FFF3E0;border:1px solid #FFB74D;border-radius:8px;padding:9px 11px;margin-top:10px;font-size:11px;color:#E65100;line-height:1.6">\u26a0 Document register unavailable: ${escapeHtml(D.docsError)}. The dossier will say so rather than claim an empty trail.</div>`:""}
+    ${!D.devices.length?`<div style="background:#FFF3E0;border:1px solid #FFB74D;border-radius:8px;padding:9px 11px;margin-top:10px;font-size:11px;color:#E65100;line-height:1.6">\u26a0 No devices are registered against this project, so the conformity page cannot certify any sub-system. Tag the equipment in <strong>Assets \u2192 System</strong> first.</div>`:""}
+  </div>
+
+  <div class="card">
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">03</span> Declaration</div>
+    <div class="form-grid">
+      <div class="field"><label>EJAF signatory</label><input value="${escapeHtml(m.engName||"")}" oninput="hdSet('engName',this.value)" placeholder="Name"></div>
+      <div class="field"><label>Title</label><input value="${escapeHtml(m.engTitle||"")}" oninput="hdSet('engTitle',this.value)" placeholder="e.g. Project Engineer"></div>
+      <div class="field"><label>Client signatory</label><input value="${escapeHtml(m.repName||"")}" oninput="hdSet('repName',this.value)" placeholder="Name"></div>
+      <div class="field"><label>Title</label><input value="${escapeHtml(m.repTitle||"")}" oninput="hdSet('repTitle',this.value)" placeholder="e.g. Facilities Manager"></div>
+    </div>
+    ${signaturePad("hd_eng","EJAF signatory","Sign inside the box")}
+    ${signaturePad("hd_rep","Client acceptance","Hand the device to the client representative")}
+  </div>
+
+  <div class="card" style="background:linear-gradient(135deg,#1B3A6B 0%,#2E5FA3 100%);border:2px solid #C9A84C">
+    ${rptFormatToggle()}
+    <button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:800;border:none;width:100%" onclick="generateHandoverDossier()">\u{1F4E6} Generate Handover Dossier</button>
+  </div>`:""}`;
+}
+
+window.generateHandoverDossier = async function(){
+  if(!window._hd.project) return toast("\u26a0 Pick the project first");
+  const {D, secs, body} = buildHandoverBody();
+  if(!secs.length) return toast("\u26a0 Every section is unticked \u2014 nothing to print");
+  const period = (D.from||D.to) ? `${D.from||"start"} \u2192 ${D.to||"date"}` : "Full history";
+  await openReportPDF("HANDOVER_DOSSIER", `${D.pname} \u2014 ${period}`, body, {project:D.pname, client:(D.proj&&D.proj.client)||""});
+  toast("Handover dossier ready!");
+};
+
+Object.assign(window,{renderHandoverDossier, buildHandoverBody, hdCollect, hdSections});
+
 
 // ═══════════════════════════════════════════════════════════════════════
 //  PROJECT PROGRESS REPORTS — Daily & Weekly (v131)
@@ -2703,7 +3235,7 @@ window.generateProgressReport = async function(kind){
     <script>setTimeout(()=>window.print(),500)<\/script>`;
 
   await openReportPDF(daily?"DAILY_PROGRESS":"WEEKLY_PROGRESS",
-    [period,m.client,m.project].filter(Boolean).join(" · "), bodyHTML);
+    [period,m.client,m.project].filter(Boolean).join(" · "), bodyHTML,{project:(window._pr&&window._pr.project)||"",client:(window._pr&&window._pr.client)||""});
   toast(`${daily?"Daily":"Weekly"} report ready!`);
 };
 Object.assign(window,{renderProgressReport});

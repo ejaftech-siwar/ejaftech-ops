@@ -735,7 +735,11 @@ window.paintSyncPill = paintSyncPill;
 // A save that happens offline must SAY so — "Saved ✓" while the network is
 // down reads as a lie the moment the app is closed and reopened.
 function saveToast(msg){
-  if(isOffline()) saveToast(`📥 ${msg} — saved on this device, will upload automatically`);
+  // NOTE: this used to call saveToast() again instead of toast() — infinite
+  // recursion the moment the network was down. It stayed hidden because the
+  // await above it never settled offline, so execution never reached here.
+  if(isOffline() || window._lastWriteLocalOnly)
+    toast(`📥 ${msg} — saved on this device, will upload automatically`);
   else toast(msg);
 }
 window.saveToast = saveToast;
@@ -2346,12 +2350,49 @@ async function seedDefaults(){
   }catch(e){console.error(e);}
 }
 
+// ═══ WRITE ACKNOWLEDGEMENT (v171) ═══════════════════════════════
+// Firestore's persistent cache applies a write locally at once, but the promise
+// from setDoc()/deleteDoc() only settles when the SERVER acknowledges it. With
+// no signal it never settles at all, so `await fbSave(...)` froze every form:
+// no confirmation, the form never cleared, and technicians re-entered work that
+// was already stored on the device — duplicate entries from a successful save.
+//
+// We now resolve as soon as the write is safely in the local cache and follow
+// the server acknowledgement in the background. The pill in the header already
+// counts unacknowledged writes (see noteSyncState), so the queue stays visible.
+const LOCAL_ACK_MS = 1200;   // a healthy connection acks well inside this
+window._lastWriteLocalOnly = false;
+function _ackWrite(p){
+  let raced = false;
+  const tracked = p.then(
+    ()=>{ if(raced) paintSyncPill(); return "synced"; },
+    (e)=>{
+      // A failure that lands AFTER the caller moved on has nobody left to
+      // report it, so surface it here.
+      if(raced) toast("⚠ A queued change could not sync: " + ((e&&e.message)||e));
+      throw e;
+    });
+  tracked.catch(()=>{});   // late rejections are handled above, never "unhandled"
+  // When the device already knows it is offline there is nothing to wait for:
+  // confirm the moment the write is in the local cache. The wait only exists
+  // for the ambiguous case — "online" but on a weak link or a captive portal.
+  const wait = isOffline() ? 0 : LOCAL_ACK_MS;
+  return Promise.race([
+    tracked,
+    new Promise(res=>setTimeout(()=>{ raced = true; res("local"); }, wait))
+  ]);
+}
+
+Object.assign(window,{_ackWrite,LOCAL_ACK_MS});
+
 async function fbSave(col,item){
   try{
     const{db,doc,setDoc}=window.__fb;
     const id=item.id||(Date.now().toString(36)+Math.random().toString(36).slice(2,6));
     const data={...item};delete data.id;
-    await setDoc(doc(db,col,id),data);
+    const how = await _ackWrite(setDoc(doc(db,col,id),data));
+    window._lastWriteLocalOnly = (how === "local");
+    return how;
   }catch(e){console.error(e);toast("Save failed: "+e.message);}
 }
 
@@ -2363,16 +2404,18 @@ async function fbDelete(col,id){
       try{
         const snap=await getDoc(doc(db,col,id));
         if(snap.exists()){
-          await setDoc(doc(db,"trash", `${col}_${id}_${Date.now()}`),{
+          await _ackWrite(setDoc(doc(db,"trash", `${col}_${id}_${Date.now()}`),{
             origCol:col, origId:id, data:snap.data(),
             deletedAt:new Date().toISOString(),
             deletedBy:(state.profile&&state.profile.uid)||"",
             deletedByName:(state.profile&&(state.profile.name||state.profile.email))||"",
-          });
+          }));
         }
       }catch(e){ console.warn("trash copy failed",e); }
     }
-    await deleteDoc(doc(db,col,id));
+    const how = await _ackWrite(deleteDoc(doc(db,col,id)));
+    window._lastWriteLocalOnly = (how === "local");
+    return how;
   }catch(e){console.error(e);toast("Delete failed");}
 }
 
