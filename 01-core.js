@@ -2751,11 +2751,17 @@ function _startsOnHorizontalScroller(el){
     if(node.nodeType === 1){
       const tag = node.tagName;
       if(tag === "SELECT" || tag === "INPUT" || tag === "TEXTAREA" || tag === "BUTTON") return true;
+      // A drawing surface owns its horizontal gestures. A signature IS a sideways
+      // stroke, so swipe-to-change-tab was firing mid-signature and throwing the
+      // user out of the report form. CSS touch-action:none stops the BROWSER's
+      // gestures, not this app's own touch listeners on #content.
+      if(tag === "CANVAS") return true;
       if(node.id === "tabBar") return true;
       const cl = node.classList;
       if(cl){
         if(cl.contains("data-table")) return true;
         if(cl.contains("no-swipe")) return true;
+        if(cl.contains("sig-wrap") || cl.contains("sig-canvas")) return true;
         if(cl.contains("table-scroll")) return true;
       }
       // Cheap overflow check: only when the element is actually wider than its box.
@@ -2800,6 +2806,10 @@ function setupSwipeNavigation(){
     // Only NOW (confirmed horizontal swipe) do the heavier element check,
     // so it never runs during ordinary scrolling.
     if(_startsOnHorizontalScroller(_swipeEl)) return;
+    // Pointer and touch events fire in a browser-dependent order, and
+    // pointerleave/pointercancel can end a stroke with no matching touchend
+    // target. A recency stamp closes that gap whatever the ordering.
+    if(Date.now() - (window._sigLastDraw||0) < 700) return;
 
     const tabs = getTabs();
     const i = tabs.indexOf(state.tab);
@@ -3552,11 +3562,12 @@ function _sigPos(e,key){
 }
 window.sigStart=function(e,key){
   e.preventDefault();
+  window._sigLastDraw=Date.now();   // suppresses swipe-to-change-tab; see setupSwipeNavigation
   const c=_sigCtx(key); if(!c) return;
   const p=_sigPos(e,key);
   c.beginPath(); c.moveTo(p.x,p.y);
   const cv=document.getElementById("sig_"+key);
-  cv._drawing=true; cv._dirty=true;
+  cv._drawing=true;   // _dirty is set in sigMove: ink requires movement
 };
 window.sigMove=function(e,key){
   const cv=document.getElementById("sig_"+key);
@@ -3564,14 +3575,20 @@ window.sigMove=function(e,key){
   e.preventDefault();
   const c=_sigCtx(key); const p=_sigPos(e,key);
   c.lineTo(p.x,p.y); c.stroke();
+  cv._dirty=true;                    // real ink on the canvas
+  window._sigLastDraw=Date.now();
 };
 window.sigEnd=function(e,key){
   const cv=document.getElementById("sig_"+key);
   if(!cv||!cv._drawing) return;
   cv._drawing=false;
+  window._sigLastDraw=Date.now();
   if(cv._dirty){
     // Trim the transparent margin so the signature sits tight in the PDF cell.
-    try{ window._sigStore[key]=_sigTrim(cv); }catch(_){ window._sigStore[key]=cv.toDataURL("image/png"); }
+    let img=null;
+    try{ img=_sigTrim(cv); }catch(_){ img=cv.toDataURL("image/png"); }
+    if(img) window._sigStore[key]=img;   // a blank pad is never recorded as signed
+    else    cv._dirty=false;
   }
 };
 function _sigTrim(cv){
@@ -3583,7 +3600,7 @@ function _sigTrim(cv){
     if(d[(y*w+x)*4+3]>8){ found=true;
       if(x<x0)x0=x; if(x>x1)x1=x; if(y<y0)y0=y; if(y>y1)y1=y; }
   }
-  if(!found) return cv.toDataURL("image/png");
+  if(!found) return null;            // nothing was drawn — caller must not store this
   const pad=8;
   x0=Math.max(0,x0-pad); y0=Math.max(0,y0-pad);
   x1=Math.min(w-1,x1+pad); y1=Math.min(h-1,y1+pad);
