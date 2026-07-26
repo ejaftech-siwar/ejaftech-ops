@@ -2531,6 +2531,7 @@ function renderApp(){
   setTimeout(()=>{ positionTabIndicator(); positionGroupIndicator(); }, 100);
   // Enable swipe navigation between tabs (mobile)
   setupSwipeNavigation();
+  setupOrientation();
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -2776,6 +2777,45 @@ function _startsOnHorizontalScroller(el){
   }
   return false;
 }
+
+// ── Orientation support (v168) ──────────────────────────────────────────
+// The layout itself is handled by height-keyed media queries. Only the
+// signature pad needs JS: its backing store is sized from the element's
+// on-screen box, so a rotation invalidates it. Ink already on the pad is
+// banked to _sigStore first, so turning the phone never loses a signature.
+function _sigRebindOnResize(){
+  let banked=false;
+  const pads=document.querySelectorAll("canvas.sig-canvas");
+  pads.forEach(cv=>{
+    const key=(cv.id||"").replace(/^sig_/,"");
+    if(key && cv._dirty){
+      let img=null;
+      try{ img=_sigTrim(cv); }catch(_){ try{ img=cv.toDataURL("image/png"); }catch(__){ img=null; } }
+      if(img){ window._sigStore[key]=img; banked=true; }
+    }
+    cv._ready=false; cv._drawing=false; cv._dirty=false;
+  });
+  return {pads:pads.length, banked};
+}
+function setupOrientation(){
+  if(window._orientBound) return;
+  window._orientBound = true;
+  const onChange = ()=>{
+    clearTimeout(window._orientTimer);
+    window._orientTimer = setTimeout(()=>{
+      try{
+        const r=_sigRebindOnResize();
+        // Repaint only when there is something to repaint: a banked signature
+        // must swap to its preview, and a stale pad must be rebuilt at the new
+        // size. Otherwise a rotation costs nothing.
+        if(r.pads || r.banked) render();
+      }catch(e){}
+    }, 180);
+  };
+  window.addEventListener("orientationchange", onChange);
+  window.addEventListener("resize", onChange);
+}
+Object.assign(window,{setupOrientation,_sigRebindOnResize});
 
 function setupSwipeNavigation(){
   const content = document.getElementById("content");

@@ -780,3 +780,63 @@ input,select,textarea,button{font-variant-numeric:tabular-nums}
 .sla-cell{flex:1;min-width:100px;border:1px solid var(--line);border-radius:var(--r-md);padding:var(--s-3);text-align:center}
 .sla-num{font-family:'DM Serif Display',serif;font-size:var(--f-4xl);line-height:1.1}
 .sla-lab{font-size:var(--f-2xs);color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-top:2px}
+
+
+/* ═══════════════════════════════════════════════════════════
+   LANDSCAPE (v168) — phones turned sideways
+   A phone in landscape is ~844px WIDE, which trips the 768px
+   "tablet" breakpoint: .tab-bar gets flex-wrap:wrap and 35 tabs
+   pile into several rows, while the viewport is only ~390px TALL.
+   Header + bottom nav alone ate ~42% of the height.
+   These rules key off HEIGHT, not width, so real tablets and
+   desktops (tall viewports) keep the roomy layout.
+   ═══════════════════════════════════════════════════════════ */
+@media (orientation:landscape) and (max-height:560px){
+  /* Header: one tight row, subtitle dropped */
+  .header-row{padding:5px 14px;gap:9px}
+  .logo-mark{width:28px;height:28px}
+  .app-title h1{font-size:13px}
+  .app-title p{display:none}
+  .user-chip{padding:4px 8px;font-size:10px}
+
+  /* Tabs must SCROLL sideways again, never wrap into rows */
+  .tab-bar{flex-wrap:nowrap;overflow-x:auto;justify-content:flex-start;padding:0 8px}
+  .tab{padding:7px 12px;font-size:11px;border-bottom-width:2px}
+
+  /* Bottom nav: half height, so the form keeps the screen */
+  #bottomNav{padding:2px 4px calc(2px + env(safe-area-inset-bottom,0px))}
+  .bnav-it{font-size:9px;padding:2px 2px;gap:1px}
+  .bnav-it .nvic,.bnav-it .nvic2{width:17px;height:17px}
+  body.has-bnav #content{padding-bottom:46px}
+  #moreSheet{bottom:calc(44px + env(safe-area-inset-bottom,0px));max-height:62vh;overflow-y:auto}
+
+  /* Content breathes wider, spends less on padding */
+  .content{padding:8px 16px 46px;max-width:1100px}
+  .card{padding:12px;margin-bottom:10px}
+  .card-title{margin-bottom:8px}
+  .sec-hdr{margin-bottom:6px}
+
+  /* A shorter pad still signs comfortably and fits without scrolling */
+  .sig-canvas{height:96px}
+  .sig-preview{max-height:96px}
+  .sig-wrap{padding:8px}
+  .sig-hint{margin-top:3px}
+
+  /* Login must scroll rather than centre-clip on a short screen */
+  .login-bg{align-items:flex-start;overflow-y:auto}
+  .login-card{min-height:auto;justify-content:flex-start;padding:18px 24px calc(18px + env(safe-area-inset-bottom,0px))}
+  .login-bg::before{font-size:26vmin}
+
+  /* Overlays and dialogs must never exceed the short viewport */
+  .ui-dlg{max-height:88vh;overflow-y:auto}
+  #fabSheet{max-height:70vh;overflow-y:auto}
+}
+
+/* Very short landscape (small phones): drop the nav labels entirely */
+@media (orientation:landscape) and (max-height:420px){
+  .bnav-it{font-size:0;gap:0}
+  .bnav-it .nvic,.bnav-it .nvic2{width:19px;height:19px}
+  body.has-bnav #content{padding-bottom:38px}
+  #moreSheet{bottom:calc(36px + env(safe-area-inset-bottom,0px))}
+  .sig-canvas,.sig-preview{height:80px;max-height:80px}
+}
