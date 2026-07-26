@@ -29,8 +29,8 @@ function renderProjects(){
       <div class="field"><label>Name <span class="req">*</span></label><input value="${escapeHtml(projForm.name)}" oninput="window.projForm.name=this.value" placeholder="e.g. New Project"></div>
       <div class="field"><label>Estimated Hours <span style="font-size:10px;color:var(--muted)">(for % progress)</span></label>
         <input type="number" min="0" step="1" value="${projForm.estimatedHours||""}" oninput="window.projForm.estimatedHours=this.value" onchange="render()" placeholder="e.g. 108"></div>
-      <div class="field"><label>Estimated Days <span style="font-size:10px;color:var(--muted)">(1 day = 9 man-hours, auto-syncs)</span></label>
-        <input type="number" min="0" step="0.5" value="${projForm.estimatedHours?(Math.round(Number(projForm.estimatedHours)/9*10)/10):""}" oninput="window.projForm.estimatedHours=String(Math.round(Number(this.value||0)*9*10)/10)" onchange="render()" placeholder="e.g. 12"></div>
+      <div class="field"><label>Estimated Days <span style="font-size:10px;color:var(--muted)">(1 day = ${WORK_HOURS_PER_DAY} man-hours, auto-syncs)</span></label>
+        <input type="number" min="0" step="0.5" value="${projForm.estimatedHours?(Math.round(Number(projForm.estimatedHours)/WORK_HOURS_PER_DAY*10)/10):""}" oninput="window.projForm.estimatedHours=String(Math.round(Number(this.value||0)*WORK_HOURS_PER_DAY*10)/10)" onchange="render()" placeholder="e.g. 12"></div>
       <div class="field" style="grid-column:1/-1">
         <label>📜 Contract terms <span style="font-size:var(--f-2xs);color:var(--muted)">(optional — leave blank to use the global SLA)</span></label>
       </div>

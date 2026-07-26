@@ -2814,6 +2814,79 @@ function setupSwipeNavigation(){
   }, {passive:true});
 }
 
+// ════════════════════════════════════════════════════════════════════════
+//  FORM STABILITY (v164)
+//  renderTab() replaces #content.innerHTML wholesale. That is right when the
+//  page SHAPE changes, and wrong for a Pass/Fail tap or a recomputed total:
+//  the rebuild collapses the document height, so the browser clamps the scroll
+//  offset back towards the top, and the focused input is destroyed — which on
+//  mobile also dismisses the keyboard. Long manual report forms therefore threw
+//  the user back up the page on every single tap.
+//
+//  Two mechanisms:
+//    1. statPills / statPaint — a status group repaints ITSELF in place. No
+//       rebuild happens at all, so nothing can move.
+//    2. _uiSnapshot / _uiRestore — when a rebuild is genuinely needed (adding
+//       a row, deleting a photo, changing scope) scroll offset, focus and caret
+//       are captured and restored synchronously, before the browser paints.
+// ════════════════════════════════════════════════════════════════════════
+const STAT_COL = {Pass:"#2E7D32", Fail:"#C62828", "N/A":"#5B6C86"};
+// One Pass/Fail/N/A group. `call` is the JS that commits the value; every
+// __V__ is replaced by the option and __EL__ by `this`, and the call must NOT
+// invoke render() — statPaint already repaints the group.
+function statPills(cur, call, opts){
+  opts = opts || ["Pass","Fail","N/A"];
+  return `<span class="stat3" style="display:inline-flex;gap:4px">${opts.map(o=>{
+    const on = (cur===o);
+    return `<button type="button" data-o="${o}" class="btn btn-sm${on?"":" btn-secondary"}" style="${on?`background:${STAT_COL[o]||"#5B6C86"};color:#fff;border:none;`:""}font-size:10px;font-weight:800" onclick="${String(call).replace(/__V__/g,o).replace(/__EL__/g,"this")}">${o}</button>`;
+  }).join("")}</span>`;
+}
+// Repaint the group that owns `el` so the tapped option reads as selected.
+window.statPaint = function(el, val){
+  const grp = (el && el.closest) ? el.closest(".stat3") : null;
+  if(!grp) return false;
+  grp.querySelectorAll("button[data-o]").forEach(b=>{
+    const o = b.getAttribute("data-o"), on = (o===val);
+    b.className = "btn btn-sm" + (on?"":" btn-secondary");
+    b.setAttribute("style", (on?`background:${STAT_COL[o]||"#5B6C86"};color:#fff;border:none;`:"") + "font-size:10px;font-weight:800");
+  });
+  return true;
+};
+
+function _uiSnapshot(){
+  const c = document.getElementById("content");
+  const se = document.scrollingElement || document.documentElement;
+  const snap = { y: (se?se.scrollTop:0), idx:-1, sig:"", s:null, e:null };
+  const a = document.activeElement;
+  if(c && a && c.contains(a) && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)){
+    const list = c.querySelectorAll("input,textarea,select");
+    snap.idx = Array.prototype.indexOf.call(list, a);
+    // The bound path (e.g. window._srDevs[3].name=this.value) is a strong
+    // identity: if it no longer matches at that index the shape really changed,
+    // and refocusing would land on the wrong field.
+    snap.sig = a.getAttribute("oninput") || a.getAttribute("onchange") || a.getAttribute("id") || "";
+    try{ snap.s = a.selectionStart; snap.e = a.selectionEnd; }catch(_){}
+  }
+  return snap;
+}
+function _uiRestore(snap){
+  if(!snap) return;
+  const c = document.getElementById("content");
+  const se = document.scrollingElement || document.documentElement;
+  if(snap.idx > -1 && c){
+    const list = c.querySelectorAll("input,textarea,select");
+    const el = list[snap.idx];
+    const sig = el ? (el.getAttribute("oninput") || el.getAttribute("onchange") || el.getAttribute("id") || "") : null;
+    if(el && sig === snap.sig){
+      try{ el.focus({preventScroll:true}); }catch(_){ try{ el.focus(); }catch(__){} }
+      if(snap.s!=null){ try{ el.setSelectionRange(snap.s, snap.e); }catch(_){} }
+    }
+  }
+  // Scroll last: focus() must not be allowed to move the viewport afterwards.
+  if(se) se.scrollTop = snap.y;
+}
+Object.assign(window,{STAT_COL,statPills,_uiSnapshot,_uiRestore});
+
 function renderTab(){
   const c=$("content");
   if(!c)return;
@@ -2837,6 +2910,11 @@ function renderTab(){
     // Support/HR: no Users, Share, or Clients management
     if(["Users","Share","Clients","WhatsApp","Email","Entry Manage"].includes(state.tab)) state.tab="Dashboard";
   }
+
+  // A same-tab data repaint must not move. A tab change or a sub-tab switch
+  // (which flags itself via __navFade) is navigation and belongs at the top.
+  const _isNav = (window._lastViewTab!==state.tab) || !!window.__navFade;
+  const _snap = _isNav ? null : _uiSnapshot();
 
   const fn={
     "Dashboard":renderDashboard,"Daily Log":renderDailyLog,"Overtime":renderOvertime,
@@ -2874,6 +2952,8 @@ function renderTab(){
       }
       if(state.tab==="Date & Time" && typeof window._dtInit==="function") window._dtInit();
     }catch(e){}
+    // Synchronous — runs before the browser paints, so there is no visible jump
+    try{ _uiRestore(_snap); }catch(e){}
   }
   catch(err){
     console.error("Render failed:", state.tab, err);
@@ -2883,6 +2963,9 @@ function renderTab(){
     window.__navFade=false;
     c.classList.remove("content-fade"); void c.offsetWidth; c.classList.add("content-fade");
   }
+  // Navigation lands at the top; without this the document keeps the offset of
+  // the view you just left and the new form opens half-way down.
+  if(_isNav){ try{ const se=document.scrollingElement||document.documentElement; if(se) se.scrollTop=0; }catch(e){} }
 }
 
 // Coalesce data-driven re-renders: any burst of Firestore snapshots in the

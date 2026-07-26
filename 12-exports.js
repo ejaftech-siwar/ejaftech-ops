@@ -1141,7 +1141,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v163';"
+      var swCode = "const CACHE='ejaftech-v166';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
@@ -1671,6 +1671,13 @@ window._fmChk=window._fmChk||{};
 FM_CHK_ITEMS.forEach(([k])=>{ if(!window._fmChk[k]) window._fmChk[k]={s:"Pass",r:""}; });
 
 window.fmAddCyl=function(){ window._fmCyls.push({serial:"",type:"",capL:"",tare:"",gross:"",press:"",mfg:"",hydro:"",result:"Refilled"}); render(); };
+// Net agent weight and fill density are derived; refresh the label only.
+window.fmCylCalc=function(i){
+  const el=document.getElementById("fm_cyl_"+i), c=(window._fmCyls||[])[i];
+  if(!el||!c){ render(); return; }
+  const net=_fmNet(c), dens=_fmDens(c);
+  el.textContent=" 🧯 CYLINDER "+(i+1)+(net!==""?" · net "+net+" kg"+(dens!==""?" · "+dens+" kg/L":""):"");
+};
 window.fmDelCyl=function(i){ window._fmCyls.splice(i,1); render(); };
 window.fmAddPhotos=async function(input){
   try{
@@ -1695,15 +1702,15 @@ function _fmCylsEditor(){
     <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">02</span> Cylinders <span style="font-size:10px;color:var(--muted);font-weight:500">(${cyls.length}) · net agent & fill density auto-computed</span></div>
     ${cyls.map((c,i)=>`<div style="border:1px solid var(--line);border-radius:12px;padding:10px;margin-top:10px;background:var(--card,#fff)">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-        <span style="font-size:11px;font-weight:800;color:#B71C1C">🧯 CYLINDER ${i+1}${_fmNet(c)!==""?` · net ${_fmNet(c)} kg${_fmDens(c)!==""?` · ${_fmDens(c)} kg/L`:""}`:""}</span>
+        <span id="fm_cyl_${i}" style="font-size:11px;font-weight:800;color:#B71C1C">🧯 CYLINDER ${i+1}${_fmNet(c)!==""?` · net ${_fmNet(c)} kg${_fmDens(c)!==""?` · ${_fmDens(c)} kg/L`:""}`:""}</span>
         <button class="btn btn-sm" style="background:#FDECEA;color:#C62828;border:none" onclick="fmDelCyl(${i})">×</button>
       </div>
       <div class="form-grid">
         <div class="field"><label>Serial No.</label><input value="${escapeHtml(c.serial||"")}" oninput="window._fmCyls[${i}].serial=this.value"></div>
         <div class="field"><label>Type / Model</label><input value="${escapeHtml(c.type||"")}" oninput="window._fmCyls[${i}].type=this.value" placeholder="e.g. 106L welded"></div>
         <div class="field"><label>Capacity (L)</label><input type="number" step="0.1" value="${c.capL||""}" oninput="window._fmCyls[${i}].capL=this.value"></div>
-        <div class="field"><label>Tare wt (kg)</label><input type="number" step="0.01" value="${c.tare||""}" onchange="window._fmCyls[${i}].tare=this.value;render()"></div>
-        <div class="field"><label>Gross wt (kg)</label><input type="number" step="0.01" value="${c.gross||""}" onchange="window._fmCyls[${i}].gross=this.value;render()"></div>
+        <div class="field"><label>Tare wt (kg)</label><input type="number" step="0.01" value="${c.tare||""}" onchange="window._fmCyls[${i}].tare=this.value;fmCylCalc(${i})"></div>
+        <div class="field"><label>Gross wt (kg)</label><input type="number" step="0.01" value="${c.gross||""}" onchange="window._fmCyls[${i}].gross=this.value;fmCylCalc(${i})"></div>
         <div class="field"><label>Pressure @20°C (bar)</label><input type="number" step="0.1" value="${c.press||""}" oninput="window._fmCyls[${i}].press=this.value" placeholder="e.g. 25"></div>
         <div class="field"><label>Mfg date</label><input type="date" value="${c.mfg||""}" onchange="window._fmCyls[${i}].mfg=this.value"></div>
         <div class="field"><label>Hydro test date</label><input type="date" value="${c.hydro||""}" onchange="window._fmCyls[${i}].hydro=this.value"></div>
@@ -1962,7 +1969,17 @@ function _srIntState(k){
   if(!window._srInt[k]) window._srInt[k]={s:"Pass",r:""};
   return window._srInt[k];
 }
-window.srSetInt=function(k,v){ _srIntState(k).s=v; render(); };
+window.srSetInt=function(k,v,el){
+  _srIntState(k).s=v;
+  if(el && statPaint(el,v)) return;
+  render();
+};
+window.srSetIntX=function(i,v,el){
+  if(!window._srIntX[i]) return;
+  window._srIntX[i].s=v;
+  if(el && statPaint(el,v)) return;
+  render();
+};
 window.srSetIntRemark=function(k,v){ _srIntState(k).r=v; };
 window.srAddInt=function(){ window._srIntX.push({d:"",s:"Pass",r:""}); render(); };
 window.srDelInt=function(i){ window._srIntX.splice(i,1); render(); };
@@ -1979,9 +1996,38 @@ function _srChkState(tpl,i){
   if(!window._srChk[tpl][i]) window._srChk[tpl][i]={s:"Pass",r:""};
   return window._srChk[tpl][i];
 }
-window.srSetChk=function(tpl,i,v){ _srChkState(tpl,i).s=v; render(); };
+// Status commits repaint their own group in place. render() is only the
+// fallback for a caller that could not pass its element.
+window.srSetChk=function(tpl,i,v,el){
+  _srChkState(tpl,i).s=v;
+  if(el && statPaint(el,v)){ srCount(tpl); return; }
+  render();
+};
 window.srSetChkRemark=function(tpl,i,v){ _srChkState(tpl,i).r=v; };
+window.srSetDev=function(i,v,el){
+  if(!window._srDevs[i]) return;
+  window._srDevs[i].result=v;
+  if(el && statPaint(el,v)) return;
+  render();
+};
+// Live "(15 · 2 failed)" badge for one checklist block
+function srCount(key){
+  const el=document.getElementById("sr_cnt_"+key);
+  if(!el) return;
+  const items=getSysCheckItems(key);
+  const f=items.filter((_,i)=>_srChkState(key,i).s==="Fail").length;
+  el.textContent="("+items.length+(f?" · "+f+" failed":"")+")";
+}
 window.srAddDev=function(){ window._srDevs.push({name:"",model:"",serial:"",location:"",sub:"",result:"Pass",remark:""}); render(); };
+// Only the card header shows the sub-system, so repaint that one label.
+window.srSetDevSub=function(i,v){
+  const d=(window._srDevs||[])[i]; if(!d) return;
+  d.sub=v;
+  const el=document.getElementById("sr_dev_"+i), s=elvSub(v), tpl=sysTemplate(window._srTpl);
+  if(!el){ render(); return; }
+  el.style.color = s ? s.color : tpl.color;
+  el.textContent = (s?s.icon:tpl.icon)+" DEVICE "+(i+1)+(s?" · "+s.name.split(" / ")[0]:"");
+};
 window.srDelDev=function(i){ window._srDevs.splice(i,1); render(); };
 window.srAddPhotos=async function(input){
   try{
@@ -2110,9 +2156,9 @@ function renderSystemReports(){
     </div>
     ${window._srDevs.map((d,i)=>`<div style="border:1px solid var(--line);border-radius:8px;padding:9px;margin-bottom:8px;background:var(--card,#fff)">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-        <span style="font-size:10px;font-weight:800;color:${(tpl.multi&&elvSub(d.sub))?elvSub(d.sub).color:tpl.color}">${(tpl.multi&&elvSub(d.sub))?elvSub(d.sub).icon:tpl.icon} DEVICE ${i+1}${(tpl.multi&&elvSub(d.sub))?` · ${escapeHtml(elvSub(d.sub).name.split(" / ")[0])}`:""}</span>
+        <span id="sr_dev_${i}" style="font-size:10px;font-weight:800;color:${(tpl.multi&&elvSub(d.sub))?elvSub(d.sub).color:tpl.color}">${(tpl.multi&&elvSub(d.sub))?elvSub(d.sub).icon:tpl.icon} DEVICE ${i+1}${(tpl.multi&&elvSub(d.sub))?` · ${escapeHtml(elvSub(d.sub).name.split(" / ")[0])}`:""}</span>
         <div style="display:flex;gap:4px;align-items:center">
-          ${["Pass","Fail","N/A"].map(o=>`<button class="btn btn-sm ${d.result===o?"":"btn-secondary"}" style="${d.result===o?`background:${o==="Pass"?"#2E7D32":o==="Fail"?"#C62828":"#5B6C86"};color:#fff;border:none;`:""}font-size:10px;font-weight:800" onclick="window._srDevs[${i}].result='${o}';render()">${o}</button>`).join("")}
+          ${statPills(d.result,`srSetDev(${i},'__V__',__EL__)`)}
           <button class="btn btn-sm" style="background:#FDECEA;color:#C62828;border:none" onclick="srDelDev(${i})">×</button>
         </div>
       </div>
@@ -2121,7 +2167,7 @@ function renderSystemReports(){
         <div class="field"><label>Model</label><input value="${escapeHtml(d.model||"")}" oninput="window._srDevs[${i}].model=this.value"></div>
         <div class="field"><label>Serial</label><input value="${escapeHtml(d.serial||"")}" oninput="window._srDevs[${i}].serial=this.value"></div>
         <div class="field"><label>Location</label><input value="${escapeHtml(d.location||"")}" oninput="window._srDevs[${i}].location=this.value"></div>
-        ${tpl.multi?`<div class="field"><label>Sub-system</label><select onchange="window._srDevs[${i}].sub=this.value;render()">
+        ${tpl.multi?`<div class="field"><label>Sub-system</label><select onchange="srSetDevSub(${i},this.value)">
           <option value="">— unassigned —</option>
           ${ELV_SUBS.map(s=>`<option value="${s.id}" ${d.sub===s.id?"selected":""}>${s.icon} ${escapeHtml(s.name)}</option>`).join("")}
         </select></div>`:""}
@@ -2132,14 +2178,12 @@ function renderSystemReports(){
 
   ${blocks.map(bk=>{const bf=bk.items.filter((_,i)=>_srChkState(bk.key,i).s==="Fail").length;
     return `<div class="card"${tpl.multi?` style="border-left:4px solid ${bk.color}"`:""}>
-    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">${N()}</span> ${tpl.multi?`${bk.icon} ${escapeHtml(bk.name)}`:"Inspection Check List"} <span style="font-size:10px;color:var(--muted);font-weight:500">(${bk.items.length}${bf?` · ${bf} failed`:""})</span></div>
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">${N()}</span> ${tpl.multi?`${bk.icon} ${escapeHtml(bk.name)}`:"Inspection Check List"} <span id="sr_cnt_${bk.key}" style="font-size:10px;color:var(--muted);font-weight:500">(${bk.items.length}${bf?` · ${bf} failed`:""})</span></div>
     ${bk.items.map((it,i)=>{const st=_srChkState(bk.key,i);
       return `<div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap;padding-bottom:8px;border-bottom:1px solid var(--line)">
         <span style="font-size:10px;font-weight:800;color:var(--muted);min-width:22px">${String(i+1).padStart(2,"0")}</span>
         <span style="flex:2;min-width:170px;font-size:12px">${escapeHtml(it)}</span>
-        <div style="display:flex;gap:4px">
-          ${["Pass","Fail","N/A"].map(o=>`<button class="btn btn-sm ${st.s===o?"":"btn-secondary"}" style="${st.s===o?`background:${o==="Pass"?"#2E7D32":o==="Fail"?"#C62828":"#5B6C86"};color:#fff;border:none;`:""}font-size:10px;font-weight:800" onclick="srSetChk('${bk.key}',${i},'${o}')">${o}</button>`).join("")}
-        </div>
+        ${statPills(st.s,`srSetChk('${bk.key}',${i},'__V__',__EL__)`)}
         <input value="${escapeHtml(st.r||"")}" oninput="srSetChkRemark('${bk.key}',${i},this.value)" placeholder="Remarks" style="flex:1;min-width:120px">
       </div>`;}).join("")}
     <p style="font-size:10px;color:var(--muted);margin-top:10px">Per ${escapeHtml(String(chkGroup(bk.key).standards||"").split("·")[0].replace(/\s*\(.*/,"").trim())} — edit in <strong>Technical Classifications → Check Lists</strong>.</p>
@@ -2153,16 +2197,14 @@ function renderSystemReports(){
       return `<div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap;padding-bottom:8px;border-bottom:1px solid var(--line)">
         <span style="font-size:12px;min-width:52px;font-weight:800">${Ax.icon}→${Bx.icon}</span>
         <span style="flex:2;min-width:170px;font-size:12px">${escapeHtml(x.d)}</span>
-        <div style="display:flex;gap:4px">
-          ${["Pass","Fail","N/A"].map(o=>`<button class="btn btn-sm ${st.s===o?"":"btn-secondary"}" style="${st.s===o?`background:${o==="Pass"?"#2E7D32":o==="Fail"?"#C62828":"#5B6C86"};color:#fff;border:none;`:""}font-size:10px;font-weight:800" onclick="srSetInt('${k}','${o}')">${o}</button>`).join("")}
-        </div>
+        ${statPills(st.s,`srSetInt('${k}','__V__',__EL__)`)}
         <input value="${escapeHtml(st.r||"")}" oninput="srSetIntRemark('${k}',this.value)" placeholder="Remarks" style="flex:1;min-width:120px">
       </div>`;}).join("")}
     ${window._srIntX.map((x,i)=>`<div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap;padding-bottom:8px;border-bottom:1px solid var(--line)">
         <span style="font-size:10px;font-weight:800;color:var(--muted);min-width:52px">CUSTOM</span>
         <input value="${escapeHtml(x.d||"")}" oninput="window._srIntX[${i}].d=this.value" placeholder="Describe the interface…" style="flex:2;min-width:170px">
         <div style="display:flex;gap:4px">
-          ${["Pass","Fail","N/A"].map(o=>`<button class="btn btn-sm ${x.s===o?"":"btn-secondary"}" style="${x.s===o?`background:${o==="Pass"?"#2E7D32":o==="Fail"?"#C62828":"#5B6C86"};color:#fff;border:none;`:""}font-size:10px;font-weight:800" onclick="window._srIntX[${i}].s='${o}';render()">${o}</button>`).join("")}
+          ${statPills(x.s,`srSetIntX(${i},'__V__',__EL__)`)}
           <button class="btn btn-sm" style="background:#FDECEA;color:#C62828;border:none" onclick="srDelInt(${i})">×</button>
         </div>
         <input value="${escapeHtml(x.r||"")}" oninput="window._srIntX[${i}].r=this.value" placeholder="Remarks" style="flex:1;min-width:120px">
@@ -2340,6 +2382,22 @@ window._prPhotos = window._prPhotos || [];
 const PR_RAG = { Green:["#E8F5E9","#2E7D32","On track"], Amber:["#FFF3E0","#E65100","At risk"], Red:["#FDECEA","#C62828","Critical"] };
 
 window.prAddTask   = function(){ window._prTasks.push({date:window._pr.date||today(),desc:"",location:"",by:"",hours:"",status:"Completed"}); render(); };
+// Derived readouts for the progress report. Typing must never rebuild the form:
+// three oninput handlers used to fire render() on every character.
+window.prVarCalc=function(){
+  const el=document.getElementById("pr_var"), m=window._pr||{};
+  if(!el){ render(); return; }
+  const has = (m.plannedPct!=="" && m.plannedPct!=null && m.actualPct!=="" && m.actualPct!=null);
+  const d = has ? (Number(m.actualPct)-Number(m.plannedPct)) : null;
+  el.className = "auto " + (has ? (d>=0?"green":"yellow") : "empty");
+  el.textContent = has ? ((d>=0?"+":"")+d+"%") : "—";
+};
+window.prTotCalc=function(){
+  const el=document.getElementById("pr_tot");
+  if(!el) return;
+  const h=(window._prTasks||[]).reduce((s,t)=>s+Number(t.hours||0),0);
+  el.textContent=(window._prTasks||[]).length+" task(s) · "+fmtHM(h);
+};
 window.prDelTask   = function(i){ window._prTasks.splice(i,1); render(); };
 window.prAddPerson = function(){ window._prPeople.push({name:"",role:"",hours:""}); render(); };
 window.prDelPerson = function(i){ window._prPeople.splice(i,1); render(); };
@@ -2457,9 +2515,9 @@ function renderProgressReport(kind){
       ${Object.keys(PR_RAG).map(k=>`<button class="btn btn-sm ${m.rag===k?"":"btn-secondary"}" style="${m.rag===k?`background:${PR_RAG[k][1]};color:#fff;border:none;`:""}font-weight:800" onclick="window._pr.rag='${k}';render()">${k} — ${PR_RAG[k][2]}</button>`).join("")}
     </div>
     <div class="form-grid">
-      <div class="field"><label>Planned progress %</label><input type="number" min="0" max="100" value="${m.plannedPct||""}" oninput="window._pr.plannedPct=this.value;render()"></div>
-      <div class="field"><label>Actual progress %</label><input type="number" min="0" max="100" value="${m.actualPct||""}" oninput="window._pr.actualPct=this.value;render()"></div>
-      <div class="field"><label>Variance (auto)</label><div class="auto ${(m.plannedPct!==""&&m.actualPct!=="")?(Number(m.actualPct)>=Number(m.plannedPct)?"green":"yellow"):"empty"}">${(m.plannedPct!==""&&m.actualPct!=="")?((Number(m.actualPct)-Number(m.plannedPct))>=0?"+":"")+(Number(m.actualPct)-Number(m.plannedPct))+"%":"—"}</div></div>
+      <div class="field"><label>Planned progress %</label><input type="number" min="0" max="100" value="${m.plannedPct||""}" oninput="window._pr.plannedPct=this.value;prVarCalc()"></div>
+      <div class="field"><label>Actual progress %</label><input type="number" min="0" max="100" value="${m.actualPct||""}" oninput="window._pr.actualPct=this.value;prVarCalc()"></div>
+      <div class="field"><label>Variance (auto)</label><div id="pr_var" class="auto ${(m.plannedPct!==""&&m.actualPct!=="")?(Number(m.actualPct)>=Number(m.plannedPct)?"green":"yellow"):"empty"}">${(m.plannedPct!==""&&m.actualPct!=="")?((Number(m.actualPct)-Number(m.plannedPct))>=0?"+":"")+(Number(m.actualPct)-Number(m.plannedPct))+"%":"—"}</div></div>
     </div>
     <div class="field" style="margin-top:8px"><label>Executive summary</label>
       <textarea rows="3" oninput="window._pr.summary=this.value" placeholder="Overall position of the project this week…" style="width:100%">${escapeHtml(m.summary||"")}</textarea></div>
@@ -2471,7 +2529,7 @@ function renderProgressReport(kind){
       <button class="btn btn-sm" style="background:${accent};color:#fff;border:none;font-weight:700" onclick="prLoadFromRecords('${kind}')">⬇ Load from Daily Log</button>
       <button class="btn btn-sm btn-secondary" onclick="prAddTask()">+ Add task</button>
       ${window._prTasks.length?`<button class="btn btn-sm btn-secondary" onclick="window._prTasks=[];render()">Clear</button>
-      <span style="margin-left:auto;font-size:11px;font-weight:800;color:${accent};align-self:center">${window._prTasks.length} task(s) · ${fmtHM(totH)}</span>`:""}
+      <span id="pr_tot" style="margin-left:auto;font-size:11px;font-weight:800;color:${accent};align-self:center">${window._prTasks.length} task(s) · ${fmtHM(totH)}</span>`:""}
     </div>
     ${window._prTasks.map((t,i)=>`<div style="border:1px solid var(--line);border-radius:8px;padding:9px;margin-bottom:8px;background:var(--card,#fff)">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
@@ -2480,7 +2538,7 @@ function renderProgressReport(kind){
       </div>
       <div class="form-grid">
         <div class="field"><label>Date</label><input type="date" value="${t.date||""}" onchange="window._prTasks[${i}].date=this.value"></div>
-        <div class="field"><label>Hours</label><input type="number" step="0.25" value="${t.hours||""}" oninput="window._prTasks[${i}].hours=this.value;render()"></div>
+        <div class="field"><label>Hours</label><input type="number" step="0.25" value="${t.hours||""}" oninput="window._prTasks[${i}].hours=this.value;prTotCalc()"></div>
         <div class="field" style="grid-column:1/-1"><label>Description</label><input value="${escapeHtml(t.desc||"")}" oninput="window._prTasks[${i}].desc=this.value" placeholder="Work performed"></div>
         <div class="field"><label>Location</label><input value="${escapeHtml(t.location||"")}" oninput="window._prTasks[${i}].location=this.value"></div>
         <div class="field"><label>By</label><input value="${escapeHtml(t.by||"")}" oninput="window._prTasks[${i}].by=this.value"></div>
