@@ -922,6 +922,9 @@ function renderDailyLog(){
             </div>
           </div>
 
+          <!-- Spare parts consumed (13-fieldops.js) -->
+          ${typeof renderPartsLines==="function"?renderPartsLines():""}
+
           <!-- Image Upload -->
           <div>
             <label style="display:block;font-size:12px;font-weight:700;color:#5C4A12;margin-bottom:4px">
@@ -1007,7 +1010,7 @@ function renderDailyLog(){
             const note = isRejectedAppr(r)&&r.approvalNote
               ? `<div style="font-size:var(--f-2xs);color:var(--danger);margin-top:3px;line-height:1.45;max-width:150px;white-space:normal">↩ ${escapeHtml(r.approvalNote)}</div>` : "";
             return `<div style="margin-top:4px">${b}${note}</div>`; })()}</td>
-          ${!isEmployee()?`<td>${employeeBadge(r.employee)}</td>`:""}
+          ${!isEmployee()?`<td>${employeeBadge(r.employee)}${(r.gpsLat!=null||r.gpsDenied)&&typeof geoBadge==="function"?`<br>${geoBadge(r)}`:""}</td>`:""}
           <td>${escapeHtml(r.project||"")}${r.projectCode?` <span style="font-size:9px;background:#FFF3E0;color:#E65100;border:1px solid #EAD3AE;padding:1px 6px;border-radius:8px;font-weight:800">${escapeHtml(r.projectCode)}</span>`:""}${(r.area||r.site)?`<div style="font-size:10px;color:#1565C0;margin-top:2px">${r.area?`🗺️ ${escapeHtml(r.area)}`:''}${r.site?` · 📍 ${escapeHtml(r.site)}`:''}</div>`:''}</td>
           <td>${deptBadge(r.dept)}</td>
           <td>${r.location?`<span style="background:#E3F2FD;color:#1565C0;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600">📍 ${escapeHtml(r.location)}</span>`:'<span style="color:#bbb;font-style:italic;font-size:11px">—</span>'} ${gpsBadgeHTML(r)}</td>
@@ -1103,6 +1106,16 @@ async function saveDaily(){
     duration:+timeToHrs(dailyForm.start,dailyForm.end).toFixed(4),
     dept:projDept(dailyForm.project),
     ...(entryNoToSave ? {entryNo: entryNoToSave} : {}),
+    // Material consumption, sanitised: the spread above would persist blank
+    // lines and string quantities. Each line keeps its OWN price so a later
+    // catalogue change never rewrites a historical job cost.
+    partsUsed: Array.isArray(dailyForm.partsUsed)
+      ? dailyForm.partsUsed
+          .filter(l => String((l&&(l.name||l.code))||"").trim() && Number((l&&l.qty)||0) > 0)
+          .map(l => ({code:String(l.code||"").trim(), name:String(l.name||"").trim(),
+                      unit:String(l.unit||"").trim(), qty:Number(l.qty||0),
+                      unitCost: (l.unitCost===""||l.unitCost==null) ? 0 : Number(l.unitCost||0)}))
+      : [],
   };
   const isNewDailyEntry = !dailyEditId;
   // New work enters the review queue. A reviewer's OWN entry is auto-approved
@@ -1522,7 +1535,7 @@ function renderOvertime(){
       <tbody>${rows.length===0?`<tr><td colspan="7" class="empty empty2"><span class="e-ic">⏰</span><div class="e-t">No overtime recorded</div><div class="e-m">Overtime you log will appear here</div></td></tr>`:rows.map(r=>{
         const canEdit=isHR()||r.employee===state.profile.employeeName;
         return `<tr>
-          ${!isEmployee()?`<td>${employeeBadge(r.employee)}</td>`:""}
+          ${!isEmployee()?`<td>${employeeBadge(r.employee)}${(r.gpsLat!=null||r.gpsDenied)&&typeof geoBadge==="function"?`<br>${geoBadge(r)}`:""}</td>`:""}
           <td>${fmtDate(r.date)}${r.start&&r.end?`<br><span style="font-size:10px;color:#888">${r.start}–${r.end}</span>`:""}</td><td style="color:#2E7D32;font-weight:700">${r.day||""}</td>
           <td><strong style="color:#E65100">${fmtHM(r.hours)}</strong></td>
           <td>${escapeHtml(r.project||"—")}</td><td>${escapeHtml(r.location||"—")}</td>
@@ -1650,7 +1663,7 @@ function renderTravel(){
         const canEdit=isHR()||r.employee===state.profile.employeeName;
         const pdRec=(r.perDiemStatus||"received")==="received";
         return `<tr>
-          ${!isEmployee()?`<td>${employeeBadge(r.employee)}</td>`:""}
+          ${!isEmployee()?`<td>${employeeBadge(r.employee)}${(r.gpsLat!=null||r.gpsDenied)&&typeof geoBadge==="function"?`<br>${geoBadge(r)}`:""}</td>`:""}
           <td>${fmtDate(r.date)}</td><td>${(()=>{const t=trEnd(r);return (t&&t!==r.date)?fmtDate(t):'<span style="color:#9AA7B8">—</span>';})()}</td><td>${r.days}</td>
           <td>${escapeHtml(r.project||"—")}</td><td>${escapeHtml(r.location||"—")}</td>
           <td><strong style="color:#7F6000">${fmtMoney(r.perDiem)}</strong></td>

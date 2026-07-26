@@ -284,7 +284,7 @@ function renderSitesModal(){
                       <span style="font-size:12px;color:#1E293B;font-weight:600;flex:1">📍 ${escapeHtml(s.name)}</span>
                       ${statusPill(s.active!==false, `toggleSiteStatus(${ai},${si})`)}
                       <button onclick="delSite(${ai},${si})" style="background:#FEE2E2;border:none;color:#DC2626;width:22px;height:22px;border-radius:4px;cursor:pointer;font-weight:700">×</button>
-                    </div>`).join("")}
+                    </div>${typeof geoSiteRow==="function"?geoSiteRow(ai,si,s):""}`).join("")}
                   </div>`}
               <!-- Add site -->
               <div style="display:flex;gap:6px">
@@ -861,7 +861,11 @@ function renderAssets(){
   const areaSites = selArea?.sites || [];
 
   const av = window._assetView || "devices";
-  let h = _pills('_assetView',[{id:"devices",ic:"📦",lb:"Devices"},{id:"summary",ic:"📊",lb:"Summary"},{id:"manage",ic:"➕",lb:"Manage"}]);
+  let h = _pills('_assetView',[{id:"devices",ic:"📦",lb:"Devices"},{id:"summary",ic:"📊",lb:"Summary"},{id:"manage",ic:"➕",lb:"Manage"},{id:"parts",ic:"🔧",lb:"Spare Parts"},{id:"import",ic:"📥",lb:"Import CSV"}]);
+  // Two self-contained screens from 13-fieldops.js; they return early because
+  // neither needs the device list, filters or forms built below.
+  if(av==="parts")  return h + renderSpareParts();
+  if(av==="import") return h + renderCsvImport();
   if(av==="manage")  h += `<div class="card">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
       <div style="flex:1;min-width:180px">
