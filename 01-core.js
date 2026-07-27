@@ -817,12 +817,31 @@ window.rejectEntry = async function(id){
   }
 };
 window.approveAllFor = async function(emp){
+  // This awaited each write in turn. Every write waits for its own server
+  // acknowledgement, so ten entries meant seconds of a frozen-looking screen
+  // with no feedback: the button appeared not to respond, and tapping again
+  // started a second run. Now there is a re-entrancy guard, visible progress,
+  // and the writes are issued together rather than one after another.
+  if(window._apprBusy) return toast("Still approving…");
   const list=(state.daily||[]).filter(r=>(r.employee||"")===emp && isPendingAppr(r) && canApprove(r));
   if(!list.length) return toast("Nothing pending for this person");
   if(!await uiConfirm(`Approve all ${list.length} pending entr${list.length===1?"y":"ies"} for ${emp}?`,
       {danger:false, okText:"Approve all", title:"Bulk approval"})) return;
-  for(const r of list) await setApproval(r.id, APPR.APPROVED, "");
-  saveToast(`${list.length} entr${list.length===1?"y":"ies"} approved ✓`); render();
+  window._apprBusy = true;
+  render();                                    // repaints the button as busy
+  toast(`Approving ${list.length} entr${list.length===1?"y":"ies"}…`);
+  let done=0, failed=0;
+  try{
+    const res = await Promise.all(list.map(r=>
+      setApproval(r.id, APPR.APPROVED, "").then(ok=>ok?"ok":"fail").catch(()=>"fail")));
+    done   = res.filter(x=>x==="ok").length;
+    failed = res.length - done;
+  } finally {
+    window._apprBusy = false;
+    render();
+  }
+  if(failed) toast(`⚠ ${done} approved, ${failed} failed — try the remainder again`);
+  else saveToast(`${done} entr${done===1?"y":"ies"} approved ✓`);
 };
 window.toggleApprEnforce = async function(on){
   const d=(state.settingsDocs||[]).find(x=>x.id==="approval")||{};
@@ -2243,7 +2262,12 @@ async function subscribeData(){
       window._settleTimer=setTimeout(()=>{ window._bootSettled=true; }, 1200);
     },(err)=>{
       console.error(`${col} sync error:`,err);
-      toast(`Sync error: ${col}`);
+      // A permission error almost always means this collection has no rule yet.
+      // Say so plainly, and remember it so the affected screen can explain too.
+      const denied = /permission|insufficient/i.test((err&&(err.code||err.message))||"");
+      window._syncDenied = window._syncDenied || {};
+      if(denied) window._syncDenied[col] = true;
+      toast(denied ? `⚠ "${col}" is blocked by Firestore rules` : `Sync error: ${col}`);
       // IMPORTANT: still count this collection so the app doesn't freeze on the
       // loading screen if one collection fails (e.g. missing Firestore rule).
       firstSeen.add(col); firstCount=firstSeen.size;
@@ -2845,7 +2869,17 @@ function _sigRebindOnResize(){
 function setupOrientation(){
   if(window._orientBound) return;
   window._orientBound = true;
+  // A bare "resize" listener was a mistake: mobile browsers fire resize when the
+  // address bar collapses, when the keyboard opens, and repeatedly while the
+  // viewport settles during boot. Each one triggered a full render — exactly the
+  // shake reported on launch. Only a genuine change of ORIENTATION matters here.
+  const shape = ()=> (window.innerWidth >= window.innerHeight) ? "land" : "port";
+  window._orientShape = shape();
   const onChange = ()=>{
+    if(!window._bootSettled) return;            // never fight the boot sequence
+    const now = shape();
+    if(now === window._orientShape) return;     // keyboard or address bar, not a rotation
+    window._orientShape = now;
     clearTimeout(window._orientTimer);
     window._orientTimer = setTimeout(()=>{
       try{

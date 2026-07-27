@@ -492,6 +492,19 @@ function renderPartsLines(){
 
 function renderSpareParts(){
   if(!(isAdmin()||hasCap("canAssets"))) return `<div class="card"><div class="empty">No access.</div></div>`;
+  // The catalogue is a new Firestore collection. Until a rule exists the listener
+  // is denied, and a bare empty list would look like a bug in the app.
+  if(window._syncDenied && window._syncDenied.parts){
+    return `<div class="card" style="background:#FFF8E1;border:1px solid #FFE082">
+      <div class="card-title" style="color:#7F6000">⚠ Firestore rule missing for "parts"</div>
+      <p style="font-size:12px;color:#7F6000;line-height:1.8">The spare-parts catalogue is a new collection, so your security rules do not allow it yet. Add this beside the other collections, publish, then reload:</p>
+      <pre style="background:#1B2A44;color:#E8F0FE;padding:10px 12px;border-radius:8px;font-size:11px;overflow-x:auto;line-height:1.7">match /parts/{id} {
+  allow read:  if request.auth != null;
+  allow write: if request.auth != null;
+}</pre>
+      <p style="font-size:11px;color:#7F6000;line-height:1.7;margin-top:8px">Use the same conditions you already have for <strong>devices</strong>. Nothing else in the app is affected.</p>
+    </div>`;
+  }
   const f=window._partForm, cat=partsList();
   const used = (code)=>(state.daily||[]).reduce((s,r)=>s+((r.partsUsed||[]).filter(l=>
       String(l.code||"").toLowerCase()===String(code||"").toLowerCase())
@@ -856,15 +869,45 @@ window.dspCell    = function(who,day){
   render();
 };
 
-// Everyone who could be dispatched: staff accounts plus the nametag-only names
-// used for subcontracted hands.
-function dspPeople(){
+// Every name the app has ever seen. This is the CANDIDATE list, not the board.
+function dspCandidates(){
   const set=new Set();
   (state.users||[]).forEach(u=>{ const n=(u.name||u.employeeName||"").trim(); if(n && (u.role!=="client")) set.add(n); });
   (state.nametagEmployees||[]).forEach(e=>{ const n=(e.name||"").trim(); if(n) set.add(n); });
   (state.daily||[]).forEach(r=>{ const n=(r.employee||"").trim(); if(n) set.add(n); });
   return [...set].sort((a,b)=>a.localeCompare(b));
 }
+// Which of them the board tracks. Stored in settings/dispatch so the choice
+// follows the account, not the device. An empty selection means "not chosen
+// yet" and shows everyone, so the board is never blank on first use.
+function dspTracked(){
+  const d=(state.settingsDocs||[]).find(x=>x.id==="dispatch")||{};
+  return Array.isArray(d.people)?d.people.filter(Boolean):[];
+}
+function dspPeople(){
+  const tracked=dspTracked();
+  if(!tracked.length) return dspCandidates();
+  // A tracked name is kept even with no records yet, so a new hire appears on
+  // the board before their first entry.
+  return [...new Set(tracked)].filter(Boolean).sort((a,b)=>a.localeCompare(b));
+}
+window.dspToggleTracked = async function(name){
+  if(!isAdmin()) return toast("Admin only");
+  const d=(state.settingsDocs||[]).find(x=>x.id==="dispatch")||{};
+  let list=dspTracked();
+  if(!list.length) list=dspCandidates();       // the first edit starts from everyone
+  const i=list.indexOf(name);
+  if(i<0) list.push(name); else list.splice(i,1);
+  await fbSave("settings",{...d, id:"dispatch", people:list});
+  render();
+};
+window.dspTrackAll = async function(on){
+  if(!isAdmin()) return toast("Admin only");
+  const d=(state.settingsDocs||[]).find(x=>x.id==="dispatch")||{};
+  await fbSave("settings",{...d, id:"dispatch", people: on?dspCandidates():[]});
+  render();
+};
+window.dspPickerToggle = function(){ window._dsp.picker=!window._dsp.picker; render(); };
 
 // Three kinds of thing can occupy a person-day.
 function dspLoad(){
@@ -932,21 +975,36 @@ function renderDispatch(){
         ${projects.map(p=>`<option ${window._dsp.project===p?"selected":""}>${escapeHtml(p)}</option>`).join("")}
       </select></div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(92px,1fr));gap:8px;margin-top:10px">
-      ${[["Engineers",people.length],["Logged hours",fmtHM(weekHours)],
+      ${[["Employees",people.length],["Logged hours",fmtHM(weekHours)],
          ["Busiest",busiest&&busiest.h?busiest.p.split(" ")[0]:"\u2014"],["Idle all week",idle.length]]
         .map(([l,v])=>`<div style="background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px;text-align:center">
           <div style="font-size:15px;font-weight:800;color:#03308B">${escapeHtml(String(v))}</div>
           <div style="font-size:10px;color:var(--muted)">${l}</div></div>`).join("")}
     </div>
+    <div style="display:flex;gap:6px;align-items:center;margin-top:10px;flex-wrap:wrap">
+      <button class="btn btn-sm btn-secondary" onclick="dspPickerToggle()">👥 Who to track (${dspTracked().length?dspTracked().length:"all"})</button>
+      ${!dspTracked().length?`<span style="font-size:10px;color:var(--muted)">no selection yet — showing everyone</span>`:""}
+    </div>
+    ${window._dsp.picker?`<div style="background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;margin-top:8px">
+      <div style="font-size:11px;color:var(--muted);line-height:1.6;margin-bottom:8px">Tick only the people this board should follow. Subcontractors and one-off names can stay off it.</div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap">
+        ${dspCandidates().map(n=>{const on=dspPeople().includes(n);
+          return `<button class="btn btn-sm ${on?"":"btn-secondary"}" style="${on?"background:#03308B;color:#fff;border:none;":""}font-size:11px;font-weight:700" onclick="dspToggleTracked('${escapeHtml(n).replace(/'/g,"&#39;")}')">${on?"✓ ":""}${escapeHtml(n)}</button>`;}).join("")}
+      </div>
+      <div style="display:flex;gap:6px;margin-top:10px">
+        <button class="btn btn-sm btn-secondary" onclick="dspTrackAll(true)">Select all</button>
+        <button class="btn btn-sm btn-secondary" onclick="dspTrackAll(false)">Reset to all</button>
+      </div>
+    </div>`:""}
     ${pmDue.length?`<div style="background:#FFF3E0;border:1px solid #FFB74D;border-radius:8px;padding:9px 11px;margin-top:10px;font-size:11px;color:#E65100;line-height:1.6">\u{1F6E0}\uFE0F ${pmDue.length} preventive maintenance visit(s) fall in this week and are not assigned to anyone: ${pmDue.slice(0,4).map(s=>escapeHtml(s.title||s.system||"PM")).join(", ")}${pmDue.length>4?"\u2026":""}</div>`:""}
   </div>
 
   <div class="card" style="overflow-x:auto">
     <div class="sec-hdr">\u{1F4C5} Week board</div>
-    ${!people.length?`<div class="empty">No engineers on record yet.</div>`:`
+    ${!people.length?`<div class="empty">No employees selected yet.</div>`:`
     <table class="data-table" style="border-collapse:collapse;min-width:640px;width:100%">
       <thead><tr>
-        <th style="position:sticky;left:0;background:#03308B;color:#fff;padding:6px 9px;text-align:left;font-size:11px;z-index:1">Engineer</th>
+        <th style="position:sticky;left:0;background:#03308B;color:#fff;padding:6px 9px;text-align:left;font-size:11px;z-index:1">Employee</th>
         ${days.map((d,i)=>`<th style="background:${d===today?"#C9A84C":"#03308B"};color:${d===today?"#1B3A6B":"#fff"};padding:6px 4px;font-size:10px;min-width:74px">
           ${DOW[i]}<br><span style="font-weight:400">${escapeHtml(d.slice(8)+"/"+d.slice(5,7))}</span></th>`).join("")}
       </tr></thead>
@@ -993,4 +1051,4 @@ function renderDispatch(){
       ${(!c.logged.length&&!c.tasks.length&&!c.leave.length)?`<div class="empty">Nothing scheduled or logged.</div>`:""}
     </div>`;})():""}`;
 }
-Object.assign(window,{renderDispatch, dspMonday, dspAddDays, dspWeek, dspPeople, dspLoad});
+Object.assign(window,{renderDispatch, dspMonday, dspAddDays, dspWeek, dspPeople, dspCandidates, dspTracked, dspLoad});
