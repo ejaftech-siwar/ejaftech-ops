@@ -850,13 +850,42 @@ function _dspLocalToday(){
   const n = new Date();
   return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-${String(n.getDate()).padStart(2,"0")}`;
 }
+// Which day opens the week. Iraq works Sunday to Thursday, so Sunday is the
+// default; the toggle exists because the same app serves sites that run a
+// Monday week. Stored beside the tracked-people list.
+function dspWeekStartsOn(){
+  const d=(state.settingsDocs||[]).find(x=>x.id==="dispatch")||{};
+  return (d.weekStartsOn===1) ? 1 : 0;        // 0=Sunday (default), 1=Monday
+}
+window.dspSetWeekStart = function(v){
+  if(!isAdmin()) return toast("Admin only");
+  const d=(state.settingsDocs||[]).find(x=>x.id==="dispatch")||{};
+  const docs = state.settingsDocs || (state.settingsDocs=[]);
+  const cur = docs.find(x=>x.id==="dispatch");
+  if(cur) cur.weekStartsOn=Number(v); else docs.push({id:"dispatch", weekStartsOn:Number(v)});
+  Promise.resolve(fbSave("settings",{...d, id:"dispatch", weekStartsOn:Number(v),
+    people:(d.people||[]).slice()})).catch(()=>toast("\u26a0 Could not save"));
+  window._dsp.weekStart = dspWeekBegin(window._dsp.weekStart || _dspLocalToday());
+  render();
+};
+// First day of the week containing `dateStr`.
+function dspWeekBegin(dateStr){
+  const ds = dateStr || _dspLocalToday();
+  const d = new Date(ds+"T00:00:00Z");
+  if(isNaN(d)) return null;
+  const start = dspWeekStartsOn();            // 0=Sun, 1=Mon
+  const dow = d.getUTCDay();                  // 0=Sun
+  const back = (dow - start + 7) % 7;
+  d.setUTCDate(d.getUTCDate()-back);
+  return d.toISOString().slice(0,10);
+}
+// Kept for callers that explicitly want a Monday-anchored week.
 function dspMonday(dateStr){
   const ds = dateStr || _dspLocalToday();
   const d = new Date(ds+"T00:00:00Z");
   if(isNaN(d)) return null;
-  const dow = d.getUTCDay();                  // 0=Sun
-  const back = (dow===0) ? 6 : dow-1;         // weeks start Monday
-  d.setUTCDate(d.getUTCDate()-back);
+  const dow = d.getUTCDay();
+  d.setUTCDate(d.getUTCDate()-((dow===0)?6:dow-1));
   return d.toISOString().slice(0,10);
 }
 function dspAddDays(ds, n){
@@ -866,16 +895,16 @@ function dspAddDays(ds, n){
   return d.toISOString().slice(0,10);
 }
 function dspWeek(){
-  const start = window._dsp.weekStart || dspMonday();
+  const start = window._dsp.weekStart || dspWeekBegin();
   return Array.from({length:7},(_,i)=>dspAddDays(start,i));
 }
 window.dspShift = function(n){
-  const start = window._dsp.weekStart || dspMonday();
+  const start = window._dsp.weekStart || dspWeekBegin();
   window._dsp.weekStart = dspAddDays(start, n*7);
   window._dsp.cell = null;
   render();
 };
-window.dspToday   = function(){ window._dsp.weekStart=dspMonday(_dspLocalToday()); window._dsp.cell=null; render(); };
+window.dspToday   = function(){ window._dsp.weekStart=dspWeekBegin(_dspLocalToday()); window._dsp.cell=null; render(); };
 window.dspProject = function(v){ window._dsp.project=v; window._dsp.cell=null; render(); };
 window.dspCell    = function(who,day){
   const k=who+"|"+day;
@@ -956,11 +985,28 @@ function dspLoad(){
     if(!cells[k]) cells[k]={logged:[],tasks:[],leave:[]};
     return cells[k];
   };
-  (state.daily||[]).forEach(r=>{
+  // The board must agree with the Daily Log, which reads
+  //   apprFilter(applyReportFilters(visibleRows(state.daily)))
+  // Reading state.daily raw made the board show entries the Daily Log hides
+  // — a returned or still-pending entry, or one belonging to another employee
+  // — so the same day showed different hours in two places.
+  //
+  // The report PERIOD filter is deliberately NOT applied: this view's period is
+  // its week. Anything the header period would additionally hide is counted and
+  // announced below, so the two screens reconcile instead of silently differing.
+  const scoped = (typeof visibleRows==="function") ? visibleRows(state.daily||[]) : (state.daily||[]);
+  const rows   = (typeof apprFilter==="function")  ? apprFilter(scoped) : scoped;
+  let hiddenByPeriod = 0;
+  rows.forEach(r=>{
     if(!days.includes(r.date) || !okProj(r.project)) return;
     const who=(r.employee||"").trim(); if(!who) return;
+    if(typeof inActivePeriod==="function" && !inActivePeriod(r.date)) hiddenByPeriod++;
     touch(who,r.date).logged.push(r);
   });
+  // How many records the approval gate removed from this week, so the figure is
+  // explainable rather than mysterious.
+  const pendingThisWeek = (scoped||[]).filter(r=>
+      days.includes(r.date) && okProj(r.project) && !rows.includes(r)).length;
   (state.tasks||[]).forEach(t=>{
     const day=String(t.due||"").slice(0,10);
     if(!days.includes(day) || !okProj(t.project)) return;
@@ -977,16 +1023,19 @@ function dspLoad(){
     const due=(typeof pmNextDue==="function")?pmNextDue(s):"";
     return due && days.includes(due);
   });
-  return {days, cells, pmDue};
+  return {days, cells, pmDue, hiddenByPeriod, pendingThisWeek, counted:rows.length};
 }
 
 function renderDispatch(){
   if(!(isAdmin()||hasCap("canMaintenance"))) return `<div class="card"><div class="empty">No access.</div></div>`;
-  const {days, cells, pmDue} = dspLoad();
+  const {days, cells, pmDue, hiddenByPeriod, pendingThisWeek} = dspLoad();
   const people = dspPeople();
   const projects=(state.projects||[]).map(p=>p.name).filter(Boolean).sort();
   const today=_dspLocalToday();   // the user's day, not the UTC one
-  const DOW=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+  // Labels are derived from the real dates, never from a fixed array — that is
+  // what let a Sunday be printed as a Monday.
+  const NAMES=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  const DOW=days.map(d=>NAMES[new Date(d+"T00:00:00Z").getUTCDay()]);
   const hoursOf=(c)=>(c?c.logged:[]).reduce((s,r)=>s+Number(r.duration||0),0);
   const openCell=window._dsp.cell;
 
@@ -1017,6 +1066,16 @@ function renderDispatch(){
         .map(([l,v])=>`<div style="background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px;text-align:center">
           <div style="font-size:15px;font-weight:800;color:#03308B">${escapeHtml(String(v))}</div>
           <div style="font-size:10px;color:var(--muted)">${l}</div></div>`).join("")}
+    </div>
+    ${(pendingThisWeek||hiddenByPeriod)?`<div style="background:#F5F8FC;border:1px solid var(--line);border-radius:8px;padding:9px 11px;margin-top:10px;font-size:11px;color:var(--muted);line-height:1.7">
+      \u2139 This board shows the same records as the Daily Log.
+      ${pendingThisWeek?`<br><strong>${pendingThisWeek}</strong> entr${pendingThisWeek===1?"y":"ies"} this week ${pendingThisWeek===1?"is":"are"} not approved yet, so ${pendingThisWeek===1?"it is":"they are"} excluded here too.`:""}
+      ${hiddenByPeriod?`<br><strong>${hiddenByPeriod}</strong> of the entries below fall outside the period selected in the header, so the Daily Log will not list ${hiddenByPeriod===1?"it":"them"} until you widen that period.`:""}
+    </div>`:""}
+    <div style="display:flex;gap:6px;align-items:center;margin-top:10px;flex-wrap:wrap">
+      <span style="font-size:11px;color:var(--muted)">Week starts</span>
+      <button class="btn btn-sm ${dspWeekStartsOn()===0?"":"btn-secondary"}" style="${dspWeekStartsOn()===0?"background:#03308B;color:#fff;border:none;":""}font-size:11px;font-weight:700" onclick="dspSetWeekStart(0)">Sunday</button>
+      <button class="btn btn-sm ${dspWeekStartsOn()===1?"":"btn-secondary"}" style="${dspWeekStartsOn()===1?"background:#03308B;color:#fff;border:none;":""}font-size:11px;font-weight:700" onclick="dspSetWeekStart(1)">Monday</button>
     </div>
     <div style="display:flex;gap:6px;align-items:center;margin-top:10px;flex-wrap:wrap">
       <button class="btn btn-sm btn-secondary" onclick="dspPickerToggle()">👥 Who to track (<span id="dspTrackCount">${dspTracked().length?dspTracked().length:"all"}</span>)</button>
@@ -1089,4 +1148,4 @@ function renderDispatch(){
       ${(!c.logged.length&&!c.tasks.length&&!c.leave.length)?`<div class="empty">Nothing scheduled or logged.</div>`:""}
     </div>`;})():""}`;
 }
-Object.assign(window,{renderDispatch, dspMonday, dspAddDays, dspWeek, dspPeople, dspCandidates, dspTracked, dspLoad, _dspLocalToday});
+Object.assign(window,{renderDispatch, dspMonday, dspAddDays, dspWeek, dspWeekBegin, dspWeekStartsOn, dspPeople, dspCandidates, dspTracked, dspLoad, _dspLocalToday});
