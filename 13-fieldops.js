@@ -105,13 +105,24 @@ Object.assign(window,{geoDistanceM, geoFenceFor, geoCheck, geoBadge, geoComplian
                      GEO_DEFAULT_RADIUS});
 
 // ── Site coordinate editing (inside the existing Sites modal) ─────────────
+// saveAreasToProject() resolves as soon as the write is in the LOCAL Firestore
+// cache, but state.projects only changes when the snapshot listener fires —
+// which is later. Re-rendering the modal immediately therefore painted the OLD
+// areas and the coordinate boxes stayed empty, which is exactly what "nothing
+// happens" looked like. Applying the change to the in-memory project first
+// makes the modal show the truth at once; the snapshot that arrives moments
+// later carries the same values and changes nothing.
+function _geoApplyLocal(proj, areas){
+  proj.areas = areas;
+  return saveAreasToProject(proj, areas);
+}
 window.geoSetSiteCoord = async function(ai, si, field, value){
   if(!isAdmin()) return toast("Admin only");
-  const proj = (state.projects||[]).find(p=>p.id===window.sitesModalProjId);
-  if(!proj) return;
+  const proj = (state.projects||[]).find(p=>p.id===sitesModalProjId);
+  if(!proj) return toast("\u26a0 No project is open");
   const areas = getProjectAreas(proj).map(a=>({...a, sites:(a.sites||[]).map(s=>({...s}))}));
   const site = areas[ai] && areas[ai].sites && areas[ai].sites[si];
-  if(!site) return;
+  if(!site) return toast("\u26a0 Site not found");
   const v = String(value==null?"":value).trim();
   if(v===""){ delete site[field]; }
   else {
@@ -122,9 +133,10 @@ window.geoSetSiteCoord = async function(ai, si, field, value){
     if(field==="radius" && (n<10 || n>20000)) return toast("Radius must be 10\u201320000 m");
     site[field] = n;
   }
-  await saveAreasToProject(proj, areas);
-  if(typeof showSitesModal==="function") showSitesModal();
-  saveToast("Site fence updated \u2713");
+  const p = _geoApplyLocal(proj, areas);
+  if(typeof showSitesModal==="function") showSitesModal();   // paints the new value now
+  try{ await p; }catch(e){ return toast("⚠ Could not save the fence"); }
+  saveToast("Site fence updated ✓");
 };
 
 // Drop the current position onto a site — the practical way to set a fence:
@@ -132,18 +144,28 @@ window.geoSetSiteCoord = async function(ai, si, field, value){
 window.geoStampSite = async function(ai, si){
   if(!isAdmin()) return toast("Admin only");
   toast("\u{1F4E1} Reading current position\u2026");
-  const fix = await captureGPS();
-  if(fix.denied) return toast("\u26a0 " + (fix.reason||"Location unavailable"));
-  const proj = (state.projects||[]).find(p=>p.id===window.sitesModalProjId);
-  if(!proj) return;
+  // captureGPS already passes timeout:10000, but a device that never calls back
+  // at all would leave the message on screen indefinitely. Bound it here too.
+  let fix;
+  try{
+    fix = await Promise.race([
+      captureGPS(),
+      new Promise(res=>setTimeout(()=>res({denied:true, reason:"Location timed out \u2014 step outside or enter the coordinates by hand"}), 12000))
+    ]);
+  }catch(e){ return toast("⚠ Location request failed"); }
+  if(!fix || fix.denied) return toast("⚠ " + ((fix&&fix.reason)||"Location unavailable"));
+  if(fix.lat==null || fix.lng==null) return toast("⚠ No usable position was returned");
+  const proj = (state.projects||[]).find(p=>p.id===sitesModalProjId);
+  if(!proj) return toast("\u26a0 No project is open");
   const areas = getProjectAreas(proj).map(a=>({...a, sites:(a.sites||[]).map(s=>({...s}))}));
   const site = areas[ai] && areas[ai].sites && areas[ai].sites[si];
-  if(!site) return;
+  if(!site) return toast("\u26a0 Site not found");
   site.lat = fix.lat; site.lng = fix.lng;
   if(site.radius==null) site.radius = GEO_DEFAULT_RADIUS;
-  await saveAreasToProject(proj, areas);
-  if(typeof showSitesModal==="function") showSitesModal();
-  saveToast(`Fence set from current position (\u00b1${fix.accuracy} m) \u2713`);
+  const p = _geoApplyLocal(proj, areas);
+  if(typeof showSitesModal==="function") showSitesModal();   // paints the new value now
+  try{ await p; }catch(e){ return toast("⚠ Could not save the fence"); }
+  saveToast(`Fence set here (\u00b1${fix.accuracy||"?"} m) ✓`);
 };
 
 // The row of controls rendered under each site in the Sites modal.
