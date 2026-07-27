@@ -1107,7 +1107,7 @@ function renderDispatch(){
       <div style="font-size:11px;color:var(--muted);line-height:1.6;margin-bottom:8px">Tick only the people this board should follow. Subcontractors and one-off names can stay off it.</div>
       <div style="display:flex;gap:5px;flex-wrap:wrap">
         ${dspCandidates().map(n=>{const on=dspPeople().includes(n);
-          return `<button class="btn btn-sm ${on?"":"btn-secondary"}" style="${on?"background:#03308B;color:#fff;border:none;":""}font-size:11px;font-weight:700" onclick="dspToggleTracked('${escapeHtml(n).replace(/'/g,"&#39;")}',this)">${on?"✓ ":""}${escapeHtml(n)}</button>`;}).join("")}
+          return `<button class="btn btn-sm ${on?"":"btn-secondary"}" style="${on?"background:#03308B;color:#fff;border:none;":""}font-size:11px;font-weight:700" onclick="dspToggleTracked(${jsArg(n)},this)">${on?"✓ ":""}${escapeHtml(n)}</button>`;}).join("")}
       </div>
       <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;align-items:center">
         <button class="btn btn-sm btn-secondary" onclick="dspTrackAll(true)">Select all</button>
@@ -1133,7 +1133,7 @@ function renderDispatch(){
           const c=cells[who+"|"+d], k=who+"|"+d;
           const h=hoursOf(c), t=(c?c.tasks.length:0), lv=(c?c.leave.length:0);
           const bg = lv ? "#ECEFF1" : h ? "#E8F5E9" : t ? "#FFF8E1" : "transparent";
-          return `<td onclick="dspCell('${escapeHtml(who).replace(/'/g,"&#39;")}','${d}')"
+          return `<td onclick="dspCell(${jsArg(who)},'${d}')"
             style="border:1px solid var(--line);padding:4px;text-align:center;cursor:pointer;background:${bg};${openCell===k?"outline:2px solid #03308B;":""}">
             ${lv?`<div style="font-size:9px;color:#546E7A;font-weight:700">leave</div>`:""}
             ${h?`<div style="font-size:11px;font-weight:800;color:#2E7D32">${fmtHM(h)}</div>`:""}
@@ -1155,7 +1155,7 @@ function renderDispatch(){
     const c=cells[openCell]||{logged:[],tasks:[],leave:[]};
     return `<div class="card" style="border:2px solid #03308B">
       <div class="sec-hdr" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">${escapeHtml(who)} \u00b7 ${escapeHtml(fmtDate(d))}
-        <button class="btn btn-sm btn-secondary" style="margin-left:auto" onclick="dspCell('${escapeHtml(who).replace(/'/g,"&#39;")}','${d}')">Close</button></div>
+        <button class="btn btn-sm btn-secondary" style="margin-left:auto" onclick="dspCell(${jsArg(who)},'${d}')">Close</button></div>
       ${c.leave.length?`<div style="font-size:11px;color:#546E7A;padding:6px 0"><strong>On leave</strong> \u2014 ${c.leave.map(l=>escapeHtml(l.type||"leave")).join(", ")}</div>`:""}
       ${c.logged.length?`<div style="font-weight:800;font-size:11px;color:#2E7D32;margin-top:6px">Work logged</div>
         ${c.logged.map(r=>`<div style="font-size:11px;padding:5px 0;border-bottom:1px solid var(--line);line-height:1.6">

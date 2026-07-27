@@ -2339,7 +2339,7 @@ function renderApprovals(){
             <div style="font-size:var(--f-sm);color:var(--muted)">${g.list.length} entr${g.list.length===1?"y":"ies"} · ${fmtHM(g.hours)}</div>
           </div>
           ${view!=="returned" && g.list.some(r=>canApprove(r))
-            ? `<button class="btn btn-sm" style="background:var(--ok);color:#fff;border:none;font-weight:800" onclick="approveAllFor('${escapeHtml(g.emp).replace(/'/g,"\\'")}')">✓ Approve all</button>`:""}
+            ? `<button class="btn btn-sm" style="background:var(--ok);color:#fff;border:none;font-weight:800" onclick="approveAllFor(${jsArg(g.emp)})">✓ Approve all</button>`:""}
         </div>
         ${g.list.map(row).join("")}
       </div>`).join("")}`;

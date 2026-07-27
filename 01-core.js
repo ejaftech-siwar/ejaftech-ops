@@ -551,7 +551,8 @@ const state = {
   profile: null,        // {role, name, email, employeeName, ...} from users collection
   daily: [], overtime: [], travel: [], leaves: [], projects: [], locations: [], users: [], departments: [], branches: [],
   techWorkTypes: [], techStatuses: [], techCategories: [],
-  parts: [],                                 // spare-parts catalogue (v174)
+  parts: [],
+  quotes: [], variations: [],          // commercial documents (v179)                                 // spare-parts catalogue (v174)
   requestStatuses: [], projectStatuses: [],   // Client Request Entry options (admin-editable)
   devices: [],  // Asset Management: central devices collection
   pmSchedules: [],  // Preventive Maintenance schedules
@@ -820,18 +821,23 @@ window.approveAllFor = async function(emp){
   // This awaited each write in turn. Every write waits for its own server
   // acknowledgement, so ten entries meant seconds of a frozen-looking screen
   // with no feedback: the button appeared not to respond, and tapping again
-  // started a second run. Now there is a re-entrancy guard, visible progress,
-  // and the writes are issued together rather than one after another.
-  if(window._apprBusy) return toast("Still approving…");
+  // started a second run. It now has a re-entrancy guard, visible progress, and
+  // issues the writes together rather than one after another.
+  if(window._apprBusy) return toast("Still approving\u2026");
   const list=(state.daily||[]).filter(r=>(r.employee||"")===emp && isPendingAppr(r) && canApprove(r));
   if(!list.length) return toast("Nothing pending for this person");
   if(!await uiConfirm(`Approve all ${list.length} pending entr${list.length===1?"y":"ies"} for ${emp}?`,
       {danger:false, okText:"Approve all", title:"Bulk approval"})) return;
+
   window._apprBusy = true;
-  render();                                    // repaints the button as busy
-  toast(`Approving ${list.length} entr${list.length===1?"y":"ies"}…`);
   let done=0, failed=0;
   try{
+    // Everything after the guard is set stays INSIDE the try. If render() or
+    // toast() threw out here, _apprBusy would remain true for the rest of the
+    // session and every later press would answer "Still approving\u2026" \u2014 the
+    // button would work exactly once and then never again.
+    render();                                  // repaints the button as busy
+    toast(`Approving ${list.length} entr${list.length===1?"y":"ies"}\u2026`);
     const res = await Promise.all(list.map(r=>
       setApproval(r.id, APPR.APPROVED, "").then(ok=>ok?"ok":"fail").catch(()=>"fail")));
     done   = res.filter(x=>x==="ok").length;
@@ -840,9 +846,10 @@ window.approveAllFor = async function(emp){
     window._apprBusy = false;
     render();
   }
-  if(failed) toast(`⚠ ${done} approved, ${failed} failed — try the remainder again`);
-  else saveToast(`${done} entr${done===1?"y":"ies"} approved ✓`);
+  if(failed) toast(`\u26a0 ${done} approved, ${failed} failed \u2014 try the remainder again`);
+  else saveToast(`${done} entr${done===1?"y":"ies"} approved \u2713`);
 };
+
 window.toggleApprEnforce = async function(on){
   const d=(state.settingsDocs||[]).find(x=>x.id==="approval")||{};
   await fbSave("settings",{...d, id:"approval", enforce:!!on});
@@ -1046,6 +1053,16 @@ function fmtLastSeen(iso){
 const projDept=(p)=>{const tp=(p||"").trim();return state.projects.find(x=>(x.name||"").trim()===tp)?.dept||"";};
 const deptBadge=(d)=>{if(!d)return "";const c=d==="Enterprise"?"ent":d==="Security"?"sec":"eja";return `<span class="badge badge-${c}">${d}</span>`;};
 const escapeHtml=(s)=>String(s||"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[c]);
+// Passing a value as an ARGUMENT to an inline handler is a different problem
+// from displaying it. The browser decodes HTML entities in an attribute BEFORE
+// the JS parser runs, so escapeHtml's &#39; becomes a bare apostrophe again and
+// terminates a single-quoted JS string: the handler dies with a SyntaxError and
+// the button silently does nothing at all. JSON.stringify produces a correctly
+// quoted and escaped JS literal, and escaping THAT keeps the attribute intact —
+// after decoding, the parser sees exactly the original string.
+//   Use as:  onclick="fn(${jsArg(name)})"   \u2014 supply no quotes of your own.
+const jsArg=(v)=>escapeHtml(JSON.stringify(v===undefined?null:v));
+window.jsArg = jsArg;
 
 // ═══════════════════════════════════════════════════════════════════════
 //  IMAGE COMPRESSION HELPER
@@ -1591,7 +1608,7 @@ function renderEmployeeFilterUI(label){
           const fg = isExt ? '#7F4A00' : 'white';
           return `<span style="background:${bg};color:${fg};padding:3px 10px;border-radius:16px;font-size:11px;font-weight:700;display:inline-flex;align-items:center;gap:4px">
             ${escapeHtml(e)}${isExt ? '<span style="font-size:9px;background:rgba(0,0,0,0.15);padding:1px 4px;border-radius:4px">EXT</span>' : ''}
-            <button onclick="toggleEmployeeFilter('${escapeHtml(e).replace(/'/g,"&#39;")}');event.stopPropagation()" style="background:rgba(255,255,255,0.3);border:none;color:inherit;width:16px;height:16px;border-radius:50%;cursor:pointer;font-weight:900;font-size:10px;line-height:1;padding:0;display:inline-flex;align-items:center;justify-content:center">×</button>
+            <button onclick="toggleEmployeeFilter(${jsArg(e)});event.stopPropagation()" style="background:rgba(255,255,255,0.3);border:none;color:inherit;width:16px;height:16px;border-radius:50%;cursor:pointer;font-weight:900;font-size:10px;line-height:1;padding:0;display:inline-flex;align-items:center;justify-content:center">×</button>
           </span>`;
         }).join("")}
       </div>
@@ -1662,7 +1679,7 @@ function openEmployeeFilterModal(){
           const isExt = isExternalEmployee(e);
           const checked = sel.length === 0 ? false : sel.includes(e);
           return `<label style="display:flex;align-items:center;gap:10px;padding:9px 10px;border:1px solid ${checked?'#2E5FA3':'#E0E6ED'};border-radius:8px;background:${checked?'#F0F4FA':'white'};cursor:pointer;margin-bottom:6px;transition:all 0.15s" onclick="event.stopPropagation()">
-            <input type="checkbox" ${checked?'checked':''} onchange="toggleEmployeeFilter('${escapeHtml(e).replace(/'/g,"&#39;")}',true)" style="width:18px;height:18px;cursor:pointer;accent-color:#2E5FA3">
+            <input type="checkbox" ${checked?'checked':''} onchange="toggleEmployeeFilter(${jsArg(e)},true)" style="width:18px;height:18px;cursor:pointer;accent-color:#2E5FA3">
             <span style="flex:1;font-size:13px;font-weight:600;color:#1A202C">${escapeHtml(e)}</span>
             ${isExt ? '<span style="background:linear-gradient(135deg,#FF9800 0%,#FFB74D 100%);color:#fff;padding:2px 8px;border-radius:8px;font-size:10px;font-weight:800;letter-spacing:0.5px">EXT</span>' : '<span style="background:#E8F5E9;color:#2F855A;padding:2px 8px;border-radius:8px;font-size:10px;font-weight:700;letter-spacing:0.5px">INTERNAL</span>'}
           </label>`;
@@ -2169,6 +2186,8 @@ async function subscribeData(){
     ["techCategories","techCategories"],
     ["devices","devices"],
     ["parts","parts"],
+    ["quotes","quotes"],
+    ["variations","variations"],
     ["pmSchedules","pmSchedules"],
     ["workCategories","workCategories"],["workTasks","workTasks"],
     ["nametagEmployees","nametagEmployees"],
@@ -2610,7 +2629,7 @@ const TAB_GROUPS = [
   { id:"Dashboard", label:"Dashboard", icon:"<svg viewBox='0 0 24 24' width='15' height='15' fill='currentColor' style='vertical-align:-2px'><path d='M4 20h3v-8H4v8zm6.5 0h3V4h-3v16zm6.5 0h3v-5h-3v5z'/></svg>", children:["Dashboard"] },
   { id:"Logs",      label:"Logs",      icon:"<svg viewBox='0 0 24 24' width='15' height='15' fill='none' stroke='currentColor' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round' style='vertical-align:-2px'><path d='M12 20h9'/><path d='M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z'/></svg>", children:["Filters","Daily Log","Approvals","Overtime","Travel","Leaves","My Tasks"] },
   { id:"Reports",   label:"Reports",   icon:"<svg viewBox='0 0 24 24' width='15' height='15' fill='none' stroke='currentColor' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round' style='vertical-align:-2px'><polyline points='3 17 9 11 13 15 21 7'/><polyline points='15 7 21 7 21 13'/></svg>", children:["HR Report","Daily Log Report","Reports","Technical Report","Analytics","Executive"] },
-  { id:"Database",  label:"Database",  icon:"<svg viewBox='0 0 24 24' width='15' height='15' fill='none' stroke='currentColor' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round' style='vertical-align:-2px'><ellipse cx='12' cy='5' rx='8' ry='3'/><path d='M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5'/><path d='M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6'/></svg>", children:["Branches","Departments","Locations","Projects","Assets","Maintenance","Dispatch","Incidents"] },
+  { id:"Database",  label:"Database",  icon:"<svg viewBox='0 0 24 24' width='15' height='15' fill='none' stroke='currentColor' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round' style='vertical-align:-2px'><ellipse cx='12' cy='5' rx='8' ry='3'/><path d='M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5'/><path d='M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6'/></svg>", children:["Branches","Departments","Locations","Projects","Assets","Maintenance","Finance","Dispatch","Incidents"] },
   { id:"Clients",   label:"Clients",   icon:"<svg viewBox='0 0 24 24' width='15' height='15' fill='none' stroke='currentColor' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round' style='vertical-align:-2px'><path d='M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2'/><circle cx='9' cy='7' r='4'/><path d='M22 21v-2a4 4 0 0 0-3-3.87'/><path d='M16 3.13a4 4 0 0 1 0 7.75'/></svg>", children:["Clients","Requests"] },
   { id:"Settings",  label:"Settings",  icon:"<svg viewBox='0 0 24 24' width='15' height='15' fill='none' stroke='currentColor' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round' style='vertical-align:-2px'><circle cx='12' cy='12' r='3'/><path d='M12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4'/></svg>", children:["Profile","Date & Time","Technical Classifications","Users","Email","WhatsApp","Share","Entry Manage","Recycle Bin"] },
   { id:"Help",      label:"Help",      icon:"<svg viewBox='0 0 24 24' width='15' height='15' fill='none' stroke='currentColor' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round' style='vertical-align:-2px'><circle cx='12' cy='12' r='10'/><path d='M9.1 9a3 3 0 0 1 5.8 1c0 2-3 2.4-3 4'/><path d='M12 17h.01'/></svg>", children:["Work Instructions"] },
@@ -2670,7 +2689,7 @@ function getTabs(){
   }
   // Admin / Owner: everything
   const base = ["Dashboard","Filters","Daily Log","Approvals","Overtime","Travel","Leaves","Work Instructions",
-                "HR Report","Daily Log Report","Technical Report","Reports","Analytics","Executive","Requests","Clients","Projects","Assets","Maintenance","Dispatch","Incidents","Locations","Departments","Branches","Users","WhatsApp","Email","Share","Profile","Technical Classifications","Date & Time","Entry Manage","Recycle Bin","My Tasks"];
+                "HR Report","Daily Log Report","Technical Report","Reports","Analytics","Executive","Requests","Clients","Projects","Assets","Maintenance","Finance","Dispatch","Incidents","Locations","Departments","Branches","Users","WhatsApp","Email","Share","Profile","Technical Classifications","Date & Time","Entry Manage","Recycle Bin","My Tasks"];
   if(!base.includes(state.tab)) state.tab = base[0];
   return base;
 }
@@ -3048,7 +3067,7 @@ function renderTab(){
   const fn={
     "Dashboard":renderDashboard,"Daily Log":renderDailyLog,"Overtime":renderOvertime,
     "Travel":renderTravel,"Leaves":renderLeaves,"Filters":renderFiltersTab,"Approvals":renderApprovals,"HR Report":renderHRReport,"Technical Report":renderTechReport,"Reports":renderFlexReports,"Analytics":renderAnalytics,
-    "Projects":renderProjects,"Assets":renderAssets,"Maintenance":renderMaintenance,"Dispatch":renderDispatch,"Locations":renderLocations,"Users":renderUsers,
+    "Projects":renderProjects,"Assets":renderAssets,"Maintenance":renderMaintenance,"Dispatch":renderDispatch,"Finance":renderFinance,"Locations":renderLocations,"Users":renderUsers,
     "Departments":renderDepartments,"Branches":renderBranches,"Work Instructions":renderWorkInstructions,
     "Share":renderShare,"Profile":renderProfile,"Date & Time":renderDateTime,"Incidents":renderIncidents,"Recycle Bin":renderRecycleBin,"Executive":renderExecutive,"Permissions":renderPermissions,
     "Clients":renderClients,"Requests":renderRequests,"My Tasks":renderMyTasks,"Daily Log Report":renderDailyLogReport,"My Project":renderClientPortal,
