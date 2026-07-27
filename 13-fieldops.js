@@ -838,17 +838,31 @@ Object.assign(window,{renderCsvImport});
 
 window._dsp = window._dsp || {weekStart:"", project:"", cell:null};
 
+// A YYYY-MM-DD string is a CALENDAR DATE, not an instant, so every step here
+// stays in UTC. The first version parsed "2026-07-27T00:00:00" as LOCAL midnight
+// and then serialised with toISOString(), which is UTC: east of Greenwich local
+// midnight is still the previous day in UTC, so every column slid back one and
+// Sunday 26 July was labelled Monday. Parse with Z, step with setUTCDate, print
+// with toISOString — one frame of reference throughout.
+function _dspLocalToday(){
+  // "Today" must be the user's calendar day, not the UTC one: at UTC+3 before
+  // 03:00 the UTC date is still yesterday.
+  const n = new Date();
+  return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-${String(n.getDate()).padStart(2,"0")}`;
+}
 function dspMonday(dateStr){
-  const d = dateStr ? new Date(dateStr+"T00:00:00") : new Date();
+  const ds = dateStr || _dspLocalToday();
+  const d = new Date(ds+"T00:00:00Z");
   if(isNaN(d)) return null;
-  const dow = d.getDay();                    // 0=Sun
-  const back = (dow===0) ? 6 : dow-1;        // weeks start Monday
-  d.setDate(d.getDate()-back);
+  const dow = d.getUTCDay();                  // 0=Sun
+  const back = (dow===0) ? 6 : dow-1;         // weeks start Monday
+  d.setUTCDate(d.getUTCDate()-back);
   return d.toISOString().slice(0,10);
 }
 function dspAddDays(ds, n){
-  const d=new Date(ds+"T00:00:00");
-  d.setDate(d.getDate()+n);
+  const d=new Date(ds+"T00:00:00Z");
+  if(isNaN(d)) return ds;
+  d.setUTCDate(d.getUTCDate()+Number(n||0));
   return d.toISOString().slice(0,10);
 }
 function dspWeek(){
@@ -861,7 +875,7 @@ window.dspShift = function(n){
   window._dsp.cell = null;
   render();
 };
-window.dspToday   = function(){ window._dsp.weekStart=dspMonday(); window._dsp.cell=null; render(); };
+window.dspToday   = function(){ window._dsp.weekStart=dspMonday(_dspLocalToday()); window._dsp.cell=null; render(); };
 window.dspProject = function(v){ window._dsp.project=v; window._dsp.cell=null; render(); };
 window.dspCell    = function(who,day){
   const k=who+"|"+day;
@@ -891,23 +905,46 @@ function dspPeople(){
   // the board before their first entry.
   return [...new Set(tracked)].filter(Boolean).sort((a,b)=>a.localeCompare(b));
 }
-window.dspToggleTracked = async function(name){
+// Persist without making the user wait. The local copy is updated at once and
+// the write follows in the background, so the snapshot that arrives later
+// carries the same value and changes nothing on screen.
+function _dspPersist(list){
+  const docs = state.settingsDocs || (state.settingsDocs=[]);
+  const d = docs.find(x=>x.id==="dispatch");
+  if(d) d.people = list.slice(); else docs.push({id:"dispatch", people:list.slice()});
+  Promise.resolve(fbSave("settings",{id:"dispatch", people:list.slice()}))
+    .catch(()=>toast("⚠ Could not save the selection"));
+}
+window.dspToggleTracked = function(name, el){
   if(!isAdmin()) return toast("Admin only");
-  const d=(state.settingsDocs||[]).find(x=>x.id==="dispatch")||{};
   let list=dspTracked();
   if(!list.length) list=dspCandidates();       // the first edit starts from everyone
   const i=list.indexOf(name);
-  if(i<0) list.push(name); else list.splice(i,1);
-  await fbSave("settings",{...d, id:"dispatch", people:list});
+  const on = i<0;
+  if(on) list.push(name); else list.splice(i,1);
+  _dspPersist(list);
+  // Repaint just this chip. A full render() here rebuilt the whole board on
+  // every tap — that is what made the picker feel slow and jumpy.
+  if(el && el.classList){
+    el.className = "btn btn-sm" + (on ? "" : " btn-secondary");
+    el.setAttribute("style", (on ? "background:#03308B;color:#fff;border:none;" : "") + "font-size:11px;font-weight:700");
+    el.textContent = (on ? "✓ " : "") + name;
+    const cnt=document.getElementById("dspTrackCount");
+    if(cnt) cnt.textContent = String(dspTracked().length || "all");
+    return;
+  }
   render();
 };
-window.dspTrackAll = async function(on){
+window.dspTrackAll = function(on){
   if(!isAdmin()) return toast("Admin only");
-  const d=(state.settingsDocs||[]).find(x=>x.id==="dispatch")||{};
-  await fbSave("settings",{...d, id:"dispatch", people: on?dspCandidates():[]});
+  _dspPersist(on?dspCandidates():[]);
   render();
 };
-window.dspPickerToggle = function(){ window._dsp.picker=!window._dsp.picker; render(); };
+window.dspPickerToggle = function(){
+  // The board is rebuilt once, when the picker closes — not on every tick.
+  window._dsp.picker=!window._dsp.picker;
+  render();
+};
 
 // Three kinds of thing can occupy a person-day.
 function dspLoad(){
@@ -948,7 +985,7 @@ function renderDispatch(){
   const {days, cells, pmDue} = dspLoad();
   const people = dspPeople();
   const projects=(state.projects||[]).map(p=>p.name).filter(Boolean).sort();
-  const today=(typeof todayStr==="function")?todayStr():new Date().toISOString().slice(0,10);
+  const today=_dspLocalToday();   // the user's day, not the UTC one
   const DOW=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
   const hoursOf=(c)=>(c?c.logged:[]).reduce((s,r)=>s+Number(r.duration||0),0);
   const openCell=window._dsp.cell;
@@ -982,18 +1019,19 @@ function renderDispatch(){
           <div style="font-size:10px;color:var(--muted)">${l}</div></div>`).join("")}
     </div>
     <div style="display:flex;gap:6px;align-items:center;margin-top:10px;flex-wrap:wrap">
-      <button class="btn btn-sm btn-secondary" onclick="dspPickerToggle()">👥 Who to track (${dspTracked().length?dspTracked().length:"all"})</button>
+      <button class="btn btn-sm btn-secondary" onclick="dspPickerToggle()">👥 Who to track (<span id="dspTrackCount">${dspTracked().length?dspTracked().length:"all"}</span>)</button>
       ${!dspTracked().length?`<span style="font-size:10px;color:var(--muted)">no selection yet — showing everyone</span>`:""}
     </div>
     ${window._dsp.picker?`<div style="background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;margin-top:8px">
       <div style="font-size:11px;color:var(--muted);line-height:1.6;margin-bottom:8px">Tick only the people this board should follow. Subcontractors and one-off names can stay off it.</div>
       <div style="display:flex;gap:5px;flex-wrap:wrap">
         ${dspCandidates().map(n=>{const on=dspPeople().includes(n);
-          return `<button class="btn btn-sm ${on?"":"btn-secondary"}" style="${on?"background:#03308B;color:#fff;border:none;":""}font-size:11px;font-weight:700" onclick="dspToggleTracked('${escapeHtml(n).replace(/'/g,"&#39;")}')">${on?"✓ ":""}${escapeHtml(n)}</button>`;}).join("")}
+          return `<button class="btn btn-sm ${on?"":"btn-secondary"}" style="${on?"background:#03308B;color:#fff;border:none;":""}font-size:11px;font-weight:700" onclick="dspToggleTracked('${escapeHtml(n).replace(/'/g,"&#39;")}',this)">${on?"✓ ":""}${escapeHtml(n)}</button>`;}).join("")}
       </div>
-      <div style="display:flex;gap:6px;margin-top:10px">
+      <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;align-items:center">
         <button class="btn btn-sm btn-secondary" onclick="dspTrackAll(true)">Select all</button>
         <button class="btn btn-sm btn-secondary" onclick="dspTrackAll(false)">Reset to all</button>
+        <button class="btn btn-sm" style="background:#03308B;color:#fff;border:none;font-weight:700;margin-left:auto" onclick="dspPickerToggle()">Done</button>
       </div>
     </div>`:""}
     ${pmDue.length?`<div style="background:#FFF3E0;border:1px solid #FFB74D;border-radius:8px;padding:9px 11px;margin-top:10px;font-size:11px;color:#E65100;line-height:1.6">\u{1F6E0}\uFE0F ${pmDue.length} preventive maintenance visit(s) fall in this week and are not assigned to anyone: ${pmDue.slice(0,4).map(s=>escapeHtml(s.title||s.system||"PM")).join(", ")}${pmDue.length>4?"\u2026":""}</div>`:""}
@@ -1051,4 +1089,4 @@ function renderDispatch(){
       ${(!c.logged.length&&!c.tasks.length&&!c.leave.length)?`<div class="empty">Nothing scheduled or logged.</div>`:""}
     </div>`;})():""}`;
 }
-Object.assign(window,{renderDispatch, dspMonday, dspAddDays, dspWeek, dspPeople, dspCandidates, dspTracked, dspLoad});
+Object.assign(window,{renderDispatch, dspMonday, dspAddDays, dspWeek, dspPeople, dspCandidates, dspTracked, dspLoad, _dspLocalToday});

@@ -826,6 +826,15 @@ window.exportAssetExcel = async function(){
 };
 
 
+// Rebuilding the whole device list on every keystroke made typing lag and the
+// page twitch. The value is captured at once; the list catches up 180 ms after
+// the last character.
+window.assetSearchSet = function(v){
+  window.assetSearch = v;
+  clearTimeout(window._assetSearchTimer);
+  window._assetSearchTimer = setTimeout(()=>render(), 180);
+};
+
 function renderAssets(){
   if(!(isHR()||hasCap("canAssets"))) return `<div class="card"><div class="empty">Access denied — HR/Admin only</div></div>`;
   if(!deviceForm) deviceForm = blankDevice();
@@ -985,7 +994,7 @@ function renderAssets(){
       <span class="card-title" style="margin:0">Devices</span>
       <span class="count-pill">${shown.length}</span>
       <div style="display:flex;gap:6px;margin-left:auto;flex-wrap:wrap">
-        <input value="${escapeHtml(assetSearch)}" oninput="window.assetSearch=this.value;render()" placeholder="🔍 Serial, name, IP, model..." style="padding:6px 10px;border:1px solid var(--line);border-radius:8px;font-size:12px;min-width:160px">
+        <input value="${escapeHtml(assetSearch)}" oninput="assetSearchSet(this.value)" placeholder="🔍 Serial, name, IP, model..." style="padding:6px 10px;border:1px solid var(--line);border-radius:8px;font-size:12px;min-width:160px">
         <select onchange="window.assetFilterProject=this.value;render()" style="padding:6px 10px;border:1px solid var(--line);border-radius:8px;font-size:12px">
           <option value="">All Projects</option>
           ${allProjects.map(p=>`<option value="${escapeHtml(p)}" ${p===assetFilterProject?"selected":""}>${escapeHtml(p)}</option>`).join("")}
@@ -1302,8 +1311,15 @@ const _pmProgBadge=(s)=>{const n=pmOpenSessions(s).length;
   if(units.length>1&&done.length) h+=` <span title="${done.join(", ")} complete — remaining: ${units.filter(x=>!done.includes(x)).join(", ")}" style="font-size:9px;background:#E8F5E9;color:#2E7D32;padding:1px 7px;border-radius:8px;font-weight:800;vertical-align:1px">📍 ${done.length}/${units.length} SITES</span>`;
   return h;};
 
-function _pmAddDays(ds,n){ const d=new Date(ds); d.setDate(d.getDate()+Number(n||0));
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; }
+// A YYYY-MM-DD string is a calendar date, not an instant. new Date(ds) parses it
+// as UTC midnight while getFullYear/getMonth/getDate read the LOCAL clock, so
+// west of Greenwich the answer landed a day early. Stay in UTC end to end.
+function _pmAddDays(ds,n){
+  const d=new Date(String(ds)+"T00:00:00Z");
+  if(isNaN(d)) return ds;
+  d.setUTCDate(d.getUTCDate()+Number(n||0));
+  return d.toISOString().slice(0,10);
+}
 function pmNextDue(s){ return s.lastDone ? _pmAddDays(s.lastDone, s.freqDays) : (s.startDate || today()); }
 function pmDaysLeft(s){ return Math.floor((new Date(pmNextDue(s)) - new Date(today()))/864e5); }
 function pmStatusCounts(list){

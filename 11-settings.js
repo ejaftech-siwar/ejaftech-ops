@@ -98,6 +98,23 @@ window._dtInit=function(){
   tick();
   window._dtClockTimer=setInterval(tick,1000);
 };
+// Retyping a password rebuilt the entire Profile screen on every character.
+// Only two indicators depend on the value, so only those are refreshed.
+window.pwSet = function(k, v){
+  window.profileForm[k] = v;
+  const f = window.profileForm;
+  const s = document.getElementById("pwStrength");
+  if(s) s.innerHTML = f.newPass ? passwordStrengthBar(f.newPass) : "";
+  const m = document.getElementById("pwMatch");
+  if(m){
+    const both = f.newPass && f.confirm;
+    const ok = f.newPass === f.confirm;
+    m.innerHTML = both
+      ? `<div class="field full" style="padding:8px 12px;border-radius:8px;background:${ok?"#E8F5E9":"#FDECEA"};color:${ok?"#2E7D32":"#C62828"};font-size:12px;font-weight:700">${ok?"\u2713 Passwords match":"\u2717 Passwords do not match"}</div>`
+      : "";
+  }
+};
+
 function renderProfile(){
   const p = state.profile || {};
   const u = state.user || {};
@@ -174,19 +191,17 @@ function renderProfile(){
       </div>
       <div class="field"><label>New Password <span class="req">*</span></label>
         <div style="position:relative">
-          <input type="${profileForm.showNewPass?'text':'password'}" id="profNew" value="${escapeHtml(profileForm.newPass)}" oninput="window.profileForm.newPass=this.value;render()" placeholder="At least 6 characters" autocomplete="new-password" style="padding-right:42px">
+          <input type="${profileForm.showNewPass?'text':'password'}" id="profNew" value="${escapeHtml(profileForm.newPass)}" oninput="pwSet('newPass',this.value)" placeholder="At least 6 characters" autocomplete="new-password" style="padding-right:42px">
           <button type="button" onclick="window.profileForm.showNewPass=!window.profileForm.showNewPass;render()" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:transparent;border:none;cursor:pointer;font-size:16px;color:var(--muted)">${profileForm.showNewPass?'🙈':'👁'}</button>
         </div>
       </div>
       <div class="field"><label>Confirm Password <span class="req">*</span></label>
-        <input type="password" value="${escapeHtml(profileForm.confirm)}" oninput="window.profileForm.confirm=this.value;render()" placeholder="Repeat new password" autocomplete="new-password">
+        <input type="password" value="${escapeHtml(profileForm.confirm)}" oninput="pwSet('confirm',this.value)" placeholder="Repeat new password" autocomplete="new-password">
       </div>
-      ${profileForm.newPass ? `<div class="field full">
-        ${passwordStrengthBar(profileForm.newPass)}
-      </div>` : ''}
-      ${profileForm.newPass && profileForm.confirm ? `<div class="field full" style="padding:8px 12px;border-radius:8px;background:${profileForm.newPass===profileForm.confirm ? '#E8F5E9' : '#FFEBEE'};border:1px solid ${profileForm.newPass===profileForm.confirm ? '#A5D6A7' : '#EF9A9A'};font-size:12px;color:${profileForm.newPass===profileForm.confirm ? '#2E7D32' : '#C62828'};font-weight:600">
+      <div class="field full" id="pwStrength">${profileForm.newPass ? passwordStrengthBar(profileForm.newPass) : ''}</div>
+      <div class="field full" id="pwMatch">${profileForm.newPass && profileForm.confirm ? `<div class="field full" style="padding:8px 12px;border-radius:8px;background:${profileForm.newPass===profileForm.confirm ? '#E8F5E9' : '#FFEBEE'};border:1px solid ${profileForm.newPass===profileForm.confirm ? '#A5D6A7' : '#EF9A9A'};font-size:12px;color:${profileForm.newPass===profileForm.confirm ? '#2E7D32' : '#C62828'};font-weight:600">
         ${profileForm.newPass===profileForm.confirm ? '✓ Passwords match' : '✗ Passwords do not match'}
-      </div>` : ''}
+      </div>` : ''}</div>
     </div>
     <div class="btn-row" style="margin-top:14px">
       <button class="btn btn-primary" onclick="changeMyPassword()" ${(!profileForm.current||!profileForm.newPass||profileForm.newPass!==profileForm.confirm||profileForm.newPass.length<6)?'disabled':''}>🔐 Update Password</button>
