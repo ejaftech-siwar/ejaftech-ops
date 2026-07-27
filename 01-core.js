@@ -552,7 +552,7 @@ const state = {
   daily: [], overtime: [], travel: [], leaves: [], projects: [], locations: [], users: [], departments: [], branches: [],
   techWorkTypes: [], techStatuses: [], techCategories: [],
   parts: [],
-  quotes: [], variations: [],          // commercial documents (v179)                                 // spare-parts catalogue (v174)
+  quotes: [], variations: [], expenses: [],          // commercial documents (v179)                                 // spare-parts catalogue (v174)
   requestStatuses: [], projectStatuses: [],   // Client Request Entry options (admin-editable)
   devices: [],  // Asset Management: central devices collection
   pmSchedules: [],  // Preventive Maintenance schedules
@@ -2188,6 +2188,7 @@ async function subscribeData(){
     ["parts","parts"],
     ["quotes","quotes"],
     ["variations","variations"],
+    ["expenses","expenses"],
     ["pmSchedules","pmSchedules"],
     ["workCategories","workCategories"],["workTasks","workTasks"],
     ["nametagEmployees","nametagEmployees"],

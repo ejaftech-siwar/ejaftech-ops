@@ -541,7 +541,7 @@ function projectMonthly(name){
   const otx=otMultiplier();
   const M={};
   const touch=(m)=>{ if(!m) return null;
-    if(!M[m]) M[m]={month:m, hours:0, otHours:0, labour:0, otCost:0, perDiem:0, material:0, entries:0};
+    if(!M[m]) M[m]={month:m, hours:0, otHours:0, labour:0, otCost:0, perDiem:0, material:0, expenses:0, byCat:{}, entries:0};
     return M[m]; };
   (state.daily||[]).forEach(r=>{
     if((r.project||"").trim()!==n) return;
@@ -559,19 +559,30 @@ function projectMonthly(name){
     const b=touch(_ym(t.from||t.date)); if(!b) return;
     b.perDiem += num(t.perDiem);
   });
+  const pcur=(p&&CUR_CODES.includes(p.contractCurrency))?p.contractCurrency:curBase();
+  (state.expenses||[]).forEach(e=>{
+    if((e.project||"").trim()!==n) return;
+    const b=touch(_ym(e.date)); if(!b) return;
+    const v=expInBase(e,pcur);
+    if(v===null) return;                       // unconvertible: reported, not guessed
+    b.expenses += v;
+    b.byCat[e.category||"other"] = (b.byCat[e.category||"other"]||0) + v;
+  });
   const rows=Object.values(M).sort((a,b)=>a.month.localeCompare(b.month));
   rows.forEach(b=>{
     b.labour = b.hours*rate;
     b.otCost = b.otHours*rate*otx;
-    b.cost   = Math.round(b.labour + b.otCost + b.perDiem + b.material);
+    b.cost   = Math.round(b.labour + b.otCost + b.perDiem + b.material + b.expenses);
+    b.expenses = Math.round(b.expenses);
     b.labour = Math.round(b.labour); b.otCost = Math.round(b.otCost);
     b.perDiem= Math.round(b.perDiem); b.material=Math.round(b.material);
     b.hours=+b.hours.toFixed(1); b.otHours=+b.otHours.toFixed(1);
   });
   const tot=rows.reduce((a,b)=>({hours:a.hours+b.hours, otHours:a.otHours+b.otHours,
     labour:a.labour+b.labour, otCost:a.otCost+b.otCost, perDiem:a.perDiem+b.perDiem,
-    material:a.material+b.material, cost:a.cost+b.cost, entries:a.entries+b.entries}),
-    {hours:0,otHours:0,labour:0,otCost:0,perDiem:0,material:0,cost:0,entries:0});
+    material:a.material+b.material, expenses:a.expenses+b.expenses,
+    cost:a.cost+b.cost, entries:a.entries+b.entries}),
+    {hours:0,otHours:0,labour:0,otCost:0,perDiem:0,material:0,expenses:0,cost:0,entries:0});
   return {rows, total:tot, rate, otx};
 }
 // The same, across every project, so the company's monthly burn is visible.
@@ -583,8 +594,8 @@ function companyMonthly(){
   const names=[...new Set((state.projects||[]).map(p=>String(p.name||"").trim()).filter(Boolean))];
   names.forEach(nm=>{
     projectMonthly(nm).rows.forEach(b=>{
-      if(!M[b.month]) M[b.month]={month:b.month, hours:0, otHours:0, labour:0, otCost:0, perDiem:0, material:0, cost:0, entries:0};
-      ["hours","otHours","labour","otCost","perDiem","material","cost","entries"].forEach(k=>M[b.month][k]+=b[k]);
+      if(!M[b.month]) M[b.month]={month:b.month, hours:0, otHours:0, labour:0, otCost:0, perDiem:0, material:0, expenses:0, cost:0, entries:0};
+      ["hours","otHours","labour","otCost","perDiem","material","expenses","cost","entries"].forEach(k=>M[b.month][k]+=b[k]);
     });
   });
   return Object.values(M).sort((a,b)=>a.month.localeCompare(b.month));
@@ -623,7 +634,10 @@ function projectFinance(name){
   const otHours = (state.overtime||[]).filter(o=>(o.project||"").trim()===n)
                     .reduce((s,o)=>s+num(o.hours),0);
   const otCost  = otHours * hourly * otMultiplier();
-  const cost    = labour + otCost + perDiem + material;
+  // Ledger expenses: subcontractors, fuel, purchases and the rest. They never
+  // overlap the derived streams above, so nothing is counted twice.
+  const exp     = expenseTotals(n, cur);
+  const cost    = labour + otCost + perDiem + material + exp.total;
 
   const quotes = (state.quotes||[]).filter(q=>String(q.project||"").trim()===n);
   const margin = revenue>0 ? revenue-cost : null;
@@ -634,6 +648,8 @@ function projectFinance(name){
     revenue,
     hours:+hours.toFixed(1), hourly, labour:Math.round(labour),
     otHours:+otHours.toFixed(1), otCost:Math.round(otCost), otx:otMultiplier(),
+    expenses:exp.total, expenseCount:exp.count, expensesByCat:exp.byCat,
+    expensesUnpaid:exp.unpaid, expensesUnconverted:exp.unconverted,
     perDiem:Math.round(perDiem), material:Math.round(material), cost:Math.round(cost),
     margin: margin===null?null:Math.round(margin),
     marginPct: revenue>0 ? Math.round((revenue-cost)/revenue*100) : null,
@@ -661,10 +677,12 @@ function monthlyTable(rows, cur, showEntries){
   const TH='padding:5px 7px;border-bottom:2px solid var(--line);font-size:10px;color:var(--muted);text-align:right;white-space:nowrap';
   const TD='padding:5px 7px;border-bottom:1px solid var(--line);font-size:11px;text-align:right;white-space:nowrap';
   const tot=rows.reduce((a,b)=>({hours:a.hours+b.hours,otHours:a.otHours+b.otHours,labour:a.labour+b.labour,
-    otCost:a.otCost+b.otCost,perDiem:a.perDiem+b.perDiem,material:a.material+b.material,cost:a.cost+b.cost}),
-    {hours:0,otHours:0,labour:0,otCost:0,perDiem:0,material:0,cost:0});
-  const anyOT=rows.some(r=>r.otHours>0), anyPD=rows.some(r=>r.perDiem>0), anyMat=rows.some(r=>r.material>0);
-  return `<div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%;min-width:${360+(anyOT?90:0)}px">
+    otCost:a.otCost+b.otCost,perDiem:a.perDiem+b.perDiem,material:a.material+b.material,
+    expenses:a.expenses+(b.expenses||0),cost:a.cost+b.cost}),
+    {hours:0,otHours:0,labour:0,otCost:0,perDiem:0,material:0,expenses:0,cost:0});
+  const anyOT=rows.some(r=>r.otHours>0), anyPD=rows.some(r=>r.perDiem>0), anyMat=rows.some(r=>r.material>0),
+        anyExp=rows.some(r=>(r.expenses||0)>0);
+  return `<div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%;min-width:${360+(anyOT?90:0)+(anyExp?90:0)}px">
     <thead><tr>
       <th style="${TH};text-align:left">Month</th>
       <th style="${TH}">Hours</th>
@@ -672,6 +690,7 @@ function monthlyTable(rows, cur, showEntries){
       ${anyOT?`<th style="${TH}">Overtime</th>`:""}
       ${anyPD?`<th style="${TH}">Travel</th>`:""}
       ${anyMat?`<th style="${TH}">Material</th>`:""}
+      ${anyExp?`<th style="${TH}">Expenses</th>`:""}
       <th style="${TH}">Cost</th>
     </tr></thead>
     <tbody>${rows.map(b=>`<tr>
@@ -681,6 +700,7 @@ function monthlyTable(rows, cur, showEntries){
       ${anyOT?`<td style="${TD};color:${b.otCost?"#E65100":"var(--muted)"}">${b.otCost?curFmt(b.otCost,cur):"\u2014"}</td>`:""}
       ${anyPD?`<td style="${TD}">${b.perDiem?curFmt(b.perDiem,cur):"\u2014"}</td>`:""}
       ${anyMat?`<td style="${TD}">${b.material?curFmt(b.material,cur):"\u2014"}</td>`:""}
+      ${anyExp?`<td style="${TD};color:${b.expenses?"#5E35B1":"var(--muted)"}">${b.expenses?curFmt(b.expenses,cur):"\u2014"}</td>`:""}
       <td style="${TD};font-weight:800">${curFmt(b.cost,cur)}</td>
     </tr>`).join("")}</tbody>
     <tfoot><tr>
@@ -690,6 +710,7 @@ function monthlyTable(rows, cur, showEntries){
       ${anyOT?`<td style="${TD};font-weight:800;border-top:2px solid var(--line)">${curFmt(tot.otCost,cur)}</td>`:""}
       ${anyPD?`<td style="${TD};font-weight:800;border-top:2px solid var(--line)">${curFmt(tot.perDiem,cur)}</td>`:""}
       ${anyMat?`<td style="${TD};font-weight:800;border-top:2px solid var(--line)">${curFmt(tot.material,cur)}</td>`:""}
+      ${anyExp?`<td style="${TD};font-weight:800;border-top:2px solid var(--line)">${curFmt(tot.expenses,cur)}</td>`:""}
       <td style="${TD};font-weight:800;border-top:2px solid var(--line)">${curFmt(tot.cost,cur)}</td>
     </tr></tfoot>
   </table></div>`;
@@ -717,11 +738,15 @@ function projectFinanceCard(name){
       ${f.otHours?financeRow(`Overtime \u00b7 ${fmtHM(f.otHours)}${f.otx!==1?` @ \u00d7${f.otx}`:""}`, curFmt(f.otCost,f.currency)):""}
       ${f.perDiem?financeRow("Travel per-diem", curFmt(f.perDiem,f.currency)):""}
       ${f.material?financeRow("Material consumed", curFmt(f.material,f.currency)):""}
+      ${Object.entries(f.expensesByCat||{}).sort((a,b)=>b[1]-a[1]).map(([k,v])=>
+        financeRow(`${EXP_CAT(k).ic} ${EXP_CAT(k).lb}`, curFmt(v,f.currency))).join("")}
       ${financeRow("Cost", curDual(f.cost,f.currency,f.rate), true)}
       ${financeRow("Margin", f.margin===null?'<span style="color:var(--muted)">\u2014</span>'
         :`<span style="color:${L.fg}">${curDual(f.margin,f.currency,f.rate)}</span>`, true)}
     </table>
     ${!f.hourly?`<div style="font-size:10px;color:#E65100;margin-top:8px;line-height:1.6">\u26a0 No hourly cost set for this project, so labour counts as zero. Set it in <strong>Projects \u2192 edit</strong>.</div>`:""}
+    ${f.expensesUnpaid?`<div style="font-size:10px;color:#E65100;margin-top:8px;line-height:1.6">\u{1F4B8} ${curFmt(f.expensesUnpaid,f.currency)} of these expenses is still unpaid \u2014 committed, not yet out the door.</div>`:""}
+    ${f.expensesUnconverted?`<div style="font-size:10px;color:#C62828;margin-top:8px;line-height:1.6">\u26a0 ${f.expensesUnconverted} expense(s) are in another currency with no rate recorded, so they are NOT in the total above. Fix them in the ledger.</div>`:""}
     ${f.pendingVariations?`<div style="font-size:10px;color:#8F6E22;margin-top:8px;line-height:1.6">\u23F3 ${f.pendingVariations} variation(s) submitted and not yet approved \u2014 not counted above.</div>`:""}
     ${f.revenue<=0?`<div style="font-size:10px;color:var(--muted);margin-top:8px;line-height:1.6">No contract value yet. Accept a quotation, or set it directly in <strong>Projects \u2192 edit</strong>.</div>`:""}
     <button class="btn btn-sm btn-secondary" style="margin-top:10px;width:100%" onclick="finToggleMonthly(${jsArg(name)})">
@@ -944,9 +969,12 @@ function renderVariations(){
 
 function renderFinance(){
   if(!(isAdmin()||hasCap("canAnalytics"))) return `<div class="card"><div class="empty">No access.</div></div>`;
-  let h=_pills('_finView',[{id:"pl",ic:"\u{1F4CA}",lb:"P&L"},{id:"quotes",ic:"\u{1F4B0}",lb:"Quotations"},
+  let h=_pills('_finView',[{id:"pl",ic:"\u{1F4CA}",lb:"P&L"},{id:"expenses",ic:"\u{1F4B8}",lb:"Expenses"},
+                           {id:"report",ic:"\u{1F9FE}",lb:"Cost Report"},{id:"quotes",ic:"\u{1F4B0}",lb:"Quotations"},
                            {id:"variations",ic:"\u{1F501}",lb:"Variations"},{id:"currency",ic:"\u{1F4B1}",lb:"Currency"}]);
   const v=window._finView||"pl";
+  if(v==="expenses")   return h + renderExpenses();
+  if(v==="report")     return h + renderCostReport();
   if(v==="quotes")     return h + renderQuotes();
   if(v==="variations") return h + renderVariations();
   if(v==="currency")   return h + renderCurrency();
@@ -1059,3 +1087,501 @@ window.quotePDF = async function(id){
   toast("Quotation ready!");
 };
 Object.assign(window,{quotePDF});
+
+// ╔═════════════════════════════════════════════════════════════════════════╗
+// ║  E.  EXPENSE LEDGER                                                    ║
+// ╚═════════════════════════════════════════════════════════════════════════╝
+// Labour, overtime, per-diem and material are DERIVED from operational records.
+// Everything else a project actually spends — subcontractors, fuel, purchases,
+// equipment hire, permits — has no operational trace at all, so until now it was
+// simply missing from the margin. This is the ledger for those, kept separate so
+// nothing is ever counted twice: an expense category never duplicates a derived
+// stream, and the report states which is which.
+
+const EXP_CATS = [
+  {k:"subcontractor", lb:"Subcontractor",   ic:"\u{1F477}", color:"#5E35B1"},
+  {k:"purchase",      lb:"Purchase",        ic:"\u{1F6D2}", color:"#00695C"},
+  {k:"fuel",          lb:"Fuel",            ic:"\u26FD",    color:"#EF6C00"},
+  {k:"vehicle",       lb:"Vehicle / hire",  ic:"\u{1F697}", color:"#00838F"},
+  {k:"transport",     lb:"Transport",       ic:"\u{1F69A}", color:"#3949AB"},
+  {k:"accommodation", lb:"Accommodation",   ic:"\u{1F3E8}", color:"#8E24AA"},
+  {k:"permit",        lb:"Permit / fee",    ic:"\u{1F4DC}", color:"#6D4C41"},
+  {k:"tool",          lb:"Tools",           ic:"\u{1F6E0}\uFE0F", color:"#455A64"},
+  {k:"other",         lb:"Other",           ic:"\u{1F4CE}", color:"#546E7A"},
+];
+const EXP_CAT = (k)=>EXP_CATS.find(c=>c.k===k) || EXP_CATS[EXP_CATS.length-1];
+const PAY_STATUS = {
+  unpaid:{lb:"Unpaid",  bg:"#FFF3E0", fg:"#E65100"},
+  paid:  {lb:"Paid",    bg:"#E8F5E9", fg:"#2E7D32"},
+};
+
+function expBlank(){
+  return {project:"", date:(typeof todayStr==="function"?todayStr():""), category:"subcontractor",
+          desc:"", payee:"", invoiceRef:"", amount:"", currency:curBase(), rate:curRate(),
+          paid:false, paidDate:"", method:"", notes:""};
+}
+window._exp    = window._exp    || expBlank();
+window._expId  = window._expId  || null;
+window._expView= window._expView|| "list";
+window._expFilter = window._expFilter || {project:"", category:"", from:"", to:""};
+
+// Amounts are converted into the contract currency of the project they belong
+// to, using each expense's OWN stored rate — never today's.
+function expInBase(e, targetCur){
+  const to = CUR_CODES.includes(targetCur) ? targetCur : curBase();
+  const from = CUR_CODES.includes(e&&e.currency) ? e.currency : curBase();
+  const v = num(e&&e.amount);
+  if(from===to) return v;
+  // Deliberately STRICTER than curConvert, which falls back to today's rate for
+  // an approximate on-screen figure. An accounting total must not quietly adopt
+  // the current market rate for a cost incurred months ago, so a cross-currency
+  // expense with no rate of its own is reported as unconvertible instead.
+  const r = num(e&&e.rate);
+  if(!r) return null;
+  const c = curConvert(v, from, to, r);
+  return c===null ? null : c;
+}
+function expensesFor(projectName, from, to){
+  const n=String(projectName||"").trim();
+  return (state.expenses||[]).filter(e=>{
+    if(n && String(e.project||"").trim()!==n) return false;
+    if(from && String(e.date||"")<from) return false;
+    if(to   && String(e.date||"")>to)   return false;
+    return true;
+  }).slice().sort((a,b)=>String(b.date||"").localeCompare(String(a.date||"")));
+}
+// Totals per category, plus what could not be converted.
+function expenseTotals(projectName, targetCur, from, to){
+  const rows=expensesFor(projectName, from, to);
+  const byCat={}; let total=0, unconverted=0, unpaid=0;
+  rows.forEach(e=>{
+    const v=expInBase(e, targetCur);
+    const k=e.category||"other";
+    if(v===null){ unconverted++; return; }
+    byCat[k]=(byCat[k]||0)+v;
+    total+=v;
+    if(!e.paid) unpaid+=v;
+  });
+  return {rows, byCat, total:Math.round(total), unconverted, unpaid:Math.round(unpaid), count:rows.length};
+}
+Object.assign(window,{EXP_CATS, EXP_CAT, PAY_STATUS, expBlank, expInBase, expensesFor, expenseTotals});
+
+window.expSet  = function(k,v){ window._exp[k]=v; if(k==="currency"){ window._exp.rate=curRate(); render(); } };
+window.expNew  = function(){ window._exp=expBlank(); window._expId=null; window._expView="edit"; render(); };
+window.expEdit = function(id){
+  const e=(state.expenses||[]).find(x=>x.id===id);
+  if(!e) return toast("Expense not found");
+  window._exp={...expBlank(), ...e}; window._expId=id; window._expView="edit"; render();
+};
+window.expCancel=function(){ window._expView="list"; window._expId=null; render(); };
+window.expFilter=function(k,v){ window._expFilter[k]=v; render(); };
+
+window.expSave = async function(){
+  if(!isAdmin()) return toast("Admin only");
+  const e=window._exp;
+  if(!String(e.project||"").trim()) return toast("\u26a0 Choose the project this belongs to");
+  if(!String(e.desc||"").trim())    return toast("\u26a0 Describe what was spent");
+  const amt=num(e.amount);
+  if(amt<=0) return toast("\u26a0 Enter an amount greater than zero");
+  if(e.paid && !String(e.paidDate||"").trim()) return toast("\u26a0 A paid expense needs its payment date");
+  await fbSave("expenses",{
+    id: window._expId||undefined,
+    project:String(e.project).trim(), date:e.date||"",
+    category: EXP_CATS.some(c=>c.k===e.category)?e.category:"other",
+    desc:String(e.desc).trim(), payee:String(e.payee||"").trim(),
+    invoiceRef:String(e.invoiceRef||"").trim(),
+    amount:amt, currency: CUR_CODES.includes(e.currency)?e.currency:curBase(),
+    rate:num(e.rate), paid:!!e.paid, paidDate:e.paid?(e.paidDate||""):"",
+    method:String(e.method||"").trim(), notes:String(e.notes||""),
+    updatedAt:new Date().toISOString(),
+    ...(window._expId?{}:{createdAt:new Date().toISOString(),
+      createdBy:(state.profile&&(state.profile.name||state.profile.email))||""}),
+  });
+  window._expView="list"; window._expId=null;
+  saveToast("Expense saved \u2713"); render();
+};
+window.expDel = async function(id){
+  if(!isAdmin()) return toast("Admin only");
+  const e=(state.expenses||[]).find(x=>x.id===id); if(!e) return;
+  if(!await uiConfirm(`Delete "${e.desc}" (${curFmt(num(e.amount), e.currency)})?`)) return;
+  await fbDelete("expenses", id);
+  toast("Expense deleted");
+};
+window.expTogglePaid = async function(id){
+  if(!isAdmin()) return toast("Admin only");
+  const e=(state.expenses||[]).find(x=>x.id===id); if(!e) return;
+  const now=!e.paid;
+  await fbSave("expenses",{...e, paid:now,
+    paidDate: now ? (e.paidDate || (typeof todayStr==="function"?todayStr():"")) : ""});
+  saveToast(now?"Marked paid \u2713":"Marked unpaid");
+};
+
+function renderExpenses(){
+  if(!isAdmin()) return `<div class="card"><div class="empty">Admin only.</div></div>`;
+  const projects=(state.projects||[]).map(p=>p.name).filter(Boolean).sort();
+  if(window._expView==="edit"){
+    const e=window._exp;
+    return `<div class="card">
+      <div class="sec-hdr" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        ${window._expId?"Edit expense":"New expense"}
+        <button class="btn btn-sm btn-secondary" style="margin-left:auto" onclick="expCancel()">Cancel</button>
+      </div>
+      <div class="form-grid">
+        <div class="field"><label>Project <span class="req">*</span></label>
+          <select onchange="expSet('project',this.value)"><option value="">\u2014 select \u2014</option>
+            ${projects.map(p=>`<option ${e.project===p?"selected":""}>${escapeHtml(p)}</option>`).join("")}</select></div>
+        <div class="field"><label>Date</label><input type="date" value="${escapeHtml(e.date||"")}" onchange="expSet('date',this.value)"></div>
+        <div class="field" style="grid-column:1/-1"><label>Category</label>
+          <div style="display:flex;gap:5px;flex-wrap:wrap">
+            ${EXP_CATS.map(cc=>`<button class="btn btn-sm ${e.category===cc.k?"":"btn-secondary"}" style="${e.category===cc.k?`background:${cc.color};color:#fff;border:none;`:""}font-size:11px;font-weight:700" onclick="expSet('category','${cc.k}');render()">${cc.ic} ${cc.lb}</button>`).join("")}
+          </div></div>
+        <div class="field" style="grid-column:1/-1"><label>Description <span class="req">*</span></label>
+          <input value="${escapeHtml(e.desc||"")}" oninput="expSet('desc',this.value)" placeholder="e.g. Cable pulling subcontract \u2014 basement"></div>
+        <div class="field"><label>Paid to</label><input value="${escapeHtml(e.payee||"")}" oninput="expSet('payee',this.value)" placeholder="Supplier / contractor"></div>
+        <div class="field"><label>Invoice / receipt no.</label><input value="${escapeHtml(e.invoiceRef||"")}" oninput="expSet('invoiceRef',this.value)"></div>
+        <div class="field"><label>Amount <span class="req">*</span></label><input value="${escapeHtml(String(e.amount||""))}" oninput="expSet('amount',this.value)" inputmode="decimal" placeholder="0"></div>
+        <div class="field"><label>Currency</label>
+          <select onchange="expSet('currency',this.value)">${CUR_CODES.map(x=>`<option ${e.currency===x?"selected":""}>${x}</option>`).join("")}</select></div>
+        <div class="field"><label>Rate applied</label><input value="${escapeHtml(String(e.rate||""))}" oninput="expSet('rate',this.value)" inputmode="decimal" placeholder="${curRate()||"not set"}">
+          <div style="font-size:10px;color:var(--muted);margin-top:4px">Frozen on this expense, so the project cost never shifts with the market.</div></div>
+        <div class="field"><label>Payment</label>
+          <div style="display:flex;gap:5px">
+            <button class="btn btn-sm ${!e.paid?"":"btn-secondary"}" style="${!e.paid?"background:#E65100;color:#fff;border:none;":""}font-weight:700;font-size:11px" onclick="expSet('paid',false);render()">Unpaid</button>
+            <button class="btn btn-sm ${e.paid?"":"btn-secondary"}" style="${e.paid?"background:#2E7D32;color:#fff;border:none;":""}font-weight:700;font-size:11px" onclick="expSet('paid',true);render()">Paid</button>
+          </div></div>
+        ${e.paid?`<div class="field"><label>Paid on <span class="req">*</span></label><input type="date" value="${escapeHtml(e.paidDate||"")}" onchange="expSet('paidDate',this.value)"></div>
+        <div class="field"><label>Method</label><input value="${escapeHtml(e.method||"")}" oninput="expSet('method',this.value)" placeholder="Cash / transfer / cheque"></div>`:""}
+        <div class="field" style="grid-column:1/-1"><label>Notes</label>
+          <textarea rows="2" oninput="expSet('notes',this.value)">${escapeHtml(e.notes||"")}</textarea></div>
+      </div>
+      <button class="btn btn-primary" style="width:100%;margin-top:10px" onclick="expSave()">Save expense</button>
+    </div>`;
+  }
+  const F=window._expFilter;
+  const rows=expensesFor(F.project, F.from, F.to).filter(e=>!F.category||e.category===F.category);
+  const cur=curBase();
+  const tot=rows.reduce((s,e)=>{const v=expInBase(e,cur); return s+(v===null?0:v);},0);
+  const unpaid=rows.filter(e=>!e.paid).reduce((s,e)=>{const v=expInBase(e,cur); return s+(v===null?0:v);},0);
+  const byCat={}; rows.forEach(e=>{const v=expInBase(e,cur); if(v!==null) byCat[e.category||"other"]=(byCat[e.category||"other"]||0)+v;});
+  return `<div class="card">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <button class="btn btn-primary" onclick="expNew()">+ New expense</button>
+      <span style="font-size:11px;color:var(--muted);margin-left:auto">${rows.length} of ${(state.expenses||[]).length}</span>
+    </div>
+    <div class="form-grid" style="margin-top:10px">
+      <div class="field"><label>Project</label><select onchange="expFilter('project',this.value)">
+        <option value="">All</option>${projects.map(p=>`<option ${F.project===p?"selected":""}>${escapeHtml(p)}</option>`).join("")}</select></div>
+      <div class="field"><label>Category</label><select onchange="expFilter('category',this.value)">
+        <option value="">All</option>${EXP_CATS.map(cc=>`<option value="${cc.k}" ${F.category===cc.k?"selected":""}>${cc.ic} ${cc.lb}</option>`).join("")}</select></div>
+      <div class="field"><label>From</label><input type="date" value="${escapeHtml(F.from||"")}" onchange="expFilter('from',this.value)"></div>
+      <div class="field"><label>To</label><input type="date" value="${escapeHtml(F.to||"")}" onchange="expFilter('to',this.value)"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(104px,1fr));gap:8px;margin-top:12px">
+      ${[["Total",curFmt(tot,cur),"#03308B"],["Unpaid",curFmt(unpaid,cur),unpaid?"#E65100":"#2E7D32"],
+         ["Entries",String(rows.length),"#546E7A"]]
+        .map(([l,v,c])=>`<div style="background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:9px;text-align:center">
+          <div style="font-size:14px;font-weight:800;color:${c}">${v}</div>
+          <div style="font-size:10px;color:var(--muted)">${l}</div></div>`).join("")}
+    </div>
+    ${Object.keys(byCat).length?`<div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:10px">
+      ${Object.entries(byCat).sort((a,b)=>b[1]-a[1]).map(([k,v])=>{const cc=EXP_CAT(k);
+        return `<span style="background:${cc.color}22;color:${cc.color};padding:3px 9px;border-radius:10px;font-size:10px;font-weight:700">${cc.ic} ${cc.lb} ${curFmt(v,cur)}</span>`;}).join("")}
+    </div>`:""}
+  </div>
+  ${!rows.length?`<div class="card"><div class="empty">No expenses match.</div></div>`:rows.map(e=>{
+    const cc=EXP_CAT(e.category), P=e.paid?PAY_STATUS.paid:PAY_STATUS.unpaid;
+    const conv=expInBase(e,cur);
+    return `<div class="card" style="border-left:4px solid ${cc.color}">
+      <div style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap">
+        <div style="flex:1;min-width:150px">
+          <div style="font-weight:800;font-size:13px">${cc.ic} ${escapeHtml(e.desc||"\u2014")}</div>
+          <div style="font-size:10px;color:var(--muted);line-height:1.7">
+            ${escapeHtml(e.project||"\u2014")} \u00b7 ${e.date?escapeHtml(fmtDate(e.date)):"\u2014"}
+            ${e.payee?`<br>to ${escapeHtml(e.payee)}`:""}${e.invoiceRef?` \u00b7 ${escapeHtml(e.invoiceRef)}`:""}
+          </div>
+        </div>
+        <span style="background:${P.bg};color:${P.fg};padding:2px 9px;border-radius:10px;font-size:10px;font-weight:800;white-space:nowrap">${P.lb}${e.paid&&e.paidDate?" "+escapeHtml(fmtDate(e.paidDate)):""}</span>
+      </div>
+      <div style="font-size:15px;font-weight:800;margin-top:8px">${curFmt(num(e.amount), e.currency)}
+        ${(e.currency!==cur)?(conv===null
+          ? `<span style="font-size:10px;color:#C62828;font-weight:700"> \u26a0 no rate \u2014 excluded from totals</span>`
+          : `<span style="font-size:11px;color:var(--muted);font-weight:500"> \u2248 ${curFmt(conv,cur)}</span>`):""}</div>
+      <div style="display:flex;gap:5px;margin-top:10px;flex-wrap:wrap">
+        <button class="btn btn-sm btn-secondary" onclick="expEdit('${e.id}')">\u270e Edit</button>
+        <button class="btn btn-sm btn-secondary" onclick="expTogglePaid('${e.id}')">${e.paid?"Mark unpaid":"Mark paid"}</button>
+        <button class="btn btn-sm" style="background:#FDECEA;color:#C62828;border:none;margin-left:auto" onclick="expDel('${e.id}')">\u00d7</button>
+      </div>
+    </div>`;}).join("")}`;
+}
+Object.assign(window,{renderExpenses});
+
+// ╔═════════════════════════════════════════════════════════════════════════╗
+// ║  F.  COST & REVENUE REPORT                                             ║
+// ╚═════════════════════════════════════════════════════════════════════════╝
+// An accountant needs to see the figure, know where it came from, and be able
+// to adjust it before signing. So every line arrives PRE-FILLED from the data
+// and every line can be overridden — but an override never touches the source
+// record: the computed value is kept beside it and the difference is printed.
+// That is what makes the report defensible in an audit rather than just tidy.
+
+window._cr = window._cr || {project:"", from:"", to:"", title:"", notes:"",
+                            preparedBy:"", overrides:{}, extra:[]};
+
+function crStreams(){
+  const m=window._cr, n=String(m.project||"").trim();
+  const f=projectFinance(n);
+  if(!f) return null;
+  const from=m.from||"", to=m.to||"";
+  const inR=(d)=>{ if(!d) return false; if(from&&d<from) return false; if(to&&d>to) return false; return true; };
+  const p=f.project, rate=num(p.hourlyCost), cur=f.currency;
+
+  const dRows=(state.daily||[]).filter(r=>(r.project||"").trim()===n && (!from&&!to ? true : inR(r.date)));
+  const hours=dRows.reduce((s,r)=>s+num(r.duration),0);
+  const material=dRows.reduce((s,r)=>s+((typeof partsEntryCost==="function")?num(partsEntryCost(r)):0),0);
+  const otH=(state.overtime||[]).filter(o=>(o.project||"").trim()===n && (!from&&!to ? true : inR(o.date)))
+              .reduce((s,o)=>s+num(o.hours),0);
+  const pd=(state.travel||[]).filter(t=>(t.project||"").trim()===n && (!from&&!to ? true : inR(t.from||t.date)))
+              .reduce((s,t)=>s+num(t.perDiem),0);
+  const exp=expenseTotals(n, cur, from, to);
+
+  const cost=[
+    {k:"labour",   lb:"Labour",            note:`${fmtHM(hours)} at ${curFmt(rate,cur)}/h`, v:Math.round(hours*rate)},
+    {k:"overtime", lb:"Overtime",          note:`${fmtHM(otH)} at \u00d7${otMultiplier()}`, v:Math.round(otH*rate*otMultiplier())},
+    {k:"material", lb:"Material consumed", note:`from ${dRows.filter(r=>(r.partsUsed||[]).length).length} work entr${dRows.filter(r=>(r.partsUsed||[]).length).length===1?"y":"ies"}`, v:Math.round(material)},
+    {k:"perdiem",  lb:"Travel per-diem",   note:"", v:Math.round(pd)},
+  ].concat(EXP_CATS.map(cc=>({k:"exp_"+cc.k, lb:cc.lb, note:"expense ledger", v:Math.round(exp.byCat[cc.k]||0)})));
+
+  const varRows=variationsFor(n,true).filter(v=>!from&&!to ? true : inR(v.date));
+  const revenue=[
+    {k:"contract", lb:"Contract value", note:p.contractQuoteRef?`per ${p.contractQuoteRef}`:"", v:Math.round(num(p.contractValue))},
+    ...varRows.map(v=>({k:"var_"+v.id, lb:`Variation: ${v.title||""}`, note:v.ref||"", v:Math.round(varTotals(v).total)})),
+  ];
+  return {f, cur, cost:cost.filter(x=>x.v!==0), revenue, exp, hours, otH, from, to,
+          allCost:cost, unconverted:exp.unconverted};
+}
+// A line's final value: the override when one exists, otherwise the computed one.
+function crVal(line){
+  const o=window._cr.overrides[line.k];
+  return (o===undefined||o===null||o==="") ? line.v : num(o);
+}
+function crTotals(){
+  const S=crStreams(); if(!S) return null;
+  const cost=S.cost.reduce((s,l)=>s+crVal(l),0)
+           + window._cr.extra.filter(x=>x.side==="cost").reduce((s,x)=>s+num(x.v),0);
+  const rev =S.revenue.reduce((s,l)=>s+crVal(l),0)
+           + window._cr.extra.filter(x=>x.side==="revenue").reduce((s,x)=>s+num(x.v),0);
+  return {cost:Math.round(cost), revenue:Math.round(rev), margin:Math.round(rev-cost),
+          pct: rev>0 ? Math.round((rev-cost)/rev*100) : null, cur:S.cur, S};
+}
+window.crSet      = function(k,v){ window._cr[k]=v; if(k==="project"||k==="from"||k==="to") render(); };
+window.crOverride = function(k,v){
+  if(String(v||"").trim()==="") delete window._cr.overrides[k]; else window._cr.overrides[k]=num(v);
+  crRefresh();
+};
+window.crClearOverrides = function(){ window._cr.overrides={}; render(); };
+window.crExtraAdd = function(side){ window._cr.extra.push({side, lb:"", v:0, note:""}); render(); };
+window.crExtraDel = function(i){ window._cr.extra.splice(i,1); render(); };
+window.crExtraSet = function(i,k,v){ const x=window._cr.extra[i]; if(!x) return; x[k]=v; crRefresh(); };
+function crRefresh(){
+  const T=crTotals(); if(!T) return;
+  const set=(id,html)=>{ const e=document.getElementById(id); if(e) e.innerHTML=html; };
+  set("crRev",   curFmt(T.revenue,T.cur));
+  set("crCost",  curFmt(T.cost,T.cur));
+  set("crMargin",`<span style="color:${T.margin<0?"#C62828":"#2E7D32"}">${curFmt(T.margin,T.cur)}${T.pct!=null?` (${T.pct}%)`:""}</span>`);
+}
+Object.assign(window,{crStreams, crVal, crTotals, crRefresh});
+
+function crLineRow(l, editable){
+  const ov=window._cr.overrides[l.k];
+  const changed = ov!==undefined && ov!==null && ov!=="" && num(ov)!==l.v;
+  return `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:6px 0;border-bottom:1px solid var(--line)">
+    <div style="flex:1;min-width:130px">
+      <div style="font-size:12px;font-weight:${changed?"800":"600"}">${escapeHtml(l.lb)}</div>
+      <div style="font-size:10px;color:var(--muted)">${escapeHtml(l.note||"")}${changed?` \u00b7 computed ${curFmt(l.v, crStreams().cur)}`:""}</div>
+    </div>
+    <input value="${ov!==undefined&&ov!==null&&ov!==""?escapeHtml(String(ov)):""}" placeholder="${l.v}"
+      oninput="crOverride(${jsArg(l.k)},this.value)" inputmode="decimal"
+      style="width:118px;text-align:right;${changed?"border-color:#E65100;font-weight:800":""}">
+    ${changed?`<span style="font-size:10px;color:#E65100;font-weight:700;white-space:nowrap">adjusted</span>`:""}
+  </div>`;
+}
+
+function renderCostReport(){
+  if(!(isAdmin()||hasCap("canAnalytics"))) return `<div class="card"><div class="empty">No access.</div></div>`;
+  const m=window._cr;
+  const projects=(state.projects||[]).map(p=>p.name).filter(Boolean).sort();
+  const S=m.project?crStreams():null;
+  const T=S?crTotals():null;
+  const adj=Object.keys(m.overrides||{}).length;
+
+  return `<div class="card">
+    <div class="sec-hdr">\u{1F9FE} Cost &amp; revenue report</div>
+    <p style="font-size:11px;color:var(--muted);line-height:1.7;margin-bottom:10px">
+      Every line is filled from the records. Type over any figure to adjust it \u2014 the computed value is kept and printed beside it, so the report shows what was changed and by how much. Nothing you type here alters a single source record.
+    </p>
+    <div class="form-grid">
+      <div class="field" style="grid-column:1/-1"><label>Project <span class="req">*</span></label>
+        <select onchange="crSet('project',this.value)"><option value="">\u2014 select \u2014</option>
+          ${projects.map(p=>`<option ${m.project===p?"selected":""}>${escapeHtml(p)}</option>`).join("")}</select></div>
+      <div class="field"><label>From</label><input type="date" value="${escapeHtml(m.from||"")}" onchange="crSet('from',this.value)"></div>
+      <div class="field"><label>To</label><input type="date" value="${escapeHtml(m.to||"")}" onchange="crSet('to',this.value)"></div>
+      <div class="field" style="grid-column:1/-1"><label>Report title</label>
+        <input value="${escapeHtml(m.title||"")}" oninput="crSet('title',this.value)" placeholder="e.g. Cost to date \u2014 Q3 2026"></div>
+      <div class="field" style="grid-column:1/-1"><label>Prepared by</label>
+        <input value="${escapeHtml(m.preparedBy||"")}" oninput="crSet('preparedBy',this.value)" placeholder="Name and title"></div>
+    </div>
+    ${!m.project?`<div style="background:#FFF3E0;border:1px solid #FFB74D;border-radius:8px;padding:9px 11px;margin-top:10px;font-size:11px;color:#E65100;line-height:1.6">Pick a project to build the report.</div>`:""}
+  </div>
+  ${!S?"":`
+  <div class="card">
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">Revenue
+      <span style="margin-left:auto;font-size:14px;font-weight:800" id="crRev">${curFmt(T.revenue,T.cur)}</span></div>
+    ${S.revenue.map(l=>crLineRow(l)).join("")}
+    ${m.extra.map((x,i)=>x.side!=="revenue"?"":`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:6px 0;border-bottom:1px solid var(--line)">
+      <input value="${escapeHtml(x.lb||"")}" oninput="crExtraSet(${i},'lb',this.value)" placeholder="Description" style="flex:1;min-width:120px">
+      <input value="${escapeHtml(String(x.v||""))}" oninput="crExtraSet(${i},'v',this.value)" inputmode="decimal" style="width:118px;text-align:right">
+      <button class="btn btn-sm" style="background:#FDECEA;color:#C62828;border:none" onclick="crExtraDel(${i})">\u00d7</button>
+    </div>`).join("")}
+    <button class="btn btn-sm btn-secondary" style="margin-top:8px" onclick="crExtraAdd('revenue')">+ Add a revenue line</button>
+  </div>
+
+  <div class="card">
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">Cost
+      <span style="margin-left:auto;font-size:14px;font-weight:800" id="crCost">${curFmt(T.cost,T.cur)}</span></div>
+    ${S.cost.map(l=>crLineRow(l)).join("")}
+    ${m.extra.map((x,i)=>x.side!=="cost"?"":`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:6px 0;border-bottom:1px solid var(--line)">
+      <input value="${escapeHtml(x.lb||"")}" oninput="crExtraSet(${i},'lb',this.value)" placeholder="Description" style="flex:1;min-width:120px">
+      <input value="${escapeHtml(String(x.v||""))}" oninput="crExtraSet(${i},'v',this.value)" inputmode="decimal" style="width:118px;text-align:right">
+      <button class="btn btn-sm" style="background:#FDECEA;color:#C62828;border:none" onclick="crExtraDel(${i})">\u00d7</button>
+    </div>`).join("")}
+    <button class="btn btn-sm btn-secondary" style="margin-top:8px" onclick="crExtraAdd('cost')">+ Add a cost line</button>
+    ${S.unconverted?`<div style="background:#FDECEA;border:1px solid #EF9A9A;border-radius:8px;padding:9px 11px;margin-top:10px;font-size:11px;color:#C62828;line-height:1.6">\u26a0 ${S.unconverted} expense(s) have no exchange rate recorded and are excluded from every figure here.</div>`:""}
+  </div>
+
+  <div class="card" style="border:2px solid ${T.margin<0?"#C62828":"#2E7D32"}">
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <strong style="font-size:14px">Margin</strong>
+      <span style="margin-left:auto;font-size:18px;font-weight:800" id="crMargin">
+        <span style="color:${T.margin<0?"#C62828":"#2E7D32"}">${curFmt(T.margin,T.cur)}${T.pct!=null?` (${T.pct}%)`:""}</span></span>
+    </div>
+    ${adj?`<div style="font-size:11px;color:#E65100;margin-top:8px;line-height:1.6">\u270e ${adj} line(s) adjusted by hand. The report prints both figures.
+      <button class="btn btn-sm btn-secondary" style="margin-left:6px;font-size:10px" onclick="crClearOverrides()">Reset all</button></div>`:""}
+    <div class="field" style="margin-top:10px"><label>Commentary <span style="font-weight:500;color:var(--muted);font-size:10px">\u2014 printed under the summary</span></label>
+      <textarea rows="3" oninput="crSet('notes',this.value)" placeholder="Explain any adjustment, and what the figures mean for this project\u2026">${escapeHtml(m.notes||"")}</textarea></div>
+    <div style="margin-top:12px">${typeof rptFormatToggle==="function"?rptFormatToggle():""}</div>
+    <button class="btn btn-primary" style="width:100%;background:#C9A84C;color:#1B3A6B;border:none;font-weight:800" onclick="costReportDoc()">
+      ${window._rptFormat==="word"?"\u{1F4DD} Generate Word":"\u{1F4C4} Generate PDF"}</button>
+  </div>`}`;
+}
+
+window.costReportDoc = async function(){
+  const m=window._cr;
+  if(!m.project) return toast("\u26a0 Pick the project first");
+  const S=crStreams(), T=crTotals();
+  if(!S||!T) return toast("\u26a0 Nothing to report");
+  const cur=T.cur, p=S.f.project;
+  const period=(m.from||m.to)?`${m.from?fmtDate(m.from):"start"} \u2192 ${m.to?fmtDate(m.to):"date"}`:"Whole project to date";
+  const TH='padding:6px 9px;border:1px solid #D6E4F0;background:#03308B;color:#fff;text-align:left';
+  const TD='padding:6px 9px;border:1px solid #D6E4F0';
+  const R2=(l,v,strong)=>`<tr><td style="${TD};${strong?"font-weight:800":""};width:62%">${l}</td>
+    <td style="${TD};text-align:right;${strong?"font-weight:800;font-size:13px":""}">${v}</td></tr>`;
+  const secTable=(lines, extras)=>`<table style="border-collapse:collapse;width:100%">
+    <thead><tr><th style="${TH}">Item</th><th style="${TH};width:96px;text-align:right">Computed</th>
+      <th style="${TH};width:96px;text-align:right">Reported</th><th style="${TH};width:140px">Basis</th></tr></thead>
+    <tbody>${lines.map(l=>{const fin=crVal(l), ch=fin!==l.v;
+      return `<tr>
+        <td style="${TD}"><strong>${escapeHtml(l.lb)}</strong></td>
+        <td style="${TD};text-align:right;${ch?"color:#6B7B8F":""}">${curFmt(l.v,cur)}</td>
+        <td style="${TD};text-align:right;font-weight:${ch?"800":"600"};${ch?"color:#E65100":""}">${curFmt(fin,cur)}</td>
+        <td style="${TD};font-size:10px">${escapeHtml(l.note||"")}${ch?" \u00b7 adjusted by hand":""}</td>
+      </tr>`;}).join("")}
+    ${extras.map(x=>`<tr>
+        <td style="${TD}"><strong>${escapeHtml(x.lb||"\u2014")}</strong></td>
+        <td style="${TD};text-align:right;color:#6B7B8F">\u2014</td>
+        <td style="${TD};text-align:right;font-weight:800;color:#E65100">${curFmt(num(x.v),cur)}</td>
+        <td style="${TD};font-size:10px">added by hand</td></tr>`).join("")}
+    </tbody></table>`;
+
+  const body = `
+  <div class="ksec"><span class="kbad">01</span><h3>Project</h3></div>
+  <table style="border-collapse:collapse;width:100%">
+    ${R2("Project", escapeHtml(p.name||"\u2014"))}
+    ${R2("Client", escapeHtml(p.client||"\u2014"))}
+    ${R2("Period covered", escapeHtml(period))}
+    ${R2("Currency", escapeHtml(cur) + (S.f.rate?` \u00b7 rate ${escapeHtml(String(S.f.rate))} ${escapeHtml(curBase())} per 1 ${escapeHtml(curSecondary())}`:""))}
+    ${m.preparedBy?R2("Prepared by", escapeHtml(m.preparedBy)):""}
+    ${R2("Status", escapeHtml(p.status||"\u2014"))}
+  </table>
+
+  <div class="ksec" style="page-break-inside:avoid"><span class="kbad">02</span><h3>Revenue</h3></div>
+  ${secTable(S.revenue, m.extra.filter(x=>x.side==="revenue"))}
+
+  <div class="ksec" style="page-break-inside:avoid"><span class="kbad">03</span><h3>Cost</h3></div>
+  ${secTable(S.cost, m.extra.filter(x=>x.side==="cost"))}
+  ${S.unconverted?`<div style="margin-top:8px;font-size:10px;color:#C62828;line-height:1.6">${S.unconverted} expense(s) carry no exchange rate and are excluded from every figure above.</div>`:""}
+
+  <div class="ksec" style="page-break-inside:avoid"><span class="kbad">04</span><h3>Result</h3></div>
+  <table style="border-collapse:collapse;width:100%">
+    ${R2("Total revenue", curDualPlain(T.revenue,cur,S.f.rate), true)}
+    ${R2("Total cost",    curDualPlain(T.cost,cur,S.f.rate), true)}
+    ${R2("Margin", `<span style="color:${T.margin<0?"#C62828":"#2E7D32"}">${curDualPlain(T.margin,cur,S.f.rate)}${T.pct!=null?` \u00b7 ${T.pct}%`:""}</span>`, true)}
+    ${R2("Result", T.margin<0?'<span style="color:#C62828;font-weight:800">LOSS</span>':'<span style="color:#2E7D32;font-weight:800">PROFIT</span>', true)}
+  </table>
+  ${Object.keys(m.overrides||{}).length?`<div style="margin-top:9px;padding:9px 11px;background:#FFF8E1;border:1px solid #FFE082;border-radius:8px;font-size:10px;color:#7F6000;line-height:1.7">
+    ${Object.keys(m.overrides).length} line(s) were adjusted by hand. Both the computed and the reported figure are shown above so the difference is visible.</div>`:""}
+  ${m.notes?`<div style="margin-top:10px"><div style="font-weight:800;font-size:12px;color:#03308B;margin-bottom:5px">Commentary</div>
+    <div style="font-size:11px;line-height:1.8;white-space:pre-wrap">${escapeHtml(m.notes)}</div></div>`:""}
+
+  <div class="ksec" style="page-break-inside:avoid"><span class="kbad">05</span><h3>Month by month</h3></div>
+  ${(()=>{const rows=projectMonthly(p.name).rows.filter(b=>{
+      if(m.from && b.month < String(m.from).slice(0,7)) return false;
+      if(m.to   && b.month > String(m.to).slice(0,7))   return false;
+      return true;});
+    if(!rows.length) return `<div style="font-size:11px;color:#6B7B8F">No monthly cost in this period.</div>`;
+    return `<table style="border-collapse:collapse;width:100%">
+      <thead><tr><th style="${TH}">Month</th><th style="${TH};text-align:right">Hours</th>
+        <th style="${TH};text-align:right">Labour</th><th style="${TH};text-align:right">Overtime</th>
+        <th style="${TH};text-align:right">Travel</th><th style="${TH};text-align:right">Material</th>
+        <th style="${TH};text-align:right">Expenses</th><th style="${TH};text-align:right">Cost</th></tr></thead>
+      <tbody>${rows.map(b=>`<tr>
+        <td style="${TD}"><strong>${escapeHtml(monthLabel(b.month))}</strong></td>
+        <td style="${TD};text-align:right">${fmtHM(b.hours)}</td>
+        <td style="${TD};text-align:right">${curFmt(b.labour,cur)}</td>
+        <td style="${TD};text-align:right">${b.otCost?curFmt(b.otCost,cur):"\u2014"}</td>
+        <td style="${TD};text-align:right">${b.perDiem?curFmt(b.perDiem,cur):"\u2014"}</td>
+        <td style="${TD};text-align:right">${b.material?curFmt(b.material,cur):"\u2014"}</td>
+        <td style="${TD};text-align:right">${b.expenses?curFmt(b.expenses,cur):"\u2014"}</td>
+        <td style="${TD};text-align:right;font-weight:800">${curFmt(b.cost,cur)}</td></tr>`).join("")}</tbody></table>`;})()}
+
+  <div class="ksec" style="page-break-before:always"><span class="kbad">06</span><h3>Expense register</h3></div>
+  ${(()=>{const rows=S.exp.rows;
+    if(!rows.length) return `<div style="font-size:11px;color:#6B7B8F">No ledger expenses in this period.</div>`;
+    return `<table style="border-collapse:collapse;width:100%">
+      <thead><tr><th style="${TH};width:32px;text-align:center">#</th><th style="${TH}">Date</th>
+        <th style="${TH}">Category</th><th style="${TH}">Description</th><th style="${TH}">Paid to</th>
+        <th style="${TH}">Ref</th><th style="${TH};text-align:right">Amount</th><th style="${TH};width:58px">Status</th></tr></thead>
+      <tbody>${rows.map((e,i)=>`<tr>
+        <td style="${TD};text-align:center">${String(i+1).padStart(2,"0")}</td>
+        <td style="${TD};font-size:10px">${e.date?escapeHtml(fmtDate(e.date)):"\u2014"}</td>
+        <td style="${TD};font-size:10px">${escapeHtml(EXP_CAT(e.category).lb)}</td>
+        <td style="${TD}">${escapeHtml(e.desc||"\u2014")}</td>
+        <td style="${TD};font-size:10px">${escapeHtml(e.payee||"\u2014")}</td>
+        <td style="${TD};font-size:10px">${escapeHtml(e.invoiceRef||"\u2014")}</td>
+        <td style="${TD};text-align:right">${curFmt(num(e.amount), e.currency)}</td>
+        <td style="${TD};font-size:10px;color:${e.paid?"#2E7D32":"#E65100"};font-weight:700">${e.paid?"Paid":"Unpaid"}</td>
+      </tr>`).join("")}</tbody></table>
+      ${S.exp.unpaid?`<div style="margin-top:6px;font-size:11px;font-weight:700;color:#E65100">${curFmt(S.exp.unpaid,cur)} of the above is still unpaid.</div>`:""}`;})()}
+
+  <div class="ksec" style="page-break-inside:avoid"><span class="kbad">07</span><h3>Declaration</h3></div>
+  <p style="font-size:11px;line-height:1.8">These figures were compiled from the operational and financial records held in Gir\u00eak on the date of issue. Amounts are stated in ${escapeHtml(cur)} at the exchange rate recorded on each document.</p>
+  <table style="border-collapse:collapse;width:100%"><tr>
+    ${sigBlockHTML("cr_prep", m.preparedBy||"", "Prepared by", "EJAF Technology")}
+    ${sigBlockHTML("cr_appr", "", "Approved by", "EJAF Technology")}
+  </tr></table>`;
+
+  await openReportPDF("COST_REPORT",
+    `${p.name} \u00b7 ${period}${m.title?" \u00b7 "+m.title:""}`, body,
+    {project:p.name, client:p.client||""});
+  toast("Cost report ready!");
+};
+Object.assign(window,{renderCostReport, costReportDoc});
