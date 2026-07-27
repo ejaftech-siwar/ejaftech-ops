@@ -167,7 +167,7 @@ const LINE_KINDS = [
 ];
 
 function quoteBlank(){
-  return {client:"", project:"", title:"", date:(typeof todayStr==="function"?todayStr():""),
+  return {client:"", clientOther:false, project:"", title:"", date:(typeof todayStr==="function"?todayStr():""),
           validDays:30, currency:curBase(), rate:curRate(), taxPct:0, discountPct:0,
           status:"draft", terms:"", notes:"", lines:[]};
 }
@@ -225,6 +225,15 @@ Object.assign(window,{QUO_STATUS, LINE_KINDS, quoteBlank, quoteEffectiveStatus,
                       quoteValidUntil, lineNet, quoteTotals});
 
 // ── Editing ──
+window.quoClientPick = function(v){
+  if(v==="__other"){ window._quo.clientOther=true; window._quo.client=""; return render(); }
+  window._quo.clientOther=false; window._quo.client=v; render();
+};
+window.quoClientMode = function(other){
+  window._quo.clientOther=!!other;
+  if(!other) window._quo.client="";
+  render();
+};
 window.quoSet = function(k,v){
   window._quo[k]=v;
   if(k==="currency"){ window._quo.rate = curRate(); render(); return; }
@@ -293,6 +302,7 @@ window.quoSave = async function(){
     id: window._quoId||undefined,
     ref: q.ref || "",
     client:String(q.client).trim(),
+    clientOther: !!q.clientOther,      // typed by hand, not a registered client
     // The client's id as well as their name: a security rule can compare an id
     // but not a display name, so this is what makes per-client read scoping
     // possible later without touching any existing document.
@@ -494,6 +504,98 @@ window.varDel = async function(id){
 // the contract value can now be revised by approved variations, and material
 // consumption joins labour and per-diems on the cost side.
 
+
+// ── Overtime multiplier ───────────────────────────────────────────────────
+// Overtime was not costed anywhere: projectEconomics reads state.daily only,
+// so the most expensive hours in the business were invisible in the margin.
+// The multiplier defaults to 1.0 so enabling this changes no historical figure
+// until you deliberately set the premium you actually pay.
+function otMultiplier(){
+  const d=(state.settingsDocs||[]).find(x=>x.id==="finance")||{};
+  const m=Number(d.otMultiplier);
+  return (isFinite(m) && m>0) ? m : 1;
+}
+window.setOtMultiplier = async function(v){
+  if(!isAdmin()) return toast("Admin only");
+  const m=num(v);
+  if(m<=0 || m>5) return toast("\u26a0 Enter a multiplier between 0 and 5 (1.5 = time and a half)");
+  const d=(state.settingsDocs||[]).find(x=>x.id==="finance")||{};
+  const docs=state.settingsDocs||(state.settingsDocs=[]);
+  const cur=docs.find(x=>x.id==="finance");
+  const next={...d, id:"finance", otMultiplier:m};
+  if(cur) Object.assign(cur,next); else docs.push(next);
+  render();
+  try{ await fbSave("settings", next); saveToast("Overtime multiplier saved \u2713"); }
+  catch(e){ toast("\u26a0 Could not save"); }
+};
+
+// ── Monthly cost ──────────────────────────────────────────────────────────
+// "What does this project cost us, per month" needs every cost stream bucketed
+// by the month it belongs to. Travel is assigned to the month it STARTED, which
+// is the month the per-diem was committed.
+const _ym = (d)=>String(d||"").slice(0,7);
+function projectMonthly(name){
+  const n=String(name||"").trim();
+  const p=(state.projects||[]).find(x=>(x.name||"").trim()===n);
+  const rate=num(p&&p.hourlyCost);
+  const otx=otMultiplier();
+  const M={};
+  const touch=(m)=>{ if(!m) return null;
+    if(!M[m]) M[m]={month:m, hours:0, otHours:0, labour:0, otCost:0, perDiem:0, material:0, entries:0};
+    return M[m]; };
+  (state.daily||[]).forEach(r=>{
+    if((r.project||"").trim()!==n) return;
+    const b=touch(_ym(r.date)); if(!b) return;
+    b.hours += num(r.duration); b.entries++;
+    b.material += (typeof partsEntryCost==="function") ? num(partsEntryCost(r)) : 0;
+  });
+  (state.overtime||[]).forEach(o=>{
+    if((o.project||"").trim()!==n) return;
+    const b=touch(_ym(o.date)); if(!b) return;
+    b.otHours += num(o.hours);
+  });
+  (state.travel||[]).forEach(t=>{
+    if((t.project||"").trim()!==n) return;
+    const b=touch(_ym(t.from||t.date)); if(!b) return;
+    b.perDiem += num(t.perDiem);
+  });
+  const rows=Object.values(M).sort((a,b)=>a.month.localeCompare(b.month));
+  rows.forEach(b=>{
+    b.labour = b.hours*rate;
+    b.otCost = b.otHours*rate*otx;
+    b.cost   = Math.round(b.labour + b.otCost + b.perDiem + b.material);
+    b.labour = Math.round(b.labour); b.otCost = Math.round(b.otCost);
+    b.perDiem= Math.round(b.perDiem); b.material=Math.round(b.material);
+    b.hours=+b.hours.toFixed(1); b.otHours=+b.otHours.toFixed(1);
+  });
+  const tot=rows.reduce((a,b)=>({hours:a.hours+b.hours, otHours:a.otHours+b.otHours,
+    labour:a.labour+b.labour, otCost:a.otCost+b.otCost, perDiem:a.perDiem+b.perDiem,
+    material:a.material+b.material, cost:a.cost+b.cost, entries:a.entries+b.entries}),
+    {hours:0,otHours:0,labour:0,otCost:0,perDiem:0,material:0,cost:0,entries:0});
+  return {rows, total:tot, rate, otx};
+}
+// The same, across every project, so the company's monthly burn is visible.
+function companyMonthly(){
+  const M={};
+  // projectMonthly() resolves a project by NAME, so two records sharing a name
+  // would have their cost counted twice over. Names are meant to be unique, but
+  // the company total must not silently double if one ever slips through.
+  const names=[...new Set((state.projects||[]).map(p=>String(p.name||"").trim()).filter(Boolean))];
+  names.forEach(nm=>{
+    projectMonthly(nm).rows.forEach(b=>{
+      if(!M[b.month]) M[b.month]={month:b.month, hours:0, otHours:0, labour:0, otCost:0, perDiem:0, material:0, cost:0, entries:0};
+      ["hours","otHours","labour","otCost","perDiem","material","cost","entries"].forEach(k=>M[b.month][k]+=b[k]);
+    });
+  });
+  return Object.values(M).sort((a,b)=>a.month.localeCompare(b.month));
+}
+const monthLabel=(ym)=>{
+  const [y,m]=String(ym||"").split("-");
+  const N=["","Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  return (N[+m]||m)+" "+String(y||"").slice(2);
+};
+Object.assign(window,{otMultiplier, projectMonthly, companyMonthly, monthLabel});
+
 function projectFinance(name){
   const n=String(name||"").trim();
   const p=(state.projects||[]).find(x=>(x.name||"").trim()===n);
@@ -517,7 +619,11 @@ function projectFinance(name){
                        : (state.travel||[]).filter(t=>(t.project||"").trim()===n)
                            .reduce((s,t)=>s+Number(t.perDiem||0),0);
   const material= (typeof partsConsumption==="function") ? Number(partsConsumption(n).totalCost||0) : 0;
-  const cost    = labour + perDiem + material;
+  // Overtime is real money and was previously counted nowhere.
+  const otHours = (state.overtime||[]).filter(o=>(o.project||"").trim()===n)
+                    .reduce((s,o)=>s+num(o.hours),0);
+  const otCost  = otHours * hourly * otMultiplier();
+  const cost    = labour + otCost + perDiem + material;
 
   const quotes = (state.quotes||[]).filter(q=>String(q.project||"").trim()===n);
   const margin = revenue>0 ? revenue-cost : null;
@@ -527,6 +633,7 @@ function projectFinance(name){
     pendingVariations:(state.variations||[]).filter(v=>String(v.project||"").trim()===n && v.status==="submitted").length,
     revenue,
     hours:+hours.toFixed(1), hourly, labour:Math.round(labour),
+    otHours:+otHours.toFixed(1), otCost:Math.round(otCost), otx:otMultiplier(),
     perDiem:Math.round(perDiem), material:Math.round(material), cost:Math.round(cost),
     margin: margin===null?null:Math.round(margin),
     marginPct: revenue>0 ? Math.round((revenue-cost)/revenue*100) : null,
@@ -541,6 +648,53 @@ const FIN_LEVEL={healthy:{bg:"#E8F5E9",fg:"#2E7D32",lb:"Healthy"},
                  tight:{bg:"#FFF8E1",fg:"#8F6E22",lb:"Tight"},
                  loss:{bg:"#FDECEA",fg:"#C62828",lb:"Loss"},
                  unknown:{bg:"#F5F8FC",fg:"#6B7B8F",lb:"No contract value"}};
+
+
+window._finMonthly = window._finMonthly || {};
+window.finToggleMonthly = function(name){
+  window._finMonthly[name] = !window._finMonthly[name];
+  render();
+};
+// One monthly table, used for a single project and for the whole company.
+function monthlyTable(rows, cur, showEntries){
+  if(!rows.length) return `<div style="font-size:11px;color:var(--muted);padding:8px 0">No cost recorded yet.</div>`;
+  const TH='padding:5px 7px;border-bottom:2px solid var(--line);font-size:10px;color:var(--muted);text-align:right;white-space:nowrap';
+  const TD='padding:5px 7px;border-bottom:1px solid var(--line);font-size:11px;text-align:right;white-space:nowrap';
+  const tot=rows.reduce((a,b)=>({hours:a.hours+b.hours,otHours:a.otHours+b.otHours,labour:a.labour+b.labour,
+    otCost:a.otCost+b.otCost,perDiem:a.perDiem+b.perDiem,material:a.material+b.material,cost:a.cost+b.cost}),
+    {hours:0,otHours:0,labour:0,otCost:0,perDiem:0,material:0,cost:0});
+  const anyOT=rows.some(r=>r.otHours>0), anyPD=rows.some(r=>r.perDiem>0), anyMat=rows.some(r=>r.material>0);
+  return `<div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%;min-width:${360+(anyOT?90:0)}px">
+    <thead><tr>
+      <th style="${TH};text-align:left">Month</th>
+      <th style="${TH}">Hours</th>
+      <th style="${TH}">Labour</th>
+      ${anyOT?`<th style="${TH}">Overtime</th>`:""}
+      ${anyPD?`<th style="${TH}">Travel</th>`:""}
+      ${anyMat?`<th style="${TH}">Material</th>`:""}
+      <th style="${TH}">Cost</th>
+    </tr></thead>
+    <tbody>${rows.map(b=>`<tr>
+      <td style="${TD};text-align:left;font-weight:700">${escapeHtml(monthLabel(b.month))}</td>
+      <td style="${TD}">${fmtHM(b.hours)}</td>
+      <td style="${TD}">${curFmt(b.labour,cur)}</td>
+      ${anyOT?`<td style="${TD};color:${b.otCost?"#E65100":"var(--muted)"}">${b.otCost?curFmt(b.otCost,cur):"\u2014"}</td>`:""}
+      ${anyPD?`<td style="${TD}">${b.perDiem?curFmt(b.perDiem,cur):"\u2014"}</td>`:""}
+      ${anyMat?`<td style="${TD}">${b.material?curFmt(b.material,cur):"\u2014"}</td>`:""}
+      <td style="${TD};font-weight:800">${curFmt(b.cost,cur)}</td>
+    </tr>`).join("")}</tbody>
+    <tfoot><tr>
+      <td style="${TD};text-align:left;font-weight:800;border-top:2px solid var(--line)">Total</td>
+      <td style="${TD};font-weight:800;border-top:2px solid var(--line)">${fmtHM(tot.hours)}</td>
+      <td style="${TD};font-weight:800;border-top:2px solid var(--line)">${curFmt(tot.labour,cur)}</td>
+      ${anyOT?`<td style="${TD};font-weight:800;border-top:2px solid var(--line)">${curFmt(tot.otCost,cur)}</td>`:""}
+      ${anyPD?`<td style="${TD};font-weight:800;border-top:2px solid var(--line)">${curFmt(tot.perDiem,cur)}</td>`:""}
+      ${anyMat?`<td style="${TD};font-weight:800;border-top:2px solid var(--line)">${curFmt(tot.material,cur)}</td>`:""}
+      <td style="${TD};font-weight:800;border-top:2px solid var(--line)">${curFmt(tot.cost,cur)}</td>
+    </tr></tfoot>
+  </table></div>`;
+}
+Object.assign(window,{monthlyTable});
 
 function financeRow(l,v,strong){
   return `<tr><td style="padding:5px 8px;border-bottom:1px solid var(--line);font-size:11px;${strong?"font-weight:800":"color:var(--muted)"}">${l}</td>
@@ -560,6 +714,7 @@ function projectFinanceCard(name){
       ${f.variationCount?financeRow(`Approved variations (${f.variationCount})`, (f.variations>=0?"+ ":"- ")+curFmt(Math.abs(f.variations),f.currency)):""}
       ${financeRow("Revenue", curDual(f.revenue,f.currency,f.rate), true)}
       ${financeRow(`Labour \u00b7 ${fmtHM(f.hours)} @ ${curFmt(f.hourly,f.currency)}/h`, curFmt(f.labour,f.currency))}
+      ${f.otHours?financeRow(`Overtime \u00b7 ${fmtHM(f.otHours)}${f.otx!==1?` @ \u00d7${f.otx}`:""}`, curFmt(f.otCost,f.currency)):""}
       ${f.perDiem?financeRow("Travel per-diem", curFmt(f.perDiem,f.currency)):""}
       ${f.material?financeRow("Material consumed", curFmt(f.material,f.currency)):""}
       ${financeRow("Cost", curDual(f.cost,f.currency,f.rate), true)}
@@ -569,6 +724,9 @@ function projectFinanceCard(name){
     ${!f.hourly?`<div style="font-size:10px;color:#E65100;margin-top:8px;line-height:1.6">\u26a0 No hourly cost set for this project, so labour counts as zero. Set it in <strong>Projects \u2192 edit</strong>.</div>`:""}
     ${f.pendingVariations?`<div style="font-size:10px;color:#8F6E22;margin-top:8px;line-height:1.6">\u23F3 ${f.pendingVariations} variation(s) submitted and not yet approved \u2014 not counted above.</div>`:""}
     ${f.revenue<=0?`<div style="font-size:10px;color:var(--muted);margin-top:8px;line-height:1.6">No contract value yet. Accept a quotation, or set it directly in <strong>Projects \u2192 edit</strong>.</div>`:""}
+    <button class="btn btn-sm btn-secondary" style="margin-top:10px;width:100%" onclick="finToggleMonthly(${jsArg(name)})">
+      ${window._finMonthly[name]?"\u25B4 Hide":"\u25BE Show"} month by month</button>
+    ${window._finMonthly[name]?`<div style="margin-top:10px">${monthlyTable(projectMonthly(name).rows, f.currency)}</div>`:""}
   </div>`;
 }
 Object.assign(window,{projectFinanceCard, FIN_LEVEL});
@@ -621,8 +779,16 @@ function renderQuotes(){
       </div>
       <div class="form-grid">
         <div class="field"><label>Client <span class="req">*</span></label>
-          <select onchange="quoSet('client',this.value)"><option value="">\u2014 select \u2014</option>
-            ${clients.map(c=>`<option ${q.client===c?"selected":""}>${escapeHtml(c)}</option>`).join("")}</select></div>
+          ${q.clientOther
+            ? `<input value="${escapeHtml(q.client||"")}" oninput="quoSet('client',this.value)" placeholder="Type the client name" autofocus>
+               <button class="btn btn-sm btn-secondary" style="margin-top:5px;font-size:10px" onclick="quoClientMode(false)">\u2190 Pick a registered client</button>`
+            : `<select onchange="quoClientPick(this.value)">
+                 <option value="">\u2014 select \u2014</option>
+                 ${clients.map(c=>`<option ${q.client===c?"selected":""}>${escapeHtml(c)}</option>`).join("")}
+                 <option value="__other">\u270e Type a name not on the list\u2026</option>
+               </select>`}
+          ${q.clientOther?`<div style="font-size:10px;color:var(--muted);margin-top:4px;line-height:1.6">A name typed here is not added to your client list \u2014 use it for a prospect, then register them properly once the work is won.</div>`:""}
+        </div>
         <div class="field"><label>Project <span style="font-weight:500;color:var(--muted);font-size:10px">\u2014 links the P&amp;L</span></label>
           <select onchange="quoSet('project',this.value)"><option value="">\u2014 none \u2014</option>
             ${projects.map(p=>`<option ${q.project===p?"selected":""}>${escapeHtml(p)}</option>`).join("")}</select></div>
@@ -660,6 +826,10 @@ function renderQuotes(){
       <div class="field" style="margin-top:10px"><label>Terms</label>
         <textarea rows="2" oninput="quoSet('terms',this.value)" placeholder="Payment terms, exclusions, lead time\u2026">${escapeHtml(q.terms||"")}</textarea></div>
       <button class="btn btn-primary" style="width:100%;margin-top:10px" onclick="quoSave()">Save quotation</button>
+      <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--line)">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:6px">Output format for this and every document</div>
+        ${typeof rptFormatToggle==="function"?rptFormatToggle():""}
+      </div>
     </div>`;
   }
 
@@ -669,6 +839,10 @@ function renderQuotes(){
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <button class="btn btn-primary" onclick="quoNew()">+ New quotation</button>
       <span style="font-size:11px;color:var(--muted);margin-left:auto">${rows.length} quotation(s)</span>
+    </div>
+    <div style="margin-top:10px">
+      <div style="font-size:11px;color:var(--muted);margin-bottom:6px">Share as \u2014 the button on each quotation follows this choice</div>
+      ${typeof rptFormatToggle==="function"?rptFormatToggle():""}
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:8px;margin-top:12px">
       ${[["Sent","sent"],["Accepted","accepted"],["Declined","declined"]].map(([lb,st])=>{
@@ -694,7 +868,7 @@ function renderQuotes(){
       <div style="font-size:15px;font-weight:800;margin-top:8px">${curDual(t.total,q.currency,q.rate)}</div>
       <div style="display:flex;gap:5px;margin-top:10px;flex-wrap:wrap">
         <button class="btn btn-sm btn-secondary" onclick="quoEdit('${q.id}')">\u270e Edit</button>
-        <button class="btn btn-sm btn-secondary" onclick="quotePDF('${q.id}')">\u{1F4C4} PDF</button>
+        <button class="btn btn-sm btn-secondary" onclick="quotePDF('${q.id}')">${window._rptFormat==="word"?"\u{1F4DD} Word":"\u{1F4C4} PDF"}</button>
         ${st==="draft"?`<button class="btn btn-sm btn-secondary" onclick="quoStatus('${q.id}','sent')">Mark sent</button>`:""}
         ${(st==="sent"||st==="expired")?`<button class="btn btn-sm" style="background:#2E7D32;color:#fff;border:none" onclick="quoAccept('${q.id}')">\u2713 Accept</button>
           <button class="btn btn-sm btn-secondary" onclick="quoStatus('${q.id}','declined')">Decline</button>`:""}
@@ -796,6 +970,20 @@ function renderFinance(){
     </div>
     ${curRate()?`<div style="font-size:10px;color:var(--muted);margin-top:9px">Totals shown in ${escapeHtml(curBase())} at each document's own rate. 1 ${escapeHtml(curSecondary())} = ${escapeHtml(String(curRate()))} ${escapeHtml(curBase())}.</div>`:`<div style="font-size:10px;color:#E65100;margin-top:9px">No exchange rate set \u2014 amounts in a second currency cannot be converted. Set it under <strong>Currency</strong>.</div>`}`}
   </div>
+  ${(()=>{const cm=companyMonthly(); if(!cm.length) return "";
+    const worst=cm.slice().sort((a,b)=>b.cost-a.cost)[0];
+    return `<div class="card">
+      <div class="sec-hdr">\u{1F4C6} Company cost, month by month</div>
+      <p style="font-size:11px;color:var(--muted);line-height:1.7;margin-bottom:9px">
+        Every project combined. Labour is logged hours \u00d7 the project's hourly cost; overtime is charged at \u00d7${otMultiplier()}${otMultiplier()===1?" (no premium set)":""}.
+      </p>
+      ${monthlyTable(cm, curBase())}
+      ${worst?`<div style="font-size:10px;color:var(--muted);margin-top:8px;line-height:1.6">Heaviest month so far: <strong>${escapeHtml(monthLabel(worst.month))}</strong> at ${curFmt(worst.cost,curBase())}.</div>`:""}
+      <div class="field" style="margin-top:12px"><label>Overtime multiplier</label>
+        <input value="${escapeHtml(String(otMultiplier()))}" inputmode="decimal" onchange="setOtMultiplier(this.value)" style="max-width:120px">
+        <div style="font-size:10px;color:var(--muted);margin-top:4px;line-height:1.6">1 = paid at the normal rate \u00b7 1.5 = time and a half. Applies to every overtime hour in the figures above.</div>
+      </div>
+    </div>`;})()}
   ${all.map(f=>projectFinanceCard(f.project.name)).join("")}`;
 }
 Object.assign(window,{renderFinance, renderQuotes, renderVariations});
