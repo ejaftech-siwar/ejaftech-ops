@@ -969,10 +969,11 @@ function renderVariations(){
 
 function renderFinance(){
   if(!(isAdmin()||hasCap("canAnalytics"))) return `<div class="card"><div class="empty">No access.</div></div>`;
-  let h=_pills('_finView',[{id:"pl",ic:"\u{1F4CA}",lb:"P&L"},{id:"expenses",ic:"\u{1F4B8}",lb:"Expenses"},
+  let h=_pills('_finView',[{id:"pl",ic:"\u{1F4CA}",lb:"P&L"},{id:"invoices",ic:"\u{1F9FE}",lb:"Invoices"},{id:"expenses",ic:"\u{1F4B8}",lb:"Expenses"},
                            {id:"report",ic:"\u{1F9FE}",lb:"Cost Report"},{id:"quotes",ic:"\u{1F4B0}",lb:"Quotations"},
                            {id:"variations",ic:"\u{1F501}",lb:"Variations"},{id:"currency",ic:"\u{1F4B1}",lb:"Currency"}]);
   const v=window._finView||"pl";
+  if(v==="invoices")   return h + renderInvoices();
   if(v==="expenses")   return h + renderExpenses();
   if(v==="report")     return h + renderCostReport();
   if(v==="quotes")     return h + renderQuotes();
@@ -1012,7 +1013,7 @@ function renderFinance(){
         <div style="font-size:10px;color:var(--muted);margin-top:4px;line-height:1.6">1 = paid at the normal rate \u00b7 1.5 = time and a half. Applies to every overtime hour in the figures above.</div>
       </div>
     </div>`;})()}
-  ${all.map(f=>projectFinanceCard(f.project.name)).join("")}`;
+  ${all.map(f=>projectFinanceCard(f.project.name)+(typeof projectBillingCard==="function"?projectBillingCard(f.project.name):"")).join("")}`;
 }
 Object.assign(window,{renderFinance, renderQuotes, renderVariations});
 

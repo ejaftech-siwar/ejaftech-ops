@@ -24,6 +24,50 @@
 }
 
 
+/* ═══ SURFACE PALETTES (v185) ═══════════════════════════════════════════
+   Only SURFACE tokens are overridden here — never the semantic ones. Green
+   still means done and red still means wrong in every palette, so a change of
+   mood can never change a meaning. The navy and gold of the brand are also
+   untouched: these palettes change what the brand sits ON, not the brand.
+   Declared BEFORE the dark block so dark always wins when both are set.
+   ═════════════════════════════════════════════════════════════════════ */
+
+/* Sand — warm ivory. Lowest glare of the set, which matters when the screen
+   is read outdoors in Erbil sun, and the classic partner to navy and gold. */
+[data-palette="sand"]{
+  --bg:#F4F0E6; --card:#FFFDF8; --line:#E4DCC9; --surface-2:#EFE8D9;
+  --shadow:0 2px 12px rgba(92,74,40,0.09);
+  --shadow-lg:0 8px 28px rgba(92,74,40,0.16);
+  --shadow-sm:0 1px 4px rgba(92,74,40,0.07);
+}
+
+/* Slate — cool technical grey-blue. More separation between page and card
+   than the default, so dense tables read as distinct blocks. */
+[data-palette="slate"]{
+  --bg:#E7EDF4; --card:#FBFCFE; --line:#C9D7E7; --surface-2:#DCE5F0;
+  --shadow:0 2px 12px rgba(27,58,107,0.10);
+  --shadow-lg:0 8px 28px rgba(27,58,107,0.18);
+  --shadow-sm:0 1px 4px rgba(27,58,107,0.07);
+}
+
+/* Mist — a quiet teal cast. The freshest of the light palettes and the one
+   that reads least like a spreadsheet. */
+[data-palette="mist"]{
+  --bg:#E8F1EF; --card:#FBFDFC; --line:#C6DAD5; --surface-2:#DBEAE6;
+  --shadow:0 2px 12px rgba(0,77,64,0.09);
+  --shadow-lg:0 8px 28px rgba(0,77,64,0.16);
+  --shadow-sm:0 1px 4px rgba(0,77,64,0.06);
+}
+
+/* Graphite — neutral, serious, no colour cast at all. The palette to pick
+   when photographs and report previews must be judged on their own colour. */
+[data-palette="graphite"]{
+  --bg:#E9EAEC; --card:#FAFAFB; --line:#D2D5DA; --surface-2:#DEE0E4;
+  --shadow:0 2px 12px rgba(30,35,45,0.10);
+  --shadow-lg:0 8px 28px rgba(30,35,45,0.18);
+  --shadow-sm:0 1px 4px rgba(30,35,45,0.07);
+}
+
 /* ═══ Girêk Dark Mode — token overrides (activated by data-theme="dark") ═══ */
 [data-theme="dark"]{
   --bg:#0C1524; --card:#152238; --line:#2A3D5C;

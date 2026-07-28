@@ -128,7 +128,34 @@ function renderProfile(){
   if(!profileForm) profileForm = { current:"", newPass:"", confirm:"", showOldPass:false, showNewPass:false };
 
   const _sn=(typeof sysNotifEnabled==="function")&&sysNotifEnabled();
-  return `<div class="card" style="background:linear-gradient(135deg,#1B3A6B 0%,#2E5FA3 100%);color:white;border:2px solid #C9A84C">
+  return `
+  <div class="card">
+    <div class="sec-hdr">\u{1F3A8} Appearance</div>
+    <p style="font-size:11px;color:var(--muted);line-height:1.7;margin-bottom:10px">
+      The navy and gold of the brand never change \u2014 these change the surface they sit on.
+      Saved on this device, because glare depends on where you are standing.
+    </p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      ${PALETTES.map(p=>{const on=currentPalette()===p.id;
+        return `<button onclick="setPalette('${p.id}')" title="${escapeHtml(p.note)}"
+          style="flex:1;min-width:98px;text-align:right;background:${p.sw};border:${on?"2px solid var(--navy)":"1px solid var(--line)"};
+                 border-radius:var(--r-md);padding:10px;cursor:pointer">
+          <div style="display:flex;gap:5px;margin-bottom:6px">
+            <span style="width:16px;height:16px;border-radius:4px;background:#1B3A6B"></span>
+            <span style="width:16px;height:16px;border-radius:4px;background:#C9A84C"></span>
+            <span style="width:16px;height:16px;border-radius:4px;background:#fff;border:1px solid rgba(0,0,0,.12)"></span>
+          </div>
+          <div style="font-size:11px;font-weight:800;color:#1A1A2E">${on?"\u2713 ":""}${escapeHtml(p.lb)}</div>
+          <div style="font-size:9px;color:#6B7B8F;line-height:1.5;margin-top:2px">${escapeHtml(p.note)}</div>
+        </button>`;}).join("")}
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;margin-top:12px;padding-top:10px;border-top:1px solid var(--line);flex-wrap:wrap">
+      <span style="font-size:11px;color:var(--muted)">Night shift?</span>
+      <button class="btn btn-sm btn-secondary" onclick="toggleTheme();render()">\u{1F319} Toggle dark mode</button>
+      <span style="font-size:10px;color:var(--muted)">Dark overrides the palette while it is on.</span>
+    </div>
+  </div>
+<div class="card" style="background:linear-gradient(135deg,#1B3A6B 0%,#2E5FA3 100%);color:white;border:2px solid #C9A84C">
     <div style="display:flex;align-items:center;gap:14px">
       <div onclick="document.getElementById('profilePhotoInput').click()" title="Tap to change photo" style="position:relative;width:64px;height:64px;border:2px solid #C9A84C;border-radius:12px;display:flex;align-items:center;justify-content:center;background:#1B3A6B;flex-shrink:0;cursor:pointer;overflow:hidden">
         ${p.photoData?`<img src="${p.photoData}" alt="Profile photo" style="width:100%;height:100%;object-fit:cover">`:`<span style="font-family:'DM Serif Display',serif;font-size:18px;color:#C9A84C;font-weight:700">${escapeHtml((p.name||'?').charAt(0).toUpperCase())}</span>`}

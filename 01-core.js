@@ -552,7 +552,7 @@ const state = {
   daily: [], overtime: [], travel: [], leaves: [], projects: [], locations: [], users: [], departments: [], branches: [],
   techWorkTypes: [], techStatuses: [], techCategories: [],
   parts: [],
-  quotes: [], variations: [], expenses: [],          // commercial documents (v179)                                 // spare-parts catalogue (v174)
+  quotes: [], variations: [], expenses: [], invoices: [],          // commercial documents (v179)                                 // spare-parts catalogue (v174)
   requestStatuses: [], projectStatuses: [],   // Client Request Entry options (admin-editable)
   devices: [],  // Asset Management: central devices collection
   pmSchedules: [],  // Preventive Maintenance schedules
@@ -2168,13 +2168,11 @@ function cleanupSubs(){
   state.unsubs=[];
 }
 
-async function subscribeData(){
-  cleanupSubs();
-  const{db,collection,onSnapshot,doc}=window.__fb;
-  state.initialized=false;
-  renderRoot(`<div class="skel-page"><div class="skel-header"></div><div class="skel-body"><div class="skel skel-bar"></div><div class="skel skel-card"></div><div class="skel skel-card"></div><div class="skel skel-card tall"></div></div></div>`);
-
-  const subs=[
+// The single source of truth for "what data does this app hold". The live
+// listeners, the backup and the restore all read this one list, so a collection
+// added later is protected automatically instead of being quietly left out of
+// every backup until the day someone needs one.
+const SYNC_SUBS = [
     ["daily","daily"],["overtime","overtime"],["travel","travel"],["leaves","leaves"],
     ["projects","projects"],["locations","locations"],["users","users"],
     ["departments","departments"],
@@ -2188,7 +2186,7 @@ async function subscribeData(){
     ["parts","parts"],
     ["quotes","quotes"],
     ["variations","variations"],
-    ["expenses","expenses"],
+    ["expenses","expenses"],["invoices","invoices"],
     ["pmSchedules","pmSchedules"],
     ["workCategories","workCategories"],["workTasks","workTasks"],
     ["nametagEmployees","nametagEmployees"],
@@ -2207,7 +2205,20 @@ async function subscribeData(){
     ["incidents","incidents"],
     ["publicShares","publicSharesMeta"],
     ["trash","trash"],
-  ];
+  ];;
+const SYNC_COLLECTIONS = SYNC_SUBS.map(s=>s[0]);
+Object.assign(window,{SYNC_SUBS, SYNC_COLLECTIONS});
+
+async function subscribeData(){
+  cleanupSubs();
+  const{db,collection,onSnapshot,doc}=window.__fb;
+  state.initialized=false;
+  renderRoot(`<div class="skel-page"><div class="skel-header"></div><div class="skel-body"><div class="skel skel-bar"></div><div class="skel skel-card"></div><div class="skel skel-card"></div><div class="skel skel-card tall"></div></div></div>`);
+
+  // The single source of truth for "what data does this app hold". Backup and
+  // restore read it too, so a collection added later is protected automatically
+  // instead of being silently left out of every backup until someone notices.
+  const subs = SYNC_SUBS;
   let firstCount=0;
   const firstSeen=new Set();
   window._totalCols = subs.length;
@@ -3452,6 +3463,33 @@ async function resetDailyEntryCounter(){
 }
 
 
+
+// ── Surface palettes (v185) ────────────────────────────────────────────
+// The brand stays navy and gold; these change the surface it sits on. Stored
+// per device rather than per account, because glare depends on where the
+// person is standing, not on who they are.
+const PALETTES = [
+  {id:"light",    lb:"Classic",  sw:"#F5F8FC", note:"Crisp blue-white \u2014 the original"},
+  {id:"sand",     lb:"Sand",     sw:"#F4F0E6", note:"Warm ivory \u2014 least glare in sunlight"},
+  {id:"slate",    lb:"Slate",    sw:"#E7EDF4", note:"Cool grey-blue \u2014 tables separate clearly"},
+  {id:"mist",     lb:"Mist",     sw:"#E8F1EF", note:"Soft teal \u2014 the freshest"},
+  {id:"graphite", lb:"Graphite", sw:"#E9EAEC", note:"Neutral \u2014 no cast on photos"},
+];
+function currentPalette(){
+  try{ return localStorage.getItem("girek-palette") || "light"; }catch(e){ return "light"; }
+}
+function applyPalette(id){
+  const r=document.documentElement;
+  if(!id || id==="light") r.removeAttribute("data-palette");
+  else r.setAttribute("data-palette", id);
+}
+window.setPalette = function(id){
+  if(!PALETTES.some(p=>p.id===id)) return;
+  try{ localStorage.setItem("girek-palette", id); }catch(e){}
+  applyPalette(id);
+  render();
+};
+Object.assign(window,{PALETTES, currentPalette, applyPalette});
 
 // ── Light / Dark theme toggle (persisted per device) ──
 function toggleTheme(){

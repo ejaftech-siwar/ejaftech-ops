@@ -411,88 +411,93 @@ Object.defineProperty(window,'wiActiveCategory',{get:()=>wiActiveCategory,set:v=
 // ═══════════════════════════════════════════════════════════════════════
 //  BACKUP & RESTORE — JSON export/import for data safety
 // ═══════════════════════════════════════════════════════════════════════
+// ═══ BACKUP ═══════════════════════════════════════════════════
+// This used to list its collections by hand: 11 of the app's 38 were exported
+// and only 7 were ever restored. The asset register, every client, every
+// maintenance schedule, all incidents, the technical classifications and the
+// whole commercial ledger were absent — so a "successful" restore still lost
+// most of the business. Both routines now walk SYNC_COLLECTIONS, the same list
+// the live listeners use, which means a collection added tomorrow is protected
+// the day it is added rather than the day someone discovers it was not.
+function backupCollections(){
+  return (window.SYNC_COLLECTIONS && window.SYNC_COLLECTIONS.length)
+    ? window.SYNC_COLLECTIONS.slice()
+    : Object.keys(state).filter(k=>Array.isArray(state[k]));
+}
+
 function exportBackup(){
   try{
+    const cols = backupCollections();
+    const data = {}, counts = {};
+    let total = 0, empty = [];
+    cols.forEach(c=>{
+      const rows = Array.isArray(state[c]) ? state[c] : [];
+      data[c] = rows; counts[c] = rows.length; total += rows.length;
+      if(!rows.length) empty.push(c);
+    });
     const backup = {
-      version: "1.1",
+      version: "2.0",
       exportedAt: new Date().toISOString(),
-      exportedBy: state.profile.email,
+      exportedBy: (state.profile && state.profile.email) || "",
       projectId: "ejaftech-hr",
-      data: {
-        users: state.users,
-        departments: state.departments,
-        projects: state.projects,
-        locations: state.locations,
-        daily: state.daily,
-        overtime: state.overtime,
-        travel: state.travel,
-        leaves: state.leaves,
-        workCategories: state.workCategories,
-        workTasks: state.workTasks,
-        nametagEmployees: state.nametagEmployees,
-      },
-      counts: {
-        users: state.users.length,
-        departments: state.departments.length,
-        projects: state.projects.length,
-        locations: state.locations.length,
-        daily: state.daily.length,
-        overtime: state.overtime.length,
-        travel: state.travel.length,
-        leaves: state.leaves.length,
-        workCategories: state.workCategories.length,
-        workTasks: state.workTasks.length,
-        nametagEmployees: (state.nametagEmployees||[]).length,
-      }
+      appVersion: (typeof APP_VER!=="undefined") ? APP_VER : "",
+      collections: cols,
+      data, counts, total,
     };
-    const json = JSON.stringify(backup, null, 2);
-    const blob = new Blob([json], {type: 'application/json'});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
+    const blob = new Blob([JSON.stringify(backup, null, 2)], {type:"application/json"});
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
     a.href = url;
-    const dateStr = new Date().toISOString().split('T')[0];
-    a.download = `EjafTech_Backup_${dateStr}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast('Backup downloaded ✓ Save it safely!');
+    a.download = `girek-backup-${new Date().toISOString().slice(0,10)}.json`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url), 4000);
+    toast(`\u2713 Backup: ${total} record(s) across ${cols.length} collection(s)`);
   }catch(e){
     console.error(e);
-    toast('Backup failed: ' + e.message);
+    toast("Backup failed: " + e.message);
   }
 }
 
 async function importBackup(file){
   if(!file) return;
-  if(!isAdmin()) return toast('Only admin can restore backups');
+  if(!isAdmin()) return toast("Only admin can restore backups");
+  let backup;
   try{
-    const text = await file.text();
-    const backup = JSON.parse(text);
-    if(!backup.data) return toast('Invalid backup file');
+    backup = JSON.parse(await file.text());
+  }catch(e){ return toast("That file is not valid JSON"); }
+  if(!backup || !backup.data) return toast("Invalid backup file");
 
-    const total = (backup.counts.daily||0) + (backup.counts.overtime||0) + (backup.counts.travel||0) + (backup.counts.leaves||0);
-    if(!await uiConfirm(`Restore backup from ${backup.exportedAt}?\n\nThis will ADD ${total} records to your current data.\n\nContinue?`)) return;
+  // Restore whatever the FILE holds, intersected with what the app knows about.
+  // An old v1.1 file still restores its 11 collections; a v2.0 file restores all.
+  const known = backupCollections();
+  const cols  = Object.keys(backup.data).filter(c=>known.includes(c) && Array.isArray(backup.data[c]));
+  const skipped = Object.keys(backup.data).filter(c=>!known.includes(c));
+  const total = cols.reduce((s,c)=>s+backup.data[c].length,0);
+  if(!total) return toast("That backup contains no records");
 
-    const {db, doc, setDoc} = window.__fb;
-    let restored = 0;
+  const detail = cols.filter(c=>backup.data[c].length)
+    .map(c=>`  ${c}: ${backup.data[c].length}`).join("\n");
+  if(!await uiConfirm(
+      `Restore the backup taken on ${String(backup.exportedAt||"").slice(0,10)}?\n\n` +
+      `${total} record(s) across ${cols.length} collection(s):\n${detail}\n\n` +
+      `Records with the same id are OVERWRITTEN; anything not in the file is left alone.` +
+      (skipped.length?`\n\nIgnored (unknown to this version): ${skipped.join(", ")}`:""),
+      {danger:true, okText:"Restore", title:"Restore backup"})) return;
 
-    // Restore each collection (including leaves)
-    const cols = ['departments','projects','locations','daily','overtime','travel','leaves'];
-    for(const col of cols){
-      const items = backup.data[col] || [];
-      for(const item of items){
-        const {id, ...data} = item;
-        if(id) {
-          await setDoc(doc(db, col, id), data);
-          restored++;
-        }
-      }
+  const {db, doc, setDoc} = window.__fb;
+  let done=0, failed=0;
+  for(const col of cols){
+    for(const item of backup.data[col]){
+      const {id, ...rest} = item || {};
+      if(!id){ failed++; continue; }
+      try{ await setDoc(doc(db, col, id), rest); done++; }
+      catch(e){ failed++; }
     }
-    toast(`Restored ${restored} records ✓`);
-  }catch(e){
-    console.error(e);
-    toast('Restore failed: ' + e.message);
   }
+  if(failed) toast(`\u26a0 Restored ${done}, failed ${failed} \u2014 check the console`);
+  else saveToast(`Restored ${done} record(s) across ${cols.length} collection(s) \u2713`);
 }
+
 window.exportBackup = exportBackup;
 window.importBackup = importBackup;
 
