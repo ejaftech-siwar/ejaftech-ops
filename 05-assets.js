@@ -1195,39 +1195,234 @@ Object.defineProperty(window,'assetFilterStatus',{get:()=>assetFilterStatus,set:
 //  BARCODE / QR SCANNER — fills a serial field from the device camera.
 //  Uses @zxing/library (loaded in index.html). Fails gracefully if absent.
 // ═══════════════════════════════════════════════════════════════════════
-let _zxReader=null, _zxStream=null;
+let _zxReader=null, _zxControls=null, _zxDevices=[], _zxIdx=0, _zxTrack=null;
+// Two consecutive identical reads are required before a value is accepted. A
+// single frame of a barcode at an angle decodes wrongly often enough that
+// trusting the first hit is how a scanner "reads the wrong code" \u2014 which is
+// exactly the symptom reported.
+let _zxLast="", _zxHits=0;
+const SCAN_CONFIRM = 2;
+
+// Restricting the format set is the single biggest accuracy win. Trying every
+// symbology on every frame is slow AND invites false positives from noise in
+// the image; asset labels only ever use this handful.
+function _zxHints(){
+  try{
+    const F=ZXing.BarcodeFormat, H=ZXing.DecodeHintType;
+    const h=new Map();
+    h.set(H.POSSIBLE_FORMATS,[
+      F.EAN_13, F.EAN_8, F.UPC_A, F.UPC_E,
+      F.CODE_128, F.CODE_39, F.CODE_93, F.ITF, F.CODABAR,
+      F.QR_CODE, F.DATA_MATRIX, F.AZTEC, F.PDF_417,
+    ]);
+    h.set(H.TRY_HARDER, true);          // spend more effort per frame
+    return h;
+  }catch(e){ return null; }
+}
+function _zxNewReader(){
+  const hints=_zxHints();
+  try{ return hints ? new ZXing.BrowserMultiFormatReader(hints, 220)
+                    : new ZXing.BrowserMultiFormatReader(); }
+  catch(e){ return new ZXing.BrowserMultiFormatReader(); }
+}
+
 window.openScanner=function(targetSetter){
   window._scanTarget=targetSetter;
+  _zxLast=""; _zxHits=0;
   let ov=document.getElementById('scanOv');
   if(!ov){ov=document.createElement('div');ov.id='scanOv';document.body.appendChild(ov);}
   ov.innerHTML=`<div class="scan-box">
-    <div class="scan-hd"><span>📷 Scan barcode / QR</span><button class="al-x" onclick="closeScanner()">${ICN.x}</button></div>
-    <div class="scan-vidwrap"><video id="scanVid" playsinline></video><div class="scan-frame"></div></div>
-    <div class="scan-hint" id="scanHint">Point the camera at the device barcode…</div>
-    <div class="scan-ft"><input id="scanManual" placeholder="…or type it manually" oninput="0"><button class="btn btn-sm" style="background:#03308B;color:#C9A84C;border:none;font-weight:700" onclick="scanManualApply()">Use</button></div>
+    <div class="scan-hd"><span>\u{1F4F7} Scan barcode / QR</span><button class="al-x" onclick="closeScanner()">${ICN.x}</button></div>
+    <div class="scan-vidwrap"><video id="scanVid" playsinline muted autoplay></video><div class="scan-frame"></div></div>
+    <div class="scan-hint" id="scanHint">Point the camera at the device barcode\u2026</div>
+    <div style="display:flex;gap:6px;padding:8px 14px 0;flex-wrap:wrap">
+      <button class="btn btn-sm btn-secondary" id="scanTorch" onclick="scanToggleTorch()" style="display:none">\u{1F526} Light</button>
+      <button class="btn btn-sm btn-secondary" id="scanSwap"  onclick="scanSwapCamera()" style="display:none">\u{1F504} Camera</button>
+      <label class="btn btn-sm btn-secondary" style="margin-right:auto;cursor:pointer">
+        \u{1F5BC}\uFE0F From photo
+        <input type="file" accept="image/*" style="display:none" onchange="scanFromImage(this)">
+      </label>
+    </div>
+    <div class="scan-ft"><input id="scanManual" placeholder="\u2026or type it manually"><button class="btn btn-sm" style="background:#03308B;color:#C9A84C;border:none;font-weight:700" onclick="scanManualApply()">Use</button></div>
   </div>`;
   ov.classList.add('open');
   startScan();
 };
-function startScan(){
+
+async function startScan(){
   const hint=document.getElementById('scanHint');
-  if(typeof ZXing==="undefined"){ if(hint){hint.textContent="Scanner library not loaded — type the code manually below."; hint.style.color="#C62828";} return; }
+  const say=(m,c)=>{ if(hint){ hint.textContent=m; hint.style.color=c||""; } };
+  if(typeof ZXing==="undefined"){
+    say("Scanner library not loaded \u2014 use \u{1F5BC}\uFE0F From photo, or type the code below.", "#C62828");
+    return;
+  }
   try{
-    _zxReader=new ZXing.BrowserMultiFormatReader();
-    _zxReader.decodeFromVideoDevice(null, 'scanVid', (result, err)=>{
-      if(result){ const txt=result.getText(); applyScan(txt); }
-    }).catch(e=>{ if(hint){hint.textContent="Camera unavailable: "+e.message+" — type manually."; hint.style.color="#C62828";} });
-  }catch(e){ if(hint){hint.textContent="Scanner error — type manually."; hint.style.color="#C62828";} }
+    _zxReader=_zxNewReader();
+    // Enumerate cameras and prefer a REAR one. Passing null used to let the
+    // browser pick, and on a phone that is usually the selfie camera \u2014 which
+    // cannot focus on a label held at arm's length.
+    let deviceId=null;
+    try{
+      const all=await ZXing.BrowserCodeReader.listVideoInputDevices();
+      _zxDevices=all||[];
+      const back=_zxDevices.find(d=>/back|rear|environment|arri|\u062e\u0644\u0641/i.test(d.label||""));
+      const pick=back||_zxDevices[_zxDevices.length-1]||null;   // last is usually the main rear lens
+      _zxIdx=pick?_zxDevices.indexOf(pick):0;
+      deviceId=pick?pick.deviceId:null;
+      const sw=document.getElementById('scanSwap');
+      if(sw && _zxDevices.length>1) sw.style.display="";
+    }catch(e){ /* enumeration can fail before permission is granted */ }
+
+    const constraints={ video: deviceId
+      ? { deviceId:{exact:deviceId}, width:{ideal:1920}, height:{ideal:1080},
+          focusMode:"continuous", advanced:[{focusMode:"continuous"}] }
+      : { facingMode:{ideal:"environment"}, width:{ideal:1920}, height:{ideal:1080},
+          focusMode:"continuous", advanced:[{focusMode:"continuous"}] } };
+
+    _zxControls = await _zxReader.decodeFromConstraints(constraints, 'scanVid', (result, err)=>{
+      if(result) _zxCandidate(result.getText());
+    });
+    _zxAfterStart(say);
+  }catch(e){
+    // Older builds lack decodeFromConstraints; fall back to the device API.
+    try{
+      _zxControls = await _zxReader.decodeFromVideoDevice(
+        (_zxDevices[_zxIdx]||{}).deviceId || null, 'scanVid',
+        (result)=>{ if(result) _zxCandidate(result.getText()); });
+      _zxAfterStart(say);
+    }catch(e2){
+      say("Camera unavailable: "+(e2&&e2.message||e2)+" \u2014 use \u{1F5BC}\uFE0F From photo or type it below.", "#C62828");
+    }
+  }
 }
-function applyScan(txt){
+// Torch is only offered when the hardware actually reports it.
+function _zxAfterStart(say){
+  say("Hold steady \u2014 fill the frame with the barcode\u2026");
+  setTimeout(()=>{
+    try{
+      const v=document.getElementById('scanVid');
+      const s=v && v.srcObject;
+      _zxTrack = s ? (s.getVideoTracks()||[])[0] : null;
+      const caps = _zxTrack && _zxTrack.getCapabilities ? _zxTrack.getCapabilities() : null;
+      if(caps && caps.torch){ const b=document.getElementById('scanTorch'); if(b) b.style.display=""; }
+      if(caps && caps.focusMode && caps.focusMode.includes("continuous")){
+        _zxTrack.applyConstraints({advanced:[{focusMode:"continuous"}]}).catch(()=>{});
+      }
+    }catch(e){}
+  }, 700);
+}
+window.scanToggleTorch=function(){
+  if(!_zxTrack) return;
+  const on=!window._zxTorchOn;
+  _zxTrack.applyConstraints({advanced:[{torch:on}]})
+    .then(()=>{ window._zxTorchOn=on;
+      const b=document.getElementById('scanTorch'); if(b) b.textContent=on?"\u{1F526} Light on":"\u{1F526} Light"; })
+    .catch(()=>toast("This camera has no controllable light"));
+};
+window.scanSwapCamera=async function(){
+  if(_zxDevices.length<2) return;
+  _zxIdx=(_zxIdx+1)%_zxDevices.length;
+  try{ if(_zxControls&&_zxControls.stop) _zxControls.stop(); else if(_zxReader&&_zxReader.reset) _zxReader.reset(); }catch(e){}
+  _zxLast=""; _zxHits=0;
+  const d=_zxDevices[_zxIdx];
+  const hint=document.getElementById('scanHint');
+  if(hint) hint.textContent="Switching camera\u2026";
+  try{
+    _zxControls=await _zxReader.decodeFromVideoDevice(d.deviceId,'scanVid',
+      (result)=>{ if(result) _zxCandidate(result.getText()); });
+    if(hint) hint.textContent=(d.label||"Camera")+" \u2014 hold steady\u2026";
+  }catch(e){ if(hint){hint.textContent="Could not switch camera."; hint.style.color="#C62828";} }
+};
+
+// A photo is often easier than a live frame: the user can steady the shot,
+// zoom, and use the flash. It also rescues the case where the camera cannot be
+// opened at all.
+window.scanFromImage=async function(input){
+  const f=input && input.files && input.files[0];
+  if(!f) return;
+  const hint=document.getElementById('scanHint');
+  const say=(m,c)=>{ if(hint){ hint.textContent=m; hint.style.color=c||""; } };
+  if(typeof ZXing==="undefined") return say("Scanner library not loaded.", "#C62828");
+  say("Reading the photo\u2026");
+  let url;
+  try{
+    url=URL.createObjectURL(f);
+    const reader=_zxNewReader();
+    let res=null;
+    try{ res=await reader.decodeFromImageUrl(url); }
+    catch(e){
+      // Second pass: re-decode a downscaled copy. A 12-megapixel photo often
+      // fails where a 1600px version succeeds, because the bars are cleaner
+      // once the sensor noise has been averaged away.
+      try{ res=await _zxDecodeResized(url, reader); }catch(e2){ res=null; }
+    }
+    if(res && res.getText()){ applyScan(res.getText(), "photo"); }
+    else say("No code found in that photo \u2014 try filling the frame with the barcode, or type it below.", "#E65100");
+  }catch(e){
+    say("Could not read that photo \u2014 type the code below.", "#C62828");
+  }finally{
+    try{ if(url) URL.revokeObjectURL(url); }catch(e){}
+    try{ input.value=""; }catch(e){}
+  }
+};
+function _zxDecodeResized(url, reader){
+  return new Promise((resolve,reject)=>{
+    const img=new Image();
+    img.onload=()=>{
+      try{
+        const max=1600;
+        const s=Math.min(1, max/Math.max(img.naturalWidth||1, img.naturalHeight||1));
+        const cv=document.createElement('canvas');
+        cv.width=Math.round((img.naturalWidth||max)*s);
+        cv.height=Math.round((img.naturalHeight||max)*s);
+        const cx=cv.getContext('2d');
+        cx.drawImage(img,0,0,cv.width,cv.height);
+        reader.decodeFromImageUrl(cv.toDataURL('image/png')).then(resolve).catch(reject);
+      }catch(e){ reject(e); }
+    };
+    img.onerror=reject;
+    img.src=url;
+  });
+}
+
+// Confirmation gate: the same text must arrive twice in a row.
+function _zxCandidate(txt){
+  const t=String(txt||"").trim();
+  if(!t) return;
+  if(t===_zxLast){ _zxHits++; } else { _zxLast=t; _zxHits=1; }
+  const hint=document.getElementById('scanHint');
+  if(_zxHits<SCAN_CONFIRM){
+    if(hint){ hint.textContent=`Reading \u2026 ${t}`; hint.style.color="#8F6E22"; }
+    return;
+  }
+  applyScan(t, "camera");
+}
+
+function applyScan(txt, how){
+  const t=String(txt||"").trim();
+  if(!t) return;
   try{ if(navigator.vibrate) navigator.vibrate(60); }catch(e){}
-  if(window._scanTarget) window._scanTarget(String(txt).trim());
-  toast("Scanned: "+txt);
+  if(window._scanTarget) window._scanTarget(t);
+  toast(`Scanned${how==="photo"?" from photo":""}: ${t}`);
   closeScanner();
 }
+
 window.scanManualApply=function(){ const v=(document.getElementById('scanManual')||{}).value; if(v&&v.trim()) applyScan(v.trim()); };
 window.closeScanner=function(){
-  try{ if(_zxReader){_zxReader.reset();_zxReader=null;} }catch(e){}
+  // Release everything the scanner opened. A camera track left running keeps
+  // the phone's indicator lit and drains the battery long after the sheet has
+  // gone, and the torch stays on.
+  try{ if(window._zxTorchOn && _zxTrack){ _zxTrack.applyConstraints({advanced:[{torch:false}]}).catch(()=>{}); } }catch(e){}
+  window._zxTorchOn=false;
+  try{ if(_zxControls && _zxControls.stop) _zxControls.stop(); }catch(e){}
+  try{ if(_zxReader && _zxReader.reset) _zxReader.reset(); }catch(e){}
+  try{
+    const v=document.getElementById('scanVid');
+    const s=v && v.srcObject;
+    if(s && s.getTracks) s.getTracks().forEach(t=>{ try{ t.stop(); }catch(e){} });
+    if(v) v.srcObject=null;
+  }catch(e){}
+  _zxReader=null; _zxControls=null; _zxTrack=null; _zxLast=""; _zxHits=0;
   const ov=document.getElementById('scanOv'); if(ov)ov.classList.remove('open');
   render();
 };

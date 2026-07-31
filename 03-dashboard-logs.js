@@ -246,13 +246,30 @@ function dashProjectHealth(){
     const inc=(state.incidents||[]).filter(i=>(i.project||"").trim()===nm&&!["Resolved","Closed"].includes(i.status||"Open")).length;
     const pms=(state.pmSchedules||[]).filter(s=>(s.project||"").trim()===nm&&s.active!==false);
     const od=pms.filter(s=>pmDaysLeft(s)<0).length;
-    const compliance=pms.length?Math.round((pms.length-od)/pms.length*100):null;
+    // This number measures SCHEDULE ADHERENCE \u2014 how many maintenance schedules
+    // are not yet past their due date. It was labelled "PM 100%", which reads as
+    // "the maintenance is finished" and is a different claim entirely: a
+    // schedule can be perfectly on time while its current round has not been
+    // started. The label now says what is measured, and round progress is
+    // reported separately so the two are never confused again.
+    const onTime=pms.length-od;
+    const compliance=pms.length?Math.round(onTime/pms.length*100):null;
+    // Multi-site rounds in progress: sites visited out of sites required.
+    let roundDone=0, roundTotal=0, roundsOpen=0;
+    pms.forEach(s=>{
+      const units=(typeof _pmUnitsOf==="function")?_pmUnitsOf(s):[];
+      if(units.length<2) return;                  // a single-site schedule has no "round"
+      const done=(typeof _pmRoundDone==="function")?_pmRoundDone(s):[];
+      if(done.length && done.length<units.length){ roundsOpen++; }
+      roundDone+=done.length; roundTotal+=units.length;
+    });
     // RAG: overdue PM or open incidents or budget overrun or gone quiet
     let rag="Green";
     const quiet = last && ((new Date(today())-new Date(last))/864e5)>14;
     if(inc||od||quiet||(pct!==null&&pct>100)) rag="Amber";
     if(inc>2||od>1||(pct!==null&&pct>115)) rag="Red";
-    return {nm,hrs,totalHrs,est,pct,last,inc,od,compliance,rag,active:hrs>0};
+    return {nm,hrs,totalHrs,est,pct,last,inc,od,compliance,onTime,pmCount:pms.length,
+            roundDone,roundTotal,roundsOpen,rag,active:hrs>0};
   }).filter(x=>x.active||x.inc||x.od)
     .sort((a,b)=>({Red:0,Amber:1,Green:2}[a.rag]-{Red:0,Amber:1,Green:2}[b.rag])||b.hrs-a.hrs);
   if(!cards.length) return "";
@@ -274,7 +291,8 @@ function dashProjectHealth(){
           <div style="height:6px;background:var(--line);border-radius:4px;overflow:hidden;margin-top:3px"><div style="height:100%;width:${Math.min(100,c.pct)}%;background:${c.pct>100?"#C62828":"linear-gradient(90deg,#C9A84C,#E9CC7A)"};border-radius:4px"></div></div>
         </div>`:""}
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:7px">
-          ${c.compliance!==null?`<span class="dsh-chip" style="background:${c.od?"#FFF3E0":"#E8F5E9"};color:${c.od?"#E65100":"#2E7D32"}">PM ${c.compliance}%</span>`:""}
+          ${c.compliance!==null?`<span class="dsh-chip" style="background:${c.od?"#FFF3E0":"#E8F5E9"};color:${c.od?"#E65100":"#2E7D32"}" title="Maintenance schedules that are not past their due date \u2014 not a measure of work completed">PM ${c.onTime}/${c.pmCount} on schedule</span>`:""}
+          ${c.roundsOpen?`<span class="dsh-chip" style="background:#E3F2FD;color:#1565C0" title="A multi-site round has started but not every site is done">round ${c.roundDone}/${c.roundTotal} sites</span>`:""}
           ${c.od?`<span class="dsh-chip" style="background:#FDECEA;color:#C62828">${c.od} overdue</span>`:""}
           ${c.inc?`<span class="dsh-chip" style="background:#FDECEA;color:#C62828">${c.inc} incident${c.inc>1?"s":""}</span>`:""}
           ${c.last?`<span class="dsh-chip" style="background:var(--line);color:var(--muted)">last ${fmtDate(c.last)}</span>`:""}
