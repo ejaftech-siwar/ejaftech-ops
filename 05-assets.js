@@ -1219,11 +1219,45 @@ function _zxHints(){
     return h;
   }catch(e){ return null; }
 }
+// Hints must be applied in BOTH places. The constructor argument is honoured by
+// some builds and quietly ignored by others (its second parameter is the scan
+// interval, so a mistyped call silently loses the formats), while the reader
+// also exposes setHints(). Doing both is the only reliable way to be certain a
+// linear format is actually enabled \u2014 without it the reader still finds QR
+// codes, because QR needs no format hint, which is exactly the "reads QR only"
+// symptom.
 function _zxNewReader(){
   const hints=_zxHints();
-  try{ return hints ? new ZXing.BrowserMultiFormatReader(hints, 220)
-                    : new ZXing.BrowserMultiFormatReader(); }
-  catch(e){ return new ZXing.BrowserMultiFormatReader(); }
+  let r;
+  try{ r = hints ? new ZXing.BrowserMultiFormatReader(hints, 300)
+                 : new ZXing.BrowserMultiFormatReader(); }
+  catch(e){ r = new ZXing.BrowserMultiFormatReader(); }
+  try{ if(hints && typeof r.setHints==="function") r.setHints(hints); }catch(e){}
+  try{ if(hints && r.reader && typeof r.reader.setHints==="function") r.reader.setHints(hints); }catch(e){}
+  return r;
+}
+
+// A 1-D barcode is only found when the reader's scan lines cross the BARS. The
+// library sweeps horizontal lines, so a label photographed sideways \u2014 which is
+// how a barcode printed along a box edge is usually held \u2014 is invisible to it
+// no matter how sharp the picture is. Rotating the frame and trying again costs
+// one canvas draw and turns those failures into reads.
+function _zxTryRotations(canvas, reader){
+  const out=[];
+  const w=canvas.width, h=canvas.height;
+  out.push(canvas);
+  [90,270].forEach(deg=>{
+    try{
+      const c2=document.createElement("canvas");
+      c2.width=h; c2.height=w;
+      const x=c2.getContext("2d");
+      x.translate(h/2, w/2);
+      x.rotate(deg*Math.PI/180);
+      x.drawImage(canvas, -w/2, -h/2);
+      out.push(c2);
+    }catch(e){}
+  });
+  return out;
 }
 
 window.openScanner=function(targetSetter){
@@ -1295,9 +1329,44 @@ async function startScan(){
     }
   }
 }
+// A second, independent decode loop that grabs frames from the <video> and runs
+// them through the reader ourselves — upright, then rotated 90° and 270°.
+// It exists because the library's built-in loop decodes only the frame as-is:
+// a QR code is orientation-independent so it always worked, while a linear
+// barcode held sideways never did. This loop is what makes the two behave the
+// same. It stops the moment a code is confirmed.
+let _zxLoop=null;
+function _zxStartFrameLoop(){
+  if(_zxLoop) return;
+  const reader=_zxNewReader();
+  const cv=document.createElement("canvas");
+  _zxLoop=setInterval(()=>{
+    try{
+      const v=document.getElementById("scanVid");
+      if(!v || !v.videoWidth || v.readyState<2) return;
+      // Decode a generous CENTRE CROP rather than the whole frame: it removes
+      // background clutter and roughly doubles the effective resolution of the
+      // bars, which is what a small printed barcode needs.
+      const vw=v.videoWidth, vh=v.videoHeight;
+      const cw=Math.round(vw*0.92), ch=Math.round(vh*0.62);
+      cv.width=cw; cv.height=ch;
+      const ctx=cv.getContext("2d");
+      ctx.drawImage(v, Math.round((vw-cw)/2), Math.round((vh-ch)/2), cw, ch, 0, 0, cw, ch);
+      for(const canvas of _zxTryRotations(cv, reader)){
+        try{
+          const res=reader.decodeFromCanvas(canvas);
+          if(res && res.getText()){ _zxCandidate(res.getText()); return; }
+        }catch(e){ /* NotFoundException on this orientation — try the next */ }
+      }
+    }catch(e){}
+  }, 420);
+}
+function _zxStopFrameLoop(){ if(_zxLoop){ clearInterval(_zxLoop); _zxLoop=null; } }
+
 // Torch is only offered when the hardware actually reports it.
 function _zxAfterStart(say){
-  say("Hold steady \u2014 fill the frame with the barcode\u2026");
+  _zxStartFrameLoop();
+  say("Hold steady \u2014 fill the frame with the barcode. Any angle works\u2026");
   setTimeout(()=>{
     try{
       const v=document.getElementById('scanVid');
@@ -1351,6 +1420,9 @@ window.scanFromImage=async function(input){
     let res=null;
     try{ res=await reader.decodeFromImageUrl(url); }
     catch(e){
+      // Same story as the live frame: a sideways label needs the image turned.
+      try{ res=await _zxDecodeRotated(url, reader); }catch(e0){ res=null; }
+      if(res && res.getText()){ applyScan(res.getText(), "photo"); return; }
       // Second pass: re-decode a downscaled copy. A 12-megapixel photo often
       // fails where a 1600px version succeeds, because the bars are cleaner
       // once the sensor noise has been averaged away.
@@ -1365,6 +1437,32 @@ window.scanFromImage=async function(input){
     try{ input.value=""; }catch(e){}
   }
 };
+// Load the photo, draw it at each orientation, and decode whichever works.
+function _zxDecodeRotated(url, reader){
+  return new Promise((resolve,reject)=>{
+    const img=new Image();
+    img.onload=()=>{
+      try{
+        const max=1600;
+        const s=Math.min(1, max/Math.max(img.naturalWidth||1, img.naturalHeight||1));
+        const cv=document.createElement("canvas");
+        cv.width=Math.round((img.naturalWidth||max)*s);
+        cv.height=Math.round((img.naturalHeight||max)*s);
+        cv.getContext("2d").drawImage(img,0,0,cv.width,cv.height);
+        for(const canvas of _zxTryRotations(cv, reader)){
+          try{
+            const res=reader.decodeFromCanvas(canvas);
+            if(res && res.getText()) return resolve(res);
+          }catch(e){}
+        }
+        reject(new Error("not found in any orientation"));
+      }catch(e){ reject(e); }
+    };
+    img.onerror=reject;
+    img.src=url;
+  });
+}
+
 function _zxDecodeResized(url, reader){
   return new Promise((resolve,reject)=>{
     const img=new Image();
@@ -1401,6 +1499,7 @@ function _zxCandidate(txt){
 function applyScan(txt, how){
   const t=String(txt||"").trim();
   if(!t) return;
+  _zxStopFrameLoop();
   try{ if(navigator.vibrate) navigator.vibrate(60); }catch(e){}
   if(window._scanTarget) window._scanTarget(t);
   // Tell the user immediately whether this code is already on the register.
@@ -1437,6 +1536,7 @@ window.closeScanner=function(){
     if(s && s.getTracks) s.getTracks().forEach(t=>{ try{ t.stop(); }catch(e){} });
     if(v) v.srcObject=null;
   }catch(e){}
+  _zxStopFrameLoop();
   _zxReader=null; _zxControls=null; _zxTrack=null; _zxLast=""; _zxHits=0;
   const ov=document.getElementById('scanOv'); if(ov)ov.classList.remove('open');
   render();

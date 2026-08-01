@@ -223,8 +223,60 @@ ${watermark}
 // Word export from one place.
 window._rptFormat = window._rptFormat || "pdf";
 
+// ═══ MANUAL DOCUMENT NUMBER (v191) ═════════════════════════════
+// Some documents must carry a number the company's own filing system dictates
+// rather than the app's sequence — a client's PO format, an ISO document code,
+// or a number already quoted in correspondence. Every printed report passes
+// through openReportPDF, so putting the override here covers all of them at
+// once instead of touching a dozen generators.
+//
+// The override is deliberately SINGLE-USE: it applies to the very next document
+// and is then cleared. A sticky value would silently stamp the same number onto
+// every later report, which is far worse than having to type it again.
+window._refOverride = window._refOverride || "";
+window.setRefOverride = function(v){ window._refOverride = String(v||"").trim(); };
+window.clearRefOverride = function(){ window._refOverride = ""; };
+
+// The control every report screen can drop in above its export button.
+function refOverrideField(){
+  const v = window._refOverride || "";
+  return `<div class="field" style="margin-bottom:9px">
+    <label>Document number <span style="font-weight:500;color:var(--muted);font-size:10px">— leave blank to let the app issue one</span></label>
+    <input value="${escapeHtml(v)}" oninput="setRefOverride(this.value)"
+           placeholder="e.g. EJ\\EBL\\04\\FFIN-20260003">
+    <div style="font-size:10px;color:var(--muted);margin-top:4px;line-height:1.6">
+      ${v ? `The next document will be numbered <strong>${escapeHtml(v)}</strong>, then this box clears itself so the following one is not stamped with it too.`
+          : `Type a number only when company filing requires its own. Otherwise the app issues the next in sequence.`}
+    </div>
+  </div>`;
+}
+window.refOverrideField = refOverrideField;
+
 async function openReportPDF(reportType, periodLabel, bodyHTML, meta){
-  const refNo=await generateRefNo(reportType, meta);
+  // A hand-typed number is used verbatim and does NOT consume the automatic
+  // sequence, so overriding one document never leaves a gap in the app's own
+  // numbering. It is still logged, so the document remains traceable.
+  const manual = String(window._refOverride||"").trim();
+  let refNo;
+  if(manual){
+    refNo = manual;
+    window._refOverride = "";                       // single use, as documented
+    try{
+      const {db, collection, addDoc} = window.__fb;
+      addDoc(collection(db,"reportLog"), {
+        refNo, reportType, prefix:(window.REF_PREFIX&&window.REF_PREFIX[reportType])||"",
+        manual:true,
+        exportedBy:(state.user&&state.user.email)||"",
+        exportedByName:(state.profile&&(state.profile.name||state.profile.employeeName))||"",
+        period:(typeof getPeriod==="function")?getPeriod():"",
+        project:(meta&&meta.project)?String(meta.project).trim():"",
+        client:(meta&&meta.client)?String(meta.client).trim():"",
+        at:new Date().toISOString(),
+      }).catch(()=>{});
+    }catch(e){}
+  }else{
+    refNo = await generateRefNo(reportType, meta);
+  }
   const html=buildReportHTML(refNo,reportType,periodLabel,bodyHTML);
   if(window._rptFormat==="word") return downloadReportWord(refNo,reportType,html,periodLabel);
   const win=window.open("","_blank");
@@ -363,7 +415,19 @@ function downloadReportWord(refNo, reportType, html, periodLabel){
 window.downloadReportWord=downloadReportWord;
 
 // A PDF / Word chooser to sit beside any Generate button
-function rptFormatToggle(){
+// `withExcel` is passed only by screens that actually have a spreadsheet
+// generator. Offering Excel on an inspection certificate would be a promise the
+// engine cannot keep, so the third button appears only where it is real.
+function rptFormatToggle(withExcel){
+  if(withExcel){
+    const f=window._rptFormat||"pdf";
+    const B=(id,lb,bg,fg)=>`<button class="btn btn-sm ${f===id?"":"btn-secondary"}" style="${f===id?`background:${bg};color:${fg};border:none;`:""}flex:1;font-weight:800" onclick="window._rptFormat='${id}';render()">${lb}</button>`;
+    return `<div style="display:flex;gap:6px;margin-bottom:9px">
+      ${B("pdf","\u{1F4C4} PDF","#C9A84C","#1B3A6B")}
+      ${B("excel","\u{1F4CA} Excel","#1B7A43","#fff")}
+      ${B("word","\u{1F4DD} Word","#2E5FA3","#fff")}
+    </div>`;
+  }
   const w=window._rptFormat==="word";
   return `<div style="display:flex;gap:6px;margin-bottom:9px">
     <button class="btn btn-sm ${w?"btn-secondary":""}" style="${w?"":"background:#C9A84C;color:#1B3A6B;border:none;"}flex:1;font-weight:800" onclick="window._rptFormat='pdf';render()">📄 PDF</button>

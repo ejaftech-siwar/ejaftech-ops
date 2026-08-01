@@ -321,7 +321,13 @@ window.quoSave = async function(){
     ...(window._quoId?{}:{createdAt:new Date().toISOString(),
         createdBy:(state.profile&&(state.profile.name||state.profile.email))||""}),
   };
-  // A reference is issued once, on first save, and never changes afterwards.
+  // An accepted quotation's number has been quoted to the client, so it freezes.
+  const priorQ = window._quoId ? (state.quotes||[]).find(x=>x.id===window._quoId) : null;
+  if(priorQ && priorQ.status==="accepted" && priorQ.ref &&
+     String(q.ref||"").trim() !== String(priorQ.ref).trim())
+    return toast(`\u26a0 ${priorQ.ref} is accepted \u2014 its number can no longer be changed`);
+  payload.ref = String(q.ref||"").trim();
+  // A hand-typed number is used verbatim and does not consume the sequence.
   if(!payload.ref){
     try{ payload.ref = await generateRefNo("QUOTATION", {project:payload.project, client:payload.client}); }
     catch(e){ payload.ref = ""; }
@@ -467,6 +473,11 @@ window.varSave = async function(){
     ...(window._varId?{}:{createdAt:new Date().toISOString(),
         createdBy:(state.profile&&(state.profile.name||state.profile.email))||""}),
   };
+  const priorV = window._varId ? (state.variations||[]).find(x=>x.id===window._varId) : null;
+  if(priorV && priorV.status==="approved" && priorV.ref &&
+     String(v.ref||"").trim() !== String(priorV.ref).trim())
+    return toast(`\u26a0 ${priorV.ref} is approved \u2014 its number can no longer be changed`);
+  payload.ref = String(v.ref||"").trim();
   if(!payload.ref){
     try{ payload.ref = await generateRefNo("VARIATION", {project:payload.project}); }catch(e){ payload.ref=""; }
   }
@@ -826,6 +837,15 @@ function renderQuotes(){
         <div class="field"><label>Rate applied</label>
           <input value="${escapeHtml(String(q.rate||""))}" oninput="quoSet('rate',this.value)" inputmode="decimal" placeholder="${curRate()||"not set"}">
           <div style="font-size:10px;color:var(--muted);margin-top:4px">Frozen on this quotation \u2014 a later rate change does not alter it.</div></div>
+        <div class="field" style="grid-column:1/-1"><label>Document number
+          <span style="font-weight:500;color:var(--muted);font-size:10px">\u2014 leave blank to let the app issue one</span></label>
+          <input value="${escapeHtml(q.ref||"")}" oninput="quoSet('ref',this.value)"
+                 placeholder="e.g. EJ\\EBL\\04\\FFIN-20260003">
+          <div style="font-size:10px;color:var(--muted);margin-top:4px;line-height:1.6">
+            Type a number when company filing requires its own format; it is then used exactly as written and the app's sequence is left untouched.
+            ${q.ref?`<br><strong>Fixed once the document is accepted.</strong>`:""}
+          </div>
+        </div>
       </div>
       ${vu?`<div style="font-size:11px;color:var(--muted);margin-top:8px">Valid until <strong>${escapeHtml(fmtDate(vu))}</strong></div>`:""}
     </div>
@@ -853,7 +873,7 @@ function renderQuotes(){
       <button class="btn btn-primary" style="width:100%;margin-top:10px" onclick="quoSave()">Save quotation</button>
       <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--line)">
         <div style="font-size:11px;color:var(--muted);margin-bottom:6px">Output format for this and every document</div>
-        ${typeof rptFormatToggle==="function"?rptFormatToggle():""}
+        ${typeof refOverrideField==="function"?refOverrideField():""}${typeof rptFormatToggle==="function"?rptFormatToggle():""}
       </div>
     </div>`;
   }
@@ -867,7 +887,7 @@ function renderQuotes(){
     </div>
     <div style="margin-top:10px">
       <div style="font-size:11px;color:var(--muted);margin-bottom:6px">Share as \u2014 the button on each quotation follows this choice</div>
-      ${typeof rptFormatToggle==="function"?rptFormatToggle():""}
+      ${typeof refOverrideField==="function"?refOverrideField():""}${typeof rptFormatToggle==="function"?rptFormatToggle():""}
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:8px;margin-top:12px">
       ${[["Sent","sent"],["Accepted","accepted"],["Declined","declined"]].map(([lb,st])=>{
@@ -925,6 +945,15 @@ function renderVariations(){
         <div class="field"><label>Currency</label>
           <select onchange="varSet('currency',this.value)">${CUR_CODES.map(c=>`<option ${v.currency===c?"selected":""}>${c}</option>`).join("")}</select></div>
         <div class="field"><label>Rate applied</label><input value="${escapeHtml(String(v.rate||""))}" oninput="varSet('rate',this.value)" inputmode="decimal" placeholder="${curRate()||"not set"}"></div>
+        <div class="field" style="grid-column:1/-1"><label>Document number
+          <span style="font-weight:500;color:var(--muted);font-size:10px">\u2014 leave blank to let the app issue one</span></label>
+          <input value="${escapeHtml(v.ref||"")}" oninput="varSet('ref',this.value)"
+                 placeholder="e.g. EJ\\EBL\\04\\FFIN-20260003">
+          <div style="font-size:10px;color:var(--muted);margin-top:4px;line-height:1.6">
+            Type a number when company filing requires its own format; it is then used exactly as written and the app's sequence is left untouched.
+            ${v.ref?`<br><strong>Fixed once the document is approved.</strong>`:""}
+          </div>
+        </div>
       </div>
       <div style="font-size:10px;color:var(--muted);margin-top:8px;line-height:1.6">A negative quantity or price records a REDUCTION in scope \u2014 omissions are variations too.</div>
     </div>
@@ -1471,7 +1500,7 @@ function renderCostReport(){
       <button class="btn btn-sm btn-secondary" style="margin-left:6px;font-size:10px" onclick="crClearOverrides()">Reset all</button></div>`:""}
     <div class="field" style="margin-top:10px"><label>Commentary <span style="font-weight:500;color:var(--muted);font-size:10px">\u2014 printed under the summary</span></label>
       <textarea rows="3" oninput="crSet('notes',this.value)" placeholder="Explain any adjustment, and what the figures mean for this project\u2026">${escapeHtml(m.notes||"")}</textarea></div>
-    <div style="margin-top:12px">${typeof rptFormatToggle==="function"?rptFormatToggle():""}</div>
+    <div style="margin-top:12px">${typeof refOverrideField==="function"?refOverrideField():""}${typeof rptFormatToggle==="function"?rptFormatToggle():""}</div>
     <button class="btn btn-primary" style="width:100%;background:#C9A84C;color:#1B3A6B;border:none;font-weight:800" onclick="costReportDoc()">
       ${window._rptFormat==="word"?"\u{1F4DD} Generate Word":"\u{1F4C4} Generate PDF"}</button>
   </div>`}`;

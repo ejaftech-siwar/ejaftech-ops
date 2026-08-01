@@ -284,6 +284,12 @@ window.invSave = async function(){
     ...(window._invId?{}:{createdAt:new Date().toISOString(),
       createdBy:(state.profile&&(state.profile.name||state.profile.email))||""}),
   };
+  // Once issued, the number is on a document the client holds.
+  const priorI = window._invId ? (state.invoices||[]).find(x=>x.id===window._invId) : null;
+  if(priorI && priorI.status && priorI.status!=="draft" && priorI.ref &&
+     String(v.ref||"").trim() !== String(priorI.ref).trim())
+    return toast(`\u26a0 ${priorI.ref} has been issued \u2014 its number can no longer be changed`);
+  payload.ref = String(v.ref||"").trim();
   if(!payload.ref){
     try{ payload.ref = await generateRefNo("INVOICE", {project:payload.project, client:payload.client}); }
     catch(e){ payload.ref=""; }
@@ -405,6 +411,15 @@ function renderInvoices(){
         <div class="field"><label>Rate applied</label>
           <input value="${escapeHtml(String(v.rate||""))}" oninput="invSet('rate',this.value)" inputmode="decimal" placeholder="${curRate()||"not set"}">
           <div style="font-size:10px;color:var(--muted);margin-top:4px">Frozen on this invoice.</div></div>
+        <div class="field" style="grid-column:1/-1"><label>Document number
+          <span style="font-weight:500;color:var(--muted);font-size:10px">\u2014 leave blank to let the app issue one</span></label>
+          <input value="${escapeHtml(v.ref||"")}" oninput="invSet('ref',this.value)"
+                 placeholder="e.g. EJ\\EBL\\04\\FFIN-20260003">
+          <div style="font-size:10px;color:var(--muted);margin-top:4px;line-height:1.6">
+            Type a number when company filing requires its own format; it is then used exactly as written and the app's sequence is left untouched.
+            ${v.ref?`<br><strong>Fixed once the document is issued.</strong>`:""}
+          </div>
+        </div>
       </div>
       ${due?`<div style="font-size:11px;color:var(--muted);margin-top:8px">Due <strong>${escapeHtml(fmtDate(due))}</strong></div>`:""}
     </div>
@@ -472,7 +487,7 @@ function renderInvoices(){
       <button class="btn btn-primary" onclick="invNew()">+ New invoice</button>
       <span style="font-size:11px;color:var(--muted);margin-left:auto">${rows.length} invoice(s)</span>
     </div>
-    <div style="margin-top:10px">${typeof rptFormatToggle==="function"?rptFormatToggle():""}</div>
+    <div style="margin-top:10px">${typeof refOverrideField==="function"?refOverrideField():""}${typeof rptFormatToggle==="function"?rptFormatToggle():""}</div>
   </div>
 
   <div class="card">

@@ -215,6 +215,13 @@ function exrProjectCost(projectName, targetCur, from, to){
 }
 Object.assign(window,{exrLineBlank, exrBlank, exrTotals, exrProjectCost});
 
+// What the next auto-issued reference would look like, shown as a placeholder
+// so the person can see the house format before deciding to override it.
+function _exrRefHint(){
+  const y=new Date().getFullYear();
+  return `EXP-${y}-0001`;
+}
+window._exrRefHint=_exrRefHint;
 window.exrSet     = function(k,v){ window._exr[k]=v; if(k==="employee") render(); };
 window.exrLineAdd = function(){ window._exr.lines.push(exrLineBlank()); render(); };
 window.exrLineDel = function(i){
@@ -292,9 +299,14 @@ window.exrSave = async function(){
     return any && !String(l.desc||"").trim();
   });
   if(bad>=0) return toast(`\u26a0 Line ${bad+1} has an amount but no description`);
+  // Once approved the number has been quoted to finance, so it is frozen.
+  const prior = window._exrId ? (state.expenseReports||[]).find(x=>x.id===window._exrId) : null;
+  const locked = prior && ["approved","paid"].includes(prior.status) && prior.ref;
+  if(locked && String(r.ref||"").trim() !== String(prior.ref).trim())
+    return toast(`\u26a0 ${prior.ref} is approved \u2014 its number can no longer be changed`);
   const payload={
     id: window._exrId||undefined,
-    ref: r.ref||"",
+    ref: (locked ? prior.ref : String(r.ref||"").trim()),
     employee:String(r.employee).trim(), title:String(r.title||"").trim(),
     department:String(r.department||"").trim(), manager:String(r.manager||"").trim(),
     date:r.date||"", periodFrom:r.periodFrom||"", periodTo:r.periodTo||"",
@@ -318,6 +330,10 @@ window.exrSave = async function(){
     ...(window._exrId?{}:{createdAt:new Date().toISOString(),
       createdBy:(state.profile&&(state.profile.name||state.profile.email))||""}),
   };
+  // A reference typed by hand is authoritative and is never replaced: some
+  // claims must carry the company's own filing number rather than the app's.
+  // The automatic sequence is only consumed when the field was left blank, so
+  // overriding one claim does not create a gap in the app's own numbering.
   if(!payload.ref){
     try{ payload.ref = await generateRefNo("EXPENSE_CLAIM", {project:""}); }catch(e){ payload.ref=""; }
   }
@@ -465,6 +481,16 @@ function renderExpenseClaims(){
         <div class="field"><label>Period to</label><input type="date" value="${escapeHtml(r.periodTo||"")}" onchange="exrSet('periodTo',this.value)"></div>
         <div class="field"><label>Rate used <span style="font-weight:500;color:var(--muted);font-size:10px">\u2014 only for project costing</span></label>
           <input value="${escapeHtml(String(r.rate||curRate()||""))}" oninput="exrSet('rate',this.value)" inputmode="decimal"></div>
+        <div class="field" style="grid-column:1/-1"><label>Document number
+          <span style="font-weight:500;color:var(--muted);font-size:10px">\u2014 leave blank to let the app issue one</span></label>
+          <input value="${escapeHtml(r.ref||"")}" oninput="exrSet('ref',this.value)"
+                 placeholder="${escapeHtml(_exrRefHint())}">
+          <div style="font-size:10px;color:var(--muted);margin-top:4px;line-height:1.6">
+            Company filing often needs its own reference \u2014 the form itself carries one like <span style="font-family:monospace">Doc EJ\\EBL\\04\\FFIN-20260003</span>.
+            Type it here and it is used exactly as written on the PDF, Excel and Word. Leave it empty and the app issues <span style="font-family:monospace">${escapeHtml(_exrRefHint())}</span> on first save.
+            ${r.ref?`<br><strong>This number is fixed once the claim is approved.</strong>`:""}
+          </div>
+        </div>
       </div>
     </div>
 
@@ -544,7 +570,10 @@ function renderExpenseClaims(){
       <button class="btn btn-primary" onclick="exrNew()">+ New claim</button>
       <span style="font-size:11px;color:var(--muted);margin-left:auto">${mine.length} claim(s)</span>
     </div>
-    <div style="margin-top:10px">${typeof rptFormatToggle==="function"?rptFormatToggle():""}</div>
+    <div style="margin-top:10px">${typeof rptFormatToggle==="function"?rptFormatToggle(true):""}</div>
+    <div style="font-size:10px;color:var(--muted);margin-top:2px;line-height:1.6">
+      Excel keeps the totals as live formulas, so finance can re-check the arithmetic \u2014 the usual choice for a claim. PDF is the one to sign and file.
+    </div>
   </div>
   ${!mine.length?`<div class="card"><div class="empty">No claims yet.</div></div>`:mine.map(r=>{
     const S=EXR_STATUS[r.status||"draft"]||EXR_STATUS.draft, t=exrTotals(r);
@@ -570,7 +599,7 @@ function renderExpenseClaims(){
       </table>
       <div style="display:flex;gap:5px;margin-top:10px;flex-wrap:wrap">
         <button class="btn btn-sm btn-secondary" onclick="exrEdit('${r.id}')">\u270e Edit</button>
-        <button class="btn btn-sm btn-secondary" onclick="expenseClaimDoc('${r.id}')">${window._rptFormat==="word"?"\u{1F4DD} Word":"\u{1F4C4} PDF"}</button>
+        <button class="btn btn-sm btn-secondary" onclick="expenseClaimOut('${r.id}')">${window._rptFormat==="excel"?"\u{1F4CA} Excel":window._rptFormat==="word"?"\u{1F4DD} Word":"\u{1F4C4} PDF"}</button>
         ${r.status==="draft"?`<button class="btn btn-sm btn-secondary" onclick="exrStatus('${r.id}','submitted')">Submit</button>`:""}
         ${(r.status==="submitted"&&isAdmin())?`<button class="btn btn-sm" style="background:#1565C0;color:#fff;border:none" onclick="exrStatus('${r.id}','approved')">\u2713 Approve</button>
           <button class="btn btn-sm btn-secondary" onclick="exrStatus('${r.id}','rejected')">Return</button>`:""}
@@ -684,3 +713,114 @@ window.expenseClaimDoc = async function(id){
   toast("Expense report ready!");
 };
 Object.assign(window,{expenseClaimDoc});
+
+// ── Excel export ─────────────────────────────────────────────────────────
+// A spreadsheet suits this document better than Word: finance re-checks the
+// arithmetic, and a PDF cannot be re-checked. The sheet therefore carries LIVE
+// SUM formulas rather than pasted numbers, exactly as the company's own
+// template does — with the difference that each currency is summed from its
+// own columns, so the dollar figures can never fall into the dinar total.
+window.expenseClaimExcel = function(id){
+  if(typeof XLSX==="undefined") return toast("Excel library not loaded");
+  const r=(state.expenseReports||[]).find(x=>x.id===id);
+  if(!r) return toast("Claim not found");
+  try{
+    const t=exrTotals(r);
+    const lines=(r.lines||[]).filter(l=>String(l.desc||"").trim() ||
+      EXR_GROUPS.some(g=>num(l[g.k+"USD"])||num(l[g.k+"IQD"])));
+    const A=[];
+    A.push(["EJAF TECHNOLOGY"]);
+    A.push(["Local Transportation and Expense Report \u2014 Reimbursement Claim"]);
+    A.push([r.ref||""]);
+    A.push([]);
+    A.push(["Employee name", r.employee||"", "", "Title", r.title||""]);
+    A.push(["Department",    r.department||"", "", "Manager", r.manager||""]);
+    A.push(["Date",          r.date||"", "", "Period",
+            (r.periodFrom||r.periodTo) ? `${r.periodFrom||""} \u2192 ${r.periodTo||""}` : ""]);
+    A.push(["Status", (EXR_STATUS[r.status||"draft"]||{lb:"Draft"}).lb]);
+    A.push([]);
+
+    // Two header rows, mirroring the merged group headings of the paper form.
+    const hdr1=["Date","Description (from beginning to destination)","Invoice nu.","Project"];
+    const hdr2=["","","",""];
+    EXR_GROUPS.forEach(g=>{ hdr1.push(g.lb, ""); hdr2.push("USD","IQD"); });
+    const HDR_ROW=A.length;                 // 0-based index of hdr1
+    A.push(hdr1); A.push(hdr2);
+
+    const FIRST=A.length+1;                 // 1-based spreadsheet row of the first data line
+    lines.forEach(l=>{
+      const row=[l.date||"", l.desc||"", l.invoiceNo||"", l.project||""];
+      EXR_GROUPS.forEach(g=>{
+        row.push(num(l[g.k+"USD"])||"", num(l[g.k+"IQD"])||"");
+      });
+      A.push(row);
+    });
+    const LAST=A.length;                    // 1-based row of the last data line
+    const col=(i)=>{ let s="",n=i; do{ s=String.fromCharCode(65+(n%26))+s; n=Math.floor(n/26)-1; }while(n>=0); return s; };
+
+    // Per-group totals as real formulas, so an edited cell re-totals itself.
+    const totals=["Totals","","",""];
+    EXR_GROUPS.forEach((g,gi)=>{
+      const cU=col(4+gi*2), cI=col(5+gi*2);
+      totals.push(lines.length?{f:`SUM(${cU}${FIRST}:${cU}${LAST})`}:0);
+      totals.push(lines.length?{f:`SUM(${cI}${FIRST}:${cI}${LAST})`}:0);
+    });
+    A.push(totals);
+    const TOT=A.length;                     // 1-based row of the totals line
+
+    // Currency subtotals, each from ITS OWN four cells only.
+    const usdCells=EXR_GROUPS.map((_,gi)=>`${col(4+gi*2)}${TOT}`).join(",");
+    const iqdCells=EXR_GROUPS.map((_,gi)=>`${col(5+gi*2)}${TOT}`).join(",");
+    A.push([]);
+    A.push(["Subtotal \u00b7 USD","","","", lines.length?{f:`SUM(${usdCells})`}:0]);
+    A.push(["Subtotal \u00b7 IQD","","","", lines.length?{f:`SUM(${iqdCells})`}:0]);
+    const SUB_USD=A.length-1, SUB_IQD=A.length;
+    A.push(["Less advances \u00b7 USD","","","", t.advUSD||0]);
+    A.push(["Less advances \u00b7 IQD","","","", t.advIQD||0]);
+    const ADV_USD=A.length-1, ADV_IQD=A.length;
+    A.push([t.owedByEmployee?"TO BE RETURNED BY THE EMPLOYEE \u00b7 USD":"TOTAL REIMBURSEMENT DUE \u00b7 USD",
+            "","","", {f:`E${SUB_USD}-E${ADV_USD}`}]);
+    A.push([t.owedByEmployee?"TO BE RETURNED BY THE EMPLOYEE \u00b7 IQD":"TOTAL REIMBURSEMENT DUE \u00b7 IQD",
+            "","","", {f:`E${SUB_IQD}-E${ADV_IQD}`}]);
+    A.push([]);
+    A.push(["US dollar and Iraqi dinar amounts are totalled separately and are never combined."]);
+
+    if((r.advanceIds||[]).length){
+      A.push([]); A.push(["Advances applied"]);
+      A.push(["Reference","Date","USD","IQD"]);
+      (r.advanceIds||[]).forEach(a=>A.push([a.ref||"Advance", a.date||"", num(a.usd)||"", num(a.iqd)||""]));
+    }
+    if(r.notes){ A.push([]); A.push(["Notes"]); A.push([r.notes]); }
+    A.push([]);
+    A.push(["Completed by", r.completedBy||r.employee||"", "", "Approved by", r.approvedBy||""]);
+    A.push(["Signature","","", "Signature",""]);
+
+    const ws=XLSX.utils.aoa_to_sheet(A);
+    ws["!cols"]=[{wch:12},{wch:42},{wch:14},{wch:20}]
+      .concat(EXR_GROUPS.flatMap(()=>[{wch:11},{wch:14}]));
+    // Merge the group headings so the sheet reads like the printed form.
+    const merges=[{s:{r:0,c:0},e:{r:0,c:3+EXR_GROUPS.length*2}},
+                  {s:{r:1,c:0},e:{r:1,c:3+EXR_GROUPS.length*2}}];
+    EXR_GROUPS.forEach((_,gi)=>{
+      merges.push({s:{r:HDR_ROW,c:4+gi*2}, e:{r:HDR_ROW,c:5+gi*2}});
+    });
+    ["A","B","C","D"].forEach((_,i)=>merges.push({s:{r:HDR_ROW,c:i},e:{r:HDR_ROW+1,c:i}}));
+    ws["!merges"]=merges;
+
+    const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Expense Report");
+    const safe=(s)=>String(s||"").replace(/[^A-Za-z0-9._-]+/g,"_").slice(0,40);
+    XLSX.writeFile(wb, `Expense_Report_${safe(r.ref||r.employee)}_${r.date||""}.xlsx`);
+    toast("Excel exported \u2713");
+  }catch(e){
+    console.error(e);
+    toast("Export failed: "+e.message);
+  }
+};
+
+// One button, three formats — the toggle above it decides which.
+window.expenseClaimOut = function(id){
+  if(window._rptFormat==="excel") return expenseClaimExcel(id);
+  return expenseClaimDoc(id);
+};
+Object.assign(window,{expenseClaimExcel, expenseClaimOut});
