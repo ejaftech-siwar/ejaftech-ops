@@ -129,6 +129,26 @@ function renderProfile(){
 
   const _sn=(typeof sysNotifEnabled==="function")&&sysNotifEnabled();
   return `
+  ${isAdmin()?`<div class="card">
+    <div class="sec-hdr">\u{1F465} Company roster</div>
+    <p style="font-size:11px;color:var(--muted);line-height:1.7;margin-bottom:9px">
+      Who counts as an employee across the whole app. Everyone the app has ever seen is offered below;
+      untick subcontractors and one-off names and they leave every picker \u2014 daily log, reports, advances, claims, dispatch.
+      Anyone with work already recorded stays selectable so their entries remain editable.
+    </p>
+    <div style="display:flex;gap:5px;flex-wrap:wrap">
+      ${(typeof dspCandidates==="function"?dspCandidates():[]).map(n=>{
+        const on=(typeof dspPeople==="function")?dspPeople().includes(n):true;
+        return `<button class="btn btn-sm ${on?"":"btn-secondary"}" style="${on?"background:#03308B;color:#fff;border:none;":""}font-size:11px;font-weight:700" onclick="dspToggleTracked(${jsArg(n)},this)">${on?"\u2713 ":""}${escapeHtml(n)}</button>`;
+      }).join("")}
+    </div>
+    <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
+      <button class="btn btn-sm btn-secondary" onclick="dspTrackAll(true)">Select all</button>
+      <button class="btn btn-sm btn-secondary" onclick="dspTrackAll(false)">Reset to all</button>
+      <span style="font-size:10px;color:var(--muted);align-self:center">${(typeof dspTracked==="function"&&dspTracked().length)?dspTracked().length+" selected":"no selection yet \u2014 everyone is included"}</span>
+    </div>
+  </div>`:""}
+
   <div class="card">
     <div class="sec-hdr">\u{1F3A8} Appearance</div>
     <p style="font-size:11px;color:var(--muted);line-height:1.7;margin-bottom:10px">

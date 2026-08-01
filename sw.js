@@ -3,7 +3,7 @@
 // This file MUST sit next to index.html on the server (same folder),
 // alongside: theme.css, app.css, pwa-manifest.js, firebase-init.js, app.js
 
-const CACHE = 'ejaftech-v187';
+const CACHE = 'ejaftech-v188';
 
 // Everything needed to cold-start with no network. The Firebase SDK files are
 // immutable, version-pinned URLs — caching them is what makes offline launch
@@ -214,6 +214,13 @@ self.addEventListener('fetch', (e) => {
 // Activate only when the page asks (user tapped the Update banner)
 self.addEventListener('message',(e)=>{
   if(e && e.data==='SKIP_WAITING') self.skipWaiting();
+  // Let the page ask which build this worker is, so the update banner can tell
+  // a genuinely newer version from a worker that is merely sitting in "waiting"
+  // with the SAME build \u2014 which is what kept the banner on screen after an
+  // update had already been applied.
+  if(e && e.data==='WHICH_VERSION' && e.ports && e.ports[0]){
+    try{ e.ports[0].postMessage(CACHE); }catch(err){}
+  }
 });
 
 // Tap on a system notification → focus the app (or open it)

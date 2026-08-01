@@ -1100,7 +1100,7 @@ function renderDispatch(){
       <button class="btn btn-sm ${dspWeekStartsOn()===1?"":"btn-secondary"}" style="${dspWeekStartsOn()===1?"background:#03308B;color:#fff;border:none;":""}font-size:11px;font-weight:700" onclick="dspSetWeekStart(1)">Monday</button>
     </div>
     <div style="display:flex;gap:6px;align-items:center;margin-top:10px;flex-wrap:wrap">
-      <button class="btn btn-sm btn-secondary" onclick="dspPickerToggle()">👥 Who to track (<span id="dspTrackCount">${dspTracked().length?dspTracked().length:"all"}</span>)</button>
+      <button class="btn btn-sm btn-secondary" onclick="dspPickerToggle()">👥 Company roster (<span id="dspTrackCount">${dspTracked().length?dspTracked().length:"all"}</span>)</button>
       ${!dspTracked().length?`<span style="font-size:10px;color:var(--muted)">no selection yet — showing everyone</span>`:""}
     </div>
     ${window._dsp.picker?`<div style="background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;margin-top:8px">

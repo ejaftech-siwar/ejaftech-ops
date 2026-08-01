@@ -1119,14 +1119,48 @@ if('serviceWorker' in navigator){
           document.getElementById('updX').addEventListener('click',function(){ bar.remove(); });
         }catch(err){}
       }
+      // Ask a worker which build it is. Returns null if it cannot answer, so an
+      // older worker without the handler simply falls back to the old behaviour.
+      function versionOf(worker){
+        return new Promise(function(resolve){
+          if(!worker) return resolve(null);
+          var done=false;
+          try{
+            var ch=new MessageChannel();
+            ch.port1.onmessage=function(ev){ if(!done){done=true; resolve(ev.data||null);} };
+            worker.postMessage('WHICH_VERSION',[ch.port2]);
+            setTimeout(function(){ if(!done){done=true; resolve(null);} },900);
+          }catch(err){ resolve(null); }
+        });
+      }
+      // The banner used to appear whenever a worker sat in "waiting". After an
+      // update that worker can still be present holding the SAME build, so the
+      // banner came straight back and had to be dismissed by hand. Now the two
+      // builds are compared and the banner is shown only when they differ.
+      function maybeShowUpdateBar(){
+        var waiting = reg.waiting;
+        if(!waiting || !navigator.serviceWorker.controller) return;
+        Promise.all([versionOf(waiting), versionOf(navigator.serviceWorker.controller)])
+          .then(function(v){
+            var next=v[0], cur=v[1];
+            // Unknown on either side: fall back to showing it, because a missed
+            // update is worse than one extra banner.
+            if(next && cur && next===cur){
+              try{ waiting.postMessage('SKIP_WAITING'); }catch(err){}   // clear it quietly
+              return;
+            }
+            showUpdateBar();
+          })
+          .catch(function(){ showUpdateBar(); });
+      }
       // already-downloaded update from a previous visit
-      if(reg.waiting && navigator.serviceWorker.controller) showUpdateBar();
+      maybeShowUpdateBar();
       // update found during this session
       reg.addEventListener('updatefound', function(){
         var nw=reg.installing;
         if(!nw) return;
         nw.addEventListener('statechange', function(){
-          if(nw.state==='installed' && navigator.serviceWorker.controller) showUpdateBar();
+          if(nw.state==='installed' && navigator.serviceWorker.controller) maybeShowUpdateBar();
         });
       });
       // re-check when the app returns to the foreground (mobile PWA resume)
@@ -1141,7 +1175,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v187';"
+      var swCode = "const CACHE='ejaftech-v188';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"

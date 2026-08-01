@@ -360,8 +360,9 @@ const _iqd=(n)=>Math.round(num(n)).toLocaleString()+" IQD";
 
 function renderAdvances(){
   if(!(isAdmin()||hasCap("canAnalytics"))) return `<div class="card"><div class="empty">No access.</div></div>`;
-  const people=(typeof dspCandidates==="function")?dspCandidates():
-    [...new Set((state.users||[]).map(u=>u.name||u.employeeName).filter(Boolean))].sort();
+  // allEmployees() honours the company roster; dspCandidates() deliberately
+  // does not, because the roster control has to be able to show unticked names.
+  const people=(typeof allEmployees==="function")?allEmployees().slice().sort():[];
   const projects=(state.projects||[]).map(p=>p.name).filter(Boolean).sort();
 
   if(window._advView==="edit"){
@@ -440,7 +441,7 @@ function renderAdvances(){
 
 function renderExpenseClaims(){
   if(!(isAdmin()||hasCap("canAnalytics")||isEmployee())) return `<div class="card"><div class="empty">No access.</div></div>`;
-  const people=(typeof dspCandidates==="function")?dspCandidates():[];
+  const people=(typeof allEmployees==="function")?allEmployees().slice().sort():[];
   const projects=(state.projects||[]).map(p=>p.name).filter(Boolean).sort();
 
   if(window._exrView==="edit"){
