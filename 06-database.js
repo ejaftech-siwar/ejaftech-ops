@@ -95,7 +95,11 @@ function renderProjects(){
         <div class="card-title" style="margin:0">${isUncategorized?`<span style="color:#6B7B8F">${d}</span>`:deptBadgeDyn(d)} · ${g[d].length} projects</div>
         ${!isUncategorized?`<button class="btn btn-sm" style="background:#00897B;color:white;border:none;font-weight:700;font-size:11px" onclick="importProjectsForDept('${escapeHtml(d)}')" title="Import projects/sites/equipment from CSV or Excel">📥 Import</button>`:''}
       </div>
-      ${g[d].length===0?`<div class="empty">No projects</div>`:`<div class="proj-chips">${g[d].map(p=>{const areaCount=(p.areas&&p.areas.length)?p.areas.length:((p.sites&&p.sites.length)?1:0);return `<span class="proj-chip" style="border-left:3px solid ${color}"><span style="cursor:pointer" title="Tap to edit" onclick="editProj('${p.id}')">${escapeHtml(p.name)}</span>${areaCount>0?`<span style="font-size:9px;background:#1565C0;color:white;padding:1px 5px;border-radius:8px;margin-left:4px">${areaCount} 🗺️</span>`:''}
+      ${g[d].length===0?emptyState({icon:"\u{1F3D7}\uFE0F",title:"No projects in this department",
+      why:"A project is what every hour, report, cost and invoice attaches to. Nothing else in the app can be recorded until one exists.",
+      steps:["Give it a name the client would recognise","Add the areas and sites you will visit","Set the estimated hours and the hourly cost so profitability works"],
+      action:{label:"+ Add the first project", onclick:"projNew&&projNew()"},
+      hint:"You can add areas and sites later \u2014 the name alone is enough to start."}):`<div class="proj-chips">${g[d].map(p=>{const areaCount=(p.areas&&p.areas.length)?p.areas.length:((p.sites&&p.sites.length)?1:0);return `<span class="proj-chip" style="border-left:3px solid ${color}"><span style="cursor:pointer" title="Tap to edit" onclick="editProj('${p.id}')">${escapeHtml(p.name)}</span>${areaCount>0?`<span style="font-size:9px;background:#1565C0;color:white;padding:1px 5px;border-radius:8px;margin-left:4px">${areaCount} 🗺️</span>`:''}
         <button class="btn btn-sm" style="padding:2px 6px;background:#1565C0;color:white;border:none" onclick="openSitesModal('${p.id}')" title="Manage areas & sites">${ICN.pin}</button>
         <button class="btn btn-sm btn-secondary" onclick="editProj('${p.id}')" style="padding:2px 6px">${ICN.edit}</button>
         <button class="btn btn-sm btn-danger" onclick="delProj('${p.id}')" style="padding:2px 6px">${ICN.del}</button></span>`}).join("")}</div>`}

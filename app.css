@@ -1,6 +1,11 @@
 /* Girêk — component styles */
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{margin:0;padding:0;font-family:'Inter',-apple-system,system-ui,sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased;overscroll-behavior:contain;-webkit-text-size-adjust:100%;text-size-adjust:100%;-webkit-tap-highlight-color:transparent;touch-action:pan-x pan-y}
+/* Inter carries no Arabic glyphs, so Arabic text fell through to whatever the
+   device happened to have — a different weight, a different rhythm, and a
+   visible seam wherever the two scripts met. IBM Plex Sans Arabic is metrically
+   companionable with Inter, so mixed lines now share one baseline. Listed
+   second: Latin glyphs still come from Inter, Arabic from Plex. */
+html,body{margin:0;padding:0;font-family:'Inter','IBM Plex Sans Arabic',-apple-system,system-ui,sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased;overscroll-behavior:contain;-webkit-text-size-adjust:100%;text-size-adjust:100%;-webkit-tap-highlight-color:transparent;touch-action:pan-x pan-y}
 body{padding-bottom:env(safe-area-inset-bottom,0px)}
 
 /* Login screen */
@@ -23,6 +28,34 @@ body{padding-bottom:env(safe-area-inset-bottom,0px)}
 .setup-needed code{background:rgba(0,0,0,0.3);color:var(--gold);padding:2px 6px;border-radius:4px;font-size:12px}
 
 /* Main app */
+/* ═══ SURFACE DEPTH (v196) ═════════════════════════════════════
+   Applied to the PAGE, never to cards: cards stay flat so their own shadow
+   reads as elevation above the page. Fixed to the viewport so it does not
+   travel while a long list scrolls, which would turn a subtle effect into an
+   obvious one. */
+body{
+  background-image:linear-gradient(180deg,
+    rgba(255,255,255,0.55) 0%,
+    rgba(0,0,0,0.045) 100%);
+  background-attachment:fixed;
+  background-blend-mode:overlay;
+}
+/* A faint technical grid behind the header: a quiet nod to the ELV drawings
+   this company actually produces. 3–6% opacity is deliberate — it should
+   register as texture, never as pattern. */
+.app-header::after{
+  content:'';
+  position:absolute; inset:0;
+  pointer-events:none;
+  background-image:
+    linear-gradient(90deg, rgba(255,255,255,.055) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(255,255,255,.055) 1px, transparent 1px);
+  background-size:22px 22px;
+  -webkit-mask-image:linear-gradient(180deg, rgba(0,0,0,.9), transparent);
+  mask-image:linear-gradient(180deg, rgba(0,0,0,.9), transparent);
+}
+@media (prefers-reduced-motion: reduce){ body{ background-image:none; } }
+
 .app-header{position:sticky;top:0;z-index:50;background:linear-gradient(135deg,#1B3A6B 0%,#2E5FA3 100%);color:white;padding:env(safe-area-inset-top,0px) 0 0 0;box-shadow:var(--shadow-lg);transform:translateZ(0);will-change:transform;contain:layout paint}
 .header-row{display:flex;align-items:center;gap:12px;padding:12px 16px}
 .logo-mark{width:42px;height:42px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden}
@@ -846,4 +879,79 @@ input,select,textarea,button{font-variant-numeric:tabular-nums}
   body.has-bnav #content{padding-bottom:38px}
   #moreSheet{bottom:calc(36px + env(safe-area-inset-bottom,0px))}
   .sig-canvas,.sig-preview{height:80px;max-height:80px}
+}
+
+/* ═══ TEACHING EMPTY STATES (v196) ═══════════════════════════════════════
+   Sized to feel like guidance rather than an error: generous padding, a calm
+   icon, and a single obvious action. The numbered steps carry the weight —
+   they turn a dead end into an instruction. */
+.empty-teach{
+  display:flex; flex-direction:column; align-items:center;
+  gap:8px; padding:30px 20px; text-align:center;
+}
+.et-ic{ font-size:38px; line-height:1; opacity:.85; margin-bottom:2px }
+.et-title{ font-size:var(--f-lg); font-weight:800; color:var(--text) }
+.et-why{
+  font-size:var(--f-sm); color:var(--muted); line-height:1.75;
+  max-width:38ch;
+}
+.et-steps{
+  text-align:right; margin:6px 0 2px; padding:0 22px 0 0;
+  font-size:var(--f-sm); color:var(--muted); line-height:1.95;
+  max-width:40ch;
+}
+html[dir="ltr"] .et-steps, body:not([dir="rtl"]) .et-steps{ text-align:left; padding:0 0 0 22px }
+.et-steps li{ margin-bottom:3px }
+.et-steps li::marker{ color:var(--gold); font-weight:800 }
+.et-act{ margin-top:10px; min-width:190px }
+.et-hint{
+  font-size:var(--f-xs); color:var(--muted); opacity:.85;
+  line-height:1.6; max-width:40ch; margin-top:4px;
+}
+
+/* ═══ UNIVERSAL SEARCH (v196) ═══════════════════════════════════════════ */
+.gs-btn{
+  background:rgba(255,255,255,.14); color:#fff; border:none;
+  width:34px; height:34px; border-radius:10px; cursor:pointer;
+  display:inline-flex; align-items:center; justify-content:center;
+  transition:background .16s ease;
+}
+.gs-btn:active{ background:rgba(255,255,255,.28) }
+.gs-ov{
+  position:fixed; inset:0; z-index:8000;
+  background:rgba(10,18,32,.55); backdrop-filter:blur(3px);
+  display:flex; align-items:flex-start; justify-content:center;
+  padding:calc(12px + env(safe-area-inset-top,0px)) 12px 12px;
+}
+.gs-box{
+  width:100%; max-width:560px; background:var(--card);
+  border-radius:var(--r-lg); box-shadow:var(--shadow-lg);
+  display:flex; flex-direction:column; max-height:86vh; overflow:hidden;
+}
+.gs-hd{ display:flex; gap:8px; padding:12px; border-bottom:1px solid var(--line) }
+.gs-hd input{
+  flex:1; padding:11px 13px; border:1.5px solid var(--line);
+  border-radius:var(--r-md); font-size:var(--f-md); background:var(--bg); color:var(--text);
+}
+.gs-hd input:focus{ outline:none; border-color:var(--navy) }
+.gs-results{ overflow-y:auto; padding:6px }
+.gs-hint{ padding:22px 18px; font-size:var(--f-sm); color:var(--muted); line-height:1.8; text-align:center }
+.gs-row{
+  display:flex; align-items:center; gap:10px; width:100%;
+  padding:10px 12px; background:transparent; border:none;
+  border-bottom:1px solid var(--line); cursor:pointer; text-align:right;
+}
+html[dir="ltr"] .gs-row{ text-align:left }
+.gs-row:last-child{ border-bottom:none }
+.gs-row:active{ background:var(--bg) }
+.gs-ic{ font-size:17px; flex:0 0 22px; text-align:center }
+.gs-txt{ flex:1; min-width:0; display:flex; flex-direction:column; gap:2px }
+.gs-t{ font-size:var(--f-md); font-weight:700; color:var(--text);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+.gs-s{ font-size:var(--f-xs); color:var(--muted);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+.gs-tag{
+  flex:0 0 auto; font-size:var(--f-xs); font-weight:700;
+  color:var(--navy); background:var(--surface-2);
+  padding:2px 8px; border-radius:10px; white-space:nowrap;
 }

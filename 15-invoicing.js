@@ -524,7 +524,11 @@ function renderInvoices(){
     </table>`}
   </div>
 
-  ${!rows.length?`<div class="card"><div class="empty">No invoices yet.</div></div>`:rows.map(v=>{
+  ${!rows.length?`<div class="card">`+emptyState({icon:"\u{1F9FE}",title:"No invoices yet",
+      why:"Knowing a project is profitable is not the same as knowing the money arrived. Invoices tell you what has been billed, what is still owed, and how late it is.",
+      steps:["Pick the project \u2014 the client fills itself in","Bill a share of the contract with one tap, or add lines by hand","Issue it, then record each receipt as it comes in"],
+      action:{label:"+ New invoice", onclick:"invNew()"},
+      hint:"Retention is withheld until you release it, so it never inflates what the client currently owes."})+`</div>`:rows.map(v=>{
     const st=invStatus(v), S=INV_STATUS[st]||INV_STATUS.draft, t=invTotals(v);
     const d=daysPastDue(v), due=invDueDate(v);
     return `<div class="card" style="border-left:4px solid ${S.fg}">

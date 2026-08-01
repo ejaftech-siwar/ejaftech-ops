@@ -548,7 +548,10 @@ function renderSpareParts(){
   </div>
   <div class="card">
     <div class="sec-hdr" style="display:flex;align-items:center;gap:8px">Catalogue <span style="font-size:10px;color:var(--muted);font-weight:500">(${cat.length})</span></div>
-    ${!cat.length?`<div class="empty">No parts yet.</div>`:cat.map(p=>{
+    ${!cat.length?emptyState({icon:"\u{1F527}",title:"The spare-parts catalogue is empty",
+      why:"Once parts are listed here, a technician picks them on a work entry and the material cost lands on the project automatically \u2014 with the price captured at the moment of use.",
+      steps:["Add a code and a name for each part you stock","Set the unit and the unit cost","Import a long list in one go from Assets \u2192 Import CSV"],
+      hint:"A technician can still type a free-text part on an entry \u2014 the catalogue only saves them the typing."}):cat.map(p=>{
       const q=used(p.code);
       const low = p.stock!=null && p.stock!=="" && Number(p.stock)<=0;
       return `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:8px 0;border-bottom:1px solid var(--line)">

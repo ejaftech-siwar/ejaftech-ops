@@ -1053,6 +1053,48 @@ function fmtLastSeen(iso){
 }
 const projDept=(p)=>{const tp=(p||"").trim();return state.projects.find(x=>(x.name||"").trim()===tp)?.dept||"";};
 const deptBadge=(d)=>{if(!d)return "";const c=d==="Enterprise"?"ent":d==="Security"?"sec":"eja";return `<span class="badge badge-${c}">${d}</span>`;};
+// ═══ TEACHING EMPTY STATES (v196) ═══════════════════════════════════════
+// An empty screen is the first thing a new user sees, and "No devices yet."
+// tells them nothing they had not already worked out. With 37 screens and no
+// tour, these blank moments are the only place the app can explain itself — so
+// each one now says what the screen is FOR, why it matters, and offers the one
+// action that fills it.
+//
+// Deliberately NOT a tour or a walkthrough: those interrupt people who already
+// know the app. This teaches only at the exact moment someone is stuck, and
+// disappears the instant there is data.
+function emptyState(o){
+  o = o || {};
+  const icon  = o.icon || "\u{1F4ED}";
+  const title = o.title || "Nothing here yet";
+  const why   = o.why || "";
+  const steps = Array.isArray(o.steps) ? o.steps : [];
+  const act   = o.action;             // {label, onclick}
+  const hint  = o.hint || "";
+  return `<div class="empty-teach">
+    <div class="et-ic">${icon}</div>
+    <div class="et-title">${escapeHtml(title)}</div>
+    ${why?`<div class="et-why">${escapeHtml(why)}</div>`:""}
+    ${steps.length?`<ol class="et-steps">${steps.map(s=>`<li>${escapeHtml(s)}</li>`).join("")}</ol>`:""}
+    ${act&&act.label?`<button class="btn btn-primary et-act" onclick="${escapeHtml(act.onclick||"")}">${escapeHtml(act.label)}</button>`:""}
+    ${hint?`<div class="et-hint">${escapeHtml(hint)}</div>`:""}
+  </div>`;
+}
+// A filter that hides everything is a different problem from having no data at
+// all, and the fix is different too: widen the filter, not create a record.
+// Telling someone to "add your first project" when they have fifty is the kind
+// of wrong help that erodes trust in every other message the app shows.
+function emptyFiltered(what, clearFn){
+  return `<div class="empty-teach">
+    <div class="et-ic">\u{1F50D}</div>
+    <div class="et-title">No ${escapeHtml(what)} match the current filters</div>
+    <div class="et-why">There is data here \u2014 the period or the filters you have set are hiding it.</div>
+    ${clearFn?`<button class="btn btn-secondary et-act" onclick="${escapeHtml(clearFn)}">Clear the filters</button>`:""}
+    <div class="et-hint">Check the period in the header first; it applies to most screens.</div>
+  </div>`;
+}
+Object.assign(window,{emptyState, emptyFiltered});
+
 const escapeHtml=(s)=>String(s||"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[c]);
 // Passing a value as an ARGUMENT to an inline handler is a different problem
 // from displaying it. The browser decodes HTML entities in an attribute BEFORE
@@ -2605,7 +2647,9 @@ function renderApp(){
           <h1>Girêk</h1>
           ${`<p><span id="periodLabelInline" onclick="editPeriod(event)" style="cursor:pointer;white-space:nowrap;display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;vertical-align:bottom;font-size:10px;${(getPeriodFrom()||getPeriodTo())?'background:#C9A84C;color:#03308B;padding:2px 10px;border-radius:12px;font-weight:700':'text-decoration:underline dotted;opacity:0.9'}">${(getPeriodFrom()||getPeriodTo())?'📅 ':''}${escapeHtml(shortPeriod())}${(getPeriodFrom()||getPeriodTo())?' ✕':''}</span></p>`}
         </div>
-        <span id="syncPill" class="sync-pill ok" onclick="paintSyncPill()"></span>${state.offlineSession?`<span class="sync-pill off" title="Opened from the session saved on this device. It will re-authenticate the moment you reconnect." style="margin-left:4px">📴 Local session</span>`:""}<span id="netDot" title="You are offline — changes will sync when back online" style="display:${(typeof navigator!=='undefined'&&navigator.onLine===false)?'inline-flex':'none'};align-items:center;gap:5px;background:#7A1F1F;color:#FFD9D9;font-size:10px;font-weight:800;padding:4px 9px;border-radius:12px;margin-right:4px">📴 OFFLINE</span><button id="themeBtn" onclick="toggleTheme()" title="Light / Dark mode" style="background:rgba(255,255,255,0.14);border:none;border-radius:8px;width:32px;height:32px;font-size:14px;cursor:pointer;margin-right:2px;line-height:1">${document.documentElement.getAttribute('data-theme')==='dark'?ICON_SUN:ICON_MOON}</button><span id="notifBell" onclick="openNotifPanel()" style="position:relative;cursor:pointer;font-size:18px;padding:4px 6px;margin-right:2px;user-select:none" class="bell-btn ${bellCount()>0?'ring':''}">${ICON_BELL}<span id="notifBellBadge" style="position:absolute;top:0;right:-2px;background:#C62828;color:#fff;font-size:9px;font-weight:800;min-width:15px;height:15px;border-radius:8px;display:${bellCount()>0?'flex':'none'};align-items:center;justify-content:center;padding:0 3px">${bellCount()>99?'99+':bellCount()}</span></span>
+        <button class="gs-btn" onclick="gsToggle()" title="Search anything" aria-label="Search">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+        </button><span id="syncPill" class="sync-pill ok" onclick="paintSyncPill()"></span>${state.offlineSession?`<span class="sync-pill off" title="Opened from the session saved on this device. It will re-authenticate the moment you reconnect." style="margin-left:4px">📴 Local session</span>`:""}<span id="netDot" title="You are offline — changes will sync when back online" style="display:${(typeof navigator!=='undefined'&&navigator.onLine===false)?'inline-flex':'none'};align-items:center;gap:5px;background:#7A1F1F;color:#FFD9D9;font-size:10px;font-weight:800;padding:4px 9px;border-radius:12px;margin-right:4px">📴 OFFLINE</span><button id="themeBtn" onclick="toggleTheme()" title="Light / Dark mode" style="background:rgba(255,255,255,0.14);border:none;border-radius:8px;width:32px;height:32px;font-size:14px;cursor:pointer;margin-right:2px;line-height:1">${document.documentElement.getAttribute('data-theme')==='dark'?ICON_SUN:ICON_MOON}</button><span id="notifBell" onclick="openNotifPanel()" style="position:relative;cursor:pointer;font-size:18px;padding:4px 6px;margin-right:2px;user-select:none" class="bell-btn ${bellCount()>0?'ring':''}">${ICON_BELL}<span id="notifBellBadge" style="position:absolute;top:0;right:-2px;background:#C62828;color:#fff;font-size:9px;font-weight:800;min-width:15px;height:15px;border-radius:8px;display:${bellCount()>0?'flex':'none'};align-items:center;justify-content:center;padding:0 3px">${bellCount()>99?'99+':bellCount()}</span></span>
         <button onclick="switchTab('Profile')" title="My Profile" style="width:40px;height:40px;border-radius:50%;padding:0;border:2px solid var(--gold);background:var(--navy);color:var(--gold);font-weight:800;font-size:14px;cursor:pointer;overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.25)">${(state.profile&&state.profile.photoData)?`<img src="${state.profile.photoData}" alt="" style="width:100%;height:100%;object-fit:cover">`:escapeHtml(((state.profile&&(state.profile.name||state.profile.employeeName||state.profile.email))||"?").charAt(0).toUpperCase())}</button>
       </div>
       ${(()=>{
@@ -3127,6 +3171,10 @@ function renderTab(){
       if(state.tab==="Date & Time" && typeof window._dtInit==="function") window._dtInit();
       // The photo annotator is a full-screen overlay, so it is appended after
       // the tab has painted rather than being owned by any single screen.
+      if(window._gsOpen && typeof renderGlobalSearch==="function"){
+        c.insertAdjacentHTML("beforeend", renderGlobalSearch());
+        setTimeout(()=>{ const e=document.getElementById("gsInput"); if(e && document.activeElement!==e) e.focus(); }, 40);
+      }
       if(window._anno && typeof renderAnnoEditor==="function"){
         c.insertAdjacentHTML("beforeend", renderAnnoEditor());
         if(typeof annoPaint==="function") setTimeout(annoPaint, 40);
@@ -3917,3 +3965,127 @@ function projectEconomics(name){
            level: value<=0 ? "unknown" : cost>value ? "loss" : cost>value*0.85 ? "tight" : "healthy" };
 }
 Object.assign(window,{projectSLA,slaResponseFor,slaStateOf,slaBadge,slaCompliance,projectEconomics});
+
+// ═══ UNIVERSAL SEARCH (v196) ════════════════════════════════════════════
+// With 37 screens across 7 groups, finding a known thing meant remembering
+// which menu it lived under. This is deliberately NOT the command palette that
+// was rejected at v77: no keyboard shortcut, no floating overlay, no commands.
+// It is a plain search field in the header that finds RECORDS — a project, a
+// device, an incident, a document number — and takes you to it.
+window._gsQ = window._gsQ || "";
+window._gsOpen = window._gsOpen || false;
+
+const GS_SOURCES = [
+  {key:"projects",   ic:"\u{1F3D7}\uFE0F", lb:"Project",   tab:"Projects",
+   fields:["name","client","dept","status"], title:r=>r.name, sub:r=>[r.client,r.dept].filter(Boolean).join(" \u00b7 ")},
+  {key:"devices",    ic:"\u{1F5A5}\uFE0F", lb:"Device",    tab:"Assets",
+   fields:["deviceName","serialNumber","deviceCode","model","brand","system","project","site"],
+   title:r=>r.deviceName||r.serialNumber, sub:r=>[r.serialNumber,r.model,r.project].filter(Boolean).join(" \u00b7 ")},
+  {key:"clients",    ic:"\u{1F464}", lb:"Client",    tab:"Clients",
+   fields:["name","contact","email","phone"], title:r=>r.name, sub:r=>[r.contact,r.phone].filter(Boolean).join(" \u00b7 ")},
+  {key:"incidents",  ic:"\u{1F6A8}", lb:"Incident",  tab:"Incidents",
+   fields:["title","project","system","status","severity","ref"],
+   title:r=>r.title, sub:r=>[r.project,r.date&&fmtDate(r.date),r.status].filter(Boolean).join(" \u00b7 ")},
+  {key:"pmSchedules",ic:"\u{1F6E0}\uFE0F", lb:"Maintenance", tab:"Maintenance",
+   fields:["title","project","system"], title:r=>r.title, sub:r=>[r.project,r.system].filter(Boolean).join(" \u00b7 ")},
+  {key:"tasks",      ic:"\u2705", lb:"Task",      tab:"My Tasks",
+   fields:["title","assignee","project","status"], title:r=>r.title, sub:r=>[r.assignee,r.status].filter(Boolean).join(" \u00b7 ")},
+  {key:"clientRequests",ic:"\u{1F4E8}", lb:"Request", tab:"Requests",
+   fields:["title","project","client","status","ref"], title:r=>r.title, sub:r=>[r.client,r.status].filter(Boolean).join(" \u00b7 ")},
+  {key:"quotes",     ic:"\u{1F4B0}", lb:"Quotation", tab:"Finance", view:["_finView","quotes"],
+   fields:["ref","title","client","project"], title:r=>r.title||r.ref, sub:r=>[r.ref,r.client].filter(Boolean).join(" \u00b7 ")},
+  {key:"invoices",   ic:"\u{1F9FE}", lb:"Invoice",  tab:"Finance", view:["_finView","invoices"],
+   fields:["ref","title","client","project"], title:r=>r.title||r.ref, sub:r=>[r.ref,r.client].filter(Boolean).join(" \u00b7 ")},
+  {key:"variations", ic:"\u{1F501}", lb:"Variation", tab:"Finance", view:["_finView","variations"],
+   fields:["ref","title","project","reason"], title:r=>r.title||r.ref, sub:r=>[r.ref,r.project].filter(Boolean).join(" \u00b7 ")},
+  {key:"expenses",   ic:"\u{1F4B8}", lb:"Expense",  tab:"Finance", view:["_finView","expenses"],
+   fields:["desc","payee","invoiceRef","project","category"], title:r=>r.desc, sub:r=>[r.payee,r.project].filter(Boolean).join(" \u00b7 ")},
+  {key:"expenseReports",ic:"\u{1F9FE}", lb:"Expense report", tab:"Finance", view:["_finView","claims"],
+   fields:["ref","employee","department"], title:r=>r.employee, sub:r=>[r.ref,r.date&&fmtDate(r.date)].filter(Boolean).join(" \u00b7 ")},
+  {key:"advances",   ic:"\u{1F4B3}", lb:"Advance",  tab:"Finance", view:["_finView","advances"],
+   fields:["employee","purpose","ref","project"], title:r=>r.employee, sub:r=>[r.purpose,r.ref].filter(Boolean).join(" \u00b7 ")},
+  {key:"parts",      ic:"\u{1F527}", lb:"Part",     tab:"Assets", view:["_assetView","parts"],
+   fields:["code","name","unit"], title:r=>r.name, sub:r=>r.code},
+];
+
+// Ranked, not merely filtered: an exact match on a reference number should beat
+// a stray word buried in a description, or the result list is noise.
+function gsSearch(q, limit){
+  const needle=String(q||"").trim().toLowerCase();
+  if(needle.length<2) return [];
+  const out=[];
+  GS_SOURCES.forEach(S=>{
+    const rows=state[S.key];
+    if(!Array.isArray(rows)) return;
+    rows.forEach(r=>{
+      let best=0;
+      for(const f of S.fields){
+        const v=String(r[f]==null?"":r[f]).toLowerCase();
+        if(!v) continue;
+        if(v===needle){ best=Math.max(best,100); break; }
+        if(v.startsWith(needle)) best=Math.max(best,70);
+        else if(v.includes(needle)) best=Math.max(best,40);
+      }
+      if(best) out.push({score:best, src:S, row:r});
+    });
+  });
+  out.sort((a,b)=> b.score-a.score ||
+    String(a.src.lb).localeCompare(String(b.src.lb)) ||
+    String(a.src.title(a.row)||"").localeCompare(String(b.src.title(b.row)||"")));
+  return out.slice(0, limit||30);
+}
+
+window.gsToggle = function(){
+  window._gsOpen=!window._gsOpen;
+  if(!window._gsOpen) window._gsQ="";
+  render();
+  if(window._gsOpen) setTimeout(()=>{ const e=document.getElementById("gsInput"); if(e) e.focus(); }, 60);
+};
+window.gsSet = function(v){
+  window._gsQ=v;
+  const box=document.getElementById("gsResults");
+  if(box) box.innerHTML=gsResultsHTML();
+};
+window.gsGo = function(key, id){
+  const S=GS_SOURCES.find(x=>x.key===key);
+  if(!S) return;
+  window._gsOpen=false; window._gsQ="";
+  if(S.view) window[S.view[0]]=S.view[1];
+  window._gsFocusId=id;                       // the target row can highlight itself
+  if(typeof switchTab==="function") switchTab(S.tab); else { state.tab=S.tab; render(); }
+};
+
+function gsResultsHTML(){
+  const q=window._gsQ||"";
+  if(String(q).trim().length<2)
+    return `<div class="gs-hint">Type at least two characters. Searches projects, devices, clients, incidents, maintenance, tasks, requests and every financial document \u2014 including reference numbers.</div>`;
+  const hits=gsSearch(q, 30);
+  if(!hits.length)
+    return `<div class="gs-hint">Nothing matches \u201c${escapeHtml(q)}\u201d. Reference numbers, serial numbers and client names all work here.</div>`;
+  return hits.map(h=>{
+    const t=String(h.src.title(h.row)||"\u2014");
+    const s=String(h.src.sub(h.row)||"");
+    return `<button class="gs-row" onclick="gsGo(${jsArg(h.src.key)},${jsArg(h.row.id||"")})">
+      <span class="gs-ic">${h.src.ic}</span>
+      <span class="gs-txt">
+        <span class="gs-t">${escapeHtml(t)}</span>
+        ${s?`<span class="gs-s">${escapeHtml(s)}</span>`:""}
+      </span>
+      <span class="gs-tag">${escapeHtml(h.src.lb)}</span>
+    </button>`;
+  }).join("");
+}
+function renderGlobalSearch(){
+  if(!window._gsOpen) return "";
+  return `<div class="gs-ov" onclick="if(event.target===this)gsToggle()">
+    <div class="gs-box">
+      <div class="gs-hd">
+        <input id="gsInput" value="${escapeHtml(window._gsQ||"")}" oninput="gsSet(this.value)"
+               placeholder="Search anything \u2014 name, serial, reference\u2026" autocomplete="off">
+        <button class="btn btn-sm btn-secondary" onclick="gsToggle()">Close</button>
+      </div>
+      <div class="gs-results" id="gsResults">${gsResultsHTML()}</div>
+    </div>
+  </div>`;
+}
+Object.assign(window,{gsSearch, renderGlobalSearch, gsResultsHTML, GS_SOURCES});

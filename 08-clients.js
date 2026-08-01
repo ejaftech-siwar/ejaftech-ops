@@ -43,7 +43,11 @@ function renderClients(){
       <span class="count-pill">${(state.clients||[]).length}</span>
     </div>
     ${(state.clients||[]).length===0
-      ? `<div class="empty">No clients yet</div>`
+      ? emptyState({icon:"\u{1F464}",title:"No clients yet",
+      why:"A client owns projects, receives quotations and invoices, and can be given a portal login to follow their own work.",
+      steps:["Add the client name and contact","Link their projects to them","Optionally create a portal account so they can see progress themselves"],
+      action:{label:"+ Add the first client", onclick:"clientNew&&clientNew()"},
+      hint:"A client typed on a quotation is not registered here \u2014 add them properly once the work is won."})
       : `<div style="display:flex;flex-direction:column;gap:10px">
         ${(state.clients||[]).map(c=>{
           const projList = (c.projects||[]);

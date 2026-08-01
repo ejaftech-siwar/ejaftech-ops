@@ -427,7 +427,11 @@ function renderAdvances(){
     </div>
     <div style="font-size:10px;color:var(--muted);margin-top:8px;line-height:1.7">Cash handed out and not yet accounted for by an approved claim. This is company money sitting in pockets.</div>
   </div>
-  ${!rows.length?`<div class="card"><div class="empty">No advances yet.</div></div>`:rows.map(a=>{
+  ${!rows.length?`<div class="card">`+emptyState({icon:"\u{1F4B3}",title:"No work advances recorded",
+      why:"Cash handed to an employee before a trip stays a company liability until a claim accounts for it. This is where that money is tracked.",
+      steps:["Choose the employee and the amount \u2014 USD, IQD, or both","State what it is for","Settle it later from the employee's expense report"],
+      action:{label:"+ New advance", onclick:"advNew()"},
+      hint:"The expense report pulls open advances in automatically, so the deduction is never typed from memory."})+`</div>`:rows.map(a=>{
     const st=advStatusOf(a), S=ADV_STATUS[st], o=advOutstanding(a);
     return `<div class="card" style="border-left:4px solid ${S.fg}">
       <div style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap">
@@ -575,7 +579,11 @@ function renderExpenseClaims(){
       Excel keeps the totals as live formulas, so finance can re-check the arithmetic \u2014 the usual choice for a claim. PDF is the one to sign and file.
     </div>
   </div>
-  ${!mine.length?`<div class="card"><div class="empty">No claims yet.</div></div>`:mine.map(r=>{
+  ${!mine.length?`<div class="card">`+emptyState({icon:"\u{1F9FE}",title:"No expense reports yet",
+      why:"This is the company's reimbursement claim: fuel, taxi, phone and other costs an employee paid out of pocket or out of an advance.",
+      steps:["Enter each trip on its own line, with the invoice number","Pull in any open advances so they are deducted","Submit it for approval, then export as PDF, Excel or Word"],
+      action:{label:"+ New claim", onclick:"exrNew()"},
+      hint:"Excel keeps the totals as live formulas, which is what finance usually wants."})+`</div>`:mine.map(r=>{
     const S=EXR_STATUS[r.status||"draft"]||EXR_STATUS.draft, t=exrTotals(r);
     return `<div class="card" style="border-left:4px solid ${S.fg}">
       <div style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap">

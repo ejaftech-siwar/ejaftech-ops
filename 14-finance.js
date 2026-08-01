@@ -897,7 +897,11 @@ function renderQuotes(){
           <div style="font-size:10px;color:${S.fg}">${lb}</div></div>`;}).join("")}
     </div>
   </div>
-  ${!rows.length?`<div class="card"><div class="empty">No quotations yet.</div></div>`:rows.map(q=>{
+  ${!rows.length?`<div class="card">`+emptyState({icon:"\u{1F4B0}",title:"No quotations yet",
+      why:"A quotation is the priced offer. When the client accepts it, its total becomes the project's contract value \u2014 which is what every margin figure is measured against.",
+      steps:["Choose the client and the project","Add material, labour and other lines","Send it, then mark it accepted when the client agrees"],
+      action:{label:"+ New quotation", onclick:"quoNew()"},
+      hint:"For a prospect who is not a registered client yet, type the name directly on the quotation."})+`</div>`:rows.map(q=>{
     const st=quoteEffectiveStatus(q), S=QUO_STATUS[st]||QUO_STATUS.draft, t=quoteTotals(q);
     return `<div class="card">
       <div style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap">
