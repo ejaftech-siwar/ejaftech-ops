@@ -969,12 +969,14 @@ function renderVariations(){
 
 function renderFinance(){
   if(!(isAdmin()||hasCap("canAnalytics"))) return `<div class="card"><div class="empty">No access.</div></div>`;
-  let h=_pills('_finView',[{id:"pl",ic:"\u{1F4CA}",lb:"P&L"},{id:"invoices",ic:"\u{1F9FE}",lb:"Invoices"},{id:"expenses",ic:"\u{1F4B8}",lb:"Expenses"},
+  let h=_pills('_finView',[{id:"pl",ic:"\u{1F4CA}",lb:"P&L"},{id:"invoices",ic:"\u{1F9FE}",lb:"Invoices"},{id:"expenses",ic:"\u{1F4B8}",lb:"Expenses"},{id:"advances",ic:"\u{1F4B3}",lb:"Advances"},{id:"claims",ic:"\u{1F9FE}",lb:"Expense Reports"},
                            {id:"report",ic:"\u{1F9FE}",lb:"Cost Report"},{id:"quotes",ic:"\u{1F4B0}",lb:"Quotations"},
                            {id:"variations",ic:"\u{1F501}",lb:"Variations"},{id:"currency",ic:"\u{1F4B1}",lb:"Currency"}]);
   const v=window._finView||"pl";
   if(v==="invoices")   return h + renderInvoices();
   if(v==="expenses")   return h + renderExpenses();
+  if(v==="advances")   return h + renderAdvances();
+  if(v==="claims")     return h + renderExpenseClaims();
   if(v==="report")     return h + renderCostReport();
   if(v==="quotes")     return h + renderQuotes();
   if(v==="variations") return h + renderVariations();

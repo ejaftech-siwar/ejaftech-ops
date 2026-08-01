@@ -552,7 +552,8 @@ const state = {
   daily: [], overtime: [], travel: [], leaves: [], projects: [], locations: [], users: [], departments: [], branches: [],
   techWorkTypes: [], techStatuses: [], techCategories: [],
   parts: [],
-  quotes: [], variations: [], expenses: [], invoices: [],          // commercial documents (v179)                                 // spare-parts catalogue (v174)
+  quotes: [], variations: [], expenses: [], invoices: [],
+  advances: [], expenseReports: [],      // work advances + reimbursement claims (v187)          // commercial documents (v179)                                 // spare-parts catalogue (v174)
   requestStatuses: [], projectStatuses: [],   // Client Request Entry options (admin-editable)
   devices: [],  // Asset Management: central devices collection
   pmSchedules: [],  // Preventive Maintenance schedules
@@ -2186,7 +2187,7 @@ const SYNC_SUBS = [
     ["parts","parts"],
     ["quotes","quotes"],
     ["variations","variations"],
-    ["expenses","expenses"],["invoices","invoices"],
+    ["expenses","expenses"],["invoices","invoices"],["advances","advances"],["expenseReports","expenseReports"],
     ["pmSchedules","pmSchedules"],
     ["workCategories","workCategories"],["workTasks","workTasks"],
     ["nametagEmployees","nametagEmployees"],

@@ -1403,8 +1403,23 @@ function applyScan(txt, how){
   if(!t) return;
   try{ if(navigator.vibrate) navigator.vibrate(60); }catch(e){}
   if(window._scanTarget) window._scanTarget(t);
-  toast(`Scanned${how==="photo"?" from photo":""}: ${t}`);
+  // Tell the user immediately whether this code is already on the register.
+  // Scanning a known label and being dropped into a blank "new device" form is
+  // how duplicate asset records get created in the field.
+  const hit=(state.devices||[]).find(d=>{
+    const s=String(d.serialNumber||"").trim().toLowerCase();
+    const c2=String(d.deviceCode||"").trim().toLowerCase();
+    const k=t.toLowerCase();
+    return (s&&s===k) || (c2&&c2===k);
+  });
   closeScanner();
+  if(hit){
+    toast(`\u2713 Matched: ${hit.deviceName||hit.serialNumber||t}`);
+    window._scanMatchId = hit.id;
+  }else{
+    window._scanMatchId = null;
+    toast(`Scanned${how==="photo"?" from photo":""}: ${t} \u2014 not on the register yet`);
+  }
 }
 
 window.scanManualApply=function(){ const v=(document.getElementById('scanManual')||{}).value; if(v&&v.trim()) applyScan(v.trim()); };
