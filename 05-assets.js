@@ -1336,32 +1336,118 @@ async function startScan(){
 // barcode held sideways never did. This loop is what makes the two behave the
 // same. It stops the moment a code is confirmed.
 let _zxLoop=null;
+// Why an uploaded photo worked while the live camera did not, given that both
+// go through the same decoder:
+//   1. A photo is a still. A live frame carries motion blur, and blur destroys
+//      the thin white gaps a linear barcode depends on long before it troubles
+//      a QR code — which is precisely why QR always worked.
+//   2. Sampling every 420 ms discarded roughly nine frames in ten, so the few
+//      genuinely sharp frames were usually the ones missed.
+//   3. The photo path downscales to 1600 px; this loop decoded the raw frame,
+//      where sensor noise between bars reads as false edges.
+// The loop below addresses all three: it runs on every animation frame,
+// normalises the size the way the photo path does, and stretches the contrast
+// so the bars survive the camera pipeline's compression.
 function _zxStartFrameLoop(){
   if(_zxLoop) return;
   const reader=_zxNewReader();
   const cv=document.createElement("canvas");
-  _zxLoop=setInterval(()=>{
+  let busy=false, last=0;
+  const tick=()=>{
+    if(!_zxLoop) return;
+    _zxLoop=requestAnimationFrame(tick);
+    const now=Date.now();
+    if(busy || now-last < 120) return;      // ~8 attempts a second, not 2.4
+    last=now; busy=true;
     try{
       const v=document.getElementById("scanVid");
-      if(!v || !v.videoWidth || v.readyState<2) return;
-      // Decode a generous CENTRE CROP rather than the whole frame: it removes
-      // background clutter and roughly doubles the effective resolution of the
-      // bars, which is what a small printed barcode needs.
+      if(!v || !v.videoWidth || v.readyState<2){ busy=false; return; }
       const vw=v.videoWidth, vh=v.videoHeight;
+      // Centre crop: removes background clutter and enlarges the bars.
       const cw=Math.round(vw*0.92), ch=Math.round(vh*0.62);
-      cv.width=cw; cv.height=ch;
-      const ctx=cv.getContext("2d");
-      ctx.drawImage(v, Math.round((vw-cw)/2), Math.round((vh-ch)/2), cw, ch, 0, 0, cw, ch);
+      // Normalise to the same working width the photo path uses. Decoding a
+      // 1080p frame at full size is slower AND noisier than a clean 1280 px one.
+      const target=Math.min(1280, cw);
+      const scale=target/cw;
+      cv.width=Math.round(cw*scale); cv.height=Math.round(ch*scale);
+      const ctx=cv.getContext("2d", {willReadFrequently:true});
+      ctx.drawImage(v, Math.round((vw-cw)/2), Math.round((vh-ch)/2), cw, ch, 0, 0, cv.width, cv.height);
+      _zxBoost(ctx, cv);
       for(const canvas of _zxTryRotations(cv, reader)){
         try{
           const res=reader.decodeFromCanvas(canvas);
-          if(res && res.getText()){ _zxCandidate(res.getText()); return; }
-        }catch(e){ /* NotFoundException on this orientation — try the next */ }
+          if(res && res.getText() && _zxPlausible(res)){
+            busy=false; _zxCandidate(res.getText(), _zxFormatOf(res)); return;
+          }
+        }catch(e){ /* NotFoundException on this orientation, try the next */ }
       }
     }catch(e){}
-  }, 420);
+    busy=false;
+  };
+  _zxLoop=requestAnimationFrame(tick);
 }
-function _zxStopFrameLoop(){ if(_zxLoop){ clearInterval(_zxLoop); _zxLoop=null; } }
+// Grey-scale and stretch the contrast. A camera frame of a printed label is
+// rarely pure black on pure white — it is dark grey on light grey, and the
+// decoder's own thresholding can miss that boundary. Pushing the histogram to
+// the extremes makes the bar edges unambiguous.
+function _zxFormatOf(res){
+  try{
+    const f=res.getBarcodeFormat && res.getBarcodeFormat();
+    if(f==null) return "";
+    const F=ZXing.BarcodeFormat;
+    for(const k in F){ if(F[k]===f) return k; }
+    return String(f);
+  }catch(e){ return ""; }
+}
+// A misread is worse than no read: it writes the wrong serial onto an asset.
+// CODE_39 and ITF in particular will "decode" ordinary printed text from a
+// blurry frame — which is how the serial number printed beside the barcode
+// ended up being captured. Two cheap structural checks reject nearly all of
+// those: the retail symbologies carry a mandatory check digit, and ITF always
+// encodes an even number of digits.
+function _zxCheckDigitOK(txt, fmt){
+  const d=String(txt||"").replace(/\D/g,"");
+  const want={EAN_13:13, UPC_A:12, EAN_8:8}[fmt];
+  if(!want) return true;                       // no check digit defined
+  if(d.length!==want) return false;
+  const digits=d.split("").map(Number);
+  const check=digits.pop();
+  let sum=0;
+  // Weights alternate 3/1 counting from the right of the payload.
+  for(let i=digits.length-1, w=3; i>=0; i--, w=(w===3?1:3)) sum+=digits[i]*w;
+  return ((10 - (sum%10)) % 10) === check;
+}
+function _zxPlausible(res){
+  const txt=String(res.getText()||"").trim();
+  if(txt.length<4) return false;               // nothing real is this short
+  const fmt=_zxFormatOf(res);
+  if(fmt==="ITF" && (txt.replace(/\D/g,"").length % 2)!==0) return false;
+  return _zxCheckDigitOK(txt, fmt);
+}
+
+function _zxBoost(ctx, cv){
+  try{
+    const img=ctx.getImageData(0,0,cv.width,cv.height);
+    const d=img.data;
+    let lo=255, hi=0;
+    for(let i=0;i<d.length;i+=16){          // sample, do not walk every pixel
+      const g=(d[i]*0.299 + d[i+1]*0.587 + d[i+2]*0.114)|0;
+      if(g<lo) lo=g;
+      if(g>hi) hi=g;
+    }
+    const span=Math.max(1, hi-lo);
+    if(span>=230) return;                    // already high contrast
+    for(let i=0;i<d.length;i+=4){
+      let g=(d[i]*0.299 + d[i+1]*0.587 + d[i+2]*0.114 - lo) * 255 / span;
+      g = g<0?0 : g>255?255 : g;
+      d[i]=d[i+1]=d[i+2]=g;
+    }
+    ctx.putImageData(img,0,0);
+  }catch(e){ /* tainted canvas or unsupported: decode the frame as it is */ }
+}
+function _zxStopFrameLoop(){
+  if(_zxLoop){ try{ cancelAnimationFrame(_zxLoop); }catch(e){} _zxLoop=null; }
+}
 
 // Torch is only offered when the hardware actually reports it.
 function _zxAfterStart(say){
@@ -1452,7 +1538,9 @@ function _zxDecodeRotated(url, reader){
         for(const canvas of _zxTryRotations(cv, reader)){
           try{
             const res=reader.decodeFromCanvas(canvas);
-            if(res && res.getText()) return resolve(res);
+            // Same structural verification as the live path: a photo can be
+            // misread just as easily as a frame.
+            if(res && res.getText() && _zxPlausible(res)) return resolve(res);
           }catch(e){}
         }
         reject(new Error("not found in any orientation"));
@@ -1484,19 +1572,22 @@ function _zxDecodeResized(url, reader){
 }
 
 // Confirmation gate: the same text must arrive twice in a row.
-function _zxCandidate(txt){
+function _zxCandidate(txt, fmt){
   const t=String(txt||"").trim();
   if(!t) return;
-  if(t===_zxLast){ _zxHits++; } else { _zxLast=t; _zxHits=1; }
+  // The same text AND the same symbology twice. A blurred frame that briefly
+  // decodes printed text almost never yields the identical string twice.
+  const key=t+"|"+(fmt||"");
+  if(key===_zxLast){ _zxHits++; } else { _zxLast=key; _zxHits=1; }
   const hint=document.getElementById('scanHint');
   if(_zxHits<SCAN_CONFIRM){
-    if(hint){ hint.textContent=`Reading \u2026 ${t}`; hint.style.color="#8F6E22"; }
+    if(hint){ hint.textContent=`Reading \u2026 ${t}${fmt?" ("+fmt.replace(/_/g,"-")+")":""}`; hint.style.color="#8F6E22"; }
     return;
   }
-  applyScan(t, "camera");
+  applyScan(t, "camera", fmt);
 }
 
-function applyScan(txt, how){
+function applyScan(txt, how, fmt){
   const t=String(txt||"").trim();
   if(!t) return;
   _zxStopFrameLoop();
@@ -1517,7 +1608,7 @@ function applyScan(txt, how){
     window._scanMatchId = hit.id;
   }else{
     window._scanMatchId = null;
-    toast(`Scanned${how==="photo"?" from photo":""}: ${t} \u2014 not on the register yet`);
+    toast(`Scanned${how==="photo"?" from photo":""}${fmt?" ["+fmt.replace(/_/g,"-")+"]":""}: ${t} \u2014 not on the register yet`);
   }
 }
 
