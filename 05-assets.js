@@ -1226,6 +1226,32 @@ function _zxHints(){
 // linear format is actually enabled \u2014 without it the reader still finds QR
 // codes, because QR needs no format hint, which is exactly the "reads QR only"
 // symptom.
+// decodeFromCanvas() on BrowserMultiFormatReader routes through browser-level
+// helpers that assume they own a video element. Going straight to the core
+// MultiFormatReader with a luminance source is stateless, faster, and is the
+// documented way to decode an arbitrary image.
+function _zxDecodeCanvas(reader, canvas){
+  try{
+    const src = new ZXing.HTMLCanvasElementLuminanceSource(canvas);
+    const bmp = new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(src));
+    return reader.decode(bmp);
+  }catch(e){
+    // Fall back to the browser wrapper if this build does not expose the core
+    // classes under those names.
+    if(reader.decodeFromCanvas) return reader.decodeFromCanvas(canvas);
+    throw e;
+  }
+}
+
+function _zxCoreReader(){
+  try{
+    const r = new ZXing.MultiFormatReader();
+    const h = _zxHints();
+    if(h && r.setHints) r.setHints(h);
+    return r;
+  }catch(e){ return null; }
+}
+
 function _zxNewReader(){
   const hints=_zxHints();
   let r;
@@ -1242,7 +1268,7 @@ function _zxNewReader(){
 // how a barcode printed along a box edge is usually held \u2014 is invisible to it
 // no matter how sharp the picture is. Rotating the frame and trying again costs
 // one canvas draw and turns those failures into reads.
-function _zxTryRotations(canvas, reader){
+function _zxTryRotations(canvas){
   const out=[];
   const w=canvas.width, h=canvas.height;
   out.push(canvas);
@@ -1314,9 +1340,17 @@ async function startScan(){
       : { facingMode:{ideal:"environment"}, width:{ideal:1920}, height:{ideal:1080},
           focusMode:"continuous", advanced:[{focusMode:"continuous"}] } };
 
-    _zxControls = await _zxReader.decodeFromConstraints(constraints, 'scanVid', (result, err)=>{
-      if(result) _zxCandidate(result.getText());
-    });
+    // Open the camera WITHOUT starting the library's own decode loop. Running
+    // it alongside our frame loop meant two decoders competing for the same
+    // video element and the same reader state, and the library's loop only ever
+    // decoded the raw centre of the frame anyway — which is what our sweep
+    // replaces. One decoder, one source of truth.
+    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+    const vid = document.getElementById('scanVid');
+    vid.srcObject = stream;
+    vid.setAttribute('playsinline','true');
+    try{ await vid.play(); }catch(e){}
+    _zxControls = {stop:()=>{ try{ stream.getTracks().forEach(t=>t.stop()); }catch(e){} }};
     _zxAfterStart(say);
   }catch(e){
     // Older builds lack decodeFromConstraints; fall back to the device API.
@@ -1336,7 +1370,7 @@ async function startScan(){
 // a QR code is orientation-independent so it always worked, while a linear
 // barcode held sideways never did. This loop is what makes the two behave the
 // same. It stops the moment a code is confirmed.
-let _zxLoop=null;
+let _zxLoop=null, _zxRunning=false;
 // Why an uploaded photo worked while the live camera did not, given that both
 // go through the same decoder:
 //   1. A photo is a still. A live frame carries motion blur, and blur destroys
@@ -1367,12 +1401,20 @@ const _ZX_REGIONS = [
   {x:0.04, y:0.52, w:0.92, h:0.44, z:1},   // lower half
 ];
 function _zxStartFrameLoop(){
-  if(_zxLoop) return;
-  const reader=_zxNewReader();
+  if(_zxRunning) return;
+  _zxRunning = true;
+  // Prefer the stateless core reader; fall back to the browser wrapper.
+  const core=_zxCoreReader();
+  const wrap=_zxNewReader();
+  const decode=(canvas)=> core ? _zxDecodeCanvas(core, canvas) : wrap.decodeFromCanvas(canvas);
   const cv=document.createElement("canvas");
   let busy=false, last=0, pass=0;
   const tick=()=>{
-    if(!_zxLoop) return;
+    // The run flag is separate from the frame handle on purpose: a handle can
+    // legitimately be 0, and the first callback may fire before the assignment
+    // that stores it has completed. Testing the handle made the loop stop dead
+    // in exactly those cases.
+    if(!_zxRunning) return;
     _zxLoop=requestAnimationFrame(tick);
     const now=Date.now();
     if(busy || now-last < 90) return;
@@ -1385,6 +1427,14 @@ function _zxStartFrameLoop(){
       // frame would starve the UI; rotating through covers them all in well
       // under a second while the camera keeps a smooth preview.
       const R=_ZX_REGIONS[pass % _ZX_REGIONS.length]; pass++;
+      // Show that work is happening. A scanner that fails silently gives the
+      // user nothing to act on; a rising count proves frames are being read and
+      // points at focus or distance rather than at a broken decoder.
+      if(pass % 10 === 0){
+        const hint=document.getElementById("scanHint");
+        if(hint && !_zxHits) hint.textContent =
+          `Searching\u2026 ${pass} frames scanned. Move closer, or use \u{1F526} / \u{1F5BC}\uFE0F From photo.`;
+      }
       const sx=Math.round(vw*R.x), sy=Math.round(vh*R.y);
       const sw2=Math.round(vw*R.w), sh=Math.round(vh*R.h);
       // Magnify small regions instead of shrinking them: a 1280 px working
@@ -1396,15 +1446,23 @@ function _zxStartFrameLoop(){
       ctx.imageSmoothingEnabled=false;      // keep bar edges hard when scaling up
       ctx.drawImage(v, sx, sy, sw2, sh, 0, 0, cv.width, cv.height);
       _zxBoost(ctx, cv);
-      for(const canvas of _zxTryRotations(cv, reader)){
+      for(const canvas of _zxTryRotations(cv)){
         try{
-          const res=reader.decodeFromCanvas(canvas);
+          const res=decode(canvas);
           if(res && res.getText() && _zxPlausible(res)){
             busy=false; _zxCandidate(res.getText(), _zxFormatOf(res)); return;
           }
-        }catch(e){ /* NotFoundException for this region/orientation */ }
+          }catch(e){
+          // NotFoundException is the normal "no code in this region" result.
+          // Anything else is a real fault and must not be swallowed, which is
+          // precisely how a stale variable reference hid here before.
+          const n=(e && (e.name||e.constructor&&e.constructor.name))||"";
+          if(!/NotFound|Checksum|FormatException/i.test(n) && !/not\s*found/i.test(String(e&&e.message||"")))
+            console.warn("scanner decode fault:", e);
+        }
+        finally{ try{ if(core && core.reset) core.reset(); }catch(e2){} }
       }
-    }catch(e){}
+    }catch(e){ console.warn("scanner frame fault:", e); }
     busy=false;
   };
   _zxLoop=requestAnimationFrame(tick);
@@ -1469,7 +1527,8 @@ function _zxBoost(ctx, cv){
   }catch(e){ /* tainted canvas or unsupported: decode the frame as it is */ }
 }
 function _zxStopFrameLoop(){
-  if(_zxLoop){ try{ cancelAnimationFrame(_zxLoop); }catch(e){} _zxLoop=null; }
+  _zxRunning = false;
+  if(_zxLoop!=null){ try{ cancelAnimationFrame(_zxLoop); }catch(e){} _zxLoop=null; }
 }
 
 // Torch is only offered when the hardware actually reports it.
@@ -1590,9 +1649,10 @@ function _zxDecodeRotated(url, reader){
         cv.width=Math.round((img.naturalWidth||max)*s);
         cv.height=Math.round((img.naturalHeight||max)*s);
         cv.getContext("2d").drawImage(img,0,0,cv.width,cv.height);
-        for(const canvas of _zxTryRotations(cv, reader)){
+        for(const canvas of _zxTryRotations(cv)){
           try{
-            const res=reader.decodeFromCanvas(canvas);
+            const core=_zxCoreReader();
+            const res=core ? _zxDecodeCanvas(core, canvas) : reader.decodeFromCanvas(canvas);
             // Same structural verification as the live path: a photo can be
             // misread just as easily as a frame.
             if(res && res.getText() && _zxPlausible(res)) return resolve(res);
