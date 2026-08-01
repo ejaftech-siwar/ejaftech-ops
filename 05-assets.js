@@ -1272,6 +1272,7 @@ window.openScanner=function(targetSetter){
     <div style="display:flex;gap:6px;padding:8px 14px 0;flex-wrap:wrap">
       <button class="btn btn-sm btn-secondary" id="scanTorch" onclick="scanToggleTorch()" style="display:none">\u{1F526} Light</button>
       <button class="btn btn-sm btn-secondary" id="scanSwap"  onclick="scanSwapCamera()" style="display:none">\u{1F504} Camera</button>
+      <input type="range" id="scanZoom" oninput="scanSetZoom(this.value)" style="display:none;flex:1;min-width:110px;accent-color:#C9A84C" title="Zoom">
       <label class="btn btn-sm btn-secondary" style="margin-right:auto;cursor:pointer">
         \u{1F5BC}\uFE0F From photo
         <input type="file" accept="image/*" style="display:none" onchange="scanFromImage(this)">
@@ -1348,30 +1349,52 @@ let _zxLoop=null;
 // The loop below addresses all three: it runs on every animation frame,
 // normalises the size the way the photo path does, and stretches the contrast
 // so the bars survive the camera pipeline's compression.
+// A fixed centre crop was the remaining fault. Cropping 92% x 62% of the frame
+// assumes the label sits in the middle, and in practice it rarely does: a box
+// held in one hand lands high or low, and the barcode then falls OUTSIDE the
+// region being decoded. The reader was working perfectly on a patch of carpet.
+//
+// This version sweeps several regions each pass — the whole frame, the middle
+// band, and a tight centre box — so wherever the label happens to sit, one of
+// them contains it. The tight box also acts as a digital zoom, which is what
+// blurred bars need: enlarging a small region recovers edges that are lost when
+// the same detail is squeezed into a downscaled full frame.
+const _ZX_REGIONS = [
+  {x:0.02, y:0.02, w:0.96, h:0.96, z:1},   // almost the whole frame
+  {x:0.04, y:0.22, w:0.92, h:0.56, z:1},   // the band the guide box marks
+  {x:0.18, y:0.30, w:0.64, h:0.40, z:2},   // tight centre, magnified
+  {x:0.04, y:0.04, w:0.92, h:0.44, z:1},   // upper half — the usual miss
+  {x:0.04, y:0.52, w:0.92, h:0.44, z:1},   // lower half
+];
 function _zxStartFrameLoop(){
   if(_zxLoop) return;
   const reader=_zxNewReader();
   const cv=document.createElement("canvas");
-  let busy=false, last=0;
+  let busy=false, last=0, pass=0;
   const tick=()=>{
     if(!_zxLoop) return;
     _zxLoop=requestAnimationFrame(tick);
     const now=Date.now();
-    if(busy || now-last < 120) return;      // ~8 attempts a second, not 2.4
+    if(busy || now-last < 90) return;
     last=now; busy=true;
     try{
       const v=document.getElementById("scanVid");
       if(!v || !v.videoWidth || v.readyState<2){ busy=false; return; }
       const vw=v.videoWidth, vh=v.videoHeight;
-      // Centre crop: removes background clutter and enlarges the bars.
-      const cw=Math.round(vw*0.92), ch=Math.round(vh*0.62);
-      // Normalise to the same working width the photo path uses. Decoding a
-      // 1080p frame at full size is slower AND noisier than a clean 1280 px one.
-      const target=Math.min(1280, cw);
-      const scale=target/cw;
-      cv.width=Math.round(cw*scale); cv.height=Math.round(ch*scale);
+      // One region per pass, cycling through them. Decoding all five on every
+      // frame would starve the UI; rotating through covers them all in well
+      // under a second while the camera keeps a smooth preview.
+      const R=_ZX_REGIONS[pass % _ZX_REGIONS.length]; pass++;
+      const sx=Math.round(vw*R.x), sy=Math.round(vh*R.y);
+      const sw2=Math.round(vw*R.w), sh=Math.round(vh*R.h);
+      // Magnify small regions instead of shrinking them: a 1280 px working
+      // width applied to a narrow crop is a genuine optical-style zoom.
+      const target=Math.min(1600, Math.round(sw2*R.z));
+      const scale=target/sw2;
+      cv.width=Math.round(sw2*scale); cv.height=Math.round(sh*scale);
       const ctx=cv.getContext("2d", {willReadFrequently:true});
-      ctx.drawImage(v, Math.round((vw-cw)/2), Math.round((vh-ch)/2), cw, ch, 0, 0, cv.width, cv.height);
+      ctx.imageSmoothingEnabled=false;      // keep bar edges hard when scaling up
+      ctx.drawImage(v, sx, sy, sw2, sh, 0, 0, cv.width, cv.height);
       _zxBoost(ctx, cv);
       for(const canvas of _zxTryRotations(cv, reader)){
         try{
@@ -1379,7 +1402,7 @@ function _zxStartFrameLoop(){
           if(res && res.getText() && _zxPlausible(res)){
             busy=false; _zxCandidate(res.getText(), _zxFormatOf(res)); return;
           }
-        }catch(e){ /* NotFoundException on this orientation, try the next */ }
+        }catch(e){ /* NotFoundException for this region/orientation */ }
       }
     }catch(e){}
     busy=false;
@@ -1452,7 +1475,7 @@ function _zxStopFrameLoop(){
 // Torch is only offered when the hardware actually reports it.
 function _zxAfterStart(say){
   _zxStartFrameLoop();
-  say("Hold steady \u2014 fill the frame with the barcode. Any angle works\u2026");
+  say("Fill the guide box with the barcode, about 10\u201315 cm away. Any angle works \u2014 use \u{1F526} in poor light, or \u{1F5BC}\uFE0F From photo if the bars stay soft.");
   setTimeout(()=>{
     try{
       const v=document.getElementById('scanVid');
@@ -1460,6 +1483,31 @@ function _zxAfterStart(say){
       _zxTrack = s ? (s.getVideoTracks()||[])[0] : null;
       const caps = _zxTrack && _zxTrack.getCapabilities ? _zxTrack.getCapabilities() : null;
       if(caps && caps.torch){ const b=document.getElementById('scanTorch'); if(b) b.style.display=""; }
+      // Hardware zoom beats any amount of software cropping, because it uses
+      // real photosites rather than interpolating them. Many phones now default
+      // to an ultra-wide rear lens that simply cannot focus on a small label at
+      // arm's length; a modest zoom pushes past that.
+      if(caps && caps.zoom){
+        const lo=caps.zoom.min||1, hi=caps.zoom.max||1;
+        const want=Math.min(hi, Math.max(lo, lo*2));
+        if(want>lo){
+          _zxTrack.applyConstraints({advanced:[{zoom:want}]}).catch(()=>{});
+          window._zxZoom={lo, hi, cur:want};
+          const zb=document.getElementById('scanZoom');
+          if(zb && hi>lo){ zb.style.display=""; zb.min=lo; zb.max=hi;
+            zb.step=(hi-lo)/20; zb.value=want; }
+        }
+      }
+      // Focus the middle of the frame, where the guide box is, instead of
+      // whatever the camera decides is interesting.
+      try{
+        if(caps && caps.focusMode && caps.focusMode.includes("continuous")){
+          _zxTrack.applyConstraints({advanced:[
+            {focusMode:"continuous"},
+            ...(caps.pointsOfInterest?[{pointsOfInterest:[{x:0.5,y:0.5}]}]:[])
+          ]}).catch(()=>{});
+        }
+      }catch(e){}
       if(caps && caps.focusMode && caps.focusMode.includes("continuous")){
         _zxTrack.applyConstraints({advanced:[{focusMode:"continuous"}]}).catch(()=>{});
       }
@@ -1473,6 +1521,13 @@ window.scanToggleTorch=function(){
     .then(()=>{ window._zxTorchOn=on;
       const b=document.getElementById('scanTorch'); if(b) b.textContent=on?"\u{1F526} Light on":"\u{1F526} Light"; })
     .catch(()=>toast("This camera has no controllable light"));
+};
+window.scanSetZoom=function(v){
+  if(!_zxTrack) return;
+  const z=Number(v);
+  if(!isFinite(z)) return;
+  _zxTrack.applyConstraints({advanced:[{zoom:z}]}).catch(()=>{});
+  if(window._zxZoom) window._zxZoom.cur=z;
 };
 window.scanSwapCamera=async function(){
   if(_zxDevices.length<2) return;
