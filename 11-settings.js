@@ -129,52 +129,7 @@ function renderProfile(){
 
   const _sn=(typeof sysNotifEnabled==="function")&&sysNotifEnabled();
   return `
-  ${isAdmin()?`<div class="card">
-    <div class="sec-hdr">\u{1F465} Company roster</div>
-    <p style="font-size:11px;color:var(--muted);line-height:1.7;margin-bottom:9px">
-      Who counts as an employee across the whole app. Everyone the app has ever seen is offered below;
-      untick subcontractors and one-off names and they leave every picker \u2014 daily log, reports, advances, claims, dispatch.
-      Anyone with work already recorded stays selectable so their entries remain editable.
-    </p>
-    <div style="display:flex;gap:5px;flex-wrap:wrap">
-      ${(typeof dspCandidates==="function"?dspCandidates():[]).map(n=>{
-        const on=(typeof dspPeople==="function")?dspPeople().includes(n):true;
-        return `<button class="btn btn-sm ${on?"":"btn-secondary"}" style="${on?"background:#03308B;color:#fff;border:none;":""}font-size:11px;font-weight:700" onclick="dspToggleTracked(${jsArg(n)},this)">${on?"\u2713 ":""}${escapeHtml(n)}</button>`;
-      }).join("")}
-    </div>
-    <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
-      <button class="btn btn-sm btn-secondary" onclick="dspTrackAll(true)">Select all</button>
-      <button class="btn btn-sm btn-secondary" onclick="dspTrackAll(false)">Reset to all</button>
-      <span style="font-size:10px;color:var(--muted);align-self:center">${(typeof dspTracked==="function"&&dspTracked().length)?dspTracked().length+" selected":"no selection yet \u2014 everyone is included"}</span>
-    </div>
-  </div>`:""}
 
-  <div class="card">
-    <div class="sec-hdr">\u{1F3A8} Appearance</div>
-    <p style="font-size:11px;color:var(--muted);line-height:1.7;margin-bottom:10px">
-      The navy and gold of the brand never change \u2014 these change the surface they sit on.
-      Saved on this device, because glare depends on where you are standing.
-    </p>
-    <div style="display:flex;gap:8px;flex-wrap:wrap">
-      ${PALETTES.map(p=>{const on=currentPalette()===p.id;
-        return `<button onclick="setPalette('${p.id}')" title="${escapeHtml(p.note)}"
-          style="flex:1;min-width:98px;text-align:right;background:${p.sw};border:${on?"2px solid var(--navy)":"1px solid var(--line)"};
-                 border-radius:var(--r-md);padding:10px;cursor:pointer">
-          <div style="display:flex;gap:5px;margin-bottom:6px">
-            <span style="width:16px;height:16px;border-radius:4px;background:#1B3A6B"></span>
-            <span style="width:16px;height:16px;border-radius:4px;background:#C9A84C"></span>
-            <span style="width:16px;height:16px;border-radius:4px;background:#fff;border:1px solid rgba(0,0,0,.12)"></span>
-          </div>
-          <div style="font-size:11px;font-weight:800;color:#1A1A2E">${on?"\u2713 ":""}${escapeHtml(p.lb)}</div>
-          <div style="font-size:9px;color:#6B7B8F;line-height:1.5;margin-top:2px">${escapeHtml(p.note)}</div>
-        </button>`;}).join("")}
-    </div>
-    <div style="display:flex;align-items:center;gap:8px;margin-top:12px;padding-top:10px;border-top:1px solid var(--line);flex-wrap:wrap">
-      <span style="font-size:11px;color:var(--muted)">Night shift?</span>
-      <button class="btn btn-sm btn-secondary" onclick="toggleTheme();render()">\u{1F319} Toggle dark mode</button>
-      <span style="font-size:10px;color:var(--muted)">Dark overrides the palette while it is on.</span>
-    </div>
-  </div>
 <div class="card" style="background:linear-gradient(135deg,#1B3A6B 0%,#2E5FA3 100%);color:white;border:2px solid #C9A84C">
     <div style="display:flex;align-items:center;gap:14px">
       <div onclick="document.getElementById('profilePhotoInput').click()" title="Tap to change photo" style="position:relative;width:64px;height:64px;border:2px solid #C9A84C;border-radius:12px;display:flex;align-items:center;justify-content:center;background:#1B3A6B;flex-shrink:0;cursor:pointer;overflow:hidden">
@@ -268,21 +223,6 @@ function renderProfile(){
     <button class="btn btn-danger" onclick="uiConfirm('Sign out from this device?').then(ok=>{if(ok)doSignOut()})">Sign Out</button>
   </div>
 
-  ${isAdmin()?(()=>{ const src=(window.__fb&&window.__fb.sdkSource)||"unknown";
-    const ok = src==="bundled" || src==="mirror";
-    return `<div class="card" style="border-left:4px solid ${ok?'var(--ok)':'var(--warn)'}">
-      <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:var(--f-sm);padding:2px 8px;border-radius:var(--r-md);font-weight:800">📡</span> Offline readiness</div>
-      <p style="font-size:var(--f-md);color:var(--muted);margin:8px 0 0;line-height:1.65">Engine loaded via <strong style="color:${ok?'var(--ok)':'var(--warn)'}">${escapeHtml(src)}</strong>.<br>${
-        src==="bundled" ? "✅ Guaranteed — the engine ships with the app, so it starts with no signal at all."
-        : src==="mirror" ? "✅ Cached on this device — offline launch should work."
-        : "⚠️ Loaded straight from the internet, so a cold start with no signal will fail. Put the three Firebase SDK files in a <strong>sdk/</strong> folder beside index.html to fix this permanently."}</p>
-    </div>`; })():""}
-  <div class="card" style="border-left:4px solid ${_sn?'#2E7D32':'#C9A84C'}">
-    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">05</span> 🔔 Device Notifications ${_sn?'<span style="font-size:10px;background:#E8F5E9;color:#2E7D32;padding:2px 8px;border-radius:8px;font-weight:800">ON</span>':''}</div>
-    <p style="font-size:12px;color:var(--muted);margin:8px 0 12px">Task assignments & alerts appear in your phone's notification tray with sound — while the app is open or in the background.</p>
-    ${_sn?`<button class="btn btn-secondary" onclick="disableSysNotifs()">Turn off</button>`
-         :`<button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:800;border:none" onclick="enableSysNotifs()">🔔 Enable</button>`}
-  </div>
 
   <div class="card" style="background:#F5F8FC;border:1px dashed var(--line)">
     <div style="font-size:12px;color:var(--muted);text-align:center;line-height:1.6">

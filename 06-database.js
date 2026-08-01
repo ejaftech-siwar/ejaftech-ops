@@ -353,6 +353,18 @@ function renderUsers(){
             <option value="external" ${(nametagForm||{}).type==="external"?"selected":""}>🔶 External / Outsource</option>
           </select>
         </div>
+        <div class="field" style="grid-column:1/-1">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:600">
+            <input type="checkbox" ${_ntTracked(nametagForm)?'checked':''} onchange="window.nametagForm.isTrackedEmployee=this.checked;render()">
+            Track as an employee
+          </label>
+          <div style="font-size:10px;color:var(--muted);margin-top:4px;line-height:1.6">
+            When ticked this person appears in every employee picker in the app — daily log, overtime, travel, leave, reports, advances and claims.
+            ${String((nametagForm||{}).type||"")==="external"
+              ? `Untick it for a subcontractor you record occasionally but do not manage as staff. <strong>External entries are untracked by default.</strong>`
+              : `Untick it for someone kept on record but not currently working.`}
+          </div>
+        </div>
         <div class="field"><label>🏙️ Branch / City</label>
           <select onchange="window.nametagForm.branch=this.value">
             <option value="">— Select Branch —</option>
@@ -390,9 +402,12 @@ function renderUsers(){
                     ${isExt ? `<span style="display:inline-block;margin-left:6px;padding:1px 7px;background:linear-gradient(135deg,#FF9800,#FFB74D);color:#7F4A00;border-radius:12px;font-size:10px;font-weight:800">EXT</span>` : `<span style="display:inline-block;margin-left:6px;padding:1px 7px;background:#E8F5E9;color:#2F855A;border-radius:12px;font-size:10px;font-weight:700">INTERNAL</span>`}
                   </div>
                   <div style="font-size:11px;color:var(--muted)">${isExt ? "External / Outsource" : "Internal employee"} · Nametag only</div>
+                  <div style="font-size:10px;margin-top:3px;font-weight:700;color:${_ntTracked(e)?"#2E7D32":"#8F6E22"}">
+                    ${_ntTracked(e)?"\u2713 Tracked as an employee":"\u25CB Not tracked \u2014 hidden from employee pickers"}</div>
                 </div>
               </div>
               <div style="display:flex;gap:4px">
+                <button class="btn btn-sm btn-secondary" onclick="toggleNametagTracked('${e.id}')" title="${_ntTracked(e)?"Stop tracking as an employee":"Track as an employee"}">${_ntTracked(e)?"\u{1F441}\uFE0F":"\u{1F6AB}"}</button>
                 <button class="btn btn-sm btn-secondary" onclick="editNametagEmp('${e.id}')" title="Edit">${ICN.edit}</button>
                 <button class="btn btn-sm btn-danger" onclick="delNametagEmp('${e.id}')" title="Delete (Admin)">${ICN.del}</button>
               </div>
@@ -592,6 +607,33 @@ Object.defineProperty(window,'userForm',{get:()=>userForm,set:v=>userForm=v});
 //  NAMETAG EMPLOYEES (name-only, no auth account)
 //  Admin-only write. Everyone can read via allEmployees().
 // ═══════════════════════════════════════════════════════════════════════
+// Mirrors the rule in allEmployees(): an explicit choice wins; otherwise an
+// external entry is untracked and an internal one is tracked. Kept as a named
+// helper so the form, the list and the source can never disagree.
+function _ntTracked(e){
+  if(!e) return true;
+  if(e.isTrackedEmployee === true)  return true;
+  if(e.isTrackedEmployee === false) return false;
+  return String(e.type||"").toLowerCase() !== "external";
+}
+window._ntTracked=_ntTracked;
+
+window.toggleNametagTracked = async function(id){
+  if(!isAdmin()) return toast("Admin only");
+  const e=(state.nametagEmployees||[]).find(x=>x.id===id);
+  if(!e) return;
+  const now=!_ntTracked(e);
+  if(!now){
+    // Someone with work already recorded must stay selectable, otherwise their
+    // existing entries become impossible to edit.
+    const used=(state.daily||[]).filter(r=>(r.employee||"").trim()===(e.name||"").trim()).length;
+    if(used && !await uiConfirm(
+      `${e.name} has ${used} work entr${used===1?"y":"ies"} recorded.\n\nStop tracking them?\n\nThey stay on those entries and remain selectable while editing them, but will not be offered for new work.`)) return;
+  }
+  await fbSave("nametagEmployees", {...e, isTrackedEmployee:now});
+  saveToast(now?`${e.name} is tracked as an employee \u2713`:`${e.name} is no longer tracked`);
+};
+
 async function saveNametagEmp(){
   if(!isAdmin()) return toast("Admin only");
   const name = (nametagForm.name||"").trim();
@@ -639,7 +681,9 @@ async function saveNametagEmp(){
       dept: nametagForm.dept || "",
       addedBy: state.profile.uid,
       addedAt: new Date().toISOString(),
-    });
+          // Always written explicitly, so the value never rests on a default.
+      isTrackedEmployee: _ntTracked(nametagForm),
+});
 
     // Cascade the rename across all data collections
     if(oldName){

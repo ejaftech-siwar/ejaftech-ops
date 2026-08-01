@@ -1373,29 +1373,21 @@ function allEmployees(){
     })
     .map(u => (u.employeeName || "").trim())
     .filter(Boolean);
-  // Nametag entries were added unconditionally, so a subcontractor or an
-  // outsourced hand recorded once for a single job appeared in EVERY employee
-  // picker in the app for ever. User accounts already honoured isTrackedEmployee;
-  // nametags now do too, using the same flag and the same default.
+  // Nametag entries were added unconditionally, so a subcontractor recorded
+  // once for a single job appeared in EVERY employee picker for ever. They now
+  // follow exactly the same rule as user accounts above: the explicit
+  // isTrackedEmployee flag wins, and where it has never been set, an entry
+  // marked type:"external" is excluded by default just as a non-employee role
+  // is. One concept, one flag, set in one place \u2014 Database \u2192 Users.
   const fromNametags = (state.nametagEmployees || [])
-    .filter(n => n.isTrackedEmployee !== false)
+    .filter(n => {
+      if(n.isTrackedEmployee === true)  return true;
+      if(n.isTrackedEmployee === false) return false;
+      return String(n.type||"").toLowerCase() !== "external";
+    })
     .map(n => (n.name || "").trim()).filter(Boolean);
   let merged = Array.from(new Set([...EMPLOYEES_DEFAULT, ...fromUsers, ...fromNametags]));
 
-  // The "who to track" selection is a company-wide roster decision, not a
-  // property of one screen. It lived inside the dispatch board, which is why a
-  // name excluded there still appeared in every other picker. Applying it here
-  // makes one choice govern the whole app.
-  const tracked = (typeof dspTracked === "function") ? dspTracked() : [];
-  if(tracked.length){
-    const keep = new Set(tracked);
-    // A name that is actively recorded against work must never vanish from a
-    // picker: hiding it would make its existing entries un-editable.
-    (state.daily || []).forEach(r => { const n=(r.employee||"").trim(); if(n) keep.add(n); });
-    const me = (state.profile && (state.profile.employeeName || state.profile.name)) || "";
-    if(me) keep.add(me);
-    merged = merged.filter(n => keep.has(n));
-  }
   return merged;
 }
 
