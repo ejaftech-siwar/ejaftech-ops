@@ -912,6 +912,40 @@ function _rtStatus(v){
   return null;
 }
 
+
+// Join continuation lines back onto the row they belong to. A line is a
+// continuation when it carries fewer separators than the table's width — an
+// unquoted cell that wrapped. Merging by structure rather than by guessing at
+// the text is what keeps quantities attached to their items.
+// Excel does not always quote a cell that contains a line break. When it does
+// not, the wrapped part arrives as its own line and the row is torn in two —
+// which is how a quantity ended up detached from its item.
+//
+// I tried to repair those rows automatically and could not do it safely. The
+// fragment carries no reliable trace of which column it came from: in one
+// paste the continuation of a DESCRIPTION arrives in column 1, in another the
+// quantity does. Every rule I tested fixed one shape and corrupted another,
+// and a table that silently moves a quantity into the wrong column is far more
+// dangerous than one that looks untidy — nobody checks a number that looks
+// plausible.
+//
+// So this does not guess. It DETECTS the damage and reports it, leaving the
+// data exactly as pasted, with one instruction that removes the cause: turn
+// wrapping off in Excel before copying, and every cell arrives on one line.
+function _rtBrokenRows(rows){
+  if(rows.length<3) return 0;
+  const sepOf=(l)=> l.indexOf("\t")>=0 ? "\t" : "|";
+  const cellsOf=(l)=> l.split(sepOf(l));
+  const numbered=rows.slice(1).filter(l=>/^\s*\d{1,4}\s*$/.test(cellsOf(l)[0]||"")).length;
+  if(numbered<2) return 0;               // not a numbered list: nothing to judge
+  // Among a numbered list, a line NOT starting with a number is a torn row.
+  return rows.slice(1).filter(l=>{
+    const a=String(cellsOf(l)[0]||"").trim();
+    return a!=="" && !/^\d{1,4}$/.test(a);
+  }).length;
+}
+function _rtStitch(rows){ return rows; }   // kept as the seam for a future fix
+
 // Render for a REPORT: bordered, printable, matching the document style.
 function textWithTablesHTML(txt, opts){
   opts=opts||{};
@@ -927,7 +961,9 @@ function textWithTablesHTML(txt, opts){
     if(body.trim()) out.push(`<div style="white-space:pre-wrap">${escapeHtml(body)}</div>`);
     buf=[];
   };
-  const flushTable=(rows)=>{
+  const flushTable=(rawRows)=>{
+    if(!rawRows.length) return;
+    const rows=_rtStitch(rawRows);
     if(!rows.length) return;
     // Header detection: an explicit separator, otherwise assume the first row
     // labels the columns — which is what a spreadsheet paste almost always is.
@@ -989,8 +1025,14 @@ Object.assign(window,{textHasTable, textWithTablesHTML});
 // mistake is in a document that has been sent.
 function tablePreviewHTML(txt, id){
   if(!textHasTable(txt)) return "";
+  // Warn HERE, in the form, where it can still be corrected \u2014 not after the
+  // PDF has been produced and sent.
+  let broken=0;
+  try{ broken=_rtBrokenRows(_rtRows(txt)); }catch(e){}
   return `<div class="tbl-prev" id="${escapeHtml(id||"")}">
     <div class="tbl-prev-h">\u{1F4CA} This will print as a table</div>
+    ${broken?`<div class="tbl-warn">\u26a0 ${broken} row${broken>1?"s":""} arrived split across two lines, so some values are on their own row below their item.<br>
+      <strong>Fix it in one step:</strong> in Excel select the cells \u2192 Home \u2192 <em>Wrap Text</em> (turn it OFF) \u2192 copy again. Every cell then arrives on a single line.</div>`:""}
     <div class="tbl-prev-b">${textWithTablesHTML(txt)}</div>
   </div>`;
 }

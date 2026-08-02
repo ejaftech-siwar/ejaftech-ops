@@ -1099,3 +1099,7 @@ html[dir="ltr"] .gs-row{ text-align:left }
 .tbl-prev-b{ padding:8px 10px; overflow-x:auto; font-size:var(--f-sm) }
 .tbl-prev-b table{ min-width:100% }
 .tbl-prev-b div[style*="pre-wrap"]{ color:var(--muted); font-size:var(--f-xs) }
+.tbl-warn{
+  padding:9px 11px; font-size:var(--f-xs); line-height:1.7;
+  background:#FFF8E1; color:#8F6E22; border-bottom:1px solid #FFE082;
+}
