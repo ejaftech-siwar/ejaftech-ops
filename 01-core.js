@@ -3171,6 +3171,9 @@ function renderTab(){
       if(state.tab==="Date & Time" && typeof window._dtInit==="function") window._dtInit();
       // The photo annotator is a full-screen overlay, so it is appended after
       // the tab has painted rather than being owned by any single screen.
+      if(window._profile && typeof renderProfilePanel==="function"){
+        c.insertAdjacentHTML("beforeend", renderProfilePanel());
+      }
       if(window._gsOpen && typeof renderGlobalSearch==="function"){
         c.insertAdjacentHTML("beforeend", renderGlobalSearch());
         setTimeout(()=>{ const e=document.getElementById("gsInput"); if(e && document.activeElement!==e) e.focus(); }, 40);
@@ -3978,14 +3981,17 @@ window._gsOpen = window._gsOpen || false;
 const GS_SOURCES = [
   {key:"projects",   ic:"\u{1F3D7}\uFE0F", lb:"Project",   tab:"Projects",
    fields:["name","client","dept","status"], title:r=>r.name, sub:r=>[r.client,r.dept].filter(Boolean).join(" \u00b7 "),
-   open:"editProj"},
+   open:"editProj",
+   profile:r=>["project", r.name]},
   {key:"devices",    ic:"\u{1F5A5}\uFE0F", lb:"Device",    tab:"Assets",
    fields:["deviceName","serialNumber","deviceCode","model","brand","system","project","site"],
    title:r=>r.deviceName||r.serialNumber, sub:r=>[r.serialNumber,r.model,r.project].filter(Boolean).join(" \u00b7 "),
-   open:"editDevice"},
+   open:"editDevice",
+   profile:r=>["device", r.id]},
   {key:"clients",    ic:"\u{1F464}", lb:"Client",    tab:"Clients",
    fields:["name","contact","email","phone"], title:r=>r.name, sub:r=>[r.contact,r.phone].filter(Boolean).join(" \u00b7 "),
-   open:"editClient"},
+   open:"editClient",
+   profile:r=>["client", r.name]},
   {key:"incidents",  ic:"\u{1F6A8}", lb:"Incident",  tab:"Incidents",
    fields:["title","project","system","status","severity","ref"],
    title:r=>r.title, sub:r=>[r.project,r.date&&fmtDate(r.date),r.status].filter(Boolean).join(" \u00b7 "),
@@ -4022,11 +4028,13 @@ const GS_SOURCES = [
   {key:"users",      ic:"\u{1F464}", lb:"User",     tab:"Users",
    fields:["name","employeeName","email","role","branch","department"],
    title:r=>r.employeeName||r.name, sub:r=>[r.role,r.email].filter(Boolean).join(" \u00b7 "),
-   open:"editUser"},
+   open:"editUser",
+   profile:r=>["employee", (r.employeeName||r.name)]},
   {key:"nametagEmployees", ic:"\u{1F465}", lb:"Employee", tab:"Users",
    fields:["name","type","branch","department","title"],
    title:r=>r.name, sub:r=>[r.title,r.type==="external"?"External / Outsource":"Internal"].filter(Boolean).join(" \u00b7 "),
-   open:"editNametagEmp"},
+   open:"editNametagEmp",
+   profile:r=>["employee", r.name]},
 ];
 
 // Ranked, not merely filtered: an exact match on a reference number should beat
@@ -4072,6 +4080,15 @@ window.gsGo = function(key, id){
   if(!S) return;
   const row=(state[S.key]||[]).find(r=>String(r.id)===String(id));
   window._gsOpen=false; window._gsQ="";
+  // Where a profile exists, that is the answer to "show me this". Opening an
+  // edit form instead answers a question nobody asked: someone searching for a
+  // person wants their hours, projects and advances, not a name field.
+  if(row && typeof S.profile==="function"){
+    try{
+      const [kind,pid]=S.profile(row);
+      if(kind && pid){ window._profile={kind, id:pid}; render(); return; }
+    }catch(e){}
+  }
   if(S.view) window[S.view[0]]=S.view[1];
   window._gsFocusId=id;
   if(typeof switchTab==="function") switchTab(S.tab); else { state.tab=S.tab; render(); }
@@ -4145,3 +4162,296 @@ function renderGlobalSearch(){
   </div>`;
 }
 Object.assign(window,{gsSearch, renderGlobalSearch, gsResultsHTML, GS_SOURCES});
+
+// ═══ RECORD PROFILE (v198) ══════════════════════════════════════════════
+// Searching for "Siwar" and being shown an edit form answers the wrong
+// question. The question is "show me everything about this person" — hours,
+// projects, advances, leave. Same for a project, a device, a client. This
+// assembles that view from the collections the app already holds, and the edit
+// form becomes one button on it rather than the destination.
+window._profile = window._profile || null;   // {kind, id}
+
+window.openProfile = function(kind, id){
+  window._profile = {kind, id};
+  window._gsOpen = false; window._gsQ = "";
+  render();
+};
+window.closeProfile = function(){ window._profile=null; render(); };
+
+const _pfSum = (rows, f)=> rows.reduce((s,r)=>s+(Number(f(r))||0), 0);
+const _pfDate = (d)=> d ? (typeof fmtDate==="function"?fmtDate(d):d) : "\u2014";
+
+// A block of the profile: a heading, a count, and up to `max` rows. Anything
+// beyond that is summarised rather than dumped, because a technician with four
+// hundred entries needs the shape of the data, not all of it.
+function _pfBlock(title, icon, rows, renderRow, opts){
+  opts = opts || {};
+  const max = opts.max || 8;
+  const shown = rows.slice(0, max);
+  return `<div class="pf-block">
+    <div class="pf-bh">${icon} ${escapeHtml(title)}
+      <span class="pf-count">${rows.length}</span>
+      ${opts.total?`<span class="pf-total">${opts.total}</span>`:""}
+    </div>
+    ${rows.length
+      ? shown.map(renderRow).join("") +
+        (rows.length>max?`<div class="pf-more">+ ${rows.length-max} more \u2014 open the full screen to see them all</div>`:"")
+      : `<div class="pf-none">Nothing recorded.</div>`}
+  </div>`;
+}
+function _pfRow(main, meta, right){
+  return `<div class="pf-row">
+    <div class="pf-main"><div class="pf-t">${main}</div>${meta?`<div class="pf-m">${meta}</div>`:""}</div>
+    ${right?`<div class="pf-r">${right}</div>`:""}
+  </div>`;
+}
+function _pfStat(label, value, colour){
+  return `<div class="pf-stat"><div class="pf-sv"${colour?` style="color:${colour}"`:""}>${value}</div><div class="pf-sl">${escapeHtml(label)}</div></div>`;
+}
+
+// ── Employee profile: the whole working picture in one place ──────────────
+function profileEmployee(name){
+  const n=String(name||"").trim();
+  const eq=(v)=>String(v||"").trim()===n;
+  const daily=(state.daily||[]).filter(r=>eq(r.employee)).sort((a,b)=>String(b.date||"").localeCompare(String(a.date||"")));
+  const ot=(state.overtime||[]).filter(r=>eq(r.employee));
+  const tr=(state.travel||[]).filter(r=>eq(r.employee));
+  const lv=(state.leaves||[]).filter(r=>eq(r.employee));
+  const adv=(state.advances||[]).filter(r=>eq(r.employee));
+  const claims=(state.expenseReports||[]).filter(r=>eq(r.employee));
+  const tasks=(state.tasks||[]).filter(r=>eq(r.assignee) && String(r.status||"").toLowerCase()!=="done");
+  const hours=_pfSum(daily,r=>r.duration);
+  const otH=_pfSum(ot,r=>r.hours);
+  const projects={};
+  daily.forEach(r=>{ const p=(r.project||"\u2014").trim(); projects[p]=(projects[p]||0)+Number(r.duration||0); });
+  const byProj=Object.entries(projects).sort((a,b)=>b[1]-a[1]);
+  const pending=daily.filter(r=>typeof isPendingAppr==="function" && isPendingAppr(r)).length;
+  const openAdv=adv.filter(a=>typeof advSettledFully==="function" ? !advSettledFully(a) : true);
+
+  return `
+  <div class="pf-stats">
+    ${_pfStat("Hours logged", fmtHM(hours))}
+    ${_pfStat("Overtime", otH?fmtHM(otH):"\u2014", otH?"#E65100":"")}
+    ${_pfStat("Entries", String(daily.length))}
+    ${_pfStat("Projects", String(byProj.length))}
+    ${pending?_pfStat("Awaiting approval", String(pending), "#8F6E22"):""}
+    ${openAdv.length?_pfStat("Open advances", String(openAdv.length), "#E65100"):""}
+  </div>
+  ${byProj.length?`<div class="pf-block">
+    <div class="pf-bh">\u{1F3D7}\uFE0F Where the time went <span class="pf-count">${byProj.length}</span></div>
+    ${byProj.slice(0,8).map(([p,h])=>_pfRow(escapeHtml(p),
+        `${hours?Math.round(h/hours*100):0}% of total`, fmtHM(h))).join("")}
+  </div>`:""}
+  ${_pfBlock("Recent work","\u23F1\uFE0F",daily,r=>_pfRow(
+      escapeHtml(r.project||"\u2014"),
+      `${_pfDate(r.date)}${r.taskCategory?" \u00b7 "+escapeHtml(r.taskCategory):""}${r.site?" \u00b7 "+escapeHtml(r.site):""}`,
+      fmtHM(Number(r.duration||0))))}
+  ${tasks.length?_pfBlock("Open tasks","\u2705",tasks,t=>_pfRow(
+      escapeHtml(t.title||"\u2014"),
+      `${t.project?escapeHtml(t.project)+" \u00b7 ":""}${escapeHtml(t.status||"")}`,
+      t.due?_pfDate(t.due):"")):""}
+  ${openAdv.length?_pfBlock("Advances not yet settled","\u{1F4B3}",openAdv,a=>{
+      const o=(typeof advOutstanding==="function")?advOutstanding(a):{usd:a.usd,iqd:a.iqd};
+      return _pfRow(escapeHtml(a.purpose||"Advance"),
+        `${_pfDate(a.date)}${a.ref?" \u00b7 "+escapeHtml(a.ref):""}`,
+        `${o.usd?"$"+o.usd.toLocaleString():""}${o.usd&&o.iqd?" + ":""}${o.iqd?o.iqd.toLocaleString()+" IQD":""}`);
+    }):""}
+  ${claims.length?_pfBlock("Expense reports","\u{1F9FE}",claims,r=>_pfRow(
+      escapeHtml(r.ref||"Claim"), _pfDate(r.date),
+      escapeHtml((typeof EXR_STATUS!=="undefined" && EXR_STATUS[r.status||"draft"]||{lb:""}).lb||""))):""}
+  ${tr.length?_pfBlock("Travel","\u2708\uFE0F",tr,r=>_pfRow(
+      escapeHtml(r.destination||r.project||"\u2014"),
+      `${_pfDate(r.from||r.date)}${r.to?" \u2192 "+_pfDate(r.to):""}`,
+      r.perDiem?fmtMoney(r.perDiem):"")):""}
+  ${lv.length?_pfBlock("Leave","\u{1F334}",lv,r=>_pfRow(
+      escapeHtml(r.type||"Leave"),
+      `${_pfDate(r.from)} \u2192 ${_pfDate(r.to)}`,
+      r.days?String(r.days)+"d":"")):""}`;
+}
+
+// ── Project profile: cost, people, assets, documents ─────────────────────
+function profileProject(name){
+  const n=String(name||"").trim();
+  const eq=(v)=>String(v||"").trim()===n;
+  const p=(state.projects||[]).find(x=>eq(x.name))||{};
+  const daily=(state.daily||[]).filter(r=>eq(r.project)).sort((a,b)=>String(b.date||"").localeCompare(String(a.date||"")));
+  const devices=(state.devices||[]).filter(r=>eq(r.project));
+  const inc=(state.incidents||[]).filter(r=>eq(r.project));
+  const pms=(state.pmSchedules||[]).filter(r=>eq(r.project));
+  const invs=(state.invoices||[]).filter(r=>eq(r.project));
+  const quotes=(state.quotes||[]).filter(r=>eq(r.project));
+  const vars=(state.variations||[]).filter(r=>eq(r.project));
+  const exps=(state.expenses||[]).filter(r=>eq(r.project));
+  const hours=_pfSum(daily,r=>r.duration);
+  const fin=(typeof projectFinance==="function")?projectFinance(n):null;
+  const people={};
+  daily.forEach(r=>{ const e=(r.employee||"\u2014").trim(); people[e]=(people[e]||0)+Number(r.duration||0); });
+  const byPerson=Object.entries(people).sort((a,b)=>b[1]-a[1]);
+  const openInc=inc.filter(i=>String(i.status||"").toLowerCase()!=="closed");
+
+  return `
+  <div class="pf-stats">
+    ${_pfStat("Hours", fmtHM(hours))}
+    ${_pfStat("People", String(byPerson.length))}
+    ${_pfStat("Devices", String(devices.length))}
+    ${openInc.length?_pfStat("Open incidents", String(openInc.length), "#C62828"):_pfStat("Incidents", String(inc.length))}
+    ${fin&&fin.revenue>0?_pfStat("Margin", (fin.marginPct!=null?fin.marginPct+"%":"\u2014"),
+        fin.margin<0?"#C62828":"#2E7D32"):""}
+  </div>
+  ${fin&&fin.revenue>0?`<div class="pf-block">
+    <div class="pf-bh">\u{1F4CA} Money</div>
+    ${_pfRow("Revenue","contract + approved variations", curFmt(fin.revenue,fin.currency))}
+    ${_pfRow("Cost","labour, overtime, travel, material, expenses", curFmt(fin.cost,fin.currency))}
+    ${_pfRow("<strong>Margin</strong>","", `<strong style="color:${fin.margin<0?"#C62828":"#2E7D32"}">${curFmt(fin.margin,fin.currency)}</strong>`)}
+  </div>`:""}
+  ${byPerson.length?`<div class="pf-block">
+    <div class="pf-bh">\u{1F465} Who worked on it <span class="pf-count">${byPerson.length}</span></div>
+    ${byPerson.slice(0,8).map(([e,h])=>_pfRow(escapeHtml(e),
+        `${hours?Math.round(h/hours*100):0}% of the hours`, fmtHM(h))).join("")}
+  </div>`:""}
+  ${openInc.length?_pfBlock("Open incidents","\u{1F6A8}",openInc,i=>_pfRow(
+      escapeHtml(i.title||"\u2014"),
+      `${_pfDate(i.date)}${i.system?" \u00b7 "+escapeHtml(i.system):""}`,
+      escapeHtml(i.severity||""))):""}
+  ${_pfBlock("Devices","\u{1F5A5}\uFE0F",devices,d=>_pfRow(
+      escapeHtml(d.deviceName||d.serialNumber||"\u2014"),
+      `${d.serialNumber?escapeHtml(d.serialNumber):""}${d.site?" \u00b7 "+escapeHtml(d.site):""}`,
+      escapeHtml(d.system||"")))}
+  ${pms.length?_pfBlock("Maintenance schedules","\u{1F6E0}\uFE0F",pms,s=>_pfRow(
+      escapeHtml(s.title||"\u2014"),
+      s.freqDays?`every ${escapeHtml(String(s.freqDays))} days`:"",
+      (typeof pmNextDue==="function"&&pmNextDue(s))?_pfDate(pmNextDue(s)):"")):""}
+  ${invs.length?_pfBlock("Invoices","\u{1F9FE}",invs,v=>{
+      const t=(typeof invTotals==="function")?invTotals(v):{total:v.total||0,outstanding:0};
+      return _pfRow(escapeHtml(v.ref||v.title||"Invoice"), _pfDate(v.date),
+        `${curFmt(t.total,v.currency)}${t.outstanding?` <span style="color:#C62828">(${curFmt(t.outstanding,v.currency)} due)</span>`:""}`);
+    }):""}
+  ${quotes.length?_pfBlock("Quotations","\u{1F4B0}",quotes,q=>_pfRow(
+      escapeHtml(q.title||q.ref||"\u2014"), _pfDate(q.date),
+      escapeHtml(String(q.status||"")))):""}
+  ${vars.length?_pfBlock("Variations","\u{1F501}",vars,v=>_pfRow(
+      escapeHtml(v.title||"\u2014"), escapeHtml(v.status||""),
+      (typeof varTotals==="function")?curFmt(varTotals(v).total,v.currency):"")):""}
+  ${exps.length?_pfBlock("Expenses","\u{1F4B8}",exps,e=>_pfRow(
+      escapeHtml(e.desc||"\u2014"),
+      `${_pfDate(e.date)}${e.payee?" \u00b7 "+escapeHtml(e.payee):""}`,
+      curFmt(num(e.amount), e.currency))):""}
+  ${_pfBlock("Recent work","\u23F1\uFE0F",daily,r=>_pfRow(
+      escapeHtml(r.employee||"\u2014"),
+      `${_pfDate(r.date)}${r.taskCategory?" \u00b7 "+escapeHtml(r.taskCategory):""}`,
+      fmtHM(Number(r.duration||0))))}`;
+}
+
+// ── Device profile: its history, not its form ────────────────────────────
+function profileDevice(id){
+  const d=(state.devices||[]).find(x=>String(x.id)===String(id))||{};
+  const sn=String(d.serialNumber||"").trim().toLowerCase();
+  const nm=String(d.deviceName||"").trim().toLowerCase();
+  const inc=(state.incidents||[]).filter(i=>{
+    const blob=[i.title,i.description,i.deviceName,i.serialNumber,i.deviceId].map(x=>String(x||"").toLowerCase()).join(" ");
+    return (sn&&blob.includes(sn)) || String(i.deviceId||"")===String(d.id) || (nm&&blob.includes(nm));
+  });
+  const pms=(state.pmSchedules||[]).filter(s=>String(s.project||"").trim()===String(d.project||"").trim());
+  const today=(typeof todayStr==="function")?todayStr():new Date().toISOString().slice(0,10);
+  const warrantyLeft = d.warrantyEnd ? (String(d.warrantyEnd)>=today) : null;
+  return `
+  <div class="pf-stats">
+    ${_pfStat("Incidents", String(inc.length), inc.length?"#C62828":"")}
+    ${d.installDate?_pfStat("Installed", _pfDate(d.installDate)):""}
+    ${d.warrantyEnd?_pfStat(warrantyLeft?"In warranty":"Warranty expired", _pfDate(d.warrantyEnd),
+       warrantyLeft?"#2E7D32":"#C62828"):""}
+    ${_pfStat("Status", escapeHtml(d.status||"\u2014"))}
+  </div>
+  <div class="pf-block">
+    <div class="pf-bh">\u{1F5A5}\uFE0F Identity</div>
+    ${_pfRow("Serial", "", escapeHtml(d.serialNumber||"\u2014"))}
+    ${d.deviceCode?_pfRow("Code","",escapeHtml(d.deviceCode)):""}
+    ${_pfRow("Model", escapeHtml(d.brand||""), escapeHtml(d.model||"\u2014"))}
+    ${_pfRow("System","",escapeHtml(d.system||"\u2014"))}
+    ${_pfRow("Location", escapeHtml(d.area||""), escapeHtml(d.site||d.project||"\u2014"))}
+  </div>
+  ${_pfBlock("Incident history","\u{1F6A8}",inc,i=>_pfRow(
+      escapeHtml(i.title||"\u2014"),
+      `${_pfDate(i.date)}${i.status?" \u00b7 "+escapeHtml(i.status):""}`,
+      escapeHtml(i.severity||"")))}
+  ${pms.length?_pfBlock("Maintenance covering this site","\u{1F6E0}\uFE0F",pms,s=>_pfRow(
+      escapeHtml(s.title||"\u2014"),
+      s.freqDays?`every ${escapeHtml(String(s.freqDays))} days`:"",
+      (typeof pmNextDue==="function"&&pmNextDue(s))?_pfDate(pmNextDue(s)):"")):""}`;
+}
+
+// ── Client profile ───────────────────────────────────────────────────────
+function profileClient(name){
+  const n=String(name||"").trim();
+  const eq=(v)=>String(v||"").trim()===n;
+  const projects=(state.projects||[]).filter(p=>eq(p.client));
+  const quotes=(state.quotes||[]).filter(q=>eq(q.client));
+  const invs=(state.invoices||[]).filter(v=>eq(v.client));
+  const reqs=(state.clientRequests||[]).filter(r=>eq(r.client));
+  let billed=0, due=0;
+  invs.forEach(v=>{ const t=(typeof invTotals==="function")?invTotals(v):{total:0,outstanding:0};
+    billed+=t.total; due+=t.outstanding; });
+  const openReq=reqs.filter(r=>String(r.status||"").toLowerCase()!=="closed");
+  return `
+  <div class="pf-stats">
+    ${_pfStat("Projects", String(projects.length))}
+    ${_pfStat("Invoiced", curFmt(billed, curBase()))}
+    ${_pfStat("Outstanding", curFmt(due, curBase()), due?"#C62828":"#2E7D32")}
+    ${openReq.length?_pfStat("Open requests", String(openReq.length), "#E65100"):""}
+  </div>
+  ${_pfBlock("Projects","\u{1F3D7}\uFE0F",projects,p=>_pfRow(
+      escapeHtml(p.name||"\u2014"), escapeHtml(p.status||""),
+      p.contractValue?curFmt(p.contractValue, p.contractCurrency||curBase()):""))}
+  ${invs.length?_pfBlock("Invoices","\u{1F9FE}",invs,v=>{
+      const t=(typeof invTotals==="function")?invTotals(v):{total:0,outstanding:0};
+      return _pfRow(escapeHtml(v.ref||v.title||"Invoice"), _pfDate(v.date),
+        `${curFmt(t.total,v.currency)}${t.outstanding?` <span style="color:#C62828">(${curFmt(t.outstanding,v.currency)} due)</span>`:""}`);
+    }):""}
+  ${quotes.length?_pfBlock("Quotations","\u{1F4B0}",quotes,q=>_pfRow(
+      escapeHtml(q.title||q.ref||"\u2014"), _pfDate(q.date), escapeHtml(String(q.status||"")))):""}
+  ${openReq.length?_pfBlock("Open requests","\u{1F4E8}",openReq,r=>_pfRow(
+      escapeHtml(r.title||"\u2014"), _pfDate(String(r.createdAt||"").slice(0,10)),
+      escapeHtml(r.status||""))):""}`;
+}
+
+// ── The panel ────────────────────────────────────────────────────────────
+const PROFILE_KINDS = {
+  employee: {ic:"\u{1F464}", lb:"Employee", body:(id)=>profileEmployee(id), edit:null},
+  project:  {ic:"\u{1F3D7}\uFE0F", lb:"Project",  body:(id)=>profileProject(id),
+             edit:(id)=>{ const p=(state.projects||[]).find(x=>String(x.name).trim()===String(id).trim());
+                          return p?["editProj",p.id,"Projects"]:null; }},
+  device:   {ic:"\u{1F5A5}\uFE0F", lb:"Device",   body:(id)=>profileDevice(id),
+             edit:(id)=>["editDevice",id,"Assets"]},
+  client:   {ic:"\u{1F464}", lb:"Client",   body:(id)=>profileClient(id),
+             edit:(id)=>{ const c=(state.clients||[]).find(x=>String(x.name).trim()===String(id).trim());
+                          return c?["editClient",c.id,"Clients"]:null; }},
+};
+window.profileEdit = function(){
+  const P=window._profile; if(!P) return;
+  const K=PROFILE_KINDS[P.kind]; if(!K||!K.edit) return;
+  const spec=K.edit(P.id); if(!spec) return;
+  const [fn,id,tab]=spec;
+  window._profile=null;
+  if(typeof switchTab==="function") switchTab(tab); else { state.tab=tab; render(); }
+  setTimeout(()=>{ try{ if(typeof window[fn]==="function") window[fn](id); }catch(e){} }, 260);
+};
+function renderProfilePanel(){
+  const P=window._profile; if(!P) return "";
+  const K=PROFILE_KINDS[P.kind]; if(!K) return "";
+  let body="";
+  try{ body=K.body(P.id); }catch(e){ body=`<div class="pf-none">Could not assemble this profile.</div>`; }
+  return `<div class="pf-ov" onclick="if(event.target===this)closeProfile()">
+    <div class="pf-box">
+      <div class="pf-hd">
+        <span class="pf-hic">${K.ic}</span>
+        <span class="pf-htxt"><span class="pf-hn">${escapeHtml(String(P.id))}</span>
+          <span class="pf-hk">${escapeHtml(K.lb)}</span></span>
+        ${K.edit?`<button class="btn btn-sm btn-secondary" onclick="profileEdit()">\u270e Edit</button>`:""}
+        <button class="btn btn-sm btn-secondary" onclick="closeProfile()">Close</button>
+      </div>
+      <div class="pf-body">${body}</div>
+    </div>
+  </div>`;
+}
+Object.assign(window,{profileEmployee, profileProject, profileDevice, profileClient,
+                      renderProfilePanel, PROFILE_KINDS});
