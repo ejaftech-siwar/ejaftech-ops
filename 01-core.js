@@ -3699,8 +3699,260 @@ function computeAlerts(){
       if(pc.soon>0)    out.push({sev:"med", icon:"🗓️",title:`${pc.soon} maintenance task${pc.soon>1?'s':''} due within 7 days`,meta:"Plan the visits",go:()=>switchTab("Maintenance")});
     }catch(e){}
   }
+  // ═══ FORWARD-LOOKING ALERTS (v199) ═══════════════════════════════════
+  // Everything above reports what has already gone wrong. These look at what
+  // is ABOUT to: an invoice days from its due date, a project approaching its
+  // estimate, cash committed but not collected. The figures all come from
+  // functions the app already computes and tests — nothing new is calculated
+  // here, it is only surfaced where a decision gets made.
+  try{
+    const _today = (typeof todayStr==="function") ? todayStr() : new Date().toISOString().slice(0,10);
+    const _days = (from,to)=>{
+      const a=new Date(String(from)+"T00:00:00Z"), b=new Date(String(to)+"T00:00:00Z");
+      return (isNaN(a)||isNaN(b)) ? null : Math.round((b-a)/86400000);
+    };
+
+    // ── Money in ──
+    if(typeof invoicesFor==="function" && typeof invTotals==="function" && typeof invStatus==="function"){
+      const live=invoicesFor("").filter(v=>{
+        const st=invStatus(v);
+        return st!=="draft" && st!=="cancelled" && st!=="paid";
+      });
+      const overdue=live.filter(v=>invStatus(v)==="overdue");
+      if(overdue.length){
+        const worst=overdue.map(v=>daysPastDue(v)).sort((a,b)=>b-a)[0];
+        const amt=overdue.reduce((s,v)=>s+invTotals(v).outstanding,0);
+        out.push({sev:"high", icon:"\u23F0",
+          title:`${overdue.length} invoice${overdue.length>1?"s are":" is"} overdue`,
+          meta:`${curFmt(amt, curBase())} outstanding \u00b7 the oldest by ${worst} day${worst>1?"s":""}`,
+          go:()=>{ window._finView="invoices"; switchTab("Finance"); }});
+      }
+      // Due within a week: the window in which a reminder still prevents the
+      // problem rather than reporting it.
+      const soon=live.filter(v=>{
+        if(invStatus(v)==="overdue") return false;
+        const d=_days(_today, invDueDate(v));
+        return d!=null && d>=0 && d<=7;
+      });
+      if(soon.length){
+        const amt=soon.reduce((s,v)=>s+invTotals(v).outstanding,0);
+        out.push({sev:"med", icon:"\u{1F4C5}",
+          title:`${soon.length} invoice${soon.length>1?"s fall":" falls"} due within 7 days`,
+          meta:`${curFmt(amt, curBase())} \u00b7 chase before, not after`,
+          go:()=>{ window._finView="invoices"; switchTab("Finance"); }});
+      }
+    }
+
+    // ── Money out, and money nobody has asked for yet ──
+    if(typeof cashPosition==="function"){
+      const cash=cashPosition(curBase());
+      if(cash.net<0)
+        out.push({sev:"high", icon:"\u{1F4B0}",
+          title:"More is owed out than is coming in",
+          meta:`${curFmt(cash.receivable, cash.currency)} receivable against ${curFmt(cash.payable, cash.currency)} payable`,
+          go:()=>{ window._finView="invoices"; switchTab("Finance"); }});
+    }
+    if(typeof advOutstandingTotals==="function"){
+      const a=advOutstandingTotals();
+      if(a.count)
+        out.push({sev:a.count>3?"med":"low", icon:"\u{1F4B3}",
+          title:`${a.count} work advance${a.count>1?"s are":" is"} unaccounted for`,
+          meta:`${a.usd?"$"+a.usd.toLocaleString():""}${a.usd&&a.iqd?" + ":""}${a.iqd?a.iqd.toLocaleString()+" IQD":""} still in pockets`,
+          go:()=>{ window._finView="advances"; switchTab("Finance"); }});
+    }
+    // Work earned but never billed is the quietest way to lose money: nothing
+    // is late, because nobody ever asked for it.
+    if(typeof invBillingPosition==="function"){
+      (state.projects||[]).forEach(p=>{
+        try{
+          const b=invBillingPosition(p.name);
+          if(b && b.earned>0 && b.unbilled > b.earned*0.25 && b.unbilled>0){
+            out.push({sev:"med", icon:"\u{1F9FE}",
+              title:`${p.name}: ${curFmt(b.unbilled, b.currency)} earned but not invoiced`,
+              meta:`${b.pctBilled}% of the contract has been billed`,
+              go:()=>{ window._finView="invoices"; switchTab("Finance"); }});
+          }
+        }catch(e){}
+      });
+    }
+
+    // ── Margin, while it can still be acted on ──
+    if(typeof projectFinance==="function"){
+      (state.projects||[]).forEach(p=>{
+        try{
+          const f=projectFinance(p.name);
+          if(!f || f.revenue<=0) return;
+          if(f.level==="loss")
+            out.push({sev:"high", icon:"\u{1F4C9}",
+              title:`${p.name} is running at a loss`,
+              meta:`cost ${curFmt(f.cost,f.currency)} against revenue ${curFmt(f.revenue,f.currency)}`,
+              go:()=>{ window._finView="pl"; switchTab("Finance"); }});
+          else if(f.level==="tight")
+            out.push({sev:"med", icon:"\u26A0",
+              title:`${p.name} margin is down to ${f.marginPct}%`,
+              meta:"cost is within 15% of revenue",
+              go:()=>{ window._finView="pl"; switchTab("Finance"); }});
+          if(f.expensesUnconverted)
+            out.push({sev:"med", icon:"\u{1F4B1}",
+              title:`${p.name}: ${f.expensesUnconverted} expense(s) have no exchange rate`,
+              meta:"they are excluded from every figure until fixed",
+              go:()=>{ window._finView="expenses"; switchTab("Finance"); }});
+        }catch(e){}
+      });
+    }
+
+    // ── Claims waiting on a decision ──
+    const pendingClaims=(state.expenseReports||[]).filter(r=>r.status==="submitted").length;
+    if(pendingClaims)
+      out.push({sev:"med", icon:"\u{1F9FE}",
+        title:`${pendingClaims} expense report${pendingClaims>1?"s await":" awaits"} approval`,
+        meta:"someone is out of pocket until this is signed",
+        go:()=>{ window._finView="claims"; switchTab("Finance"); }});
+  }catch(e){ console.warn("finance alerts:", e); }
+
   out.forEach(a=>{ a.key = a.icon+"|"+a.title; });    // stable key per alert
   const rank={high:0,med:1,low:2};
+
+  // ═══ FORWARD-LOOKING ALERTS (v199) ═══════════════════════════════════
+  // Everything above reports what has already gone wrong. These warn while
+  // there is still time to act, which is the difference between a dashboard
+  // that describes the business and one that protects it. All of it is computed
+  // from data the app already holds — no new collection, no server.
+  const _today = (typeof todayStr==="function") ? todayStr() : new Date().toISOString().slice(0,10);
+  const _daysTo = (d)=>{
+    if(!d) return null;
+    const a=new Date(String(d)+"T00:00:00Z"), b=new Date(_today+"T00:00:00Z");
+    return isNaN(a)?null:Math.round((a-b)/86400000);
+  };
+
+  // A) Invoices falling due. An invoice that is late has already cost you; one
+  //    due next week can still be chased.
+  try{
+    const soon=[], late=[];
+    (state.invoices||[]).forEach(v=>{
+      const st=(typeof invStatus==="function")?invStatus(v):(v.status||"draft");
+      if(st==="draft"||st==="cancelled"||st==="paid") return;
+      const t=(typeof invTotals==="function")?invTotals(v):null;
+      if(!t || t.outstanding<=0) return;
+      const d=_daysTo((typeof invDueDate==="function")?invDueDate(v):null);
+      if(d==null) return;
+      if(d<0) late.push({v,t,d:-d}); else if(d<=7) soon.push({v,t,d});
+    });
+    if(late.length){
+      const worst=late.sort((a,b)=>b.d-a.d)[0];
+      out.push({sev:"high", icon:"\u{1F4B8}", key:"inv-late",
+        title:`${late.length} invoice${late.length>1?"s are":" is"} overdue`,
+        meta:`Longest: ${worst.v.ref||"\u2014"} at ${worst.d} day${worst.d>1?"s":""} \u00b7 ${curFmt(worst.t.outstanding, worst.v.currency)}`,
+        go:()=>{ window._finView="invoices"; switchTab("Finance"); }});
+    }
+    if(soon.length){
+      const next=soon.sort((a,b)=>a.d-b.d)[0];
+      out.push({sev:"med", icon:"\u{1F4C5}", key:"inv-soon",
+        title:`${soon.length} invoice${soon.length>1?"s fall":" falls"} due within a week`,
+        meta:`Next: ${next.v.ref||"\u2014"} in ${next.d===0?"today":next.d+" day"+(next.d>1?"s":"")}`,
+        go:()=>{ window._finView="invoices"; switchTab("Finance"); }});
+    }
+  }catch(e){}
+
+  // B) Cash position. Money owed to you against money you owe: the number that
+  //    decides whether wages can be paid, and it is nowhere else in the app.
+  try{
+    if(typeof cashPosition==="function"){
+      const cash=cashPosition();
+      if(cash.net<0){
+        out.push({sev:"high", icon:"\u26A0\uFE0F", key:"cash-neg",
+          title:"More is owed out than is owed in",
+          meta:`Receivable ${curFmt(cash.receivable,cash.currency)} \u00b7 payable ${curFmt(cash.payable,cash.currency)}`,
+          go:()=>{ window._finView="invoices"; switchTab("Finance"); }});
+      }
+    }
+  }catch(e){}
+
+  // C) Cash sitting in pockets. An advance nobody has accounted for is company
+  //    money that has simply left, and it is easy to forget.
+  try{
+    if(typeof advOutstandingTotals==="function"){
+      const a=advOutstandingTotals();
+      if(a.count){
+        out.push({sev:a.count>=4?"med":"low", icon:"\u{1F4B3}", key:"adv-open",
+          title:`${a.count} work advance${a.count>1?"s are":" is"} unsettled`,
+          meta:[a.usd?("$"+a.usd.toLocaleString()):"", a.iqd?(a.iqd.toLocaleString()+" IQD"):""]
+                .filter(Boolean).join(" + ")+" not yet accounted for",
+          go:()=>{ window._finView="advances"; switchTab("Finance"); }});
+      }
+    }
+  }catch(e){}
+
+  // D) Work earned but never invoiced. The client cannot pay for what it has
+  //    not been asked to pay for, and this is the commonest silent loss.
+  try{
+    if(typeof invBillingPosition==="function"){
+      let worst=null, total=0;
+      (state.projects||[]).forEach(p=>{
+        const b=invBillingPosition(p.name);
+        if(!b || b.earned<=0 || b.unbilled<=0) return;
+        total+=b.unbilled;
+        if(!worst || b.unbilled>worst.unbilled) worst={...b, name:p.name};
+      });
+      if(worst && total>0){
+        out.push({sev:"med", icon:"\u{1F9FE}", key:"unbilled",
+          title:`${curFmt(total, worst.currency)} of completed work is not invoiced`,
+          meta:`Largest: ${worst.name} \u2014 ${curFmt(worst.unbilled, worst.currency)} (${worst.pctBilled}% billed)`,
+          go:()=>{ window._finView="invoices"; switchTab("Finance"); }});
+      }
+    }
+  }catch(e){}
+
+  // E) Projects burning through their estimate. Warned at 85%, not at 100%,
+  //    because past 100% the only available action is an apology.
+  try{
+    (state.projects||[]).forEach(p=>{
+      const est=Number(p.estimatedHours||0);
+      if(est<=0) return;
+      const used=(state.daily||[]).filter(r=>(r.project||"").trim()===(p.name||"").trim())
+                  .reduce((s,r)=>s+Number(r.duration||0),0);
+      const pct=Math.round(used/est*100);
+      if(pct>=85 && pct<=100){
+        out.push({sev:"med", icon:"\u23F3", key:"burn-"+p.name,
+          title:`${p.name} has used ${pct}% of its estimated hours`,
+          meta:`${fmtHM(used)} of ${fmtHM(est)} \u2014 raise a variation before it overruns`,
+          go:()=>{ window._profile={kind:"project", id:p.name}; render(); }});
+      }
+    });
+  }catch(e){}
+
+  // F) Preventive maintenance due within the week. Overdue PM is already
+  //    reported elsewhere; this is the window in which it can still be planned.
+  try{
+    const dueSoon=(state.pmSchedules||[]).filter(s=>{
+      const due=(typeof pmNextDue==="function")?pmNextDue(s):null;
+      const d=_daysTo(due);
+      return d!=null && d>=0 && d<=7;
+    });
+    if(dueSoon.length){
+      out.push({sev:"med", icon:"\u{1F6E0}\uFE0F", key:"pm-week",
+        title:`${dueSoon.length} maintenance visit${dueSoon.length>1?"s fall":" falls"} due this week`,
+        meta:dueSoon.slice(0,3).map(s=>s.title||s.system||"PM").join(", ")+(dueSoon.length>3?"\u2026":""),
+        go:()=>switchTab("Dispatch")});
+    }
+  }catch(e){}
+
+  // G) Quotations about to lapse. A quotation that expires unanswered is a
+  //    conversation that ended without anyone deciding to end it.
+  try{
+    const lapsing=(state.quotes||[]).filter(q=>{
+      if((typeof quoteEffectiveStatus==="function"?quoteEffectiveStatus(q):q.status)!=="sent") return false;
+      const d=_daysTo((typeof quoteValidUntil==="function")?quoteValidUntil(q):null);
+      return d!=null && d>=0 && d<=7;
+    });
+    if(lapsing.length){
+      out.push({sev:"med", icon:"\u{1F4B0}", key:"quo-lapse",
+        title:`${lapsing.length} quotation${lapsing.length>1?"s expire":" expires"} within a week`,
+        meta:lapsing.slice(0,2).map(q=>`${q.title||q.ref||""} (${q.client||""})`).join(", "),
+        go:()=>{ window._finView="quotes"; switchTab("Finance"); }});
+    }
+  }catch(e){}
+
   return out.filter(a=>!isSnoozed(a.key)).sort((a,b)=>rank[a.sev]-rank[b.sev]);
 }
 window._alertsCache=[];

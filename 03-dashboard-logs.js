@@ -535,7 +535,14 @@ function renderDashboard(){
   </div>`;
   // ── the operational picture, above the historical charts ──
   if(!isEmployee()){
-    try{ h += dashStalledPanel() + dashFieldToday() + dashProjectHealth() + dashProblemDevices(); }catch(e){ console.error("dash blocks",e); }
+    try{ // Health sits high on the page on purpose: "can we pay the wages" outranks
+  // "how many hours were logged", and a figure nobody scrolls to is a figure
+  // nobody acts on.
+  // Directly after the greeting, before the operational panels: money is the
+  // first question an owner asks and it should not be scrolled to.
+  h += (typeof renderHealthCard==="function"?renderHealthCard():"");
+  h += (typeof renderHealth==="function"?renderHealth():"")
+     + dashStalledPanel() + dashFieldToday() + dashProjectHealth() + dashProblemDevices(); }catch(e){ console.error("dash blocks",e); }
   }
 
   if(!isEmployee()){
@@ -2363,3 +2370,361 @@ function renderApprovals(){
       </div>`).join("")}`;
 }
 Object.assign(window,{renderApprovals});
+
+// ═══ FORWARD-LOOKING ALERTS (v199) ══════════════════════════════════════
+// dashAlerts() reports what HAS happened. These report what is ABOUT to: an
+// invoice about to fall due, a project about to overrun, a warranty about to
+// lapse. Every one of them is computable from data already held — the value is
+// in the timing, because a warning after the fact is only a record.
+function dashForecast(){
+  const out=[];
+  const today=(typeof todayStr==="function")?todayStr():new Date().toISOString().slice(0,10);
+  const addDays=(d,n)=>{ const x=new Date(String(d)+"T00:00:00Z"); if(isNaN(x)) return ""; x.setUTCDate(x.getUTCDate()+n); return x.toISOString().slice(0,10); };
+  const daysTo=(d)=>{ if(!d) return null;
+    const a=new Date(String(d)+"T00:00:00Z"), b=new Date(today+"T00:00:00Z");
+    return Math.round((a-b)/86400000); };
+
+  // ── Money in: what is about to be due, and what is already late ──
+  try{
+    if(typeof invoicesFor==="function" && typeof invStatus==="function" && typeof invTotals==="function"){
+      const live=invoicesFor("").filter(v=>{ const s=invStatus(v); return s!=="draft" && s!=="cancelled" && s!=="paid"; });
+      const soon=live.filter(v=>{ const d=daysTo(invDueDate(v)); return d!=null && d>=0 && d<=7; });
+      const late=live.filter(v=>{ const d=daysTo(invDueDate(v)); return d!=null && d<0; });
+      if(soon.length){
+        const amt=soon.reduce((s,v)=>s+invTotals(v).outstanding,0);
+        out.push({ic:"\u{1F4C5}", t:`${soon.length} invoice${soon.length>1?"s":""} due within 7 days`,
+          m:`${curFmt(amt, curBase())} expected \u2014 chase before it becomes overdue`, go:"Finance", c:"#8F6E22"});
+      }
+      if(late.length){
+        const amt=late.reduce((s,v)=>s+invTotals(v).outstanding,0);
+        const worst=late.reduce((w,v)=>{ const d=-daysTo(invDueDate(v)); return d>w?d:w; },0);
+        out.push({ic:"\u23F0", t:`${curFmt(amt, curBase())} overdue`,
+          m:`${late.length} invoice${late.length>1?"s":""}, the oldest by ${worst} days`, go:"Finance", c:"#C62828"});
+      }
+    }
+  }catch(e){}
+
+  // ── Money out that has not left yet: a liability, not a cost ──
+  try{
+    if(typeof cashPosition==="function"){
+      const cash=cashPosition(curBase());
+      if(cash.net<0)
+        out.push({ic:"\u{1F4B8}", t:`Cash position is negative: ${curFmt(cash.net, curBase())}`,
+          m:`${curFmt(cash.payable, curBase())} owed out against ${curFmt(cash.receivable, curBase())} owed in`,
+          go:"Finance", c:"#C62828"});
+    }
+    if(typeof advOutstandingTotals==="function"){
+      const a=advOutstandingTotals();
+      if(a.count)
+        out.push({ic:"\u{1F4B3}", t:`${a.count} advance${a.count>1?"s":""} unaccounted for`,
+          m:`${a.usd?"$"+a.usd.toLocaleString():""}${a.usd&&a.iqd?" + ":""}${a.iqd?a.iqd.toLocaleString()+" IQD":""} still in pockets`,
+          go:"Finance", c:"#E65100"});
+    }
+  }catch(e){}
+
+  // ── Projects heading for trouble WHILE they can still be corrected ──
+  try{
+    if(typeof projectFinance==="function"){
+      const losing=[], overrun=[];
+      [...new Set((state.projects||[]).map(p=>String(p.name||"").trim()).filter(Boolean))].forEach(n=>{
+        const f=projectFinance(n); if(!f) return;
+        if(f.revenue>0 && f.margin<0) losing.push({n, f});
+        const p=f.project, est=Number(p.estimatedHours||0);
+        if(est>0 && f.hours>=est*0.9 && f.hours<est*1.4) overrun.push({n, pct:Math.round(f.hours/est*100)});
+      });
+      if(losing.length){
+        const worst=losing.sort((a,b)=>a.f.margin-b.f.margin)[0];
+        out.push({ic:"\u{1F4C9}", t:`${losing.length} project${losing.length>1?"s are":" is"} running at a loss`,
+          m:`Worst: ${worst.n} at ${curFmt(worst.f.margin, worst.f.currency)}`, go:"Finance", c:"#C62828"});
+      }
+      overrun.forEach(o=>out.push({ic:"\u23F3", t:`${o.n} has used ${o.pct}% of its estimated hours`,
+        m:"Re-estimate or raise a variation before it overruns", go:"Finance", c:"#8F6E22"}));
+    }
+  }catch(e){}
+
+  // ── Warranties: the window to claim closes silently ──
+  try{
+    const soon=(state.devices||[]).filter(d=>{ const n=daysTo(d.warrantyEnd); return n!=null && n>=0 && n<=45; });
+    if(soon.length)
+      out.push({ic:"\u{1F6E1}\uFE0F", t:`${soon.length} warrant${soon.length>1?"ies":"y"} expiring within 45 days`,
+        m:"Raise any outstanding claim while the cover still stands", go:"Assets", c:"#8F6E22"});
+  }catch(e){}
+
+  // ── Maintenance about to fall due, not already overdue ──
+  try{
+    if(typeof pmNextDue==="function"){
+      const due=(state.pmSchedules||[]).filter(s=>{ const n=daysTo(pmNextDue(s)); return n!=null && n>=0 && n<=7; });
+      if(due.length)
+        out.push({ic:"\u{1F6E0}\uFE0F", t:`${due.length} maintenance visit${due.length>1?"s":""} due this week`,
+          m:due.slice(0,3).map(s=>s.title||s.system||"PM").join(", ")+(due.length>3?"\u2026":""),
+          go:"Maintenance", c:"#1565C0"});
+    }
+  }catch(e){}
+
+  // ── Quotations that expire unanswered are lost revenue ──
+  try{
+    if(typeof quoteEffectiveStatus==="function" && typeof quoteValidUntil==="function"){
+      const soon=(state.quotes||[]).filter(q=>{
+        if(quoteEffectiveStatus(q)!=="sent") return false;
+        const n=daysTo(quoteValidUntil(q)); return n!=null && n>=0 && n<=7;
+      });
+      if(soon.length)
+        out.push({ic:"\u{1F4B0}", t:`${soon.length} quotation${soon.length>1?"s":""} expiring within 7 days`,
+          m:"Follow up before the offer lapses", go:"Finance", c:"#8F6E22"});
+    }
+  }catch(e){}
+
+  // ── Service levels, before the breach rather than after ──
+  try{
+    if(typeof slaCompliance==="function"){
+      (state.projects||[]).forEach(p=>{
+        const s=slaCompliance(p.name);
+        if(s && s.total>=3 && s.pct!=null && s.pct<85)
+          out.push({ic:"\u{1F4E8}", t:`${p.name}: SLA compliance ${s.pct}%`,
+            m:`${s.breached} of ${s.total} requests breached the agreed response`, go:"Requests", c:"#C62828"});
+      });
+    }
+  }catch(e){}
+
+  return out;
+}
+window.dashForecast = dashForecast;
+
+// ═══ BUSINESS HEALTH BAND (v199) ════════════════════════════════════════
+// The app already computed every one of these figures; none of them reached a
+// screen where a decision gets made. A margin discovered when the project ends
+// is a post-mortem, not management. Admin-only, because the questions it
+// answers — can we pay wages, who owes us — are not a technician's.
+function dashHealth(){
+  if(!(isAdmin() || hasCap("canAnalytics"))) return "";
+  let cash=null, age=null, adv=null;
+  try{ cash = (typeof cashPosition==="function") ? cashPosition(curBase()) : null; }catch(e){}
+  try{ age  = (typeof invAgeing==="function")   ? invAgeing("", curBase())  : null; }catch(e){}
+  try{ adv  = (typeof advOutstandingTotals==="function") ? advOutstandingTotals() : null; }catch(e){}
+
+  // Portfolio margin, from the same engine the Finance tab uses.
+  let rev=0, cost=0, live=0, losing=0;
+  try{
+    if(typeof projectFinance==="function"){
+      [...new Set((state.projects||[]).map(p=>String(p.name||"").trim()).filter(Boolean))].forEach(n=>{
+        const f=projectFinance(n); if(!f || f.revenue<=0) return;
+        rev+=f.revenue; cost+=f.cost; live++;
+        if(f.margin<0) losing++;
+      });
+    }
+  }catch(e){}
+  const margin=rev-cost;
+  const mPct = rev>0 ? Math.round(margin/rev*100) : null;
+
+  // Nothing financial recorded yet: say so plainly rather than showing a row
+  // of zeros, which reads as a broken screen.
+  const anything = (cash&&(cash.receivable||cash.payable)) || rev>0 || (adv&&adv.count);
+  if(!anything) return "";
+
+  const card=(icon,label,value,sub,colour,go)=>`
+    <button class="hz-card"${go?` onclick="switchTab('${go}')"`:""}>
+      <div class="hz-ic">${icon}</div>
+      <div class="hz-v"${colour?` style="color:${colour}"`:""}>${value}</div>
+      <div class="hz-l">${escapeHtml(label)}</div>
+      ${sub?`<div class="hz-s">${sub}</div>`:""}
+    </button>`;
+
+  const overdue = age ? (age.buckets.d30.amount + age.buckets.d60.amount +
+                         age.buckets.d90.amount + age.buckets.d90p.amount) : 0;
+
+  return `<div class="card hz-wrap">
+    <div class="sec-hdr">\u{1F4CA} Business health</div>
+    <div class="hz-grid">
+      ${rev>0?card("\u{1F4B9}","Portfolio margin",
+          (mPct!=null?mPct+"%":"\u2014"),
+          curFmt(margin, curBase()),
+          margin<0?"#C62828":"#2E7D32","Finance"):""}
+      ${cash?card("\u{1F4B0}","Owed to us", curFmt(cash.receivable, curBase()),
+          overdue?`<span style="color:#C62828">${curFmt(overdue, curBase())} overdue</span>`:"all within terms",
+          "#03308B","Finance"):""}
+      ${cash?card("\u{1F4B8}","Owed by us", curFmt(cash.payable, curBase()),
+          "unpaid expenses", cash.payable?"#E65100":"#2E7D32","Finance"):""}
+      ${cash?card("\u2696\uFE0F","Net position", curFmt(cash.net, curBase()),
+          cash.net<0?"more out than in":"in credit",
+          cash.net<0?"#C62828":"#2E7D32","Finance"):""}
+      ${(adv&&adv.count)?card("\u{1F4B3}","Advances open", String(adv.count),
+          `${adv.usd?"$"+adv.usd.toLocaleString():""}${adv.usd&&adv.iqd?" + ":""}${adv.iqd?adv.iqd.toLocaleString()+" IQD":""}`,
+          "#E65100","Finance"):""}
+      ${live?card("\u{1F3D7}\uFE0F","Projects priced", String(live),
+          losing?`<span style="color:#C62828">${losing} at a loss</span>`:"none at a loss",
+          losing?"#C62828":"#2E7D32","Finance"):""}
+    </div>
+    ${(cash&&cash.retentionHeld)?`<div class="hz-note">\u{1F510} ${curFmt(cash.retentionHeld, curBase())} of retention is held and is not collectable until released.</div>`:""}
+    ${(cash&&cash.unconverted)?`<div class="hz-note warn">\u26a0 ${cash.unconverted} document(s) in another currency carry no exchange rate and are excluded from these figures.</div>`:""}
+  </div>`;
+}
+window.dashHealth = dashHealth;
+
+// ═══ BUSINESS HEALTH (v199) ═════════════════════════════════════════════
+// Seven functions in the app compute the numbers that decide whether the
+// company is well — cash position, ageing, margin, unbilled work, outstanding
+// advances, SLA. Not one of them reached the dashboard, so the answers existed
+// and nobody saw them. This surfaces them, and every tile opens the screen or
+// the profile where the matter can actually be dealt with.
+function renderHealth(){
+  if(!(isAdmin()||hasCap("canAnalytics"))) return "";
+  const cur=(typeof curBase==="function")?curBase():"IQD";
+  const money=(n)=>(typeof curFmt==="function")?curFmt(n,cur):String(n);
+
+  let cash=null, age=null, adv=null;
+  try{ if(typeof cashPosition==="function") cash=cashPosition(cur); }catch(e){}
+  try{ if(typeof invAgeing==="function") age=invAgeing("",cur); }catch(e){}
+  try{ if(typeof advOutstandingTotals==="function") adv=advOutstandingTotals(); }catch(e){}
+
+  // Portfolio margin, and the projects that need attention now.
+  let rev=0, cost=0, loss=[], tight=[], unbilled=0;
+  try{
+    (state.projects||[]).forEach(p=>{
+      const f=projectFinance(p.name);
+      if(!f || f.revenue<=0) return;
+      rev+=f.revenue; cost+=f.cost;
+      if(f.level==="loss") loss.push({n:p.name, f});
+      else if(f.level==="tight") tight.push({n:p.name, f});
+      try{
+        const b=invBillingPosition(p.name);
+        if(b && b.unbilled>0) unbilled+=b.unbilled;
+      }catch(e){}
+    });
+  }catch(e){}
+  const margin=rev-cost;
+  const marginPct = rev>0 ? Math.round(margin/rev*100) : null;
+
+  // Nothing to report is a legitimate state and should say so plainly rather
+  // than showing a wall of zeros.
+  if(!rev && !(cash&&(cash.receivable||cash.payable)) && !(adv&&adv.count)) return "";
+
+  const tile=(label, value, colour, onclick, sub)=>`
+    <button class="hl-tile"${onclick?` onclick="${escapeHtml(onclick)}"`:""}>
+      <div class="hl-v"${colour?` style="color:${colour}"`:""}>${value}</div>
+      <div class="hl-l">${escapeHtml(label)}</div>
+      ${sub?`<div class="hl-s">${escapeHtml(sub)}</div>`:""}
+    </button>`;
+
+  const overdueAmt = age ? (age.buckets.d30.amount+age.buckets.d60.amount+
+                            age.buckets.d90.amount+age.buckets.d90p.amount) : 0;
+
+  return `<div class="card hl-card">
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      \u{1F4CA} Business health
+      <span style="font-size:10px;color:var(--muted);font-weight:500;margin-left:auto">tap any figure to act on it</span>
+    </div>
+    <div class="hl-grid">
+      ${rev>0?tile("Margin", (marginPct!=null?marginPct+"%":"\u2014"),
+          margin<0?"#C62828":"#2E7D32", "window._finView='pl';switchTab('Finance')",
+          money(margin)):""}
+      ${cash?tile("Receivable", money(cash.receivable), "#2E7D32",
+          "window._finView='invoices';switchTab('Finance')",
+          overdueAmt?money(overdueAmt)+" overdue":"all within terms"):""}
+      ${cash?tile("Payable", money(cash.payable), cash.payable?"#C62828":"#2E7D32",
+          "window._finView='expenses';switchTab('Finance')", "expenses not yet paid"):""}
+      ${cash?tile("Net position", money(cash.net), cash.net<0?"#C62828":"#03308B",
+          "window._finView='invoices';switchTab('Finance')",
+          cash.net<0?"more owed out than in":"in your favour"):""}
+      ${unbilled>0?tile("Not yet invoiced", money(unbilled), "#E65100",
+          "window._finView='invoices';switchTab('Finance')", "earned, never billed"):""}
+      ${adv&&adv.count?tile("Advances open", String(adv.count), "#E65100",
+          "window._finView='advances';switchTab('Finance')",
+          `${adv.usd?"$"+adv.usd.toLocaleString():""}${adv.usd&&adv.iqd?" + ":""}${adv.iqd?adv.iqd.toLocaleString()+" IQD":""}`):""}
+      ${cash&&cash.retentionHeld?tile("Retention held", money(cash.retentionHeld), "#8F6E22",
+          "window._finView='invoices';switchTab('Finance')", "released on completion"):""}
+    </div>
+    ${(loss.length||tight.length)?`<div class="hl-flags">
+      ${loss.map(x=>`<button class="hl-flag bad" onclick="openProfile('project',${jsArg(x.n)})">
+        \u{1F4C9} ${escapeHtml(x.n)} <span>${x.f.marginPct}%</span></button>`).join("")}
+      ${tight.map(x=>`<button class="hl-flag warn" onclick="openProfile('project',${jsArg(x.n)})">
+        \u26A0 ${escapeHtml(x.n)} <span>${x.f.marginPct}%</span></button>`).join("")}
+    </div>`:""}
+    ${age&&age.unconverted?`<div class="hl-note">\u26a0 ${age.unconverted} invoice(s) in another currency carry no rate and are excluded from these figures.</div>`:""}
+  </div>`;
+}
+Object.assign(window,{renderHealth});
+
+// ═══ BUSINESS HEALTH CARD (v199) ═══════════════════════════════════════
+// Every figure below was already being computed — cashPosition, invAgeing,
+// advOutstandingTotals, projectFinance — and none of it reached the screen
+// where decisions get made. The engine was built and never wired up. This is
+// the wiring, not new arithmetic: nothing here recalculates anything, so the
+// dashboard can never disagree with the Finance tab.
+function renderHealthCard(){
+  if(!(isAdmin() || hasCap("canAnalytics"))) return "";
+  if(typeof cashPosition!=="function") return "";
+  let cash, age, adv;
+  try{
+    cash = cashPosition();
+    age  = cash.ageing || {buckets:{}, total:0};
+    adv  = (typeof advOutstandingTotals==="function") ? advOutstandingTotals() : {usd:0,iqd:0,count:0};
+  }catch(e){ return ""; }
+
+  // Portfolio margin, summed only over projects that actually carry a value.
+  let rev=0, cost=0, loss=[], tight=[];
+  try{
+    (state.projects||[]).forEach(p=>{
+      const f=(typeof projectFinance==="function")?projectFinance(p.name):null;
+      if(!f || f.revenue<=0) return;
+      rev+=f.revenue; cost+=f.cost;
+      if(f.level==="loss") loss.push({n:p.name, m:f.margin, c:f.currency});
+      else if(f.level==="tight") tight.push(p.name);
+    });
+  }catch(e){}
+  const margin=rev-cost;
+  const marginPct=rev>0?Math.round(margin/rev*100):null;
+  const cur=cash.currency;
+
+  // Nothing to report is worth saying plainly rather than showing four zeros.
+  if(!rev && !cash.receivable && !cash.payable && !adv.count) return "";
+
+  const tile=(label, value, colour, sub)=>`
+    <div class="hc-tile">
+      <div class="hc-v" style="color:${colour}">${value}</div>
+      <div class="hc-l">${escapeHtml(label)}</div>
+      ${sub?`<div class="hc-s">${sub}</div>`:""}
+    </div>`;
+
+  const overdue = (age.buckets.d30?age.buckets.d30.amount:0)
+                + (age.buckets.d60?age.buckets.d60.amount:0)
+                + (age.buckets.d90?age.buckets.d90.amount:0)
+                + (age.buckets.d90p?age.buckets.d90p.amount:0);
+  const worst = ["d90p","d90","d60","d30"].find(k=>age.buckets[k] && age.buckets[k].amount>0);
+  const worstLb = {d90p:"over 90 days", d90:"61\u201390 days", d60:"31\u201360 days", d30:"1\u201330 days"}[worst];
+
+  return `<div class="card hc-card">
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      \u{1F4C8} Business health
+      <span style="margin-left:auto;font-size:10px;color:var(--muted);font-weight:500">tap a figure to see the detail</span>
+    </div>
+    <div class="hc-grid">
+      ${rev>0?tile("Margin",
+          `${curFmt(margin,cur)}${marginPct!=null?` <span style="font-size:11px;opacity:.75">(${marginPct}%)</span>`:""}`,
+          margin<0?"#C62828":"#2E7D32",
+          `on ${curFmt(rev,cur)} of contracted work`):""}
+      ${tile("Owed to us", curFmt(cash.receivable,cur), cash.receivable?"#1565C0":"var(--muted)",
+          overdue?`<span style="color:#C62828">${curFmt(overdue,cur)} overdue</span>`:"all within terms")}
+      ${tile("Owed by us", curFmt(cash.payable,cur), cash.payable?"#E65100":"var(--muted)",
+          "unpaid expenses")}
+      ${tile("Net position", curFmt(cash.net,cur), cash.net<0?"#C62828":"#2E7D32",
+          cash.net<0?"more going out than coming in":"in your favour")}
+      ${adv.count?tile("In pockets",
+          [adv.usd?("$"+adv.usd.toLocaleString()):"", adv.iqd?(adv.iqd.toLocaleString()+" IQD"):""].filter(Boolean).join(" + ")||"\u2014",
+          "#8F6E22", `${adv.count} advance${adv.count>1?"s":""} unsettled`):""}
+      ${cash.retentionHeld?tile("Retention held", curFmt(cash.retentionHeld,cur), "#6D4C41",
+          "not collectable until released"):""}
+    </div>
+    ${loss.length?`<div class="hc-note bad">\u26A0 ${loss.length} project${loss.length>1?"s are":" is"} running at a loss:
+      ${loss.slice(0,3).map(l=>`<button class="hc-link" onclick="window._profile={kind:'project',id:${jsArg(l.n)}};render()">${escapeHtml(l.n)}</button>`).join(", ")}${loss.length>3?"\u2026":""}</div>`:""}
+    ${tight.length?`<div class="hc-note warn">\u26A1 ${tight.length} project${tight.length>1?"s have":" has"} less than 15% margin left:
+      ${tight.slice(0,3).map(n=>`<button class="hc-link" onclick="window._profile={kind:'project',id:${jsArg(n)}};render()">${escapeHtml(n)}</button>`).join(", ")}${tight.length>3?"\u2026":""}</div>`:""}
+    ${(worst&&overdue)?`<div class="hc-note bad">\u23F0 The oldest unpaid money is ${escapeHtml(worstLb)} past due.</div>`:""}
+    ${cash.unconverted?`<div class="hc-note warn">${cash.unconverted} document(s) in another currency carry no exchange rate and are excluded from these figures.</div>`:""}
+    <div class="hc-acts">
+      <button class="btn btn-sm btn-secondary" onclick="window._finView='invoices';switchTab('Finance')">Invoices</button>
+      <button class="btn btn-sm btn-secondary" onclick="window._finView='pl';switchTab('Finance')">Profit &amp; loss</button>
+      ${adv.count?`<button class="btn btn-sm btn-secondary" onclick="window._finView='advances';switchTab('Finance')">Advances</button>`:""}
+    </div>
+  </div>`;
+}
+Object.assign(window,{renderHealthCard});
