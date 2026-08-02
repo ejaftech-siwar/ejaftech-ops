@@ -983,14 +983,11 @@ function textWithTablesHTML(txt, opts){
       if(st) return `<td style="${TD};background:${st.bg};color:${st.fg};font-weight:700;text-align:center;white-space:nowrap">${escapeHtml(s)}</td>`;
       // Numbers right-align: a column of readings is unreadable ragged.
       const num=/^-?[\d.,]+\s*[%a-zA-Z\u00b0\u03a9]*$/.test(s.trim()) && /\d/.test(s);
-      // Collapse a repeated GROUP LABEL only. Position is the wrong test:
-      // "Qty" is the second column in plenty of sheets, and hiding a repeated
-      // quantity destroys the data. A label is text, several characters long,
-      // and not a number \u2014 that is what is safe to fold.
-      const num2=/^-?[\d.,]+\s*[%a-zA-Z\u00b0\u03a9]*$/.test(s.trim()) && /\d/.test(s);
-      const isLabel = i<3 && s.length>3 && !num2 && !/^\d/.test(s.trim());
-      if(isLabel && prev[i]===s)
-        return `<td style="${TD};color:#B0BEC5">\u3003</td>`;
+      // Repeated values are printed IN FULL. Folding them into a ditto mark was
+      // a readability idea that does not survive contact with a real document:
+      // an equipment schedule is read row by row, rows get quoted in isolation,
+      // and a page break can separate a mark from the value it stands for. If a
+      // row says "Access Control System" in Excel, it says so here too.
       return `<td style="${TD}${num?';text-align:right;font-variant-numeric:tabular-nums':''}">${escapeHtml(s).replace(/\n/g,"<br>")}</td>`;
     };
     const pad=(arr)=>{ const a=arr.slice(); while(a.length<cols) a.push(""); return a; };
