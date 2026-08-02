@@ -3977,15 +3977,19 @@ window._gsOpen = window._gsOpen || false;
 
 const GS_SOURCES = [
   {key:"projects",   ic:"\u{1F3D7}\uFE0F", lb:"Project",   tab:"Projects",
-   fields:["name","client","dept","status"], title:r=>r.name, sub:r=>[r.client,r.dept].filter(Boolean).join(" \u00b7 ")},
+   fields:["name","client","dept","status"], title:r=>r.name, sub:r=>[r.client,r.dept].filter(Boolean).join(" \u00b7 "),
+   open:"editProj"},
   {key:"devices",    ic:"\u{1F5A5}\uFE0F", lb:"Device",    tab:"Assets",
    fields:["deviceName","serialNumber","deviceCode","model","brand","system","project","site"],
-   title:r=>r.deviceName||r.serialNumber, sub:r=>[r.serialNumber,r.model,r.project].filter(Boolean).join(" \u00b7 ")},
+   title:r=>r.deviceName||r.serialNumber, sub:r=>[r.serialNumber,r.model,r.project].filter(Boolean).join(" \u00b7 "),
+   open:"editDevice"},
   {key:"clients",    ic:"\u{1F464}", lb:"Client",    tab:"Clients",
-   fields:["name","contact","email","phone"], title:r=>r.name, sub:r=>[r.contact,r.phone].filter(Boolean).join(" \u00b7 ")},
+   fields:["name","contact","email","phone"], title:r=>r.name, sub:r=>[r.contact,r.phone].filter(Boolean).join(" \u00b7 "),
+   open:"editClient"},
   {key:"incidents",  ic:"\u{1F6A8}", lb:"Incident",  tab:"Incidents",
    fields:["title","project","system","status","severity","ref"],
-   title:r=>r.title, sub:r=>[r.project,r.date&&fmtDate(r.date),r.status].filter(Boolean).join(" \u00b7 ")},
+   title:r=>r.title, sub:r=>[r.project,r.date&&fmtDate(r.date),r.status].filter(Boolean).join(" \u00b7 "),
+   open:"editIncident"},
   {key:"pmSchedules",ic:"\u{1F6E0}\uFE0F", lb:"Maintenance", tab:"Maintenance",
    fields:["title","project","system"], title:r=>r.title, sub:r=>[r.project,r.system].filter(Boolean).join(" \u00b7 ")},
   {key:"tasks",      ic:"\u2705", lb:"Task",      tab:"My Tasks",
@@ -3993,19 +3997,36 @@ const GS_SOURCES = [
   {key:"clientRequests",ic:"\u{1F4E8}", lb:"Request", tab:"Requests",
    fields:["title","project","client","status","ref"], title:r=>r.title, sub:r=>[r.client,r.status].filter(Boolean).join(" \u00b7 ")},
   {key:"quotes",     ic:"\u{1F4B0}", lb:"Quotation", tab:"Finance", view:["_finView","quotes"],
-   fields:["ref","title","client","project"], title:r=>r.title||r.ref, sub:r=>[r.ref,r.client].filter(Boolean).join(" \u00b7 ")},
+   fields:["ref","title","client","project"], title:r=>r.title||r.ref, sub:r=>[r.ref,r.client].filter(Boolean).join(" \u00b7 "),
+   open:"quoEdit"},
   {key:"invoices",   ic:"\u{1F9FE}", lb:"Invoice",  tab:"Finance", view:["_finView","invoices"],
-   fields:["ref","title","client","project"], title:r=>r.title||r.ref, sub:r=>[r.ref,r.client].filter(Boolean).join(" \u00b7 ")},
+   fields:["ref","title","client","project"], title:r=>r.title||r.ref, sub:r=>[r.ref,r.client].filter(Boolean).join(" \u00b7 "),
+   open:"invEdit"},
   {key:"variations", ic:"\u{1F501}", lb:"Variation", tab:"Finance", view:["_finView","variations"],
-   fields:["ref","title","project","reason"], title:r=>r.title||r.ref, sub:r=>[r.ref,r.project].filter(Boolean).join(" \u00b7 ")},
+   fields:["ref","title","project","reason"], title:r=>r.title||r.ref, sub:r=>[r.ref,r.project].filter(Boolean).join(" \u00b7 "),
+   open:"varEdit"},
   {key:"expenses",   ic:"\u{1F4B8}", lb:"Expense",  tab:"Finance", view:["_finView","expenses"],
-   fields:["desc","payee","invoiceRef","project","category"], title:r=>r.desc, sub:r=>[r.payee,r.project].filter(Boolean).join(" \u00b7 ")},
+   fields:["desc","payee","invoiceRef","project","category"], title:r=>r.desc, sub:r=>[r.payee,r.project].filter(Boolean).join(" \u00b7 "),
+   open:"expEdit"},
   {key:"expenseReports",ic:"\u{1F9FE}", lb:"Expense report", tab:"Finance", view:["_finView","claims"],
-   fields:["ref","employee","department"], title:r=>r.employee, sub:r=>[r.ref,r.date&&fmtDate(r.date)].filter(Boolean).join(" \u00b7 ")},
+   fields:["ref","employee","department"], title:r=>r.employee, sub:r=>[r.ref,r.date&&fmtDate(r.date)].filter(Boolean).join(" \u00b7 "),
+   open:"exrEdit"},
   {key:"advances",   ic:"\u{1F4B3}", lb:"Advance",  tab:"Finance", view:["_finView","advances"],
-   fields:["employee","purpose","ref","project"], title:r=>r.employee, sub:r=>[r.purpose,r.ref].filter(Boolean).join(" \u00b7 ")},
+   fields:["employee","purpose","ref","project"], title:r=>r.employee, sub:r=>[r.purpose,r.ref].filter(Boolean).join(" \u00b7 "),
+   open:"advEdit"},
   {key:"parts",      ic:"\u{1F527}", lb:"Part",     tab:"Assets", view:["_assetView","parts"],
    fields:["code","name","unit"], title:r=>r.name, sub:r=>r.code},
+  // People are what gets looked up most, and they were the one thing missing.
+  // Two records describe them \u2014 a login account and a nametag-only entry \u2014 so
+  // both are searched, and the result says which it is.
+  {key:"users",      ic:"\u{1F464}", lb:"User",     tab:"Users",
+   fields:["name","employeeName","email","role","branch","department"],
+   title:r=>r.employeeName||r.name, sub:r=>[r.role,r.email].filter(Boolean).join(" \u00b7 "),
+   open:"editUser"},
+  {key:"nametagEmployees", ic:"\u{1F465}", lb:"Employee", tab:"Users",
+   fields:["name","type","branch","department","title"],
+   title:r=>r.name, sub:r=>[r.title,r.type==="external"?"External / Outsource":"Internal"].filter(Boolean).join(" \u00b7 "),
+   open:"editNametagEmp"},
 ];
 
 // Ranked, not merely filtered: an exact match on a reference number should beat
@@ -4049,10 +4070,45 @@ window.gsSet = function(v){
 window.gsGo = function(key, id){
   const S=GS_SOURCES.find(x=>x.key===key);
   if(!S) return;
+  const row=(state[S.key]||[]).find(r=>String(r.id)===String(id));
   window._gsOpen=false; window._gsQ="";
   if(S.view) window[S.view[0]]=S.view[1];
-  window._gsFocusId=id;                       // the target row can highlight itself
+  window._gsFocusId=id;
   if(typeof switchTab==="function") switchTab(S.tab); else { state.tab=S.tab; render(); }
+
+  // Landing on the right SCREEN is not the same as finding the right RECORD.
+  // Searching for one device and being shown a list of four hundred is the
+  // failure this whole feature exists to remove, so after the tab has painted
+  // we run that screen's own "open this record" action — the same function its
+  // edit button calls, so the record opens exactly as it always does.
+  setTimeout(()=>{
+    let opened=false;
+    try{
+      // Call the function BY REFERENCE with the id as an argument. The earlier
+      // version built a source string and eval'd it, which failed inside a
+      // module scope and would have executed any id containing a quote.
+      const fn = S.open ? window[S.open] : null;
+      if(row && typeof fn==="function"){ fn(row.id); opened=true; }
+    }catch(e){ console.warn("search deep-link failed:", e); }
+    // Where a screen has no editor to open, scroll the row into view and mark
+    // it instead. Doing nothing at all would repeat the original complaint.
+    if(!opened) gsHighlight(id);
+  }, 260);
+};
+// Find the row by its id anywhere on the page, bring it into view, and flash a
+// ring around it so the eye lands on it without hunting.
+window.gsHighlight = function(id){
+  if(!id) return;
+  try{
+    const esc = (window.CSS && CSS.escape) ? CSS.escape(String(id)) : String(id).replace(/["\\]/g,"\\$&");
+    const el = document.querySelector(`[data-id="${esc}"]`) ||
+               document.querySelector(`[onclick*="${esc}"]`);
+    if(!el) return;
+    const card = el.closest(".card, tr, .proj-card, .dev-row") || el;
+    card.scrollIntoView({block:"center", behavior:"smooth"});
+    card.classList.add("gs-found");
+    setTimeout(()=>card.classList.remove("gs-found"), 2600);
+  }catch(e){}
 };
 
 function gsResultsHTML(){

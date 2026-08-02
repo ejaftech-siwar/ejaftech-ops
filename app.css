@@ -955,3 +955,19 @@ html[dir="ltr"] .gs-row{ text-align:left }
   color:var(--navy); background:var(--surface-2);
   padding:2px 8px; border-radius:10px; white-space:nowrap;
 }
+
+/* A found record announces itself: a gold ring that fades, so the eye lands on
+   it without the user scanning a list. Suppressed for reduced-motion users,
+   who still get the ring, just without the pulse. */
+.gs-found{
+  animation:gsFound 2.4s ease-out 1;
+  border-radius:var(--r-md);
+}
+@keyframes gsFound{
+  0%   { box-shadow:0 0 0 0 rgba(201,168,76,.85); }
+  18%  { box-shadow:0 0 0 5px rgba(201,168,76,.55); }
+  100% { box-shadow:0 0 0 0 rgba(201,168,76,0); }
+}
+@media (prefers-reduced-motion: reduce){
+  .gs-found{ animation:none; box-shadow:0 0 0 3px rgba(201,168,76,.6) }
+}
