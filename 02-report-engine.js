@@ -836,14 +836,41 @@ window.exportPDF=exportPDF;
 //
 // A line is part of a table when it contains a tab or a pipe; a run of such
 // lines becomes one table. Everything else is left exactly as it was.
+// A pasted cell may itself contain a newline; Excel then wraps that cell in
+// double quotes. Splitting the paste on "\n" tears such a row apart, so rows
+// are separated here with the quoting respected. Two rows of the equipment
+// report we tested against did exactly this.
+function _rtRows(txt){
+  const s=String(txt==null?"":txt);
+  const rows=[]; let cur="", q=false;
+  for(let i=0;i<s.length;i++){
+    const ch=s[i];
+    if(ch==='"'){
+      if(q && s[i+1]==='"'){ cur+='"'; i++; }   // an escaped quote inside a cell
+      else q=!q;
+      cur+=ch; continue;
+    }
+    if(!q && (ch==="\n" || (ch==="\r" && s[i+1]!=="\n"))){ rows.push(cur); cur=""; continue; }
+    if(!q && ch==="\r"){ continue; }
+    cur+=ch;
+  }
+  rows.push(cur);
+  return rows;
+}
+// Strip the wrapping quotes Excel adds, and turn the doubled quotes back.
+function _rtClean(v){
+  let s=String(v==null?"":v).trim();
+  if(s.length>1 && s[0]==='"' && s[s.length-1]==='"') s=s.slice(1,-1).replace(/""/g,'"');
+  return s.trim();
+}
 function _rtSplitRow(line){
   // Tabs win: an Excel paste can legitimately contain a pipe INSIDE a cell,
   // but never a tab, so choosing tabs first keeps pasted data intact.
-  if(line.indexOf("\t")>=0) return line.split("\t").map(s=>s.trim());
+  if(line.indexOf("\t")>=0) return line.split("\t").map(_rtClean);
   let s=line.trim();
   if(s.startsWith("|")) s=s.slice(1);
   if(s.endsWith("|"))   s=s.slice(0,-1);
-  return s.split("|").map(x=>x.trim());
+  return s.split("|").map(_rtClean);
 }
 function _rtIsRow(line){
   return line.indexOf("\t")>=0 || (line.indexOf("|")>=0 && line.trim().length>1);
@@ -855,7 +882,7 @@ function _rtIsSep(line){
   return c.length>1 && c.every(x=>/^:?-{2,}:?$/.test(x));
 }
 function textHasTable(txt){
-  const lines=String(txt||"").split(/\r?\n/);
+  const lines=_rtRows(txt);
   let run=0;
   for(const l of lines){
     if(_rtIsRow(l)){ run++; if(run>=2) return true; }
@@ -864,12 +891,33 @@ function textHasTable(txt){
   return false;
 }
 
+
+// A cell whose whole text is a known status word is tinted. Matching only on
+// the ENTIRE cell is deliberate: a description that merely mentions "damaged"
+// must not light up, or the colour stops meaning anything.
+const RT_STATUS = [
+  {re:/^(intact|ok|pass|passed|good|working|operational|healthy|no damage|\u0633\u0644\u064a\u0645|\u064a\u0639\u0645\u0644)$/i,
+   bg:"#E8F5E9", fg:"#2E7D32"},
+  {re:/^(partially damaged|partial|minor damage|degraded|needs? (?:service|cleaning|repair)|warning|attention|\u062c\u0632\u0626\u064a|\u062a\u0644\u0641 \u062c\u0632\u0626\u064a)$/i,
+   bg:"#FFF8E1", fg:"#8F6E22"},
+  {re:/^(totally damaged|total|destroyed|damaged|fail|failed|faulty|not working|offline|dead|replace|\u062a\u0627\u0644\u0641|\u0645\u062a\u0636\u0631\u0631|\u0644\u0627 \u064a\u0639\u0645\u0644)$/i,
+   bg:"#FDECEA", fg:"#C62828"},
+  {re:/^(needs? replacement|to be replaced|pending|n\/a|not checked|unknown|\u0642\u064a\u062f \u0627\u0644\u0641\u062d\u0635)$/i,
+   bg:"#ECEFF1", fg:"#546E7A"},
+];
+function _rtStatus(v){
+  const s=String(v==null?"":v).trim();
+  if(!s || s.length>28) return null;
+  for(const x of RT_STATUS){ if(x.re.test(s)) return x; }
+  return null;
+}
+
 // Render for a REPORT: bordered, printable, matching the document style.
 function textWithTablesHTML(txt, opts){
   opts=opts||{};
   const src=String(txt==null?"":txt);
   if(!src.trim()) return opts.dash===false ? "" : "\u2014";
-  const lines=src.split(/\r?\n/);
+  const lines=_rtRows(src);
   const out=[];
   let buf=[];
 
@@ -889,16 +937,35 @@ function textWithTablesHTML(txt, opts){
     const cols=Math.max(head?head.length:0, ...body.map(r=>_rtSplitRow(r).length));
     const TH='padding:5px 8px;border:1px solid #D6E4F0;background:#03308B;color:#fff;text-align:left;font-size:10px;font-weight:700';
     const TD='padding:5px 8px;border:1px solid #D6E4F0;font-size:10.5px;vertical-align:top';
-    const cell=(v,i)=>{
+    // Track the previous row so a repeated group label (System, Area, Zone…)
+    // can be shown once instead of forty-five times. A wall of repetition is
+    // what makes a long equipment list unreadable on paper.
+    let prev=[];
+    const cell=(v,i,rowCells)=>{
       const s=String(v==null?"":v);
+      const st=_rtStatus(s);
+      if(st) return `<td style="${TD};background:${st.bg};color:${st.fg};font-weight:700;text-align:center;white-space:nowrap">${escapeHtml(s)}</td>`;
       // Numbers right-align: a column of readings is unreadable ragged.
       const num=/^-?[\d.,]+\s*[%a-zA-Z\u00b0\u03a9]*$/.test(s.trim()) && /\d/.test(s);
-      return `<td style="${TD}${num?';text-align:right;font-variant-numeric:tabular-nums':''}">${escapeHtml(s)}</td>`;
+      // Collapse a repeated GROUP LABEL only. Position is the wrong test:
+      // "Qty" is the second column in plenty of sheets, and hiding a repeated
+      // quantity destroys the data. A label is text, several characters long,
+      // and not a number \u2014 that is what is safe to fold.
+      const num2=/^-?[\d.,]+\s*[%a-zA-Z\u00b0\u03a9]*$/.test(s.trim()) && /\d/.test(s);
+      const isLabel = i<3 && s.length>3 && !num2 && !/^\d/.test(s.trim());
+      if(isLabel && prev[i]===s)
+        return `<td style="${TD};color:#B0BEC5">\u3003</td>`;
+      return `<td style="${TD}${num?';text-align:right;font-variant-numeric:tabular-nums':''}">${escapeHtml(s).replace(/\n/g,"<br>")}</td>`;
     };
     const pad=(arr)=>{ const a=arr.slice(); while(a.length<cols) a.push(""); return a; };
     out.push(`<table style="border-collapse:collapse;width:100%;margin:8px 0">
       ${head?`<thead><tr>${pad(head).map(h=>`<th style="${TH}">${escapeHtml(String(h))}</th>`).join("")}</tr></thead>`:""}
-      <tbody>${body.map(r=>`<tr>${pad(_rtSplitRow(r)).map(cell).join("")}</tr>`).join("")}</tbody>
+      <tbody>${body.map((r,ri)=>{
+        const cells=pad(_rtSplitRow(r));
+        const html=`<tr style="${ri%2?'background:#FAFCFE':''}">${cells.map((v,ci)=>cell(v,ci,cells)).join("")}</tr>`;
+        prev=cells;
+        return html;
+      }).join("")}</tbody>
     </table>`);
   };
 
