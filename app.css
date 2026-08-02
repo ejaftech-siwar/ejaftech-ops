@@ -1083,3 +1083,19 @@ html[dir="ltr"] .gs-row{ text-align:left }
   text-decoration:underline dotted; text-underline-offset:2px;
 }
 .hc-acts{ display:flex; gap:6px; flex-wrap:wrap; margin-top:10px }
+
+/* ═══ TABLES IN TEXT FIELDS (v201) ══════════════════════════════════════ */
+.tbl-tools{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:6px }
+.tbl-hint{ font-size:var(--f-xs); color:var(--muted); line-height:1.5 }
+.tbl-prev{
+  margin-top:8px; border:1px solid var(--line);
+  border-radius:var(--r-md); overflow:hidden; background:var(--card);
+}
+.tbl-prev-h{
+  padding:6px 10px; font-size:var(--f-xs); font-weight:700;
+  color:var(--navy); background:var(--surface-2);
+  border-bottom:1px solid var(--line);
+}
+.tbl-prev-b{ padding:8px 10px; overflow-x:auto; font-size:var(--f-sm) }
+.tbl-prev-b table{ min-width:100% }
+.tbl-prev-b div[style*="pre-wrap"]{ color:var(--muted); font-size:var(--f-xs) }

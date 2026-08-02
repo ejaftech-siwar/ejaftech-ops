@@ -817,3 +817,141 @@ window.exportPDF=exportPDF;
 
 // Returns the employees who should appear after applying the global
 // employee + branch + staff-department filters (hides non-matching ones entirely).
+
+// ═══ TABLES INSIDE TEXT FIELDS (v201) ═══════════════════════════════════
+// An incident description is often a set of readings, not a paragraph: four
+// cameras and their status, three fuses and their ratings, a before/after
+// measurement. Forcing that into prose loses the shape of the information, and
+// the report then reads as an apology rather than a record.
+//
+// The syntax is whatever a spreadsheet already produces. Copying cells out of
+// Excel puts TAB-separated rows on the clipboard, so pasting them here simply
+// works; typing pipes by hand works too. No editor, no toolbar, no new data
+// model — the field stays plain text, so nothing that already reads it breaks.
+//
+//   Camera      | Location | Status
+//   ------------|----------|--------
+//   CAM-01      | Lobby    | Offline
+//   CAM-02      | Car park | OK
+//
+// A line is part of a table when it contains a tab or a pipe; a run of such
+// lines becomes one table. Everything else is left exactly as it was.
+function _rtSplitRow(line){
+  // Tabs win: an Excel paste can legitimately contain a pipe INSIDE a cell,
+  // but never a tab, so choosing tabs first keeps pasted data intact.
+  if(line.indexOf("\t")>=0) return line.split("\t").map(s=>s.trim());
+  let s=line.trim();
+  if(s.startsWith("|")) s=s.slice(1);
+  if(s.endsWith("|"))   s=s.slice(0,-1);
+  return s.split("|").map(x=>x.trim());
+}
+function _rtIsRow(line){
+  return line.indexOf("\t")>=0 || (line.indexOf("|")>=0 && line.trim().length>1);
+}
+// A separator row (---|---) marks the line above as the header, the way it does
+// in every markdown dialect people already know.
+function _rtIsSep(line){
+  const c=_rtSplitRow(line);
+  return c.length>1 && c.every(x=>/^:?-{2,}:?$/.test(x));
+}
+function textHasTable(txt){
+  const lines=String(txt||"").split(/\r?\n/);
+  let run=0;
+  for(const l of lines){
+    if(_rtIsRow(l)){ run++; if(run>=2) return true; }
+    else run=0;
+  }
+  return false;
+}
+
+// Render for a REPORT: bordered, printable, matching the document style.
+function textWithTablesHTML(txt, opts){
+  opts=opts||{};
+  const src=String(txt==null?"":txt);
+  if(!src.trim()) return opts.dash===false ? "" : "\u2014";
+  const lines=src.split(/\r?\n/);
+  const out=[];
+  let buf=[];
+
+  const flushText=()=>{
+    if(!buf.length) return;
+    const body=buf.join("\n").replace(/\n{3,}/g,"\n\n");
+    if(body.trim()) out.push(`<div style="white-space:pre-wrap">${escapeHtml(body)}</div>`);
+    buf=[];
+  };
+  const flushTable=(rows)=>{
+    if(!rows.length) return;
+    // Header detection: an explicit separator, otherwise assume the first row
+    // labels the columns — which is what a spreadsheet paste almost always is.
+    let head=null, body=rows;
+    if(rows.length>1 && _rtIsSep(rows[1])){ head=_rtSplitRow(rows[0]); body=rows.slice(2); }
+    else if(rows.length>1){ head=_rtSplitRow(rows[0]); body=rows.slice(1); }
+    const cols=Math.max(head?head.length:0, ...body.map(r=>_rtSplitRow(r).length));
+    const TH='padding:5px 8px;border:1px solid #D6E4F0;background:#03308B;color:#fff;text-align:left;font-size:10px;font-weight:700';
+    const TD='padding:5px 8px;border:1px solid #D6E4F0;font-size:10.5px;vertical-align:top';
+    const cell=(v,i)=>{
+      const s=String(v==null?"":v);
+      // Numbers right-align: a column of readings is unreadable ragged.
+      const num=/^-?[\d.,]+\s*[%a-zA-Z\u00b0\u03a9]*$/.test(s.trim()) && /\d/.test(s);
+      return `<td style="${TD}${num?';text-align:right;font-variant-numeric:tabular-nums':''}">${escapeHtml(s)}</td>`;
+    };
+    const pad=(arr)=>{ const a=arr.slice(); while(a.length<cols) a.push(""); return a; };
+    out.push(`<table style="border-collapse:collapse;width:100%;margin:8px 0">
+      ${head?`<thead><tr>${pad(head).map(h=>`<th style="${TH}">${escapeHtml(String(h))}</th>`).join("")}</tr></thead>`:""}
+      <tbody>${body.map(r=>`<tr>${pad(_rtSplitRow(r)).map(cell).join("")}</tr>`).join("")}</tbody>
+    </table>`);
+  };
+
+  let run=[];
+  for(const l of lines){
+    if(_rtIsRow(l)){ run.push(l); continue; }
+    if(run.length>=2){ flushText(); flushTable(run); }
+    else if(run.length===1){ buf.push(run[0]); }
+    run=[];
+    buf.push(l);
+  }
+  if(run.length>=2){ flushText(); flushTable(run); }
+  else if(run.length===1){ buf.push(run[0]); }
+  flushText();
+  return out.join("");
+}
+Object.assign(window,{textHasTable, textWithTablesHTML});
+
+// A live preview under the field. Without it, someone typing pipes has no idea
+// whether the app understood them until the PDF is generated — and by then the
+// mistake is in a document that has been sent.
+function tablePreviewHTML(txt, id){
+  if(!textHasTable(txt)) return "";
+  return `<div class="tbl-prev" id="${escapeHtml(id||"")}">
+    <div class="tbl-prev-h">\u{1F4CA} This will print as a table</div>
+    <div class="tbl-prev-b">${textWithTablesHTML(txt)}</div>
+  </div>`;
+}
+// Drop a starter grid into a field so nobody has to remember the syntax.
+window.tblInsert = function(setterPath, rows, cols){
+  const r=Math.max(2, Number(rows)||3), c=Math.max(2, Number(cols)||3);
+  const head=Array.from({length:c},(_,i)=>"Column "+(i+1)).join(" | ");
+  const sep =Array.from({length:c},()=>"---").join(" | ");
+  const body=Array.from({length:r},()=>Array.from({length:c},()=>" ").join("|")).join("\n");
+  const block=`\n${head}\n${sep}\n${body}\n`;
+  try{
+    // setterPath is a dotted path like "incForm.description" — resolved rather
+    // than eval'd so a field name can never become executable.
+    const parts=String(setterPath||"").split(".");
+    let obj=window;
+    for(let i=0;i<parts.length-1;i++) obj=obj[parts[i]];
+    const key=parts[parts.length-1];
+    if(!obj) return;
+    obj[key]=String(obj[key]||"")+block;
+    render();
+    toast("Table added \u2014 fill in the cells, or paste from Excel");
+  }catch(e){}
+};
+// The control that sits under a field.
+function tableToolbar(setterPath){
+  return `<div class="tbl-tools">
+    <button type="button" class="btn btn-sm btn-secondary" onclick="tblInsert(${jsArg(setterPath)},3,3)">\u{1F4CA} Insert table</button>
+    <span class="tbl-hint">or paste cells straight from Excel \u2014 they become a table automatically</span>
+  </div>`;
+}
+Object.assign(window,{tablePreviewHTML, tableToolbar});

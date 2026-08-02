@@ -2327,9 +2327,9 @@ function renderIncidents(){
       <div class="field"><label>⏹ Work finished</label>
         <input type="date" value="${incForm.endDate||""}" onchange="window.incForm.endDate=this.value"></div>
       <div class="field" style="grid-column:1/-1"><label>📝 Description</label>
-        <textarea rows="3" oninput="window.incForm.description=this.value" placeholder="What happened, where, impact…">${escapeHtml(incForm.description||"")}</textarea></div>
+        <textarea rows="3" oninput="window.incForm.description=this.value" placeholder="What happened, where, impact…">${escapeHtml(incForm.description||"")}</textarea>${typeof tableToolbar==="function"?tableToolbar("incForm.description"):""}${typeof tablePreviewHTML==="function"?tablePreviewHTML(incForm.description,"prev_description"):""}</div>
       <div class="field" style="grid-column:1/-1"><label>🛠️ Action taken</label>
-        <textarea rows="3" oninput="window.incForm.actionTaken=this.value" placeholder="Diagnosis, fix, parts replaced…">${escapeHtml(incForm.actionTaken||"")}</textarea></div>
+        <textarea rows="3" oninput="window.incForm.actionTaken=this.value" placeholder="Diagnosis, fix, parts replaced…">${escapeHtml(incForm.actionTaken||"")}</textarea>${typeof tableToolbar==="function"?tableToolbar("incForm.actionTaken"):""}${typeof tablePreviewHTML==="function"?tablePreviewHTML(incForm.actionTaken,"prev_actionTaken"):""}</div>
       <div class="field" style="grid-column:1/-1"><label>📷 Photos <span style="font-size:10px;color:var(--muted)">(max 6 · auto-compressed)</span></label>
         <input type="file" accept="image/*" multiple onchange="incAddPhotos(this)">
         ${photos.length?`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">

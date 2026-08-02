@@ -1197,7 +1197,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v200';"
+      var swCode = "const CACHE='ejaftech-v201';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
@@ -1332,9 +1332,9 @@ window.generateIncidentReport=async function(){
       <tr>${cell("Work started",i.startDate?fmtDate(i.startDate):"—")}${cell("Work finished",i.endDate?fmtDate(i.endDate):"—")}${cell("Reported by",escapeHtml(i.reportedBy||"—"))}</tr>
     </tbody></table>
     <div class="ksec"><span class="kbad">02</span><h3>Description</h3></div>
-    <div style="font-size:12px;line-height:1.7;white-space:pre-wrap">${escapeHtml(i.description||"—")}</div>
+    <div style="font-size:12px;line-height:1.7">${typeof textWithTablesHTML==="function"?textWithTablesHTML(i.description):escapeHtml(i.description||"—")}</div>
     <div class="ksec"><span class="kbad">03</span><h3>Action Taken</h3></div>
-    <div style="font-size:12px;line-height:1.7;white-space:pre-wrap">${escapeHtml(i.actionTaken||"—")}</div>
+    <div style="font-size:12px;line-height:1.7">${typeof textWithTablesHTML==="function"?textWithTablesHTML(i.actionTaken):escapeHtml(i.actionTaken||"—")}</div>
     ${_rptPhotoGrid(i.photos,"Incident Photos")}
     ${i.notes?`<div class="ksec"><span class="kbad">📝</span><h3>Notes</h3></div><div style="font-size:12px;line-height:1.7;white-space:pre-wrap">${escapeHtml(i.notes)}</div>`:""}
     <script>setTimeout(()=>window.print(),500)<\/script>`;
@@ -1647,9 +1647,9 @@ function _incManualLayout(){
       ${_mfield("⏹ Work finished","window._incMan.endDate",m.endDate,"","date")}
       ${_mfield("👤 Reported by","window._incMan.reportedBy",m.reportedBy,"optional")}
       <div class="field" style="grid-column:1/-1"><label>📝 Description</label>
-        <textarea rows="3" oninput="window._incMan.description=this.value" placeholder="What happened…">${escapeHtml(m.description||"")}</textarea></div>
+        <textarea rows="3" oninput="window._incMan.description=this.value" placeholder="What happened…">${escapeHtml(m.description||"")}</textarea>${typeof tableToolbar==="function"?tableToolbar("_incMan.description"):""}${typeof tablePreviewHTML==="function"?tablePreviewHTML(_incMan.description,"mprev_description"):""}</div>
       <div class="field" style="grid-column:1/-1"><label>🛠️ Action taken</label>
-        <textarea rows="3" oninput="window._incMan.actionTaken=this.value" placeholder="Diagnosis, fix…">${escapeHtml(m.actionTaken||"")}</textarea></div>
+        <textarea rows="3" oninput="window._incMan.actionTaken=this.value" placeholder="Diagnosis, fix…">${escapeHtml(m.actionTaken||"")}</textarea>${typeof tableToolbar==="function"?tableToolbar("_incMan.actionTaken"):""}${typeof tablePreviewHTML==="function"?tablePreviewHTML(_incMan.actionTaken,"mprev_actionTaken"):""}</div>
       <div class="field" style="grid-column:1/-1"><label>📷 Photos <span style="font-size:10px;color:var(--muted)">(max 6)</span></label>
         <input type="file" accept="image/*" multiple onchange="incManAddPhotos(this)">
         ${photos.length?`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
@@ -1686,9 +1686,9 @@ async function _generateIncManual(){
       <tr>${cell("Work started",i.startDate?fmtDate(i.startDate):"—")}${cell("Work finished",i.endDate?fmtDate(i.endDate):"—")}${cell("Reported by",escapeHtml(i.reportedBy||"—"))}</tr>
     </tbody></table>
     <div class="ksec"><span class="kbad">02</span><h3>Description</h3></div>
-    <div style="font-size:12px;line-height:1.7;white-space:pre-wrap">${escapeHtml(i.description||"—")}</div>
+    <div style="font-size:12px;line-height:1.7">${typeof textWithTablesHTML==="function"?textWithTablesHTML(i.description):escapeHtml(i.description||"—")}</div>
     <div class="ksec"><span class="kbad">03</span><h3>Action Taken</h3></div>
-    <div style="font-size:12px;line-height:1.7;white-space:pre-wrap">${escapeHtml(i.actionTaken||"—")}</div>
+    <div style="font-size:12px;line-height:1.7">${typeof textWithTablesHTML==="function"?textWithTablesHTML(i.actionTaken):escapeHtml(i.actionTaken||"—")}</div>
     ${_rptPhotoGrid(i.photos,"Incident Photos")}
     <script>setTimeout(()=>window.print(),500)<\/script>`;
   await openReportPDF("INCIDENT",[i.date?fmtDate(i.date):"Manual",i.project,i.system].filter(Boolean).join(" · "),bodyHTML,{project:i.project||""});
