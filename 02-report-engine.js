@@ -1059,8 +1059,182 @@ window.tblInsert = function(setterPath, rows, cols){
 // The control that sits under a field.
 function tableToolbar(setterPath){
   return `<div class="tbl-tools">
-    <button type="button" class="btn btn-sm btn-secondary" onclick="tblInsert(${jsArg(setterPath)},3,3)">\u{1F4CA} Insert table</button>
-    <span class="tbl-hint">or paste cells straight from Excel \u2014 they become a table automatically</span>
+    <label class="btn btn-sm btn-secondary" style="cursor:pointer;margin:0">
+      \u{1F4D7} Import from Excel
+      <input type="file" accept=".xlsx,.xlsm,.xls,.csv" style="display:none"
+             onchange="xlImportOpen(this,${jsArg(setterPath)})">
+    </label>
+    <button type="button" class="btn btn-sm btn-secondary" onclick="tblInsert(${jsArg(setterPath)},3,3)">\u{1F4CA} Blank table</button>
+    <span class="tbl-hint">Importing the file keeps every cell exactly where it is \u2014 safer than pasting, which can split a wrapped cell across two rows.</span>
   </div>`;
 }
 Object.assign(window,{tablePreviewHTML, tableToolbar});
+
+// ═══ IMPORT A SHEET DIRECTLY (v204) ═════════════════════════════════════
+// Pasting is guesswork: the clipboard flattens a spreadsheet into text and a
+// wrapped cell becomes indistinguishable from a new row. Reading the .xlsx
+// itself removes the guessing entirely — the file states which cell holds
+// which value, so a description containing five line breaks is still one cell,
+// and a quantity can never land in the wrong column.
+//
+// Merged cells are honoured too: a title merged across eight columns arrives
+// as a title, not as a value in column A with seven blanks after it.
+window._xlPick = window._xlPick || null;   // {rows, name, sheets, sheet, target}
+
+// Convert a worksheet into a rectangular array, expanding merges so the shape
+// on screen matches the shape in Excel.
+function _xlSheetRows(ws){
+  const rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:"", blankrows:false, raw:false});
+  const merges = ws["!merges"] || [];
+  merges.forEach(m=>{
+    const v = (rows[m.s.r]||[])[m.s.c];
+    if(v==null || v==="") return;
+    for(let r=m.s.r; r<=m.e.r; r++){
+      for(let c=m.s.c; c<=m.e.c; c++){
+        if(r===m.s.r && c===m.s.c) continue;
+        if(!rows[r]) rows[r]=[];
+        // Only the anchor keeps the text; the rest stay blank so the value is
+        // not repeated eight times across a merged title.
+        rows[r][c]="";
+      }
+    }
+  });
+  // Trim trailing empty columns: an Excel sheet often reports more columns
+  // than it actually uses, and they would print as empty table columns.
+  let width=0;
+  rows.forEach(r=>{ for(let i=r.length-1;i>=0;i--){ if(String(r[i]||"").trim()!==""){ width=Math.max(width,i+1); break; } } });
+  return rows.map(r=>{ const a=r.slice(0,width); while(a.length<width) a.push(""); return a; });
+}
+
+// Turn the grid back into the app's own table text, which every existing
+// renderer, the PDF engine and the backup already understand. Tabs are the
+// separator, and any cell containing one is quoted — so the round trip is
+// lossless and nothing downstream needs to change.
+function _xlToText(rows){
+  const esc=(v)=>{
+    let s=String(v==null?"":v);
+    if(/[\t\n"]/.test(s)) s='"'+s.replace(/"/g,'""')+'"';
+    return s;
+  };
+  return rows.map(r=>r.map(esc).join("\t")).join("\n");
+}
+Object.assign(window,{_xlSheetRows, _xlToText});
+
+window.xlImportOpen = async function(input, targetPath){
+  const f = input && input.files && input.files[0];
+  if(!f) return;
+  if(typeof XLSX==="undefined"){ toast("Excel library not loaded"); return; }
+  toast("Reading the sheet\u2026");
+  try{
+    const wb = XLSX.read(await f.arrayBuffer(), {type:"array"});
+    if(!wb.SheetNames.length){ toast("That file has no sheets"); return; }
+    window._xlPick = {
+      name: f.name, target: String(targetPath||""),
+      sheets: wb.SheetNames.slice(),
+      sheet: wb.SheetNames[0],
+      book: wb,
+      from: 1, to: 0, headerRow: 1,
+    };
+    _xlLoadSheet(wb.SheetNames[0]);
+  }catch(e){
+    console.error(e);
+    toast("Could not read that file: "+(e&&e.message||e));
+  }finally{
+    try{ input.value=""; }catch(e){}
+  }
+};
+function _xlLoadSheet(name){
+  const P=window._xlPick; if(!P) return;
+  const ws=P.book.Sheets[name];
+  P.sheet=name;
+  P.rows=_xlSheetRows(ws);
+  P.from=1;
+  P.to=P.rows.length;
+  // Guess the header: the first row that fills most of the width. Sheets
+  // routinely open with a merged title and an instruction line above the
+  // real column headings, and importing those as data is what produces a
+  // table whose first row reads "Instructions: please fill in…".
+  let best=1, bestFilled=-1;
+  P.rows.slice(0,8).forEach((r,i)=>{
+    const filled=r.filter(x=>String(x||"").trim()!=="").length;
+    if(filled>bestFilled){ bestFilled=filled; best=i+1; }
+  });
+  P.headerRow=best;
+  P.from=best;
+  render();
+}
+window.xlSheet = function(n){ _xlLoadSheet(n); };
+window.xlSet   = function(k,v){
+  const P=window._xlPick; if(!P) return;
+  P[k]=Math.max(1, Number(v)||1);
+  render();
+};
+window.xlCancel = function(){ window._xlPick=null; render(); };
+window.xlApply  = function(){
+  const P=window._xlPick; if(!P) return;
+  const from=Math.max(1,Math.min(P.from,P.rows.length));
+  const to  =Math.max(from,Math.min(P.to,P.rows.length));
+  const slice=P.rows.slice(from-1, to);
+  if(!slice.length){ toast("That range is empty"); return; }
+  const text=_xlToText(slice);
+  try{
+    const parts=P.target.split(".");
+    let obj=window;
+    for(let i=0;i<parts.length-1;i++) obj=obj[parts[i]];
+    const key=parts[parts.length-1];
+    if(!obj) return;
+    const cur=String(obj[key]||"");
+    obj[key] = cur ? (cur.replace(/\s*$/,"") + "\n\n" + text) : text;
+    window._xlPick=null;
+    render();
+    toast(`Imported ${slice.length} row${slice.length>1?"s":""} \u00d7 ${slice[0].length} column${slice[0].length>1?"s":""}`);
+  }catch(e){ toast("Could not insert the table"); }
+};
+
+// The picker. Importing blind is how the wrong rows end up in a report, so the
+// sheet is shown as it will be inserted, with the range adjustable before
+// anything is written.
+function renderXlPicker(){
+  const P=window._xlPick;
+  if(!P || !P.rows) return "";
+  const total=P.rows.length;
+  const from=Math.max(1,Math.min(P.from,total));
+  const to  =Math.max(from,Math.min(P.to,total));
+  const slice=P.rows.slice(from-1, to);
+  const head=slice[0]||[];
+  const body=slice.slice(1, 1+40);
+  const TH='padding:5px 8px;border:1px solid var(--line);background:var(--navy);color:#fff;font-size:10px;text-align:left;white-space:nowrap';
+  const TD='padding:4px 8px;border:1px solid var(--line);font-size:11px;vertical-align:top';
+  return `<div class="xl-ov" onclick="if(event.target===this)xlCancel()">
+    <div class="xl-box">
+      <div class="xl-hd">
+        <span>\u{1F4D7} ${escapeHtml(P.name||"Spreadsheet")}</span>
+        <button class="btn btn-sm btn-secondary" style="margin-left:auto" onclick="xlCancel()">Cancel</button>
+      </div>
+      <div class="xl-ctl">
+        ${P.sheets.length>1?`<label>Sheet
+          <select onchange="xlSheet(this.value)">
+            ${P.sheets.map(s=>`<option ${s===P.sheet?"selected":""}>${escapeHtml(s)}</option>`).join("")}
+          </select></label>`:""}
+        <label>From row <input type="number" min="1" max="${total}" value="${from}" onchange="xlSet('from',this.value)"></label>
+        <label>To row <input type="number" min="1" max="${total}" value="${to}" onchange="xlSet('to',this.value)"></label>
+        <span class="xl-note">${total} row${total>1?"s":""} in this sheet \u00b7 the first row of your range becomes the column headings</span>
+      </div>
+      <div class="xl-prev">
+        <table style="border-collapse:collapse;width:100%">
+          <thead><tr><th style="${TH};width:34px">#</th>${head.map(h=>`<th style="${TH}">${escapeHtml(String(h||""))}</th>`).join("")}</tr></thead>
+          <tbody>${body.map((r,i)=>`<tr${i%2?' style="background:var(--bg)"':''}>
+            <td style="${TD};color:var(--muted);text-align:center">${from+i+1}</td>
+            ${r.map(v=>`<td style="${TD}">${escapeHtml(String(v||"")).replace(/\n/g,"<br>")}</td>`).join("")}
+          </tr>`).join("")}</tbody>
+        </table>
+        ${slice.length>41?`<div class="xl-more">+ ${slice.length-41} more row(s) will also be imported</div>`:""}
+      </div>
+      <div class="xl-ft">
+        <button class="btn btn-primary" onclick="xlApply()">Insert ${slice.length} row${slice.length>1?"s":""}</button>
+        <span class="xl-note">Line breaks inside a cell are preserved \u2014 nothing is split or reordered.</span>
+      </div>
+    </div>
+  </div>`;
+}
+Object.assign(window,{renderXlPicker});

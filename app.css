@@ -1103,3 +1103,38 @@ html[dir="ltr"] .gs-row{ text-align:left }
   padding:9px 11px; font-size:var(--f-xs); line-height:1.7;
   background:#FFF8E1; color:#8F6E22; border-bottom:1px solid #FFE082;
 }
+
+/* ═══ EXCEL IMPORT PICKER (v204) ════════════════════════════════════════ */
+.xl-ov{
+  position:fixed; inset:0; z-index:8200;
+  background:rgba(10,18,32,.6); backdrop-filter:blur(3px);
+  display:flex; align-items:center; justify-content:center; padding:12px;
+}
+.xl-box{
+  width:100%; max-width:900px; background:var(--card);
+  border-radius:var(--r-lg); box-shadow:var(--shadow-lg);
+  display:flex; flex-direction:column; max-height:90vh; overflow:hidden;
+}
+.xl-hd{
+  display:flex; align-items:center; gap:8px; padding:12px 14px;
+  background:linear-gradient(135deg,#1B3A6B,#2E5FA3); color:#fff;
+  font-weight:800; font-size:var(--f-md);
+}
+.xl-hd .btn{ background:rgba(255,255,255,.16); color:#fff; border:none }
+.xl-ctl{
+  display:flex; gap:10px; align-items:center; flex-wrap:wrap;
+  padding:10px 14px; border-bottom:1px solid var(--line); background:var(--surface-2);
+}
+.xl-ctl label{ display:flex; align-items:center; gap:6px; font-size:var(--f-xs); font-weight:700; color:var(--navy) }
+.xl-ctl input, .xl-ctl select{
+  padding:5px 8px; border:1px solid var(--line); border-radius:var(--r-sm);
+  font-size:var(--f-sm); background:var(--card); color:var(--text);
+}
+.xl-ctl input[type=number]{ width:74px }
+.xl-note{ font-size:var(--f-xs); color:var(--muted); line-height:1.5 }
+.xl-prev{ overflow:auto; padding:10px 12px; flex:1 }
+.xl-more{ padding:8px; text-align:center; font-size:var(--f-xs); color:var(--muted) }
+.xl-ft{
+  display:flex; gap:10px; align-items:center; flex-wrap:wrap;
+  padding:11px 14px; border-top:1px solid var(--line);
+}

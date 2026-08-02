@@ -3171,6 +3171,9 @@ function renderTab(){
       if(state.tab==="Date & Time" && typeof window._dtInit==="function") window._dtInit();
       // The photo annotator is a full-screen overlay, so it is appended after
       // the tab has painted rather than being owned by any single screen.
+      if(window._xlPick && typeof renderXlPicker==="function"){
+        c.insertAdjacentHTML("beforeend", renderXlPicker());
+      }
       if(window._profile && typeof renderProfilePanel==="function"){
         c.insertAdjacentHTML("beforeend", renderProfilePanel());
       }
