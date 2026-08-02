@@ -1094,9 +1094,24 @@ if('serviceWorker' in navigator){
           document.getElementById('updGo').addEventListener('click',function(){
             var btn=this;
             try{
-              btn.textContent='Updating…'; btn.disabled=true;
+              btn.textContent='Updating\u2026'; btn.disabled=true;
               var fired=false;
               function go(){ if(fired)return; fired=true; window.location.reload(); }
+              // An unconditional backstop. Everything below can stall: a
+              // controllerchange that fires without the new worker taking over,
+              // a cache wipe that never settles, a browser that refuses to
+              // activate. Any of those left the button reading "Updating…" for
+              // ever with the bar still on screen \u2014 the exact symptom
+              // reported. This one is not guarded by `fired`, so it cannot be
+              // disarmed by a half-finished attempt: after 9 seconds the page
+              // reloads regardless, which is the whole point of the button.
+              setTimeout(function(){ try{ window.location.reload(); }catch(e){} }, 9000);
+              // If nothing has happened after 3 seconds, say so rather than
+              // leaving the user staring at a frozen word.
+              setTimeout(function(){
+                if(fired) return;
+                try{ btn.textContent='Still working\u2026'; }catch(e){}
+              }, 3000);
               navigator.serviceWorker.addEventListener('controllerchange', go);
               function poke(){ try{
                 var w=reg.waiting||reg.installing;
@@ -1116,7 +1131,13 @@ if('serviceWorker' in navigator){
               },5000);
             }catch(err){ window.location.reload(); }
           });
-          document.getElementById('updX').addEventListener('click',function(){ bar.remove(); });
+          document.getElementById('updX').addEventListener('click',function(){
+            // Removing the bar is not enough: the waiting worker is still there,
+            // so the next render or visibility change puts the bar straight
+            // back. Remember the dismissal for this session.
+            try{ window._updDismissed=true; }catch(e){}
+            bar.remove();
+          });
         }catch(err){}
       }
       // Ask a worker which build it is. Returns null if it cannot answer, so an
@@ -1138,6 +1159,7 @@ if('serviceWorker' in navigator){
       // banner came straight back and had to be dismissed by hand. Now the two
       // builds are compared and the banner is shown only when they differ.
       function maybeShowUpdateBar(){
+        if(window._updDismissed) return;      // the user said "later" this session
         var waiting = reg.waiting;
         if(!waiting || !navigator.serviceWorker.controller) return;
         Promise.all([versionOf(waiting), versionOf(navigator.serviceWorker.controller)])
@@ -1175,7 +1197,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v199';"
+      var swCode = "const CACHE='ejaftech-v200';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"

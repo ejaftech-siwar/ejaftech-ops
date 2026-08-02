@@ -3825,117 +3825,31 @@ function computeAlerts(){
     return isNaN(a)?null:Math.round((a-b)/86400000);
   };
 
-  // A) Invoices falling due. An invoice that is late has already cost you; one
-  //    due next week can still be chased.
-  try{
-    const soon=[], late=[];
-    (state.invoices||[]).forEach(v=>{
-      const st=(typeof invStatus==="function")?invStatus(v):(v.status||"draft");
-      if(st==="draft"||st==="cancelled"||st==="paid") return;
-      const t=(typeof invTotals==="function")?invTotals(v):null;
-      if(!t || t.outstanding<=0) return;
-      const d=_daysTo((typeof invDueDate==="function")?invDueDate(v):null);
-      if(d==null) return;
-      if(d<0) late.push({v,t,d:-d}); else if(d<=7) soon.push({v,t,d});
-    });
-    if(late.length){
-      const worst=late.sort((a,b)=>b.d-a.d)[0];
-      out.push({sev:"high", icon:"\u{1F4B8}", key:"inv-late",
-        title:`${late.length} invoice${late.length>1?"s are":" is"} overdue`,
-        meta:`Longest: ${worst.v.ref||"\u2014"} at ${worst.d} day${worst.d>1?"s":""} \u00b7 ${curFmt(worst.t.outstanding, worst.v.currency)}`,
-        go:()=>{ window._finView="invoices"; switchTab("Finance"); }});
-    }
-    if(soon.length){
-      const next=soon.sort((a,b)=>a.d-b.d)[0];
-      out.push({sev:"med", icon:"\u{1F4C5}", key:"inv-soon",
-        title:`${soon.length} invoice${soon.length>1?"s fall":" falls"} due within a week`,
-        meta:`Next: ${next.v.ref||"\u2014"} in ${next.d===0?"today":next.d+" day"+(next.d>1?"s":"")}`,
-        go:()=>{ window._finView="invoices"; switchTab("Finance"); }});
-    }
-  }catch(e){}
+  // (A) Overdue invoices are NOT raised here: the app already warns on them.
+  //     Only the FORWARD-looking half is new \u2014 an invoice that has not yet
+  //     fallen due, which nothing else reports.
+
 
   // B) Cash position. Money owed to you against money you owe: the number that
   //    decides whether wages can be paid, and it is nowhere else in the app.
-  try{
-    if(typeof cashPosition==="function"){
-      const cash=cashPosition();
-      if(cash.net<0){
-        out.push({sev:"high", icon:"\u26A0\uFE0F", key:"cash-neg",
-          title:"More is owed out than is owed in",
-          meta:`Receivable ${curFmt(cash.receivable,cash.currency)} \u00b7 payable ${curFmt(cash.payable,cash.currency)}`,
-          go:()=>{ window._finView="invoices"; switchTab("Finance"); }});
-      }
-    }
-  }catch(e){}
+  // (B) The cash position is already reported above ("more owed out than
+  //     coming in"). Only quotations about to lapse remain genuinely new.
 
-  // C) Cash sitting in pockets. An advance nobody has accounted for is company
-  //    money that has simply left, and it is easy to forget.
-  try{
-    if(typeof advOutstandingTotals==="function"){
-      const a=advOutstandingTotals();
-      if(a.count){
-        out.push({sev:a.count>=4?"med":"low", icon:"\u{1F4B3}", key:"adv-open",
-          title:`${a.count} work advance${a.count>1?"s are":" is"} unsettled`,
-          meta:[a.usd?("$"+a.usd.toLocaleString()):"", a.iqd?(a.iqd.toLocaleString()+" IQD"):""]
-                .filter(Boolean).join(" + ")+" not yet accounted for",
-          go:()=>{ window._finView="advances"; switchTab("Finance"); }});
-      }
-    }
-  }catch(e){}
 
-  // D) Work earned but never invoiced. The client cannot pay for what it has
-  //    not been asked to pay for, and this is the commonest silent loss.
-  try{
-    if(typeof invBillingPosition==="function"){
-      let worst=null, total=0;
-      (state.projects||[]).forEach(p=>{
-        const b=invBillingPosition(p.name);
-        if(!b || b.earned<=0 || b.unbilled<=0) return;
-        total+=b.unbilled;
-        if(!worst || b.unbilled>worst.unbilled) worst={...b, name:p.name};
-      });
-      if(worst && total>0){
-        out.push({sev:"med", icon:"\u{1F9FE}", key:"unbilled",
-          title:`${curFmt(total, worst.currency)} of completed work is not invoiced`,
-          meta:`Largest: ${worst.name} \u2014 ${curFmt(worst.unbilled, worst.currency)} (${worst.pctBilled}% billed)`,
-          go:()=>{ window._finView="invoices"; switchTab("Finance"); }});
-      }
-    }
-  }catch(e){}
 
-  // E) Projects burning through their estimate. Warned at 85%, not at 100%,
-  //    because past 100% the only available action is an apology.
-  try{
-    (state.projects||[]).forEach(p=>{
-      const est=Number(p.estimatedHours||0);
-      if(est<=0) return;
-      const used=(state.daily||[]).filter(r=>(r.project||"").trim()===(p.name||"").trim())
-                  .reduce((s,r)=>s+Number(r.duration||0),0);
-      const pct=Math.round(used/est*100);
-      if(pct>=85 && pct<=100){
-        out.push({sev:"med", icon:"\u23F3", key:"burn-"+p.name,
-          title:`${p.name} has used ${pct}% of its estimated hours`,
-          meta:`${fmtHM(used)} of ${fmtHM(est)} \u2014 raise a variation before it overruns`,
-          go:()=>{ window._profile={kind:"project", id:p.name}; render(); }});
-      }
-    });
-  }catch(e){}
+  // (C) Unsettled advances already have their own alert above.
+
+  // (D) Unbilled work already has its own per-project alert above.
+
+  // (E) Project hours against estimate is NOT handled here: section 2 above
+  //     already raises "near budget" and "over budget" from the same numbers.
+  //     A second alert on the same condition produced two entries with two
+  //     different keys, so dismissing one left the other behind and the alert
+  //     appeared to be undismissable.
 
   // F) Preventive maintenance due within the week. Overdue PM is already
   //    reported elsewhere; this is the window in which it can still be planned.
-  try{
-    const dueSoon=(state.pmSchedules||[]).filter(s=>{
-      const due=(typeof pmNextDue==="function")?pmNextDue(s):null;
-      const d=_daysTo(due);
-      return d!=null && d>=0 && d<=7;
-    });
-    if(dueSoon.length){
-      out.push({sev:"med", icon:"\u{1F6E0}\uFE0F", key:"pm-week",
-        title:`${dueSoon.length} maintenance visit${dueSoon.length>1?"s fall":" falls"} due this week`,
-        meta:dueSoon.slice(0,3).map(s=>s.title||s.system||"PM").join(", ")+(dueSoon.length>3?"\u2026":""),
-        go:()=>switchTab("Dispatch")});
-    }
-  }catch(e){}
+
 
   // G) Quotations about to lapse. A quotation that expires unanswered is a
   //    conversation that ended without anyone deciding to end it.
