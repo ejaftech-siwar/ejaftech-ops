@@ -1216,14 +1216,35 @@ function _xlLoadSheet(name){
   P.rows=_xlSheetRows(ws);
   P.from=1;
   P.to=P.rows.length;
-  // Guess the header: the first row that fills most of the width. Sheets
-  // routinely open with a merged title and an instruction line above the
-  // real column headings, and importing those as data is what produces a
-  // table whose first row reads "Instructions: please fill in…".
-  let best=1, bestFilled=-1;
-  P.rows.slice(0,8).forEach((r,i)=>{
-    const filled=r.filter(x=>String(x||"").trim()!=="").length;
-    if(filled>bestFilled){ bestFilled=filled; best=i+1; }
+  // Finding the header row by "which row is fullest" fails on a real schedule:
+  // every data row is just as full as the headings, so the first one scanned
+  // wins — and on this sheet that was a data row. The reliable signal is that
+  // a HEADING is a label and a DATA row is not: data rows begin with a serial
+  // number and repeat values down the sheet, while headings are short unique
+  // words that are never numeric.
+  const score=(r)=>{
+    const cells=r.map(x=>String(x==null?"":x).trim());
+    const filled=cells.filter(Boolean);
+    if(filled.length<2) return -1;                  // a merged title line
+    let s=filled.length;                            // fuller is more likely
+    // A heading row contains no bare numbers: "2" or "50" in the first cells
+    // means this is stock, not a heading.
+    const numeric=filled.filter(x=>/^-?[\d.,]+$/.test(x)).length;
+    s -= numeric*4;
+    // Headings are short. A 60-character product description is not a label.
+    const longCells=filled.filter(x=>x.length>28).length;
+    s -= longCells*3;
+    // Headings are distinct from one another; a data row often repeats a value
+    // (the same system name in two columns, the code echoed in the description).
+    if(new Set(filled.map(x=>x.toLowerCase())).size < filled.length) s -= 3;
+    // A sentence is an instruction line, not a heading.
+    if(filled.some(x=>/[.:]\s/.test(x) || x.split(/\s+/).length>6)) s -= 4;
+    return s;
+  };
+  let best=1, bestScore=-Infinity;
+  P.rows.slice(0,12).forEach((r,i)=>{
+    const sc=score(r);
+    if(sc>bestScore){ bestScore=sc; best=i+1; }
   });
   P.headerRow=best;
   P.from=best;
@@ -1238,10 +1259,15 @@ window.xlSet   = function(k,v){
 window.xlCancel = function(){ window._xlPick=null; render(); };
 window.xlApply  = function(){
   const P=window._xlPick; if(!P) return;
-  const from=Math.max(1,Math.min(P.from,P.rows.length));
-  const to  =Math.max(from,Math.min(P.to,P.rows.length));
-  const slice=P.rows.slice(from-1, to);
-  if(!slice.length){ toast("That range is empty"); return; }
+  const total=P.rows.length;
+  const hr  =Math.max(1,Math.min(P.headerRow||1,total));
+  const from=Math.max(1,Math.min(P.from,total));
+  const to  =Math.max(from,Math.min(P.to,total));
+  // Heading first, then the data rows \u2014 with the heading never counted twice
+  // if the range happens to include it.
+  const data=P.rows.slice(from-1, to).filter((_,i)=>(from+i)!==hr);
+  if(!data.length){ toast("That range is empty"); return; }
+  const slice=[P.rows[hr-1]||[], ...data];
   const text=_xlToText(slice);
   try{
     const parts=P.target.split(".");
@@ -1264,11 +1290,15 @@ function renderXlPicker(){
   const P=window._xlPick;
   if(!P || !P.rows) return "";
   const total=P.rows.length;
+  const hr  =Math.max(1,Math.min(P.headerRow||1,total));
   const from=Math.max(1,Math.min(P.from,total));
   const to  =Math.max(from,Math.min(P.to,total));
-  const slice=P.rows.slice(from-1, to);
-  const head=slice[0]||[];
-  const body=slice.slice(1, 1+40);
+  // The headings come from the header row, ALWAYS \u2014 never from whichever row
+  // the data range happens to start on. Conflating the two meant that moving
+  // "From row" down by one promoted an item into the column headings.
+  const head=P.rows[hr-1]||[];
+  const body=P.rows.slice(from-1, to).filter((_,i)=>(from+i)!==hr).slice(0,40);
+  const bodyCount=P.rows.slice(from-1, to).filter((_,i)=>(from+i)!==hr).length;
   const TH='padding:5px 8px;border:1px solid var(--line);background:var(--navy);color:#fff;font-size:10px;text-align:left;white-space:nowrap';
   const TD='padding:4px 8px;border:1px solid var(--line);font-size:11px;vertical-align:top';
   return `<div class="xl-ov" onclick="if(event.target===this)xlCancel()">
@@ -1282,22 +1312,23 @@ function renderXlPicker(){
           <select onchange="xlSheet(this.value)">
             ${P.sheets.map(s=>`<option ${s===P.sheet?"selected":""}>${escapeHtml(s)}</option>`).join("")}
           </select></label>`:""}
-        <label>From row <input type="number" min="1" max="${total}" value="${from}" onchange="xlSet('from',this.value)"></label>
-        <label>To row <input type="number" min="1" max="${total}" value="${to}" onchange="xlSet('to',this.value)"></label>
-        <span class="xl-note">${total} row${total>1?"s":""} in this sheet \u00b7 the first row of your range becomes the column headings</span>
+        <label>Heading row <input type="number" min="1" max="${total}" value="${hr}" onchange="xlSet('headerRow',this.value)"></label>
+        <label>Data from <input type="number" min="1" max="${total}" value="${from}" onchange="xlSet('from',this.value)"></label>
+        <label>to <input type="number" min="1" max="${total}" value="${to}" onchange="xlSet('to',this.value)"></label>
+        <span class="xl-note">${total} row${total>1?"s":""} in this sheet \u00b7 the heading row is kept separately, so narrowing the data range never turns an item into a column title</span>
       </div>
       <div class="xl-prev">
         <table style="border-collapse:collapse;width:100%">
           <thead><tr><th style="${TH};width:34px">#</th>${head.map(h=>`<th style="${TH}">${escapeHtml(String(h||""))}</th>`).join("")}</tr></thead>
           <tbody>${body.map((r,i)=>`<tr${i%2?' style="background:var(--bg)"':''}>
-            <td style="${TD};color:var(--muted);text-align:center">${from+i+1}</td>
+            <td style="${TD};color:var(--muted);text-align:center">${from+i+(from>hr?0:1)}</td>
             ${r.map(v=>`<td style="${TD}">${escapeHtml(String(v||"")).replace(/\n/g,"<br>")}</td>`).join("")}
           </tr>`).join("")}</tbody>
         </table>
-        ${slice.length>41?`<div class="xl-more">+ ${slice.length-41} more row(s) will also be imported</div>`:""}
+        ${bodyCount>40?`<div class="xl-more">+ ${bodyCount-40} more row(s) will also be imported</div>`:""}
       </div>
       <div class="xl-ft">
-        <button class="btn btn-primary" onclick="xlApply()">Insert ${slice.length} row${slice.length>1?"s":""}</button>
+        <button class="btn btn-primary" onclick="xlApply()">Insert ${bodyCount} row${bodyCount===1?"":"s"}</button>
         <span class="xl-note">Line breaks inside a cell are preserved \u2014 nothing is split or reordered.</span>
       </div>
     </div>
