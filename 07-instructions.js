@@ -170,7 +170,7 @@ function renderTechClassifications(){
   const cats2     = (state.techCategories||[]).slice().sort((a,b)=>(a.order||0)-(b.order||0));
   const tv = window._techView || "types";
   const systems = (state.systemTypes||[]).slice().sort((a,b)=>(a.order||0)-(b.order||0));
-  let h = _pills('_techView',[{id:"types",ic:"🔧",lb:"Work Types"},{id:"statuses",ic:"📊",lb:"Statuses"},{id:"categories",ic:"📁",lb:"Categories"},{id:"systems",ic:"🧩",lb:"Systems"},{id:"checks",ic:"📋",lb:"Check Lists"},{id:"device",ic:"📱",lb:"This Device"}]);
+  let h = _pills('_techView',[{id:"types",ic:"🔧",lb:"Work Types"},{id:"statuses",ic:"📊",lb:"Statuses"},{id:"categories",ic:"📁",lb:"Categories"},{id:"systems",ic:"🧩",lb:"Systems"},{id:"checks",ic:"📋",lb:"Check Lists"},{id:"device",ic:"📱",lb:"This Device"},{id:"brand",ic:"🏷️",lb:"Document Branding"}]);
   // ── This Device (v189) ──────────────────────────────────────────────
   // Appearance, notification permission and offline readiness were three
   // separate cards buried in the Profile screen. They share one trait that
@@ -227,6 +227,73 @@ function renderTechClassifications(){
     ${_sn?`<button class="btn btn-secondary" onclick="disableSysNotifs()">Turn off</button>`
          :`<button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:800;border:none" onclick="enableSysNotifs()">🔔 Enable</button>`}
   </div>`;
+  }
+
+  // ── Document Branding (v206) ────────────────────────────────────────
+  // What every exported document says about itself. Kept beside the other
+  // company-wide classifications rather than in personal settings, because a
+  // report footer is a company decision, not a preference.
+  if(tv==="brand"){
+    if(!isAdmin()) return h + `<div class="card"><div class="empty">Admin only.</div></div>`;
+    const b=brandCfg();
+    const F=(k,label,ph,note)=>`<div class="field" style="grid-column:1/-1">
+      <label>${escapeHtml(label)}</label>
+      <input value="${escapeHtml(String(b[k]==null?"":b[k]))}" oninput="brandSet(${jsArg(k)},this.value)" placeholder="${escapeHtml(ph||"")}">
+      ${note?`<div style="font-size:10px;color:var(--muted);margin-top:4px;line-height:1.6">${note}</div>`:""}
+    </div>`;
+    const SW=(k,label,note)=>`<div class="field" style="grid-column:1/-1">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:600">
+        <input type="checkbox" ${b[k]?"checked":""} onchange="brandSet(${jsArg(k)},this.checked)">
+        ${escapeHtml(label)}
+      </label>
+      ${note?`<div style="font-size:10px;color:var(--muted);margin-top:4px;line-height:1.6">${note}</div>`:""}
+    </div>`;
+    return h + `
+    <div class="card" style="background:#F5F8FC;border:1px dashed var(--line)">
+      <div style="font-size:12px;color:var(--muted);line-height:1.7">
+        These lines appear on <strong>every</strong> exported document \u2014 PDF and Word alike. A report you send to a client is your company's document, so nothing here is fixed: clear a field to remove that line entirely.
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="sec-hdr">\u{1F4C4} Header</div>
+      ${SW("showSubtitle","Show a subtitle under the report title","Turn this off for a header that carries only the report name and your logo.")}
+      ${b.showSubtitle?F("subtitle","Subtitle","e.g. EJAF Technology \u00b7 Operations",
+        "Printed in small type beneath the report title."):""}
+    </div>
+
+    <div class="card">
+      <div class="sec-hdr">\u{1F4CB} Footer</div>
+      ${F("footerLeft","Left footer","e.g. EJAF Technology","The first line at the bottom left of every page.")}
+      ${SW("showFooterNote","Show a generation note","")}
+      ${b.showFooterNote?F("footerNote","Generation note","e.g. Automatically generated",""):""}
+      ${SW("showFooterRight","Show a line at the bottom right","The document reference number always prints here, with or without this text.")}
+      ${b.showFooterRight?F("footerRight","Right footer","e.g. Powered by Siwar",""):""}
+    </div>
+
+    <div class="card">
+      <div class="sec-hdr">\u{1F512} Confidentiality</div>
+      ${SW("confidential","Mark documents confidential",
+        "Off by default and deliberately so. A mark that appears on every routine maintenance sheet is ignored within a week \u2014 and then it carries no weight on the document where it genuinely matters. Switch it on when the content warrants it.")}
+      ${b.confidential?F("confidentialText","Wording","Confidential",
+        "e.g. \u201cConfidential\u201d, \u201cCommercial in Confidence\u201d, \u201c\u0633\u0631\u064a\u201d."):""}
+    </div>
+
+    <div class="card">
+      <div class="sec-hdr">\u{1F441}\uFE0F Preview</div>
+      <div style="border:1px solid var(--line);border-radius:var(--r-md);overflow:hidden">
+        <div style="padding:10px 12px;border-bottom:1px solid var(--line);background:var(--surface-2)">
+          <div style="font-size:13px;font-weight:800;color:var(--navy)">INCIDENT REPORT</div>
+          ${(b.showSubtitle && String(b.subtitle||"").trim())?`<div style="font-size:10px;color:var(--muted);margin-top:2px">${escapeHtml(String(b.subtitle).trim())}</div>`:""}
+        </div>
+        <div style="padding:18px 12px;text-align:center;font-size:11px;color:var(--muted)">\u2026 report body \u2026</div>
+        <div style="display:flex;gap:10px;padding:9px 12px;border-top:1px solid var(--line);font-size:9.5px;color:var(--muted);flex-wrap:wrap">
+          <div style="flex:1;min-width:140px;line-height:1.6">${brandFooterLeft()||"<em>(empty)</em>"}</div>
+          <div style="text-align:right">${(b.showFooterRight && String(b.footerRight||"").trim())?escapeHtml(String(b.footerRight).trim())+" \u00b7 ":""}INC-2026-0001</div>
+        </div>
+      </div>
+      <button class="btn btn-sm btn-secondary" style="margin-top:10px" onclick="brandReset()">Reset to the defaults</button>
+    </div>`;
   }
 
   h += `
@@ -595,4 +662,29 @@ window.resetSysChecks=async function(tpl){
   for(const r of mine) await fbDelete("systemChecks",r.id);
   toast("↺ Standards defaults restored");
   render();
+};
+
+// ── Document branding writes ─────────────────────────────────────────────
+// Saved to settings/branding so it applies to every device and every user:
+// two people exporting the same report must produce the same document.
+window.brandSet = async function(key, value){
+  if(!isAdmin()) return toast("Admin only");
+  if(!Object.prototype.hasOwnProperty.call(BRAND_DEFAULTS, key)) return;
+  const cur=(state.settingsDocs||[]).find(x=>x.id==="branding")||{};
+  const v = (typeof BRAND_DEFAULTS[key]==="boolean") ? !!value : String(value==null?"":value);
+  // Paint immediately from local state; the listener will confirm it.
+  const local={...cur, id:"branding", [key]:v};
+  state.settingsDocs=[...(state.settingsDocs||[]).filter(x=>x.id!=="branding"), local];
+  render();
+  try{ await fbSave("settings", local); }
+  catch(e){ toast("Could not save: "+(e&&e.message||e)); }
+};
+window.brandReset = async function(){
+  if(!isAdmin()) return toast("Admin only");
+  if(!await uiConfirm("Restore the default wording on every document?\n\nThe subtitle, both footer lines and the confidentiality setting all return to how they started.")) return;
+  const doc={id:"branding", ...BRAND_DEFAULTS};
+  state.settingsDocs=[...(state.settingsDocs||[]).filter(x=>x.id!=="branding"), doc];
+  render();
+  try{ await fbSave("settings", doc); saveToast("Branding reset \u2713"); }
+  catch(e){ toast("Could not save: "+(e&&e.message||e)); }
 };
