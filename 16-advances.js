@@ -574,7 +574,7 @@ function renderExpenseClaims(){
       <button class="btn btn-primary" onclick="exrNew()">+ New claim</button>
       <span style="font-size:11px;color:var(--muted);margin-left:auto">${mine.length} claim(s)</span>
     </div>
-    <div style="margin-top:10px">${typeof rptFormatToggle==="function"?rptFormatToggle(true):""}</div>
+    <div style="margin-top:10px">${typeof rptFormatToggle==="function"?rptFormatToggle(true):""}${typeof brandLink==="function"?brandLink():""}</div>
     <div style="font-size:10px;color:var(--muted);margin-top:2px;line-height:1.6">
       Excel keeps the totals as live formulas, so finance can re-check the arithmetic \u2014 the usual choice for a claim. PDF is the one to sign and file.
     </div>

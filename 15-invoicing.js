@@ -487,7 +487,7 @@ function renderInvoices(){
       <button class="btn btn-primary" onclick="invNew()">+ New invoice</button>
       <span style="font-size:11px;color:var(--muted);margin-left:auto">${rows.length} invoice(s)</span>
     </div>
-    <div style="margin-top:10px">${typeof refOverrideField==="function"?refOverrideField():""}${typeof rptFormatToggle==="function"?rptFormatToggle():""}</div>
+    <div style="margin-top:10px">${typeof refOverrideField==="function"?refOverrideField():""}${typeof brandLink==="function"?brandLink():""}${typeof rptFormatToggle==="function"?rptFormatToggle():""}</div>
   </div>
 
   <div class="card">

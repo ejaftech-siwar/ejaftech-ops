@@ -287,6 +287,24 @@ window.setRefOverride = function(v){ window._refOverride = String(v||"").trim();
 window.clearRefOverride = function(){ window._refOverride = ""; };
 
 // The control every report screen can drop in above its export button.
+// A one-line route to the branding settings, shown on every export screen.
+// The setting lives in one place; this is a signpost, not a second copy.
+function brandLink(){
+  if(typeof isAdmin==="function" && !isAdmin()) return "";
+  const b=(typeof brandCfg==="function")?brandCfg():null;
+  const foot=b?[String(b.footerLeft||"").trim(), (b.confidential?String(b.confidentialText||"").trim():"")].filter(Boolean).join(" \u00b7 "):"";
+  return `<div class="brand-link">
+    <span class="bl-txt">Document footer: <strong>${escapeHtml(foot||"(none)")}</strong>${b&&b.showFooterRight&&String(b.footerRight||"").trim()?` \u00b7 ${escapeHtml(String(b.footerRight).trim())}`:""}</span>
+    <button type="button" class="btn btn-sm btn-secondary" onclick="gotoBranding()">\u{1F3F7}\uFE0F Edit header &amp; footer</button>
+  </div>`;
+}
+window.gotoBranding = function(){
+  window._techView="brand";
+  if(typeof switchTab==="function") switchTab("Technical Classifications");
+  else { state.tab="Technical Classifications"; render(); }
+};
+Object.assign(window,{brandLink});
+
 function refOverrideField(){
   const v = window._refOverride || "";
   return `<div class="field" style="margin-bottom:9px">

@@ -1138,3 +1138,13 @@ html[dir="ltr"] .gs-row{ text-align:left }
   display:flex; gap:10px; align-items:center; flex-wrap:wrap;
   padding:11px 14px; border-top:1px solid var(--line);
 }
+
+/* ═══ BRANDING SIGNPOST (v207) ══════════════════════════════════════════ */
+.brand-link{
+  display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+  padding:8px 11px; margin-bottom:9px;
+  background:var(--surface-2); border:1px solid var(--line);
+  border-radius:var(--r-md);
+}
+.bl-txt{ flex:1; min-width:150px; font-size:var(--f-xs); color:var(--muted); line-height:1.6 }
+.bl-txt strong{ color:var(--text) }

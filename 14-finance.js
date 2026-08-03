@@ -873,7 +873,7 @@ function renderQuotes(){
       <button class="btn btn-primary" style="width:100%;margin-top:10px" onclick="quoSave()">Save quotation</button>
       <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--line)">
         <div style="font-size:11px;color:var(--muted);margin-bottom:6px">Output format for this and every document</div>
-        ${typeof refOverrideField==="function"?refOverrideField():""}${typeof rptFormatToggle==="function"?rptFormatToggle():""}
+        ${typeof refOverrideField==="function"?refOverrideField():""}${typeof brandLink==="function"?brandLink():""}${typeof rptFormatToggle==="function"?rptFormatToggle():""}
       </div>
     </div>`;
   }
@@ -887,7 +887,7 @@ function renderQuotes(){
     </div>
     <div style="margin-top:10px">
       <div style="font-size:11px;color:var(--muted);margin-bottom:6px">Share as \u2014 the button on each quotation follows this choice</div>
-      ${typeof refOverrideField==="function"?refOverrideField():""}${typeof rptFormatToggle==="function"?rptFormatToggle():""}
+      ${typeof refOverrideField==="function"?refOverrideField():""}${typeof brandLink==="function"?brandLink():""}${typeof rptFormatToggle==="function"?rptFormatToggle():""}
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:8px;margin-top:12px">
       ${[["Sent","sent"],["Accepted","accepted"],["Declined","declined"]].map(([lb,st])=>{
@@ -1504,7 +1504,7 @@ function renderCostReport(){
       <button class="btn btn-sm btn-secondary" style="margin-left:6px;font-size:10px" onclick="crClearOverrides()">Reset all</button></div>`:""}
     <div class="field" style="margin-top:10px"><label>Commentary <span style="font-weight:500;color:var(--muted);font-size:10px">\u2014 printed under the summary</span></label>
       <textarea rows="3" oninput="crSet('notes',this.value)" placeholder="Explain any adjustment, and what the figures mean for this project\u2026">${escapeHtml(m.notes||"")}</textarea></div>
-    <div style="margin-top:12px">${typeof refOverrideField==="function"?refOverrideField():""}${typeof rptFormatToggle==="function"?rptFormatToggle():""}</div>
+    <div style="margin-top:12px">${typeof refOverrideField==="function"?refOverrideField():""}${typeof brandLink==="function"?brandLink():""}${typeof rptFormatToggle==="function"?rptFormatToggle():""}</div>
     <button class="btn btn-primary" style="width:100%;background:#C9A84C;color:#1B3A6B;border:none;font-weight:800" onclick="costReportDoc()">
       ${window._rptFormat==="word"?"\u{1F4DD} Generate Word":"\u{1F4C4} Generate PDF"}</button>
   </div>`}`;
