@@ -284,12 +284,12 @@ function renderTechClassifications(){
       <div style="border:1px solid var(--line);border-radius:var(--r-md);overflow:hidden">
         <div style="padding:10px 12px;border-bottom:1px solid var(--line);background:var(--surface-2)">
           <div style="font-size:13px;font-weight:800;color:var(--navy)">INCIDENT REPORT</div>
-          ${(b.showSubtitle && String(b.subtitle||"").trim())?`<div style="font-size:10px;color:var(--muted);margin-top:2px">${escapeHtml(String(b.subtitle).trim())}</div>`:""}
+          <div id="bpSub" style="font-size:10px;color:var(--muted);margin-top:2px">${(b.showSubtitle && String(b.subtitle||"").trim())?escapeHtml(String(b.subtitle).trim()):""}</div>
         </div>
         <div style="padding:18px 12px;text-align:center;font-size:11px;color:var(--muted)">\u2026 report body \u2026</div>
         <div style="display:flex;gap:10px;padding:9px 12px;border-top:1px solid var(--line);font-size:9.5px;color:var(--muted);flex-wrap:wrap">
-          <div style="flex:1;min-width:140px;line-height:1.6">${brandFooterLeft()||"<em>(empty)</em>"}</div>
-          <div style="text-align:right">${(b.showFooterRight && String(b.footerRight||"").trim())?escapeHtml(String(b.footerRight).trim())+" \u00b7 ":""}INC-2026-0001</div>
+          <div id="bpLeft" style="flex:1;min-width:140px;line-height:1.6">${brandFooterLeft()||"<em>(empty)</em>"}</div>
+          <div id="bpRight" style="text-align:right">${(b.showFooterRight && String(b.footerRight||"").trim())?escapeHtml(String(b.footerRight).trim())+" \u00b7 ":""}INC-2026-0001</div>
         </div>
       </div>
       <button class="btn btn-sm btn-secondary" style="margin-top:10px" onclick="brandReset()">Reset to the defaults</button>
@@ -667,18 +667,51 @@ window.resetSysChecks=async function(tpl){
 // ── Document branding writes ─────────────────────────────────────────────
 // Saved to settings/branding so it applies to every device and every user:
 // two people exporting the same report must produce the same document.
+let _brandTimer=null;
 window.brandSet = async function(key, value){
   if(!isAdmin()) return toast("Admin only");
   if(!Object.prototype.hasOwnProperty.call(BRAND_DEFAULTS, key)) return;
   const cur=(state.settingsDocs||[]).find(x=>x.id==="branding")||{};
-  const v = (typeof BRAND_DEFAULTS[key]==="boolean") ? !!value : String(value==null?"":value);
-  // Paint immediately from local state; the listener will confirm it.
+  const isBool = (typeof BRAND_DEFAULTS[key]==="boolean");
+  const v = isBool ? !!value : String(value==null?"":value);
   const local={...cur, id:"branding", [key]:v};
   state.settingsDocs=[...(state.settingsDocs||[]).filter(x=>x.id!=="branding"), local];
-  render();
-  try{ await fbSave("settings", local); }
-  catch(e){ toast("Could not save: "+(e&&e.message||e)); }
+
+  if(isBool){
+    // A switch changes WHICH fields exist, so the section genuinely has to be
+    // rebuilt. There is no caret to lose on a checkbox.
+    render();
+  }else{
+    // Typing must not rebuild anything. Repainting the page on every keystroke
+    // discards the caret, scrolls back to the top and makes the screen jump.
+    // Only the preview needs to move, and it can be written in place.
+    brandRepaintPreview();
+  }
+  // One write per pause, not one per character: a 30-letter footer would
+  // otherwise queue thirty writes and the last one to land would win.
+  clearTimeout(_brandTimer);
+  _brandTimer=setTimeout(async ()=>{
+    try{ await fbSave("settings", local); }
+    catch(e){ toast("Could not save: "+(e&&e.message||e)); }
+  }, 600);
 };
+// Update just the two lines of the preview, leaving the form untouched.
+function brandRepaintPreview(){
+  const b=brandCfg();
+  const set=(id,html)=>{ const e=document.getElementById(id); if(e) e.innerHTML=html; };
+  set("bpSub", (b.showSubtitle && String(b.subtitle||"").trim())
+    ? escapeHtml(String(b.subtitle).trim()) : "");
+  set("bpLeft", brandFooterLeft() || "<em>(empty)</em>");
+  set("bpRight", ((b.showFooterRight && String(b.footerRight||"").trim())
+    ? escapeHtml(String(b.footerRight).trim())+" \u00b7 " : "") + "INC-2026-0001");
+  const bl=document.querySelector(".bl-txt");
+  if(bl && typeof brandLink==="function"){
+    const tmp=document.createElement("div"); tmp.innerHTML=brandLink();
+    const src=tmp.querySelector(".bl-txt");
+    if(src) bl.innerHTML=src.innerHTML;
+  }
+}
+Object.assign(window,{brandRepaintPreview});
 window.brandReset = async function(){
   if(!isAdmin()) return toast("Admin only");
   if(!await uiConfirm("Restore the default wording on every document?\n\nThe subtitle, both footer lines and the confidentiality setting all return to how they started.")) return;
