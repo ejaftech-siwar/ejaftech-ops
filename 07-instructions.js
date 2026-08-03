@@ -181,6 +181,17 @@ function renderTechClassifications(){
     const _sn = (typeof sysNotifsOn==="function") ? sysNotifsOn()
               : (typeof Notification!=="undefined" && Notification.permission==="granted");
     return h + `
+    <div class="card">
+      <div class="sec-hdr">\u{1F504} App version</div>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <span style="font-size:13px;font-weight:800;color:var(--navy)">${typeof runningVersion==="function"?escapeHtml(runningVersion()):"\u2014"}</span>
+        <button class="btn btn-sm btn-primary" style="margin-left:auto" onclick="forceUpdate()">Update now</button>
+      </div>
+      <div style="font-size:10px;color:var(--muted);margin-top:8px;line-height:1.7">
+        Use this whenever the update banner does not appear. It clears the cached program files and reloads, so it works even when the automatic check has failed. Your records are stored separately and are never touched.
+      </div>
+    </div>
+
     <div class="card" style="background:#F5F8FC;border:1px dashed var(--line)">
       <div style="font-size:12px;color:var(--muted);line-height:1.7">
         Everything on this tab applies to <strong>this device only</strong>. It is stored on the phone or computer you are using, not on your account, so changing it here affects nobody else and does not follow you to another device.

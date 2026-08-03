@@ -1135,7 +1135,14 @@ if('serviceWorker' in navigator){
             // Removing the bar is not enough: the waiting worker is still there,
             // so the next render or visibility change puts the bar straight
             // back. Remember the dismissal for this session.
-            try{ window._updDismissed=true; }catch(e){}
+            // Remember WHICH build was dismissed, not that a dismissal happened.
+            // An installed PWA can stay open for days, so a flag with no version
+            // attached would hide every future update as well as this one.
+            try{
+              versionOf(reg.waiting).then(function(v){
+                try{ localStorage.setItem('girek-upd-skip', v||'1'); }catch(e){}
+              }).catch(function(){});
+            }catch(e){}
             bar.remove();
           });
         }catch(err){}
@@ -1159,7 +1166,10 @@ if('serviceWorker' in navigator){
       // banner came straight back and had to be dismissed by hand. Now the two
       // builds are compared and the banner is shown only when they differ.
       function maybeShowUpdateBar(){
-        if(window._updDismissed) return;      // the user said "later" this session
+        // Silence only the exact build the user waved away; anything newer is
+        // shown normally.
+        var skipped="";
+        try{ skipped=localStorage.getItem('girek-upd-skip')||""; }catch(e){}
         var waiting = reg.waiting;
         if(!waiting || !navigator.serviceWorker.controller) return;
         Promise.all([versionOf(waiting), versionOf(navigator.serviceWorker.controller)])
@@ -1171,6 +1181,8 @@ if('serviceWorker' in navigator){
               try{ waiting.postMessage('SKIP_WAITING'); }catch(err){}   // clear it quietly
               return;
             }
+            if(next && skipped && next===skipped) return;   // this exact build was dismissed
+            try{ localStorage.removeItem('girek-upd-skip'); }catch(e){} // a newer build: start fresh
             showUpdateBar();
           })
           .catch(function(){ showUpdateBar(); });
@@ -1197,7 +1209,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v209';"
+      var swCode = "const CACHE='ejaftech-v210';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
@@ -3295,3 +3307,43 @@ window.generateProgressReport = async function(kind){
   toast(`${daily?"Daily":"Weekly"} report ready!`);
 };
 Object.assign(window,{renderProgressReport});
+
+// ═══ FORCE UPDATE (v210) ════════════════════════════════════════════════
+// The update banner depends on the browser noticing a new worker, that worker
+// reaching "waiting", and the app being open at the right moment. Any of those
+// can fail quietly — and then someone is stranded on an old build with no way
+// out, which is exactly what happened. This button depends on none of them: it
+// clears the caches, drops the workers and reloads, whatever any of them think.
+window.forceUpdate = async function(){
+  if(!await uiConfirm("Fetch the latest version now?\n\nThe app will close and reopen. Your data is safe \u2014 only the cached program files are replaced.")) return;
+  toast("Updating\u2026");
+  try{ localStorage.removeItem('girek-upd-skip'); }catch(e){}
+  // A backstop nothing below can disarm.
+  setTimeout(function(){ try{ window.location.reload(); }catch(e){} }, 6000);
+  try{
+    if(navigator.serviceWorker){
+      const regs=await navigator.serviceWorker.getRegistrations();
+      for(const r of regs){
+        try{ if(r.waiting) r.waiting.postMessage('SKIP_WAITING'); }catch(e){}
+        try{ await r.update(); }catch(e){}
+      }
+    }
+  }catch(e){}
+  try{
+    const keys=await caches.keys();
+    await Promise.all(keys.map(k=>caches.delete(k)));
+  }catch(e){}
+  try{
+    if(navigator.serviceWorker){
+      const regs=await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map(r=>r.unregister().catch(()=>{})));
+    }
+  }catch(e){}
+  window.location.reload();
+};
+// The build actually running, so nobody has to infer it from behaviour.
+// A single named constant, updated with every release, so the screen can state
+// the build without inferring it from a variable that lives inside a function.
+const APP_BUILD = "v210";
+window.APP_BUILD = APP_BUILD;
+window.runningVersion = function(){ return APP_BUILD; };
