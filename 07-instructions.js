@@ -246,7 +246,7 @@ function renderTechClassifications(){
   // report footer is a company decision, not a preference.
   if(tv==="brand"){
     if(!isAdmin()) return h + `<div class="card"><div class="empty">Admin only.</div></div>`;
-    const b=brandCfg();
+    const b=brandDraft();
     const F=(k,label,ph,note)=>`<div class="field" style="grid-column:1/-1">
       <label>${escapeHtml(label)}</label>
       <input value="${escapeHtml(String(b[k]==null?"":b[k]))}" oninput="brandSet(${jsArg(k)},this.value)" placeholder="${escapeHtml(ph||"")}">
@@ -304,6 +304,18 @@ function renderTechClassifications(){
         </div>
       </div>
       <button class="btn btn-sm btn-secondary" style="margin-top:10px" onclick="brandReset()">Reset to the defaults</button>
+    </div>
+
+    <div class="card brand-save${brandDirty()?" dirty":""}">
+      ${brandDirty()
+        ? `<div style="font-size:12px;color:#8F6E22;line-height:1.7;margin-bottom:10px">
+             \u270e You have unsaved changes. Nothing on any report changes until you save \u2014 and when you do, it changes for everyone.
+           </div>
+           <div style="display:flex;gap:8px;flex-wrap:wrap">
+             <button class="btn btn-primary" onclick="brandSave()">Save changes</button>
+             <button class="btn btn-secondary" onclick="brandDiscard()">Discard</button>
+           </div>`
+        : `<div style="font-size:12px;color:var(--muted);line-height:1.7">\u2713 Saved. Every report will use the wording shown above.</div>`}
     </div>`;
   }
 
@@ -678,15 +690,31 @@ window.resetSysChecks=async function(tpl){
 // ── Document branding writes ─────────────────────────────────────────────
 // Saved to settings/branding so it applies to every device and every user:
 // two people exporting the same report must produce the same document.
-let _brandTimer=null;
+// Pending edits, held until the person saves. A footer that syncs while it is
+// being typed is a footer that other people see half-written.
+window._brandDraft = window._brandDraft || null;
+function brandDraft(){
+  if(!window._brandDraft){
+    const cur=(state.settingsDocs||[]).find(x=>x.id==="branding")||{};
+    window._brandDraft={...brandCfg(), ...{}, id:"branding"};
+    Object.keys(cur).forEach(k=>{ if(k!=="id") window._brandDraft[k]=cur[k]; });
+  }
+  return window._brandDraft;
+}
+function brandDirty(){
+  if(!window._brandDraft) return false;
+  const saved=brandCfg();
+  return Object.keys(BRAND_DEFAULTS).some(k=>String(window._brandDraft[k])!==String(saved[k]));
+}
+Object.assign(window,{brandDraft, brandDirty});
+
 window.brandSet = async function(key, value){
   if(!isAdmin()) return toast("Admin only");
   if(!Object.prototype.hasOwnProperty.call(BRAND_DEFAULTS, key)) return;
-  const cur=(state.settingsDocs||[]).find(x=>x.id==="branding")||{};
   const isBool = (typeof BRAND_DEFAULTS[key]==="boolean");
   const v = isBool ? !!value : String(value==null?"":value);
-  const local={...cur, id:"branding", [key]:v};
-  state.settingsDocs=[...(state.settingsDocs||[]).filter(x=>x.id!=="branding"), local];
+  const d=brandDraft();
+  d[key]=v;
 
   if(isBool){
     // A switch changes WHICH fields exist, so the section genuinely has to be
@@ -698,13 +726,24 @@ window.brandSet = async function(key, value){
     // Only the preview needs to move, and it can be written in place.
     brandRepaintPreview();
   }
-  // One write per pause, not one per character: a 30-letter footer would
-  // otherwise queue thirty writes and the last one to land would win.
-  clearTimeout(_brandTimer);
-  _brandTimer=setTimeout(async ()=>{
-    try{ await fbSave("settings", local); }
-    catch(e){ toast("Could not save: "+(e&&e.message||e)); }
-  }, 600);
+  // Nothing is written here. The person decides when the wording is finished
+  // and presses Save; until then this is a draft on their screen only.
+};
+window.brandSave = async function(){
+  if(!isAdmin()) return toast("Admin only");
+  if(!window._brandDraft) return;
+  const doc={id:"branding"};
+  Object.keys(BRAND_DEFAULTS).forEach(k=>{ doc[k]=window._brandDraft[k]; });
+  state.settingsDocs=[...(state.settingsDocs||[]).filter(x=>x.id!=="branding"), doc];
+  window._brandDraft=null;
+  render();
+  try{ await fbSave("settings", doc); saveToast("Document branding saved \u2713"); }
+  catch(e){ toast("Could not save: "+(e&&e.message||e)); }
+};
+window.brandDiscard = function(){
+  window._brandDraft=null;
+  render();
+  toast("Changes discarded");
 };
 // Update just the two lines of the preview, leaving the form untouched.
 function brandRepaintPreview(){

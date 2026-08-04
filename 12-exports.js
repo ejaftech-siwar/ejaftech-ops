@@ -486,7 +486,7 @@ async function exportFilteredExcel(){
 
     const lvData = lv.map(r=>{
       const lt = (typeof leaveTypeInfo==='function') ? leaveTypeInfo(r.type) : {label:r.type||''};
-      return [employeePlainBadge(r.employee||''), lt.label||r.type||'', r.from||'', r.to||'', r.days||0, r.notes||''];
+      return [employeePlainBadge(r.employee||''), lt.label||r.type||'', r.from||'', r.to||'', (typeof computeLeaveAmount==='function' ? daysNum(computeLeaveAmount(r).days) : (r.days||0)), r.notes||''];
     });
     const wsL = buildDetail('Leaves Log', ['Employee','Type','From','To','Days','Notes'], lvData, COLORS.red);
     wsL['!cols']=[{wch:26},{wch:18},{wch:12},{wch:12},{wch:8},{wch:30}];
@@ -865,7 +865,7 @@ async function exportExcel(){
     const lRows = applyReportFilters(isHR() ? state.leaves : state.leaves.filter(r=>r.employee===state.profile.employeeName), "from");
     const lvData = lRows.map(r=>{
       const lt = (typeof leaveTypeInfo==='function') ? leaveTypeInfo(r.type) : {label:r.type||''};
-      return [r.employee||'', lt.label||r.type||'', r.from||'', r.to||'', r.days||0, r.notes||''];
+      return [r.employee||'', lt.label||r.type||'', r.from||'', r.to||'', (typeof computeLeaveAmount==='function' ? daysNum(computeLeaveAmount(r).days) : (r.days||0)), r.notes||''];
     });
     const wsL = buildDetailSheet('Leaves Log', ['Employee','Type','From','To','Days','Notes'], lvData, '#C62828');
     wsL['!cols']=[{wch:22},{wch:18},{wch:12},{wch:12},{wch:8},{wch:30}];
@@ -1209,7 +1209,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v210';"
+      var swCode = "const CACHE='ejaftech-v211';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
@@ -3344,6 +3344,6 @@ window.forceUpdate = async function(){
 // The build actually running, so nobody has to infer it from behaviour.
 // A single named constant, updated with every release, so the screen can state
 // the build without inferring it from a variable that lives inside a function.
-const APP_BUILD = "v210";
+const APP_BUILD = "v211";
 window.APP_BUILD = APP_BUILD;
 window.runningVersion = function(){ return APP_BUILD; };

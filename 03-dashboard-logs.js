@@ -1689,7 +1689,7 @@ function renderTravel(){
         const pdRec=(r.perDiemStatus||"received")==="received";
         return `<tr>
           ${!isEmployee()?`<td>${employeeBadge(r.employee)}${(r.gpsLat!=null||r.gpsDenied)&&typeof geoBadge==="function"?`<br>${geoBadge(r)}`:""}</td>`:""}
-          <td>${fmtDate(r.date)}</td><td>${(()=>{const t=trEnd(r);return (t&&t!==r.date)?fmtDate(t):'<span style="color:#9AA7B8">—</span>';})()}</td><td>${r.days}</td>
+          <td>${fmtDate(r.date)}</td><td>${(()=>{const t=trEnd(r);return (t&&t!==r.date)?fmtDate(t):'<span style="color:#9AA7B8">—</span>';})()}</td><td>${fmtDays(r.days)}</td>
           <td>${escapeHtml(r.project||"—")}</td><td>${escapeHtml(r.location||"—")}</td>
           <td><strong style="color:#7F6000">${fmtMoney(r.perDiem)}</strong></td>
           <td><span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:12px;background:${pdRec?'#E8F5E9':'#FFEBEE'};color:${pdRec?'#2E7D32':'#C62828'}">${pdRec?'✅ Received':'❌ Not Received'}</span></td>
@@ -1930,7 +1930,7 @@ function renderLeaves(){
       <div class="field"><label>Duration (auto)</label>
         <input value="${formAmount.label}" disabled style="background:#E8F2E8;color:#2E7D32;font-weight:700"></div>
       <div class="field"><label>Equivalent</label>
-        <input value="${formAmount.hours.toFixed(2)}h = ${formAmount.days.toFixed(2)} day${formAmount.days===1?'':'s'}" disabled style="background:#F0F4FA;color:#1B3A6B;font-weight:700;font-family:Georgia,serif"></div>
+        <input value="${formAmount.hours.toFixed(2)}h = ${fmtDays(formAmount.days)} day${formAmount.days===1?'':'s'}" disabled style="background:#F0F4FA;color:#1B3A6B;font-weight:700;font-family:Georgia,serif"></div>
       <div class="field full"><label>Preview</label>
         <div style="padding:10px 14px;border:1px solid var(--line);border-radius:8px;background:var(--card);display:flex;align-items:center;gap:8px;flex-wrap:wrap">${leaveTypeBadge(leaveForm.type)} ${leaveKindBadge(leaveForm.kind)}</div></div>
       <div class="field full"><label>Notes</label>
@@ -1948,7 +1948,7 @@ function renderLeaves(){
       ${stats.filter(s=>s.count>0).map(s=>`
         <div style="border:1px solid var(--line);border-left:4px solid ${s.color};border-radius:8px;padding:10px 12px;background:var(--card)">
           <div style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:0.5px">${s.label}</div>
-          <div style="font-family:'DM Serif Display',serif;font-size:22px;color:${s.color};margin-top:2px">${s.days.toFixed(2)} <span style="font-size:12px;color:var(--muted);font-family:inherit">days</span></div>
+          <div style="font-family:'DM Serif Display',serif;font-size:22px;color:${s.color};margin-top:2px">${fmtDays(s.days)} <span style="font-size:12px;color:var(--muted);font-family:inherit">days</span></div>
           <div style="font-size:11px;color:${s.color};font-weight:600">${s.hours.toFixed(1)}h equivalent</div>
           <div style="font-size:10px;color:var(--muted);margin-top:2px">${s.count} leave${s.count===1?'':'s'}</div>
         </div>
@@ -1986,7 +1986,7 @@ function renderLeaves(){
             <td style="font-size:12px">${escapeHtml(dateStr)}</td>
             <td style="font-size:12px;color:var(--muted)">${detail}</td>
             <td style="font-weight:700;color:#1B3A6B">${amt.hours.toFixed(2)}h</td>
-            <td style="font-weight:700;color:${leaveTypeInfo(l.type).color}">${amt.days.toFixed(2)}</td>
+            <td style="font-weight:700;color:${leaveTypeInfo(l.type).color}">${fmtDays(amt.days)}</td>
             <td style="font-size:11px;color:var(--muted);max-width:150px;overflow:hidden;text-overflow:ellipsis">${escapeHtml(l.notes||'')}</td>
             <td>
               <button class="btn btn-sm btn-secondary" onclick="editLeave('${l.id}')">${ICN.edit}</button>
