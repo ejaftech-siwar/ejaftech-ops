@@ -2788,7 +2788,7 @@ function getTabs(){
   }
   // Admin / Owner: everything
   const base = ["Dashboard","Filters","Daily Log","Approvals","Overtime","Travel","Leaves","Work Instructions",
-                "HR Report","Daily Log Report","Technical Report","Reports","Analytics","Executive","Requests","Clients","Projects","Assets","Maintenance","Finance","Dispatch","Incidents","Locations","Departments","Branches","Users","WhatsApp","Email","Share","Profile","Technical Classifications","Date & Time","Entry Manage","Recycle Bin","My Tasks"];
+                "HR Report","Daily Log Report","Technical Report","Reports","Analytics","Executive","Requests","Clients","Projects","Assets","Maintenance","Finance","Dispatch","Incidents","Risks","Locations","Departments","Branches","Users","WhatsApp","Email","Share","Profile","Technical Classifications","Date & Time","Entry Manage","Recycle Bin","My Tasks"];
   if(!base.includes(state.tab)) state.tab = base[0];
   return base;
 }
