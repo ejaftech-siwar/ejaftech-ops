@@ -2357,7 +2357,28 @@ function renderApprovals(){
     ? `<div class="card"><div class="empty empty2"><span class="e-ic">${view==="returned"?"↩":"✅"}</span>
         <div class="e-t">${view==="returned"?"Nothing returned":"Everything reviewed"}</div>
         <div class="e-m">${view==="returned"?"No entries are waiting for an employee to fix":"No entries are waiting for your review"}</div></div></div>`
-    : groups.map(g=>`<div class="card">
+    : `${(function(){
+        const pend=(typeof pendingAllVisible==="function")?pendingAllVisible():[];
+        if(view==="returned" || !pend.length) return "";
+        const people=[...new Set(pend.map(r=>(r.employee||"").trim()).filter(Boolean))];
+        // Only worth offering when there is more than one person to approve;
+        // with a single employee the per-person button already does the job and
+        // a second button beside it is noise.
+        if(people.length<2) return "";
+        return `<div class="card" style="border-left:4px solid var(--ok)">
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <div style="flex:1;min-width:150px">
+              <div style="font-weight:800;font-size:var(--f-md)">${pend.length} entr${pend.length===1?"y":"ies"} waiting across ${people.length} people</div>
+              <div style="font-size:var(--f-xs);color:var(--muted);line-height:1.6;margin-top:2px">
+                Approve the lot in one pass. The confirmation shows the people and the dates covered.
+              </div>
+            </div>
+            <button class="btn btn-sm" style="background:var(--ok);color:#fff;border:none;font-weight:800"
+                    onclick="approveAllPending()"${window._apprBusy?" disabled":""}>
+              ${window._apprBusy?"Approving\u2026":"\u2713 Approve all "+pend.length}</button>
+          </div>
+        </div>`;
+      })()}` + groups.map(g=>`<div class="card">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:var(--s-2)">
           <div>
             <div style="font-family:'DM Serif Display',serif;font-size:var(--f-3xl);color:var(--text)">${escapeHtml(g.emp)}</div>

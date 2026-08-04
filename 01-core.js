@@ -818,6 +818,61 @@ window.rejectEntry = async function(id){
     saveToast("Entry returned to the employee ✓"); render();
   }
 };
+// Approve everything pending, across every person, in one action. The existing
+// button only ever handled one employee, so a supervisor with eight people had
+// to find eight buttons and confirm eight times — the repetition the feature
+// was supposed to remove. This is the same machinery applied to the whole
+// filtered list: one confirmation, one pass, one result.
+//
+// It approves exactly the rows this reviewer is entitled to see — the same set
+// the Approvals screen lists, produced by the same function. Note that
+// visibleRows filters by PERMISSION, not by date, so this covers everything
+// pending for the people under this reviewer regardless of period. The
+// confirmation therefore states the date span explicitly: signing off six weeks
+// when you thought you were signing off one is the failure to prevent here.
+window.pendingAllVisible = function(){
+  const rows = (typeof visibleRows==="function") ? visibleRows(state.daily||[]) : (state.daily||[]);
+  return rows.filter(r=>isPendingAppr(r) && canApprove(r));
+};
+window.approveAllPending = async function(){
+  if(window._apprBusy) return toast("Still approving\u2026");
+  const list = pendingAllVisible();
+  if(!list.length) return toast("Nothing is waiting for approval");
+
+  // Name the people and the span, so the person confirming knows the size of
+  // what they are signing. "Approve 143 entries?" tells them nothing useful.
+  const people=[...new Set(list.map(r=>(r.employee||"").trim()).filter(Boolean))].sort();
+  const dates=list.map(r=>String(r.date||"")).filter(Boolean).sort();
+  const span = dates.length ? (dates[0]===dates[dates.length-1]
+      ? fmtDate(dates[0])
+      : `${fmtDate(dates[0])} \u2192 ${fmtDate(dates[dates.length-1])}`) : "";
+  const who = people.length<=6 ? people.join(", ")
+            : `${people.slice(0,6).join(", ")} and ${people.length-6} more`;
+  if(!await uiConfirm(
+      `Approve ${list.length} pending entr${list.length===1?"y":"ies"} across ${people.length} ${people.length===1?"person":"people"}?\n\n` +
+      `${who}\n${span?span+"\n":""}\n` +
+      `This covers every entry awaiting your approval, not only the period on screen.`,
+      {danger:false, okText:`Approve ${list.length}`, title:"Approve everything pending"})) return;
+
+  window._apprBusy = true;
+  let done=0, failed=0;
+  try{
+    render();
+    toast(`Approving ${list.length} entr${list.length===1?"y":"ies"}\u2026`);
+    // Issued together, not one after another: awaiting each server round trip
+    // in turn would freeze the screen for a minute on a month's worth.
+    const res = await Promise.all(list.map(r=>
+      setApproval(r.id, APPR.APPROVED, "").then(ok=>ok?"ok":"fail").catch(()=>"fail")));
+    done   = res.filter(x=>x==="ok").length;
+    failed = res.length - done;
+  } finally {
+    window._apprBusy = false;
+    render();
+  }
+  if(failed) toast(`\u26a0 ${done} approved, ${failed} failed \u2014 press again to retry the remainder`);
+  else saveToast(`${done} entr${done===1?"y":"ies"} approved across ${people.length} ${people.length===1?"person":"people"} \u2713`);
+};
+
 window.approveAllFor = async function(emp){
   // This awaited each write in turn. Every write waits for its own server
   // acknowledgement, so ten entries meant seconds of a frozen-looking screen
@@ -4653,3 +4708,49 @@ function renderProfilePanel(){
 }
 Object.assign(window,{profileEmployee, profileProject, profileDevice, profileClient,
                       renderProfilePanel, PROFILE_KINDS});
+
+// ═══ COPY A VALUE (v214) ════════════════════════════════════════════════
+// With selection switched off on touch, the values people actually copy need a
+// deliberate way out. A tap target beats a long press and a drag even when
+// selection IS available: on a phone, selecting a 17-character serial number
+// accurately is a fiddly operation that frequently grabs the label too.
+window.copyValue = async function(text, label){
+  const v=String(text==null?"":text).trim();
+  if(!v) return;
+  let ok=false;
+  try{
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      await navigator.clipboard.writeText(v); ok=true;
+    }
+  }catch(e){}
+  if(!ok){
+    // The clipboard API needs a secure context and a user gesture; neither is
+    // guaranteed inside every installed web view, so fall back rather than
+    // failing silently.
+    try{
+      const ta=document.createElement("textarea");
+      ta.value=v;
+      ta.setAttribute("readonly","");
+      ta.style.cssText="position:fixed;top:-1000px;opacity:0";
+      document.body.appendChild(ta);
+      ta.select(); ta.setSelectionRange(0, v.length);
+      ok=document.execCommand("copy");
+      ta.remove();
+    }catch(e){}
+  }
+  try{ if(ok && navigator.vibrate) navigator.vibrate(20); }catch(e){}
+  toast(ok ? `${label?escapeHtml(label)+": ":""}${v.length>28?v.slice(0,28)+"\u2026":v} copied`
+           : "Could not copy \u2014 select the text and copy manually");
+};
+// A value with a copy affordance beside it. Used for the identifiers that get
+// quoted elsewhere: serials, references, phone numbers.
+function copyable(text, label){
+  const v=String(text==null?"":text).trim();
+  if(!v) return "\u2014";
+  return `<span class="cp-wrap"><span class="sel">${escapeHtml(v)}</span>` +
+    `<button class="cp-btn" onclick="event.stopPropagation();copyValue(${jsArg(v)},${jsArg(label||"")})" ` +
+    `title="Copy" aria-label="Copy ${escapeHtml(label||v)}">` +
+    `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">` +
+    `<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button></span>`;
+}
+Object.assign(window,{copyValue, copyable});

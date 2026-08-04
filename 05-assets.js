@@ -773,7 +773,7 @@ window.exportAssetPDF = async function(){
       <th>Serial</th><th>Device</th><th>Code</th><th>Project</th><th>Code</th><th>Area</th><th>Site</th><th>IP</th><th>Vendor</th><th>Model</th><th>Install</th><th>Warranty</th><th>Stack</th><th>Status</th>
     </tr></thead><tbody>
       ${devices.map(d=>`<tr>
-        <td><strong>${escapeHtml(d.serialNumber||'')}</strong></td>
+        <td><strong>${typeof copyable==="function"?copyable(d.serialNumber,"Serial"):escapeHtml(d.serialNumber||'')}</strong></td>
         <td>${escapeHtml(d.deviceName||'')}</td>
         <td>${escapeHtml(d.deviceCode||'')}</td>
         <td>${escapeHtml(d.project||'')}</td>

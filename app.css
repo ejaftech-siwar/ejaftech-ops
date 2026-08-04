@@ -1152,3 +1152,56 @@ html[dir="ltr"] .gs-row{ text-align:left }
 /* ═══ BRANDING SAVE BAR (v211) ══════════════════════════════════════════ */
 .brand-save{ position:sticky; bottom:8px; z-index:5 }
 .brand-save.dirty{ border:1px solid #FFE082; background:#FFFDF5 }
+
+/* ═══ TEXT SELECTION (v214) ═════════════════════════════════════════════
+   An installed app should behave like an app: a long press on a card should
+   open it, not raise a copy menu, and dragging a list should scroll it rather
+   than paint a blue selection over it. Chrome and Safari both treat a web view
+   as a document by default, which is why Girêk felt like a page.
+
+   But blocking selection everywhere would remove things people genuinely need
+   to copy: a serial number to search for, a document reference to quote in a
+   message, a client's phone number, an error message to send on. So the
+   default is off, and the data worth copying opts back in — which is a better
+   experience than either extreme. */
+body{
+  -webkit-user-select:none; user-select:none;
+  -webkit-touch-callout:none;          /* no iOS copy/share sheet on long press */
+  -webkit-tap-highlight-color:transparent;
+}
+
+/* Anything typed into stays fully selectable — a field you cannot select text
+   in is a field you cannot correct. */
+input, textarea, select, [contenteditable="true"]{
+  -webkit-user-select:text; user-select:text; -webkit-touch-callout:default;
+}
+
+/* Values worth copying. Marked with .sel, plus the places that always hold
+   identifiers rather than prose. */
+.sel, .selectable,
+.gs-t, .pf-hn,                      /* a searched-for record and a profile title */
+code, pre, .mono,
+[data-copyable]{
+  -webkit-user-select:text; user-select:text; -webkit-touch-callout:default;
+  cursor:text;
+}
+
+/* A report preview is a document, and is read as one. */
+.report-preview, .tbl-prev-b, .xl-prev, .pf-body table{
+  -webkit-user-select:text; user-select:text; -webkit-touch-callout:default;
+}
+
+/* On a desktop browser the mouse is precise and selection is not in the way,
+   so nothing is restricted there. This targets touch devices only. */
+@media (hover:hover) and (pointer:fine){
+  body{ -webkit-user-select:auto; user-select:auto; -webkit-touch-callout:default; }
+}
+
+/* ═══ COPY AFFORDANCE (v214) ════════════════════════════════════════════ */
+.cp-wrap{ display:inline-flex; align-items:center; gap:5px; max-width:100% }
+.cp-btn{
+  flex:0 0 auto; background:transparent; border:none; padding:2px 3px;
+  color:var(--muted); cursor:pointer; line-height:0; border-radius:4px;
+  transition:color .14s ease, background .14s ease;
+}
+.cp-btn:active{ color:var(--navy); background:var(--surface-2) }
