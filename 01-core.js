@@ -719,18 +719,22 @@ function paintSyncPill(){
   const el = document.getElementById("syncPill");
   if(!el) return;
   const off = isOffline(), pend = window._syncPending;
+  // The words are wrapped so the healthy state can hide them: "Synced" is the
+  // app repeating that nothing is wrong, and on a phone that space is better
+  // spent on the date. Offline and pending keep their text — those are states
+  // a person needs to read, not infer from a colour.
   if(off){
     el.className = "sync-pill off";
-    el.innerHTML = `<span class="sp-dot"></span>Offline${pend?` · ${pend} queued`:""}`;
-    el.title = "Working offline — everything you enter is saved on this device and uploads automatically when you reconnect.";
+    el.innerHTML = `<span class="sp-dot"></span><span class="sp-label">Offline${pend?` \u00b7 ${pend} queued`:""}</span>`;
+    el.title = "Working offline \u2014 everything you enter is saved on this device and uploads automatically when you reconnect.";
   } else if(pend){
     el.className = "sync-pill busy";
-    el.innerHTML = `<span class="sp-dot"></span>Syncing ${pend}`;
-    el.title = `${pend} change(s) uploading…`;
+    el.innerHTML = `<span class="sp-dot"></span><span class="sp-label">Syncing ${pend}</span>`;
+    el.title = `${pend} change(s) uploading\u2026`;
   } else {
     el.className = "sync-pill ok";
-    el.innerHTML = `<span class="sp-dot"></span>Synced`;
-    el.title = window._syncLastOk ? "Last confirmed "+window._syncLastOk.toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"}) : "Up to date";
+    el.innerHTML = `<span class="sp-dot"></span><span class="sp-label">Synced</span>`;
+    el.title = "Everything is saved to the server.";
   }
 }
 window.paintSyncPill = paintSyncPill;
