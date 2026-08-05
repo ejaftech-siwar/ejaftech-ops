@@ -4561,6 +4561,8 @@ function profileProject(name){
     ${_pfRow("Cost","labour, overtime, travel, material, expenses", curFmt(fin.cost,fin.currency))}
     ${_pfRow("<strong>Margin</strong>","", `<strong style="color:${fin.margin<0?"#C62828":"#2E7D32"}">${curFmt(fin.margin,fin.currency)}</strong>`)}
   </div>`:""}
+  ${typeof evmCard==="function"?evmCard(name):""}
+  ${typeof footprintCard==="function"?footprintCard(name):""}
   ${byPerson.length?`<div class="pf-block">
     <div class="pf-bh">\u{1F465} Who worked on it <span class="pf-count">${byPerson.length}</span></div>
     ${byPerson.slice(0,8).map(([e,h])=>_pfRow(escapeHtml(e),

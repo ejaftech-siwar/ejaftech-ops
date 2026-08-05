@@ -170,7 +170,7 @@ function renderTechClassifications(){
   const cats2     = (state.techCategories||[]).slice().sort((a,b)=>(a.order||0)-(b.order||0));
   const tv = window._techView || "types";
   const systems = (state.systemTypes||[]).slice().sort((a,b)=>(a.order||0)-(b.order||0));
-  let h = _pills('_techView',[{id:"types",ic:"🔧",lb:"Work Types"},{id:"statuses",ic:"📊",lb:"Statuses"},{id:"categories",ic:"📁",lb:"Categories"},{id:"systems",ic:"🧩",lb:"Systems"},{id:"checks",ic:"📋",lb:"Check Lists"},{id:"device",ic:"📱",lb:"This Device"},{id:"brand",ic:"🏷️",lb:"Document Branding"}]);
+  let h = _pills('_techView',[{id:"types",ic:"🔧",lb:"Work Types"},{id:"statuses",ic:"📊",lb:"Statuses"},{id:"categories",ic:"📁",lb:"Categories"},{id:"systems",ic:"🧩",lb:"Systems"},{id:"checks",ic:"📋",lb:"Check Lists"},{id:"device",ic:"📱",lb:"This Device"},{id:"brand",ic:"🏷️",lb:"Document Branding"},{id:"green",ic:"🌱",lb:"Sustainability"}]);
   // ── This Device (v189) ──────────────────────────────────────────────
   // Appearance, notification permission and offline readiness were three
   // separate cards buried in the Profile screen. They share one trait that
@@ -316,6 +316,69 @@ function renderTechClassifications(){
              <button class="btn btn-secondary" onclick="brandDiscard()">Discard</button>
            </div>`
         : `<div style="font-size:12px;color:var(--muted);line-height:1.7">\u2713 Saved. Every report will use the wording shown above.</div>`}
+    </div>`;
+  }
+
+  // ── Sustainability factors (v216) ───────────────────────────────────
+  // Published as editable defaults on purpose. A carbon figure derived from a
+  // factor nobody can see or change would not survive its first challenge, and
+  // a client reporting under a specific scheme needs to use that scheme's
+  // numbers rather than ours.
+  if(tv==="green"){
+    if(!isAdmin()) return h + `<div class="card"><div class="empty">Admin only.</div></div>`;
+    const g=co2Cfg();
+    const N=(k,label,unit,note)=>`<div class="field">
+      <label>${escapeHtml(label)}${unit?` <span style="font-weight:500;color:var(--muted);font-size:10px">${escapeHtml(unit)}</span>`:""}</label>
+      <input value="${escapeHtml(String(g[k]))}" oninput="co2Set(${jsArg(k)},this.value)" inputmode="decimal">
+      ${note?`<div style="font-size:10px;color:var(--muted);margin-top:4px;line-height:1.6">${escapeHtml(note)}</div>`:""}
+    </div>`;
+    return h + `
+    <div class="card" style="background:#F5F8FC;border:1px dashed var(--line)">
+      <div style="font-size:12px;color:var(--muted);line-height:1.75">
+        The environmental footprint is calculated from records the app already holds \u2014 fuel in the expense ledger and in reimbursement claims, and travel days. Nothing has to be entered twice.
+        <br><br>These factors are broad public averages. If you report under a client's own scheme, replace them with that scheme's figures: every number the app prints is derived from what is set here.
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="sec-hdr">\u26FD Fuel</div>
+      <div class="form-grid">
+        <div class="field"><label>Fuel used</label>
+          <select onchange="co2Set('fuelType',this.value)">
+            <option value="diesel" ${g.fuelType==="diesel"?"selected":""}>Diesel</option>
+            <option value="petrol" ${g.fuelType==="petrol"?"selected":""}>Petrol</option>
+          </select></div>
+        ${N("litrePrice","Price per litre", curBase(), "Fuel is recorded as spend, not as volume; this converts one to the other.")}
+        ${N("dieselPerLitre","Diesel", "kg CO\u2082e per litre","")}
+        ${N("petrolPerLitre","Petrol", "kg CO\u2082e per litre","")}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="sec-hdr">\u2708\uFE0F Travel</div>
+      <div class="form-grid">
+        ${N("kmPerTravelDay","Distance per travel day","km","Used where a trip was recorded but no fuel receipt exists.")}
+        ${N("co2PerKm","Vehicle","kg CO\u2082e per km","")}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="sec-hdr">\u{1F441}\uFE0F Across every project</div>
+      ${(function(){
+        const f=footprintFor("");
+        if(!f.totalCo2) return `<div style="font-size:11px;color:var(--muted);line-height:1.7">Nothing to report yet \u2014 no fuel or travel has been recorded.</div>`;
+        return `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:8px">
+          <div style="background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;text-align:center">
+            <div style="font-size:17px;font-weight:800;color:#2E7D32">${f.tonnes}</div>
+            <div style="font-size:10px;color:var(--muted)">tonnes CO\u2082e</div></div>
+          <div style="background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;text-align:center">
+            <div style="font-size:17px;font-weight:800">${f.litres.toLocaleString()}</div>
+            <div style="font-size:10px;color:var(--muted)">litres</div></div>
+          <div style="background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;text-align:center">
+            <div style="font-size:17px;font-weight:800">${f.travelKm.toLocaleString()}</div>
+            <div style="font-size:10px;color:var(--muted)">km</div></div>
+        </div>`;
+      })()}
     </div>`;
   }
 
