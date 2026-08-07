@@ -44,9 +44,21 @@ const ADV_STATUS = {
 // ║  A.  ADVANCES                                                        ║
 // ╚═══════════════════════════════════════════════════════════════════════╝
 function advBlank(){
-  return {employee:"", project:"", date:(typeof todayStr==="function"?todayStr():""),
+  // `projects` is the real field. `project` is kept in step with it as a joined
+  // string purely so that older records, the global search index and every
+  // screen that already prints a.project keep working untouched.
+  return {employee:"", project:"", projects:[], date:(typeof todayStr==="function"?todayStr():""),
           usd:"", iqd:"", purpose:"", ref:"", method:"", notes:""};
 }
+// Older advances stored a single name. Read them as a one-item list so nothing
+// recorded before this version loses its project.
+function advProjectsOf(a){
+  if(!a) return [];
+  if(Array.isArray(a.projects) && a.projects.length) return a.projects.filter(Boolean);
+  const one=String(a.project||"").trim();
+  return one?[one]:[];
+}
+Object.assign(window,{advProjectsOf});
 window._adv     = window._adv     || advBlank();
 window._advId   = window._advId   || null;
 window._advView = window._advView || "list";
@@ -98,11 +110,44 @@ Object.assign(window,{EXR_GROUPS, EXR_STATUS, ADV_STATUS, advBlank, advancesFor,
   advApplied, advOutstanding, advSettledFully, advStatusOf, advOutstandingTotals});
 
 window.advSet   = function(k,v){ window._adv[k]=v; };
-window.advNew   = function(){ window._adv=advBlank(); window._advId=null; window._advView="edit"; render(); };
+window._advProjDraft = window._advProjDraft || "";
+window.advProjDraft  = function(v){ window._advProjDraft=String(v||""); };  // no render \u2014 typing must not rebuild
+function _advProjList(){
+  if(!Array.isArray(window._adv.projects)) window._adv.projects=[];
+  return window._adv.projects;
+}
+window.advProjToggle = function(name){
+  const L=_advProjList(), n=String(name||"").trim();
+  if(!n) return;
+  const i=L.indexOf(n);
+  if(i>=0) L.splice(i,1); else L.push(n);
+  render();
+};
+window.advProjDel = function(i){ _advProjList().splice(i,1); render(); };
+// Free text, for a job that is not on the projects list yet \u2014 a one-off site,
+// or a name the office uses before the project record is created.
+window.advProjAdd = function(){
+  const L=_advProjList();
+  const raw=String(window._advProjDraft||"").trim();
+  if(!raw) return toast("\u26a0 Type a project name first");
+  // Several can be pasted at once, separated by a comma.
+  const parts=raw.split(/[,\u060c]/).map(s=>s.trim()).filter(Boolean);
+  let added=0;
+  parts.forEach(p=>{
+    if(L.some(x=>String(x).toLowerCase()===p.toLowerCase())) return;
+    L.push(p); added++;
+  });
+  window._advProjDraft="";
+  render();
+  toast(added?`${added} project(s) added \u2713`:"Already on this advance");
+};
+window.advNew   = function(){ window._adv=advBlank(); window._advId=null; window._advView="edit"; window._advProjDraft=""; render(); };
 window.advEdit  = function(id){
   const a=(state.advances||[]).find(x=>x.id===id);
   if(!a) return toast("Advance not found");
-  window._adv={...advBlank(), ...a, usd:String(a.usd||""), iqd:String(a.iqd||"")};
+  window._adv={...advBlank(), ...a, projects:advProjectsOf(a),
+               usd:String(a.usd||""), iqd:String(a.iqd||"")};
+  window._advProjDraft="";
   window._advId=id; window._advView="edit"; render();
 };
 window.advCancel=function(){ window._advView="list"; window._advId=null; render(); };
@@ -112,10 +157,16 @@ window.advSave  = async function(){
   if(!String(a.employee||"").trim()) return toast("\u26a0 Who is the advance for?");
   const usd=num(a.usd), iqd=num(a.iqd);
   if(usd<=0 && iqd<=0) return toast("\u26a0 Enter an amount in USD, IQD, or both");
+  const advProjList=Array.from(new Set((a.projects||[])
+    .map(p=>String(p||"").trim()).filter(Boolean)));
   if(!String(a.purpose||"").trim()) return toast("\u26a0 State what the advance is for");
   await fbSave("advances",{
     id: window._advId||undefined,
-    employee:String(a.employee).trim(), project:String(a.project||"").trim(),
+    employee:String(a.employee).trim(),
+    projects: advProjList,
+    // Mirrored so the global search index and every older screen that reads a
+    // plain `project` string keep working without being touched.
+    project: advProjList.join(" \u00b7 "),
     date:a.date||"", usd, iqd,
     purpose:String(a.purpose).trim(), ref:String(a.ref||"").trim(),
     method:String(a.method||"").trim(), notes:String(a.notes||""),
@@ -278,6 +329,26 @@ function exrProjectRowsHTML(t){
 }
 Object.assign(window,{exrProjectRowsHTML});
 
+// A single equivalent figure, for budgeting only. It is fenced off from the
+// settlement deliberately: the two due lines are what actually gets paid, and
+// nothing here may be mistaken for them.
+function exrMemoHTML(r,t){
+  const rate=num(r&&r.rate)||curRate();
+  if(!rate) return "";
+  const eqUSD=t.dueUSD + (t.dueIQD/rate);
+  const eqIQD=t.dueIQD + (t.dueUSD*rate);
+  return `<div style="background:var(--bg);border:1px dashed var(--line);border-radius:8px;padding:9px;margin-top:10px">
+    <div style="font-size:10px;font-weight:800;color:var(--muted);letter-spacing:.4px;margin-bottom:5px">MEMORANDUM ONLY \u00b7 NOT PAYABLE</div>
+    <div style="font-size:11px;line-height:1.8">
+      At <strong>1 USD = ${escapeHtml(String(rate))} IQD</strong>, the whole settlement is worth about
+      <strong>${eqUSD<0?"-":""}$${Math.abs(eqUSD).toLocaleString(undefined,{maximumFractionDigits:2})}</strong>
+      or <strong>${eqIQD<0?"-":""}${Math.abs(Math.round(eqIQD)).toLocaleString()} IQD</strong>.
+    </div>
+    <div style="font-size:10px;color:var(--muted);margin-top:5px;line-height:1.7">A single figure for budgeting only. Payment is made in each currency separately, from the two lines above.</div>
+  </div>`;
+}
+Object.assign(window,{exrMemoHTML});
+
 function exrRefresh(){
   const t=exrTotals(window._exr);
   const set=(id,html)=>{ const e=document.getElementById(id); if(e) e.innerHTML=html; };
@@ -286,6 +357,7 @@ function exrRefresh(){
     set("exrG_"+g.k+"_iqd", t.byGroup[g.k].iqd?t.byGroup[g.k].iqd.toLocaleString():"\u2014");
   });
   set("exrProjBody", exrProjectRowsHTML(t));
+  set("exrMemo", exrMemoHTML(window._exr, t));
   set("exrAdvSumUSD", _usd(t.advUSD));
   set("exrAdvSumIQD", t.advIQD.toLocaleString()+" IQD");
   set("exrSubUSD", "$"+t.subUSD.toLocaleString());
@@ -472,6 +544,10 @@ function renderAdvances(){
 
   if(window._advView==="edit"){
     const a=window._adv;
+    const chosen=advProjectsOf(a);
+    // Names already picked are not repeated in the suggestion row; a typed-in
+    // name that is not a registered project simply stays as a chip.
+    const known=projects.filter(p=>!chosen.includes(p));
     return `<div class="card">
       <div class="sec-hdr" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
         ${window._advId?"Edit advance":"New work advance"}
@@ -481,9 +557,29 @@ function renderAdvances(){
         <div class="field"><label>Employee <span class="req">*</span></label>
           <select onchange="advSet('employee',this.value)"><option value="">\u2014 select \u2014</option>
             ${people.map(p=>`<option ${a.employee===p?"selected":""}>${escapeHtml(p)}</option>`).join("")}</select></div>
-        <div class="field"><label>Project <span style="font-weight:500;color:var(--muted);font-size:10px">\u2014 optional</span></label>
-          <select onchange="advSet('project',this.value)"><option value="">\u2014 none \u2014</option>
-            ${projects.map(p=>`<option ${a.project===p?"selected":""}>${escapeHtml(p)}</option>`).join("")}</select></div>
+        <div class="field" style="grid-column:1/-1"><label>Projects
+          <span style="font-weight:500;color:var(--muted);font-size:10px">\u2014 optional, choose as many as this advance funds</span></label>
+          ${chosen.length?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:7px">
+            ${chosen.map((p,i)=>`<span style="display:inline-flex;align-items:center;gap:6px;background:#03308B;color:#C9A84C;border-radius:16px;padding:6px 8px 6px 11px;font-size:11px;font-weight:700">
+              ${escapeHtml(p)}
+              <button type="button" onclick="advProjDel(${i})" style="background:rgba(255,255,255,.18);color:#fff;border:none;border-radius:50%;width:17px;height:17px;line-height:1;font-size:11px;cursor:pointer;padding:0">\u00d7</button>
+            </span>`).join("")}
+          </div>`:`<div style="font-size:11px;color:var(--muted);margin-bottom:7px;line-height:1.6">No project yet \u2014 the advance is recorded against the employee only.</div>`}
+          ${known.length?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
+            ${known.map(p=>{ const on=chosen.some(x=>x===p);
+              return `<button type="button" onclick="advProjToggle(${jsArg(p)})" style="padding:6px 10px;border-radius:16px;border:1.5px solid ${on?"#03308B":"var(--line)"};background:${on?"#03308B":"var(--card)"};color:${on?"#C9A84C":"var(--navy)"};font-size:11px;font-weight:700;cursor:pointer">${on?"\u2713 ":"+ "}${escapeHtml(p)}</button>`;
+            }).join("")}
+          </div>`:""}
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <input id="advProjInput" value="${escapeHtml(window._advProjDraft||"")}"
+                   oninput="advProjDraft(this.value)"
+                   onkeydown="if(event.key==='Enter'){event.preventDefault();advProjAdd();}"
+                   placeholder="Or type a project name\u2026" style="flex:1;min-width:150px">
+            <button type="button" class="btn btn-sm btn-secondary" onclick="advProjAdd()">+ Add</button>
+          </div>
+          <div style="font-size:10px;color:var(--muted);margin-top:5px;line-height:1.6">
+            Tap a name to add or remove it. Anything not on the list can be typed in \u2014 useful for a site that has no project record yet. Separate several with a comma.
+          </div></div>
         <div class="field"><label>Date</label><input type="date" value="${escapeHtml(a.date||"")}" onchange="advSet('date',this.value)"></div>
         <div class="field"><label>Reference</label><input value="${escapeHtml(a.ref||"")}" oninput="advSet('ref',this.value)" placeholder="Voucher / receipt no."></div>
         <div class="field"><label>Amount USD</label><input value="${escapeHtml(String(a.usd||""))}" oninput="advSet('usd',this.value)" inputmode="decimal" placeholder="0"></div>
@@ -528,7 +624,7 @@ function renderAdvances(){
           <div style="font-weight:800;font-size:13px">${escapeHtml(a.employee||"\u2014")}</div>
           <div style="font-size:10px;color:var(--muted);line-height:1.7">
             ${escapeHtml(a.purpose||"")}<br>
-            ${a.date?escapeHtml(fmtDate(a.date)):"\u2014"}${a.project?" \u00b7 "+escapeHtml(a.project):""}${a.ref?" \u00b7 "+escapeHtml(a.ref):""}
+            ${a.date?escapeHtml(fmtDate(a.date)):"\u2014"}${(()=>{const ps=advProjectsOf(a);return ps.length?" \u00b7 "+ps.map(p=>escapeHtml(p)).join(" \u00b7 "):"";})()}${a.ref?" \u00b7 "+escapeHtml(a.ref):""}
           </div>
         </div>
         <span style="background:${S.bg};color:${S.fg};padding:2px 9px;border-radius:10px;font-size:10px;font-weight:800;white-space:nowrap">${S.lb}</span>
@@ -729,19 +825,7 @@ function renderExpenseClaims(){
         ${_advRow("\u00b7 IQD", `<span id="exrDueIQD"><span style="color:${t.dueIQD<0?"#C62828":"#2E7D32"}">${t.dueIQD<0?"-":""}${Math.abs(t.dueIQD).toLocaleString()} IQD</span></span>`, true)}
       </table>
       <div style="font-size:10px;color:var(--muted);margin-top:8px;line-height:1.7">Each currency is settled against its own advance. A negative figure means the advance exceeded the spend and the balance comes back to the company.</div>
-      ${(num(r.rate)||curRate())?(()=>{
-        const rate=num(r.rate)||curRate();
-        const eqUSD=t.dueUSD + (t.dueIQD/rate);
-        const eqIQD=t.dueIQD + (t.dueUSD*rate);
-        return `<div style="background:var(--bg);border:1px dashed var(--line);border-radius:8px;padding:9px;margin-top:10px">
-          <div style="font-size:10px;font-weight:800;color:var(--muted);letter-spacing:.4px;margin-bottom:5px">MEMORANDUM ONLY \u00b7 NOT PAYABLE</div>
-          <div style="font-size:11px;line-height:1.8">
-            At <strong>1 USD = ${escapeHtml(String(rate))} IQD</strong>, the whole settlement is worth about
-            <strong>${eqUSD<0?"-":""}$${Math.abs(eqUSD).toLocaleString(undefined,{maximumFractionDigits:2})}</strong>
-            or <strong>${eqIQD<0?"-":""}${Math.abs(Math.round(eqIQD)).toLocaleString()} IQD</strong>.
-          </div>
-          <div style="font-size:10px;color:var(--muted);margin-top:5px;line-height:1.7">A single figure for budgeting only. Payment is made in each currency separately, from the two lines above.</div>
-        </div>`;})():""}
+      <div id="exrMemo">${exrMemoHTML(r,t)}</div>
       <div class="form-grid" style="margin-top:10px">
         <div class="field"><label>Completed by</label><input value="${escapeHtml(r.completedBy||"")}" oninput="exrSet('completedBy',this.value)"></div>
         <div class="field"><label>Approved by</label><input value="${escapeHtml(r.approvedBy||"")}" oninput="exrSet('approvedBy',this.value)" placeholder="e.g. General Manager"></div>

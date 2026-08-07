@@ -4275,7 +4275,7 @@ const GS_SOURCES = [
    fields:["ref","employee","department"], title:r=>r.employee, sub:r=>[r.ref,r.date&&fmtDate(r.date)].filter(Boolean).join(" \u00b7 "),
    open:"exrEdit"},
   {key:"advances",   ic:"\u{1F4B3}", lb:"Advance",  tab:"Finance", view:["_finView","advances"],
-   fields:["employee","purpose","ref","project"], title:r=>r.employee, sub:r=>[r.purpose,r.ref].filter(Boolean).join(" \u00b7 "),
+   fields:["employee","purpose","ref","project","projects"], title:r=>r.employee, sub:r=>[r.purpose,r.ref].filter(Boolean).join(" \u00b7 "),
    open:"advEdit"},
   {key:"parts",      ic:"\u{1F527}", lb:"Part",     tab:"Assets", view:["_assetView","parts"],
    fields:["code","name","unit"], title:r=>r.name, sub:r=>r.code},
