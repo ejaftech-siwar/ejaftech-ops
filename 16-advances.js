@@ -149,6 +149,11 @@ function exrLineBlank(){
 function exrBlank(){
   return {employee:"", title:"", department:"", manager:"",
           date:(typeof todayStr==="function"?todayStr():""), periodFrom:"", periodTo:"",
+          // One claim commonly covers several jobs in the same week \u2014 Alwazir on
+          // Monday, Iratrac on Wednesday. `projects` is the declared scope of the
+          // claim; each line still carries the ONE project it actually belongs to,
+          // because a single taxi fare cannot be split across two jobs by guessing.
+          projects:[],
           lines:[exrLineBlank()], advanceIds:[], status:"draft",
           approvedBy:"", completedBy:"", notes:""};
 }
@@ -168,6 +173,26 @@ function exrTotals(r){
       byGroup[g.k].iqd += num(l[g.k+"IQD"]);
     });
   });
+  // Per-project subtotals. USD and IQD are accumulated separately and are
+  // never added together \u2014 the same rule the group totals follow. Lines with
+  // no project fall into a single "Unassigned" bucket rather than being
+  // dropped, so the project rows always add back up to the claim subtotal.
+  const byProject={};
+  lines.forEach(l=>{
+    let u=0, q=0;
+    EXR_GROUPS.forEach(g=>{ u+=num(l[g.k+"USD"]); q+=num(l[g.k+"IQD"]); });
+    if(!u && !q && !String(l.desc||"").trim()) return;
+    const key=String(l.project||"").trim() || "\u2014 Unassigned";
+    if(!byProject[key]) byProject[key]={usd:0, iqd:0, lines:0};
+    byProject[key].usd+=u; byProject[key].iqd+=q; byProject[key].lines++;
+  });
+  const projectRows=Object.keys(byProject).sort((a,b)=>{
+    if(a.startsWith("\u2014")) return 1;
+    if(b.startsWith("\u2014")) return -1;
+    return a.localeCompare(b);
+  }).map(k=>({name:k, usd:+byProject[k].usd.toFixed(2),
+              iqd:Math.round(byProject[k].iqd), lines:byProject[k].lines}));
+
   const subUSD = EXR_GROUPS.reduce((s,g)=>s+byGroup[g.k].usd, 0);
   const subIQD = EXR_GROUPS.reduce((s,g)=>s+byGroup[g.k].iqd, 0);
   const advUSD = ((r&&r.advanceIds)||[]).reduce((s,x)=>s+num(x&&x.usd), 0);
@@ -176,7 +201,7 @@ function exrTotals(r){
   const dueIQD = subIQD - advIQD;
   const filled = lines.filter(l=>String(l.desc||"").trim() ||
     EXR_GROUPS.some(g=>num(l[g.k+"USD"])||num(l[g.k+"IQD"]))).length;
-  return {byGroup, subUSD:+subUSD.toFixed(2), subIQD:Math.round(subIQD),
+  return {byGroup, byProject, projectRows, subUSD:+subUSD.toFixed(2), subIQD:Math.round(subIQD),
           advUSD:+advUSD.toFixed(2), advIQD:Math.round(advIQD),
           dueUSD:+dueUSD.toFixed(2), dueIQD:Math.round(dueIQD),
           lines:lines.length, filled,
@@ -233,6 +258,26 @@ window.exrLineSet = function(i,k,v){
   const l=window._exr.lines[i]; if(!l) return;
   l[k]=v; exrRefresh();
 };
+// The project breakdown as a table body. Built once as a string so the form
+// and the live refresh cannot drift apart into two different layouts.
+function exrProjectRowsHTML(t){
+  const rows=t.projectRows||[];
+  if(!rows.length) return `<tr><td colspan="4" style="padding:8px;font-size:11px;color:var(--muted);line-height:1.7">No expense rows yet.</td></tr>`;
+  const TD='padding:5px 8px;border-bottom:1px solid var(--line);font-size:11px';
+  const body=rows.map(p=>`<tr>
+    <td style="${TD}">${escapeHtml(p.name)}</td>
+    <td style="${TD};text-align:center;color:var(--muted)">${p.lines}</td>
+    <td style="${TD};text-align:right">${p.usd?_usd(p.usd):"\u2014"}</td>
+    <td style="${TD};text-align:right">${p.iqd?p.iqd.toLocaleString():"\u2014"}</td></tr>`).join("");
+  // The check row exists so a reader can see the parts add back to the whole.
+  return body + `<tr>
+    <td style="${TD};font-weight:800">All projects</td>
+    <td style="${TD};text-align:center;color:var(--muted)">${rows.reduce((s,p)=>s+p.lines,0)}</td>
+    <td style="${TD};text-align:right;font-weight:800">${_usd(t.subUSD)}</td>
+    <td style="${TD};text-align:right;font-weight:800">${t.subIQD.toLocaleString()}</td></tr>`;
+}
+Object.assign(window,{exrProjectRowsHTML});
+
 function exrRefresh(){
   const t=exrTotals(window._exr);
   const set=(id,html)=>{ const e=document.getElementById(id); if(e) e.innerHTML=html; };
@@ -240,6 +285,9 @@ function exrRefresh(){
     set("exrG_"+g.k+"_usd", t.byGroup[g.k].usd?("$"+t.byGroup[g.k].usd.toLocaleString()):"\u2014");
     set("exrG_"+g.k+"_iqd", t.byGroup[g.k].iqd?t.byGroup[g.k].iqd.toLocaleString():"\u2014");
   });
+  set("exrProjBody", exrProjectRowsHTML(t));
+  set("exrAdvSumUSD", _usd(t.advUSD));
+  set("exrAdvSumIQD", t.advIQD.toLocaleString()+" IQD");
   set("exrSubUSD", "$"+t.subUSD.toLocaleString());
   set("exrSubIQD", t.subIQD.toLocaleString()+" IQD");
   set("exrAdvUSD", t.advUSD?("- $"+t.advUSD.toLocaleString()):"\u2014");
@@ -259,13 +307,52 @@ window.exrPullAdvances = function(){
   if(!emp) return toast("\u26a0 Choose the employee first");
   const open=advancesFor(emp, true);
   if(!open.length) return toast("No open advances for this person");
-  r.advanceIds = open.map(a=>{
+  if(!Array.isArray(r.advanceIds)) r.advanceIds=[];
+  let added=0;
+  open.forEach(a=>{
+    if(_exrHasAdv(a.id)) return;            // already here, and possibly edited
     const o=advOutstanding(a);
-    return {id:a.id, ref:a.ref||"", date:a.date||"", usd:o.usd, iqd:o.iqd};
-  }).filter(x=>x.usd>0 || x.iqd>0);
+    if(o.usd<=0 && o.iqd<=0) return;
+    r.advanceIds.push({id:a.id, ref:a.ref||a.purpose||"", date:a.date||"", usd:o.usd, iqd:o.iqd});
+    added++;
+  });
   render();
-  toast(`${r.advanceIds.length} open advance(s) applied`);
+  toast(added ? `${added} advance(s) added \u2014 ${r.advanceIds.length} on this claim`
+              : "Every open advance is already on this claim");
 };
+// ── Project scope ──────────────────────────────────────────────────────
+// Ticking a project here does not move any money; it declares which jobs this
+// claim is allowed to charge, so the per-line dropdown can put them first and
+// the settlement can print a subtotal for each one.
+window.exrProjToggle = function(name){
+  const r=window._exr;
+  if(!Array.isArray(r.projects)) r.projects=[];
+  const i=r.projects.indexOf(name);
+  if(i>=0) r.projects.splice(i,1); else r.projects.push(name);
+  render();
+};
+window.exrProjClear = function(){ window._exr.projects=[]; render(); };
+
+// ── Advances: add them one at a time, or all at once ────────────────────
+// The old behaviour REPLACED the whole list on every press, which quietly
+// discarded any amount that had been adjusted by hand. Adding is now additive
+// and refuses duplicates, so pressing the button twice is harmless.
+function _exrHasAdv(id){ return ((window._exr.advanceIds)||[]).some(x=>x&&x.id===id); }
+window._exrHasAdv=_exrHasAdv;
+
+window.exrAddAdvance = function(id){
+  const r=window._exr;
+  if(!Array.isArray(r.advanceIds)) r.advanceIds=[];
+  if(_exrHasAdv(id)) return toast("That advance is already on this claim");
+  const a=(state.advances||[]).find(x=>x.id===id);
+  if(!a) return toast("Advance not found");
+  const o=advOutstanding(a);
+  if(o.usd<=0 && o.iqd<=0) return toast("That advance is already fully settled");
+  r.advanceIds.push({id:a.id, ref:a.ref||a.purpose||"", date:a.date||"", usd:o.usd, iqd:o.iqd});
+  render();
+  toast("Advance added \u2713");
+};
+window.exrPickerToggle = function(){ window._exrPicker=!window._exrPicker; render(); };
 window.exrAdvDel = function(i){ window._exr.advanceIds.splice(i,1); render(); };
 window.exrAdvSet = function(i,k,v){
   const a=window._exr.advanceIds[i]; if(!a) return;
@@ -282,6 +369,7 @@ window.exrEdit = function(id){
   const r=(state.expenseReports||[]).find(x=>x.id===id);
   if(!r) return toast("Report not found");
   window._exr={...exrBlank(), ...r,
+    projects:Array.isArray(r.projects)?r.projects.slice():[],
     lines:(r.lines||[]).map(l=>({...l})),
     advanceIds:(r.advanceIds||[]).map(a=>({...a}))};
   if(!window._exr.lines.length) window._exr.lines=[exrLineBlank()];
@@ -311,6 +399,7 @@ window.exrSave = async function(){
     department:String(r.department||"").trim(), manager:String(r.manager||"").trim(),
     date:r.date||"", periodFrom:r.periodFrom||"", periodTo:r.periodTo||"",
     rate: num(r.rate)||curRate(),
+    projects: Array.from(new Set((r.projects||[]).map(p=>String(p||"").trim()).filter(Boolean))),
     lines:(r.lines||[]).filter(l=>String(l.desc||"").trim() ||
         EXR_GROUPS.some(g=>num(l[g.k+"USD"])||num(l[g.k+"IQD"])))
       .map(l=>{
@@ -466,6 +555,18 @@ function renderExpenseClaims(){
 
   if(window._exrView==="edit"){
     const r=window._exr, t=exrTotals(r);
+    const scope=(r.projects||[]).filter(Boolean);
+    // Projects in scope are listed first so the common choice is the near one;
+    // everything else stays reachable, because a stray expense should be
+    // recordable without first re-declaring the scope.
+    const _projOpts=(cur)=>{
+      const rest=projects.filter(p=>!scope.includes(p));
+      const opt=(p)=>`<option ${String(cur||"")===p?"selected":""}>${escapeHtml(p)}</option>`;
+      return `<option value="">\u2014</option>`
+        + (scope.length?`<optgroup label="In this claim">${scope.map(opt).join("")}</optgroup>`:"")
+        + (rest.length?`<optgroup label="${scope.length?"Other projects":"Projects"}">${rest.map(opt).join("")}</optgroup>`:"")
+        + ((cur && !projects.includes(String(cur)))?`<option selected>${escapeHtml(String(cur))}</option>`:"");
+    };
     const GH=(g)=>`<th colspan="2" style="padding:4px;border:1px solid var(--line);font-size:10px;text-align:center;background:var(--bg)">${g.ic} ${escapeHtml(g.lb)}</th>`;
     return `<div class="card">
       <div class="sec-hdr" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
@@ -483,8 +584,14 @@ function renderExpenseClaims(){
         <div class="field"><label>Date</label><input type="date" value="${escapeHtml(r.date||"")}" onchange="exrSet('date',this.value)"></div>
         <div class="field"><label>Period from</label><input type="date" value="${escapeHtml(r.periodFrom||"")}" onchange="exrSet('periodFrom',this.value)"></div>
         <div class="field"><label>Period to</label><input type="date" value="${escapeHtml(r.periodTo||"")}" onchange="exrSet('periodTo',this.value)"></div>
-        <div class="field"><label>Rate used <span style="font-weight:500;color:var(--muted);font-size:10px">\u2014 only for project costing</span></label>
-          <input value="${escapeHtml(String(r.rate||curRate()||""))}" oninput="exrSet('rate',this.value)" inputmode="decimal"></div>
+        <div class="field"><label>Exchange rate <span style="font-weight:500;color:var(--muted);font-size:10px">\u2014 1 USD = ? IQD</span></label>
+          <input value="${escapeHtml(String(r.rate||curRate()||""))}" oninput="exrSet('rate',this.value);exrRefresh()" inputmode="decimal" placeholder="${escapeHtml(String(curRate()||"e.g. 1320"))}">
+          <div style="font-size:10px;color:var(--muted);margin-top:4px;line-height:1.6">
+            The rate this claim was settled at, stored on the document so it stays true even when the company rate moves later.
+            ${curRate()?`Company rate today is <strong>${escapeHtml(String(curRate()))}</strong> \u2014 <button type="button" onclick="exrSet('rate',String(curRate()));render()" style="background:none;border:none;color:#03308B;font-weight:800;font-size:10px;cursor:pointer;padding:0;text-decoration:underline">use it</button>.`
+                       :`No company rate is set yet \u2014 you can set one under <strong>Finance \u2192 Currency</strong>.`}
+            It charges expenses to each project's own currency. <strong>It never merges the two settlement totals.</strong>
+          </div></div>
         <div class="field" style="grid-column:1/-1"><label>Document number
           <span style="font-weight:500;color:var(--muted);font-size:10px">\u2014 leave blank to let the app issue one</span></label>
           <input value="${escapeHtml(r.ref||"")}" oninput="exrSet('ref',this.value)"
@@ -496,6 +603,25 @@ function renderExpenseClaims(){
           </div>
         </div>
       </div>
+    </div>
+
+    <div class="card">
+      <div class="sec-hdr" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">Projects covered
+        <span style="font-size:10px;color:var(--muted);font-weight:500">(${scope.length} selected)</span>
+        ${scope.length?`<button class="btn btn-sm btn-secondary" style="margin-left:auto" onclick="exrProjClear()">Clear</button>`:""}</div>
+      <p style="font-size:11px;color:var(--muted);line-height:1.7;margin-bottom:9px">
+        One claim may cover several jobs. Tick every project this claim touches \u2014 they move to the top of the
+        project box on each row, and the settlement prints a subtotal for each of them.
+      </p>
+      ${!projects.length?`<div style="font-size:11px;color:#E65100;line-height:1.7">No projects on file yet. Add them under <strong>Database \u2192 Projects</strong>.</div>`
+      :`<div style="display:flex;gap:6px;flex-wrap:wrap">
+        ${projects.map(p=>{ const on=scope.includes(p);
+          return `<button onclick="exrProjToggle(${jsArg(p)})" style="padding:7px 11px;border-radius:16px;border:1.5px solid ${on?"#03308B":"var(--line)"};background:${on?"#03308B":"var(--card)"};color:${on?"#C9A84C":"var(--navy)"};font-size:11px;font-weight:700;cursor:pointer">${on?"\u2713 ":""}${escapeHtml(p)}</button>`;
+        }).join("")}
+      </div>`}
+      ${scope.length?`<div style="font-size:10px;color:var(--muted);margin-top:9px;line-height:1.7">
+        Each expense row still belongs to exactly one project \u2014 a single taxi fare cannot be split between two jobs by guessing.
+      </div>`:""}
     </div>
 
     <div class="card" style="overflow-x:auto">
@@ -515,7 +641,7 @@ function renderExpenseClaims(){
           <td style="padding:2px;border:1px solid var(--line)"><input value="${escapeHtml(l.desc||"")}" oninput="exrLineSet(${i},'desc',this.value)" style="width:100%;font-size:11px;padding:5px" placeholder="Erbil office \u2192 Basra site"></td>
           <td style="padding:2px;border:1px solid var(--line)"><input value="${escapeHtml(l.invoiceNo||"")}" oninput="exrLineSet(${i},'invoiceNo',this.value)" style="width:100%;font-size:11px;padding:5px"></td>
           <td style="padding:2px;border:1px solid var(--line)"><select onchange="exrLineSet(${i},'project',this.value)" style="width:100%;font-size:11px;padding:5px">
-            <option value="">\u2014</option>${projects.map(p=>`<option ${l.project===p?"selected":""}>${escapeHtml(p)}</option>`).join("")}</select></td>
+            ${_projOpts(l.project)}</select></td>
           ${EXR_GROUPS.map(g=>`
             <td style="padding:2px;border:1px solid var(--line)"><input value="${escapeHtml(String(l[g.k+"USD"]||""))}" oninput="exrLineSet(${i},'${g.k}USD',this.value)" inputmode="decimal" style="width:100%;font-size:11px;padding:5px;text-align:right"></td>
             <td style="padding:2px;border:1px solid var(--line)"><input value="${escapeHtml(String(l[g.k+"IQD"]||""))}" oninput="exrLineSet(${i},'${g.k}IQD',this.value)" inputmode="decimal" style="width:100%;font-size:11px;padding:5px;text-align:right"></td>`).join("")}
@@ -533,8 +659,29 @@ function renderExpenseClaims(){
 
     <div class="card">
       <div class="sec-hdr" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">Advances applied
-        <button class="btn btn-sm btn-secondary" style="margin-left:auto" onclick="exrPullAdvances()">\u{1F4E5} Pull open advances</button></div>
-      ${!(r.advanceIds||[]).length?`<div style="font-size:11px;color:var(--muted);line-height:1.7">No advance applied \u2014 the whole claim will be reimbursed. Use the button above to bring in what this person is already holding.</div>`
+        <span style="font-size:10px;color:var(--muted);font-weight:500">(${(r.advanceIds||[]).length} on this claim)</span>
+        <button class="btn btn-sm btn-secondary" style="margin-left:auto" onclick="exrPickerToggle()">${window._exrPicker?"Close list":"\u2795 Choose advances"}</button>
+        <button class="btn btn-sm btn-secondary" onclick="exrPullAdvances()">\u{1F4E5} Add all open</button></div>
+
+      ${window._exrPicker?(()=>{
+        const emp=String(r.employee||"").trim();
+        if(!emp) return `<div style="font-size:11px;color:#E65100;line-height:1.7;padding:8px 0">Choose the employee first \u2014 the list shows only what that person is holding.</div>`;
+        const open=advancesFor(emp, true).filter(a=>{ const o=advOutstanding(a); return o.usd>0||o.iqd>0; });
+        if(!open.length) return `<div style="font-size:11px;color:var(--muted);line-height:1.7;padding:8px 0">${escapeHtml(emp)} has no advance still outstanding.</div>`;
+        return `<div style="background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:9px;margin-bottom:10px">
+          <div style="font-size:10px;color:var(--muted);line-height:1.7;margin-bottom:7px">Every advance ${escapeHtml(emp)} still holds. Add as many as this claim settles \u2014 the amounts are summed automatically.</div>
+          ${open.map(a=>{ const o=advOutstanding(a), on=_exrHasAdv(a.id);
+            return `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:6px 0;border-top:1px solid var(--line)">
+              <div style="flex:1;min-width:140px;font-size:11px;line-height:1.6">
+                <strong>${escapeHtml(a.ref||a.purpose||"Advance")}</strong>
+                <div style="color:var(--muted);font-size:10px">${a.date?escapeHtml(fmtDate(a.date)):"\u2014"}${a.project?" \u00b7 "+escapeHtml(a.project):""} \u00b7 outstanding ${o.usd>0?_usd(o.usd):""}${o.usd>0&&o.iqd>0?" + ":""}${o.iqd>0?_iqd(o.iqd):""}</div>
+              </div>
+              ${on?`<span style="font-size:10px;font-weight:800;color:#2E7D32;white-space:nowrap">\u2713 Added</span>`
+                 :`<button class="btn btn-sm btn-primary" onclick="exrAddAdvance('${a.id}')">Add</button>`}
+            </div>`;}).join("")}
+        </div>`;})():""}
+
+      ${!(r.advanceIds||[]).length?`<div style="font-size:11px;color:var(--muted);line-height:1.7">No advance applied \u2014 the whole claim will be reimbursed. Use the buttons above to bring in what this person is already holding.</div>`
       :(r.advanceIds||[]).map((a,i)=>`<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:6px 0;border-bottom:1px solid var(--line)">
         <div style="flex:1;min-width:120px;font-size:11px">
           <strong>${escapeHtml(a.ref||"Advance")}</strong>
@@ -543,6 +690,31 @@ function renderExpenseClaims(){
         <input value="${escapeHtml(String(a.iqd||""))}" oninput="exrAdvSet(${i},'iqd',this.value)" inputmode="decimal" placeholder="IQD" style="width:110px;text-align:right">
         <button class="btn btn-sm" style="background:#FDECEA;color:#C62828;border:none" onclick="exrAdvDel(${i})">\u00d7</button>
       </div>`).join("")}
+      ${(r.advanceIds||[]).length?`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:9px 0 0;font-size:11px;font-weight:800">
+        <span style="flex:1;min-width:120px">Total advances \u00b7 ${(r.advanceIds||[]).length} applied</span>
+        <span id="exrAdvSumUSD" style="width:90px;text-align:right">${_usd(t.advUSD)}</span>
+        <span id="exrAdvSumIQD" style="width:110px;text-align:right">${t.advIQD.toLocaleString()} IQD</span>
+        <span style="width:26px"></span>
+      </div>
+      <div style="font-size:10px;color:var(--muted);margin-top:6px;line-height:1.7">Each currency is summed on its own. Reduce an amount if this claim only settles part of an advance \u2014 the remainder stays outstanding against the employee.</div>`:""}
+    </div>
+
+    <div class="card">
+      <div class="sec-hdr">By project</div>
+      <p style="font-size:11px;color:var(--muted);line-height:1.7;margin-bottom:9px">
+        Every row totalled against the job it belongs to. The two currencies are kept in separate columns
+        and are never added together; the last line is the whole claim, so the parts can be checked against it.
+      </p>
+      <table style="border-collapse:collapse;width:100%">
+        <thead><tr>
+          <th style="padding:5px 8px;border-bottom:2px solid var(--line);font-size:10px;text-align:left;color:var(--muted)">Project</th>
+          <th style="padding:5px 8px;border-bottom:2px solid var(--line);font-size:10px;text-align:center;color:var(--muted)">Rows</th>
+          <th style="padding:5px 8px;border-bottom:2px solid var(--line);font-size:10px;text-align:right;color:var(--muted)">USD</th>
+          <th style="padding:5px 8px;border-bottom:2px solid var(--line);font-size:10px;text-align:right;color:var(--muted)">IQD</th>
+        </tr></thead>
+        <tbody id="exrProjBody">${exrProjectRowsHTML(t)}</tbody>
+      </table>
+      ${(t.projectRows||[]).some(p=>String(p.name).startsWith("\u2014"))?`<div style="font-size:10px;color:#E65100;margin-top:8px;line-height:1.7">Some rows carry no project. They are still counted in the claim total, but they cannot be charged to a job until one is chosen.</div>`:""}
     </div>
 
     <div class="card">
@@ -557,6 +729,19 @@ function renderExpenseClaims(){
         ${_advRow("\u00b7 IQD", `<span id="exrDueIQD"><span style="color:${t.dueIQD<0?"#C62828":"#2E7D32"}">${t.dueIQD<0?"-":""}${Math.abs(t.dueIQD).toLocaleString()} IQD</span></span>`, true)}
       </table>
       <div style="font-size:10px;color:var(--muted);margin-top:8px;line-height:1.7">Each currency is settled against its own advance. A negative figure means the advance exceeded the spend and the balance comes back to the company.</div>
+      ${(num(r.rate)||curRate())?(()=>{
+        const rate=num(r.rate)||curRate();
+        const eqUSD=t.dueUSD + (t.dueIQD/rate);
+        const eqIQD=t.dueIQD + (t.dueUSD*rate);
+        return `<div style="background:var(--bg);border:1px dashed var(--line);border-radius:8px;padding:9px;margin-top:10px">
+          <div style="font-size:10px;font-weight:800;color:var(--muted);letter-spacing:.4px;margin-bottom:5px">MEMORANDUM ONLY \u00b7 NOT PAYABLE</div>
+          <div style="font-size:11px;line-height:1.8">
+            At <strong>1 USD = ${escapeHtml(String(rate))} IQD</strong>, the whole settlement is worth about
+            <strong>${eqUSD<0?"-":""}$${Math.abs(eqUSD).toLocaleString(undefined,{maximumFractionDigits:2})}</strong>
+            or <strong>${eqIQD<0?"-":""}${Math.abs(Math.round(eqIQD)).toLocaleString()} IQD</strong>.
+          </div>
+          <div style="font-size:10px;color:var(--muted);margin-top:5px;line-height:1.7">A single figure for budgeting only. Payment is made in each currency separately, from the two lines above.</div>
+        </div>`;})():""}
       <div class="form-grid" style="margin-top:10px">
         <div class="field"><label>Completed by</label><input value="${escapeHtml(r.completedBy||"")}" oninput="exrSet('completedBy',this.value)"></div>
         <div class="field"><label>Approved by</label><input value="${escapeHtml(r.approvedBy||"")}" oninput="exrSet('approvedBy',this.value)" placeholder="e.g. General Manager"></div>
@@ -593,6 +778,10 @@ function renderExpenseClaims(){
             ${r.ref?escapeHtml(r.ref)+" \u00b7 ":""}${r.date?escapeHtml(fmtDate(r.date)):"\u2014"}
             ${(r.periodFrom||r.periodTo)?`<br>${r.periodFrom?escapeHtml(fmtDate(r.periodFrom)):""} \u2192 ${r.periodTo?escapeHtml(fmtDate(r.periodTo)):""}`:""}
             ${r.department?" \u00b7 "+escapeHtml(r.department):""}
+            ${(()=>{ const ps=(t.projectRows||[]).filter(p=>!String(p.name).startsWith("\u2014"));
+                     if(!ps.length) return "";
+                     return `<br><span style="color:#03308B;font-weight:700">${ps.map(p=>escapeHtml(p.name)).join(" \u00b7 ")}</span>`; })()}
+            ${(r.advanceIds||[]).length?`<br>${(r.advanceIds||[]).length} advance(s) applied`:""}
           </div>
         </div>
         <span style="background:${S.bg};color:${S.fg};padding:2px 9px;border-radius:10px;font-size:10px;font-weight:800;white-space:nowrap">${S.ic} ${S.lb}</span>
@@ -637,8 +826,14 @@ window.expenseClaimDoc = async function(id){
   const lines=(r.lines||[]).filter(l=>String(l.desc||"").trim() ||
     EXR_GROUPS.some(g=>num(l[g.k+"USD"])||num(l[g.k+"IQD"])));
 
+  // Counted section numbers: a new section can be inserted without renumbering
+  // every heading below it by hand.
+  const K=(()=>{let n=0;return()=>String(++n).padStart(2,"0");})();
+  const scope=(r.projects||[]).filter(Boolean);
+  const pr=t.projectRows||[];
+
   const body=`
-  <div class="ksec"><span class="kbad">01</span><h3>Claim Particulars</h3></div>
+  <div class="ksec"><span class="kbad">${K()}</span><h3>Claim Particulars</h3></div>
   <table style="border-collapse:collapse;width:100%">
     ${R("Employee name", escapeHtml(r.employee||"\u2014"))}
     ${r.title?R("Title", escapeHtml(r.title)):""}
@@ -647,9 +842,11 @@ window.expenseClaimDoc = async function(id){
     ${R("Date", r.date?escapeHtml(fmtDate(r.date)):"\u2014")}
     ${R("Period", escapeHtml(period))}
     ${R("Status", escapeHtml((EXR_STATUS[r.status||"draft"]||{lb:"Draft"}).lb))}
+    ${scope.length?R("Projects covered", scope.map(p=>escapeHtml(p)).join(" \u00b7 ")):""}
+    ${(num(r.rate))?R("Exchange rate applied", "1 USD = "+escapeHtml(String(num(r.rate)))+" IQD"):""}
   </table>
 
-  <div class="ksec" style="page-break-inside:avoid"><span class="kbad">02</span><h3>Local Transportation &amp; Expenses</h3></div>
+  <div class="ksec" style="page-break-inside:avoid"><span class="kbad">${K()}</span><h3>Local Transportation &amp; Expenses</h3></div>
   <table style="border-collapse:collapse;width:100%">
     <thead>
       <tr>
@@ -682,7 +879,32 @@ window.expenseClaimDoc = async function(id){
     Each currency is totalled from its own columns only; US dollar and Iraqi dinar amounts are never combined into a single figure.
   </div>
 
-  <div class="ksec" style="page-break-inside:avoid"><span class="kbad">03</span><h3>Settlement</h3></div>
+  ${pr.length?`<div class="ksec" style="page-break-inside:avoid"><span class="kbad">${K()}</span><h3>Cost by Project</h3></div>
+  <table style="border-collapse:collapse;width:100%">
+    <thead><tr>
+      <th style="${TH};text-align:left">Project</th>
+      <th style="${TH};width:52px">Rows</th>
+      <th style="${TH};width:88px;text-align:right">USD</th>
+      <th style="${TH};width:100px;text-align:right">IQD</th>
+    </tr></thead>
+    <tbody>${pr.map(p=>`<tr>
+      <td style="${TD}">${escapeHtml(p.name)}</td>
+      <td style="${TD};text-align:center">${p.lines}</td>
+      <td style="${NUM}">${p.usd?escapeHtml(p.usd.toLocaleString()):"\u2014"}</td>
+      <td style="${NUM}">${p.iqd?escapeHtml(p.iqd.toLocaleString()):"\u2014"}</td>
+    </tr>`).join("")}
+    <tr>
+      <td style="${TD};font-weight:800;background:#F5F8FC">All projects</td>
+      <td style="${TD};text-align:center;font-weight:800;background:#F5F8FC">${pr.reduce((s,p)=>s+p.lines,0)}</td>
+      <td style="${NUM};font-weight:800;background:#F5F8FC">${escapeHtml(t.subUSD.toLocaleString())}</td>
+      <td style="${NUM};font-weight:800;background:#F5F8FC">${escapeHtml(t.subIQD.toLocaleString())}</td>
+    </tr></tbody>
+  </table>
+  <div style="margin-top:6px;font-size:9px;font-style:italic;color:#555;line-height:1.6">
+    Each project is totalled in both currencies side by side. The final line restates the whole claim, so the project figures can be checked against it.
+  </div>`:""}
+
+  <div class="ksec" style="page-break-inside:avoid"><span class="kbad">${K()}</span><h3>Settlement</h3></div>
   <table style="border-collapse:collapse;width:100%">
     ${R("Subtotal \u00b7 USD", "$"+t.subUSD.toLocaleString(), true)}
     ${R("Subtotal \u00b7 IQD", t.subIQD.toLocaleString()+" IQD", true)}
@@ -707,7 +929,7 @@ window.expenseClaimDoc = async function(id){
   ${r.notes?`<div style="margin-top:10px"><div style="font-weight:800;font-size:11px;color:#03308B;margin-bottom:4px">Notes</div>
     <div style="font-size:10.5px;line-height:1.8;white-space:pre-wrap">${escapeHtml(r.notes)}</div></div>`:""}
 
-  <div class="ksec" style="page-break-inside:avoid"><span class="kbad">04</span><h3>Authorisation</h3></div>
+  <div class="ksec" style="page-break-inside:avoid"><span class="kbad">${K()}</span><h3>Authorisation</h3></div>
   <p style="font-size:10.5px;line-height:1.8">
     The expenses listed above were incurred on company business during the period stated, and the supporting invoices have been submitted with this claim.
   </p>
@@ -746,6 +968,8 @@ window.expenseClaimExcel = function(id){
     A.push(["Date",          r.date||"", "", "Period",
             (r.periodFrom||r.periodTo) ? `${r.periodFrom||""} \u2192 ${r.periodTo||""}` : ""]);
     A.push(["Status", (EXR_STATUS[r.status||"draft"]||{lb:"Draft"}).lb]);
+    if((r.projects||[]).length) A.push(["Projects covered", (r.projects||[]).join(" \u00b7 ")]);
+    if(num(r.rate)) A.push(["Exchange rate", "1 USD = "+num(r.rate)+" IQD", "", "(project costing only \u2014 the two settlement totals are never merged)"]);
     A.push([]);
 
     // Two header rows, mirroring the merged group headings of the paper form.
@@ -790,6 +1014,49 @@ window.expenseClaimExcel = function(id){
             "","","", {f:`E${SUB_USD}-E${ADV_USD}`}]);
     A.push([t.owedByEmployee?"TO BE RETURNED BY THE EMPLOYEE \u00b7 IQD":"TOTAL REIMBURSEMENT DUE \u00b7 IQD",
             "","","", {f:`E${SUB_IQD}-E${ADV_IQD}`}]);
+    // ── Cost by project, as live formulas ──────────────────────────────
+    // The project column is D. Each currency is summed across its own four
+    // group columns only, so a dollar figure can never reach a dinar total.
+    if(lines.length){
+      const names=[];
+      lines.forEach(l=>{ const k=String(l.project||"").trim()||"\u2014 Unassigned";
+                         if(!names.includes(k)) names.push(k); });
+      const named=names.filter(n=>!n.startsWith("\u2014")).sort((a,b)=>a.localeCompare(b));
+      const hasUnassigned=names.some(n=>n.startsWith("\u2014"));
+      A.push([]);
+      A.push(["Cost by project"]);
+      A.push(["Project","Rows","USD","IQD"]);
+      const PFIRST=A.length+1;
+      named.forEach(nm=>{
+        const crit=`"${String(nm).replace(/"/g,'""')}"`;
+        const sums=(off)=>EXR_GROUPS.map((_,gi)=>
+          `SUMIF($D$${FIRST}:$D$${LAST},${crit},${col(4+gi*2+off)}$${FIRST}:${col(4+gi*2+off)}$${LAST})`).join("+");
+        A.push([nm,
+                {f:`COUNTIF($D$${FIRST}:$D$${LAST},${crit})`},
+                {f:sums(0)},
+                {f:sums(1)}]);
+      });
+      const NLAST=A.length;                 // last named-project row
+      if(hasUnassigned){
+        // Remainder, so the parts always reconcile with the whole.
+        const nb=named.length?`-SUM(B${PFIRST}:B${NLAST})`:"";
+        const nc=named.length?`-SUM(C${PFIRST}:C${NLAST})`:"";
+        const nd=named.length?`-SUM(D${PFIRST}:D${NLAST})`:"";
+        const usdCellsT=EXR_GROUPS.map((_,gi)=>`${col(4+gi*2)}${TOT}`).join(",");
+        const iqdCellsT=EXR_GROUPS.map((_,gi)=>`${col(5+gi*2)}${TOT}`).join(",");
+        A.push(["\u2014 Unassigned",
+                {f:`${lines.length}${nb}`},
+                {f:`SUM(${usdCellsT})${nc}`},
+                {f:`SUM(${iqdCellsT})${nd}`}]);
+      }
+      const PLAST=A.length;
+      A.push(["All projects",
+              {f:`SUM(B${PFIRST}:B${PLAST})`},
+              {f:`SUM(C${PFIRST}:C${PLAST})`},
+              {f:`SUM(D${PFIRST}:D${PLAST})`}]);
+      A.push(["These project rows re-total themselves from the table above, and must add back to the claim subtotals."]);
+    }
+
     A.push([]);
     A.push(["US dollar and Iraqi dinar amounts are totalled separately and are never combined."]);
 

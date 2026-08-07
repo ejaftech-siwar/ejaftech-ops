@@ -1002,15 +1002,20 @@ function renderVariations(){
 
 function renderFinance(){
   if(!(isAdmin()||hasCap("canAnalytics"))) return `<div class="card"><div class="empty">No access.</div></div>`;
-  let h=_pills('_finView',[{id:"pl",ic:"\u{1F4CA}",lb:"P&L"},{id:"invoices",ic:"\u{1F9FE}",lb:"Invoices"},{id:"expenses",ic:"\u{1F4B8}",lb:"Expenses"},{id:"advances",ic:"\u{1F4B3}",lb:"Advances"},{id:"claims",ic:"\u{1F9FE}",lb:"Expense Reports"},
-                           {id:"report",ic:"\u{1F9FE}",lb:"Cost Report"},{id:"quotes",ic:"\u{1F4B0}",lb:"Quotations"},
+  let h=_pills('_finView',[{id:"pl",ic:"\u{1F4CA}",lb:"P&L"},{id:"invoices",ic:"\u{1F9FE}",lb:"Invoices"},{id:"expenses",ic:"\u{1F4B8}",lb:"Expenses"},{id:"advances",ic:"\u{1F4B3}",lb:"Advances"},{id:"quotes",ic:"\u{1F4B0}",lb:"Quotations"},
                            {id:"variations",ic:"\u{1F501}",lb:"Variations"},{id:"currency",ic:"\u{1F4B1}",lb:"Currency"}]);
+  // These two screens moved to Reports \u2192 Finance Report (v217). A saved
+  // _finView from before the move would silently land on the P&L, so it is
+  // redirected instead of ignored.
+  if(window._finView==="claims" || window._finView==="report"){
+    window._finRepView = window._finView==="report" ? "cost" : "claims";
+    window._finView = "pl";
+    if(typeof switchTab==="function"){ setTimeout(()=>switchTab("Finance Report"), 0); }
+  }
   const v=window._finView||"pl";
   if(v==="invoices")   return h + renderInvoices();
   if(v==="expenses")   return h + renderExpenses();
   if(v==="advances")   return h + renderAdvances();
-  if(v==="claims")     return h + renderExpenseClaims();
-  if(v==="report")     return h + renderCostReport();
   if(v==="quotes")     return h + renderQuotes();
   if(v==="variations") return h + renderVariations();
   if(v==="currency")   return h + renderCurrency();
@@ -1051,6 +1056,22 @@ function renderFinance(){
   ${all.map(f=>projectFinanceCard(f.project.name)+(typeof projectBillingCard==="function"?projectBillingCard(f.project.name):"")).join("")}`;
 }
 Object.assign(window,{renderFinance, renderQuotes, renderVariations});
+
+// ═══ FINANCE REPORT (v217) ═══════════════════════════════════════════════
+// Expense Reports and the Cost Report are not day-to-day finance entry the way
+// invoices and advances are \u2014 they are documents that get produced, signed and
+// filed. That is what the Reports tab is for, so they now live there. The data,
+// the numbering and every calculation are untouched; only the doorway moved.
+function renderFinanceReport(){
+  if(!(isAdmin()||hasCap("canAnalytics")||isEmployee()))
+    return `<div class="card"><div class="empty">No access.</div></div>`;
+  const h=_pills('_finRepView',[{id:"claims",ic:"\u{1F9FE}",lb:"Expense Reports"},
+                                {id:"cost",  ic:"\u{1F4CA}",lb:"Cost Report"}]);
+  const v=window._finRepView||"claims";
+  if(v==="cost") return h + renderCostReport();
+  return h + renderExpenseClaims();
+}
+Object.assign(window,{renderFinanceReport});
 
 // ── Quotation PDF ────────────────────────────────────────────────────────
 window.quotePDF = async function(id){
