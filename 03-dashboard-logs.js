@@ -166,12 +166,13 @@ function _dailySeries(rows,field,r){
 // ── 1 · extra signals for the attention strip ─────────────────────────
 function dashAlerts(){
   const out=[];
-  try{   // critical / high incidents still open
+  const _ops = (typeof canSeeOpsAlerts==="function") ? canSeeOpsAlerts() : true;
+  if(_ops) try{   // critical / high incidents still open
     const crit=(state.incidents||[]).filter(i=>!["Resolved","Closed"].includes(i.status||"Open")
       && ["Critical","High"].includes(i.severity||""));
     if(crit.length) out.push({ic:"🚨",t:`${crit.length} critical incident${crit.length>1?"s":""} open`,m:"High or critical severity",go:"Incidents",c:"#C62828"});
   }catch(e){}
-  try{   // work items nobody has touched for a fortnight
+  if(_ops) try{   // work items nobody has touched for a fortnight
     if(typeof buildWorkItems==="function"){
       const cut=new Date(appNow()); cut.setDate(cut.getDate()-14);
       const C=`${cut.getFullYear()}-${String(cut.getMonth()+1).padStart(2,"0")}-${String(cut.getDate()).padStart(2,"0")}`;

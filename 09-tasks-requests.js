@@ -340,6 +340,18 @@ window.toggleViewReports=async function(userId){
   }catch(e){ toast("Failed: "+e.message); }
 };
 
+// ── Admin: show/hide operational alerts on an employee's dashboard ──
+window.toggleOpsAlerts=async function(userId){
+  if(!isAdmin()) return toast("Admin only");
+  const u=(state.users||[]).find(x=>x.id===userId); if(!u) return;
+  const nv=!u.canOpsAlerts;
+  try{
+    const{db,doc,updateDoc}=window.__fb;
+    await updateDoc(doc(db,"users",userId),{canOpsAlerts:nv});
+    toast(nv?"✓ Ops alerts now shown for this employee":"Ops alerts hidden for this employee");
+  }catch(e){ toast("Failed: "+e.message); }
+};
+
 // ── My Tasks tab ──
 function _taskCard(t, mineView){
   return `<div class="card" style="border-left:4px solid ${t.status==="confirmed"?"#2E7D32":"#C9A84C"};padding:12px 14px">

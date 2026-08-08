@@ -177,68 +177,7 @@ function renderTechClassifications(){
   // nothing else in Settings shares: every one of them is a property of THE
   // PHONE IN YOUR HAND, not of the account or the company. Grouping them says
   // so, and explains why changing them affects nobody else.
-  if(tv==="device"){
-    const _sn = (typeof sysNotifsOn==="function") ? sysNotifsOn()
-              : (typeof Notification!=="undefined" && Notification.permission==="granted");
-    return h + `
-    <div class="card">
-      <div class="sec-hdr">\u{1F504} App version</div>
-      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-        <span style="font-size:13px;font-weight:800;color:var(--navy)">${typeof runningVersion==="function"?escapeHtml(runningVersion()):"\u2014"}</span>
-        <button class="btn btn-sm btn-primary" style="margin-left:auto" onclick="forceUpdate()">Update now</button>
-      </div>
-      <div style="font-size:10px;color:var(--muted);margin-top:8px;line-height:1.7">
-        Use this whenever the update banner does not appear. It clears the cached program files and reloads, so it works even when the automatic check has failed. Your records are stored separately and are never touched.
-      </div>
-    </div>
-
-    <div class="card" style="background:#F5F8FC;border:1px dashed var(--line)">
-      <div style="font-size:12px;color:var(--muted);line-height:1.7">
-        Everything on this tab applies to <strong>this device only</strong>. It is stored on the phone or computer you are using, not on your account, so changing it here affects nobody else and does not follow you to another device.
-      </div>
-    </div>
-  <div class="card">
-    <div class="sec-hdr">\u{1F3A8} Appearance</div>
-    <p style="font-size:11px;color:var(--muted);line-height:1.7;margin-bottom:10px">
-      The navy and gold of the brand never change \u2014 these change the surface they sit on.
-      Saved on this device, because glare depends on where you are standing.
-    </p>
-    <div style="display:flex;gap:8px;flex-wrap:wrap">
-      ${PALETTES.map(p=>{const on=currentPalette()===p.id;
-        return `<button onclick="setPalette('${p.id}')" title="${escapeHtml(p.note)}"
-          style="flex:1;min-width:98px;text-align:right;background:${p.sw};border:${on?"2px solid var(--navy)":"1px solid var(--line)"};
-                 border-radius:var(--r-md);padding:10px;cursor:pointer">
-          <div style="display:flex;gap:5px;margin-bottom:6px">
-            <span style="width:16px;height:16px;border-radius:4px;background:#1B3A6B"></span>
-            <span style="width:16px;height:16px;border-radius:4px;background:#C9A84C"></span>
-            <span style="width:16px;height:16px;border-radius:4px;background:#fff;border:1px solid rgba(0,0,0,.12)"></span>
-          </div>
-          <div style="font-size:11px;font-weight:800;color:#1A1A2E">${on?"\u2713 ":""}${escapeHtml(p.lb)}</div>
-          <div style="font-size:9px;color:#6B7B8F;line-height:1.5;margin-top:2px">${escapeHtml(p.note)}</div>
-        </button>`;}).join("")}
-    </div>
-    <div style="display:flex;align-items:center;gap:8px;margin-top:12px;padding-top:10px;border-top:1px solid var(--line);flex-wrap:wrap">
-      <span style="font-size:11px;color:var(--muted)">Night shift?</span>
-      <button class="btn btn-sm btn-secondary" onclick="toggleTheme();render()">\u{1F319} Toggle dark mode</button>
-      <span style="font-size:10px;color:var(--muted)">Dark overrides the palette while it is on.</span>
-    </div>
-  </div>
-  ${isAdmin()?(()=>{ const src=(window.__fb&&window.__fb.sdkSource)||"unknown";
-    const ok = src==="bundled" || src==="mirror";
-    return `<div class="card" style="border-left:4px solid ${ok?'var(--ok)':'var(--warn)'}">
-      <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:var(--f-sm);padding:2px 8px;border-radius:var(--r-md);font-weight:800">📡</span> Offline readiness</div>
-      <p style="font-size:var(--f-md);color:var(--muted);margin:8px 0 0;line-height:1.65">Engine loaded via <strong style="color:${ok?'var(--ok)':'var(--warn)'}">${escapeHtml(src)}</strong>.<br>${
-        src==="bundled" ? "✅ Guaranteed — the engine ships with the app, so it starts with no signal at all."
-        : src==="mirror" ? "✅ Cached on this device — offline launch should work."
-        : "⚠️ Loaded straight from the internet, so a cold start with no signal will fail. Put the three Firebase SDK files in a <strong>sdk/</strong> folder beside index.html to fix this permanently."}</p>
-    </div>`; })():""}
-  <div class="card" style="border-left:4px solid ${_sn?'#2E7D32':'#C9A84C'}">
-    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">05</span> 🔔 Device Notifications ${_sn?'<span style="font-size:10px;background:#E8F5E9;color:#2E7D32;padding:2px 8px;border-radius:8px;font-weight:800">ON</span>':''}</div>
-    <p style="font-size:12px;color:var(--muted);margin:8px 0 12px">Task assignments & alerts appear in your phone's notification tray with sound — while the app is open or in the background.</p>
-    ${_sn?`<button class="btn btn-secondary" onclick="disableSysNotifs()">Turn off</button>`
-         :`<button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:800;border:none" onclick="enableSysNotifs()">🔔 Enable</button>`}
-  </div>`;
-  }
+  if(tv==="device") return h + thisDeviceBody();
 
   // ── Document Branding (v206) ────────────────────────────────────────
   // What every exported document says about itself. Kept beside the other
@@ -834,3 +773,78 @@ window.brandReset = async function(){
   try{ await fbSave("settings", doc); saveToast("Branding reset \u2713"); }
   catch(e){ toast("Could not save: "+(e&&e.message||e)); }
 };
+
+// ── Settings \u2192 This Device : a tab in its own right, reachable by everyone ──
+// The ordinary employee could never open Technical Classifications, so the
+// device controls they DO need \u2014 update the app, choose a palette, dark mode,
+// notifications \u2014 were out of reach. This surfaces exactly the same panel as a
+// first-class Settings tab, with no admin-only content.
+function renderThisDevice(){
+  return thisDeviceBody();
+}
+Object.assign(window,{renderThisDevice});
+
+// ── This Device body, shared by the Settings tab and the Tech-Classifications tile ──
+function thisDeviceBody(){
+    const _sn = (typeof sysNotifsOn==="function") ? sysNotifsOn()
+              : (typeof Notification!=="undefined" && Notification.permission==="granted");
+    return `
+    <div class="card">
+      <div class="sec-hdr">\u{1F504} App version</div>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <span style="font-size:13px;font-weight:800;color:var(--navy)">${typeof runningVersion==="function"?escapeHtml(runningVersion()):"\u2014"}</span>
+        <button class="btn btn-sm btn-primary" style="margin-left:auto" onclick="forceUpdate()">Update now</button>
+      </div>
+      <div style="font-size:10px;color:var(--muted);margin-top:8px;line-height:1.7">
+        Use this whenever the update banner does not appear. It clears the cached program files and reloads, so it works even when the automatic check has failed. Your records are stored separately and are never touched.
+      </div>
+    </div>
+
+    <div class="card" style="background:#F5F8FC;border:1px dashed var(--line)">
+      <div style="font-size:12px;color:var(--muted);line-height:1.7">
+        Everything on this tab applies to <strong>this device only</strong>. It is stored on the phone or computer you are using, not on your account, so changing it here affects nobody else and does not follow you to another device.
+      </div>
+    </div>
+  <div class="card">
+    <div class="sec-hdr">\u{1F3A8} Appearance</div>
+    <p style="font-size:11px;color:var(--muted);line-height:1.7;margin-bottom:10px">
+      The navy and gold of the brand never change \u2014 these change the surface they sit on.
+      Saved on this device, because glare depends on where you are standing.
+    </p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      ${PALETTES.map(p=>{const on=currentPalette()===p.id;
+        return `<button onclick="setPalette('${p.id}')" title="${escapeHtml(p.note)}"
+          style="flex:1;min-width:98px;text-align:right;background:${p.sw};border:${on?"2px solid var(--navy)":"1px solid var(--line)"};
+                 border-radius:var(--r-md);padding:10px;cursor:pointer">
+          <div style="display:flex;gap:5px;margin-bottom:6px">
+            <span style="width:16px;height:16px;border-radius:4px;background:#1B3A6B"></span>
+            <span style="width:16px;height:16px;border-radius:4px;background:#C9A84C"></span>
+            <span style="width:16px;height:16px;border-radius:4px;background:#fff;border:1px solid rgba(0,0,0,.12)"></span>
+          </div>
+          <div style="font-size:11px;font-weight:800;color:#1A1A2E">${on?"\u2713 ":""}${escapeHtml(p.lb)}</div>
+          <div style="font-size:9px;color:#6B7B8F;line-height:1.5;margin-top:2px">${escapeHtml(p.note)}</div>
+        </button>`;}).join("")}
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;margin-top:12px;padding-top:10px;border-top:1px solid var(--line);flex-wrap:wrap">
+      <span style="font-size:11px;color:var(--muted)">Night shift?</span>
+      <button class="btn btn-sm btn-secondary" onclick="toggleTheme();render()">\u{1F319} Toggle dark mode</button>
+      <span style="font-size:10px;color:var(--muted)">Dark overrides the palette while it is on.</span>
+    </div>
+  </div>
+  ${isAdmin()?(()=>{ const src=(window.__fb&&window.__fb.sdkSource)||"unknown";
+    const ok = src==="bundled" || src==="mirror";
+    return `<div class="card" style="border-left:4px solid ${ok?'var(--ok)':'var(--warn)'}">
+      <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:var(--f-sm);padding:2px 8px;border-radius:var(--r-md);font-weight:800">📡</span> Offline readiness</div>
+      <p style="font-size:var(--f-md);color:var(--muted);margin:8px 0 0;line-height:1.65">Engine loaded via <strong style="color:${ok?'var(--ok)':'var(--warn)'}">${escapeHtml(src)}</strong>.<br>${
+        src==="bundled" ? "✅ Guaranteed — the engine ships with the app, so it starts with no signal at all."
+        : src==="mirror" ? "✅ Cached on this device — offline launch should work."
+        : "⚠️ Loaded straight from the internet, so a cold start with no signal will fail. Put the three Firebase SDK files in a <strong>sdk/</strong> folder beside index.html to fix this permanently."}</p>
+    </div>`; })():""}
+  <div class="card" style="border-left:4px solid ${_sn?'#2E7D32':'#C9A84C'}">
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">05</span> 🔔 Device Notifications ${_sn?'<span style="font-size:10px;background:#E8F5E9;color:#2E7D32;padding:2px 8px;border-radius:8px;font-weight:800">ON</span>':''}</div>
+    <p style="font-size:12px;color:var(--muted);margin:8px 0 12px">Task assignments & alerts appear in your phone's notification tray with sound — while the app is open or in the background.</p>
+    ${_sn?`<button class="btn btn-secondary" onclick="disableSysNotifs()">Turn off</button>`
+         :`<button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:800;border:none" onclick="enableSysNotifs()">🔔 Enable</button>`}
+  </div>`;
+}
+Object.assign(window,{thisDeviceBody});

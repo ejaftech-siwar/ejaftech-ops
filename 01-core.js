@@ -1471,6 +1471,17 @@ function canManageData()  { return isAdmin() || isSupport() || getUserRole()==="
 function hasCap(cap){ if(isAdmin()) return true; return !!(state.profile && state.profile[cap]); }
 window.hasCap=hasCap;
 function canSeeReports()  { return isAdmin() || isSupport() || getUserRole()==="hr" || !!(state.profile&&state.profile.canViewReports); }
+// Operational attention signals \u2014 critical incidents, maintenance due, stalled
+// work \u2014 are a supervisor's concern. An ordinary field employee should see
+// their own day, not the whole operation's problems. Admins and the ops roles
+// always see them; a plain employee sees them only if their admin ticks the box
+// in Users. Anyone who is not an employee is unaffected.
+function canSeeOpsAlerts(){
+  if(isAdmin() || isSupport() || getUserRole()==="hr") return true;
+  if(getUserRole()==="employee") return !!(state.profile && state.profile.canOpsAlerts);
+  return true;
+}
+Object.assign(window,{canSeeOpsAlerts});
 function canManageUsers() { return isAdmin(); } // Owner maps to admin, so covered
 function canAddWorkInstructions()  { return isAdmin() || isIT(); }
 function canEditWorkInstructions() { return isAdmin(); }
@@ -2789,7 +2800,7 @@ const TAB_GROUPS = [
   { id:"Reports",   label:"Reports",   icon:"<svg viewBox='0 0 24 24' width='15' height='15' fill='none' stroke='currentColor' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round' style='vertical-align:-2px'><polyline points='3 17 9 11 13 15 21 7'/><polyline points='15 7 21 7 21 13'/></svg>", children:["HR Report","Daily Log Report","Reports","Technical Report","Finance Report","Analytics","Executive"] },
   { id:"Database",  label:"Database",  icon:"<svg viewBox='0 0 24 24' width='15' height='15' fill='none' stroke='currentColor' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round' style='vertical-align:-2px'><ellipse cx='12' cy='5' rx='8' ry='3'/><path d='M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5'/><path d='M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6'/></svg>", children:["Branches","Departments","Locations","Projects","Assets","Maintenance","Finance","Dispatch","Incidents","Risks"] },
   { id:"Clients",   label:"Clients",   icon:"<svg viewBox='0 0 24 24' width='15' height='15' fill='none' stroke='currentColor' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round' style='vertical-align:-2px'><path d='M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2'/><circle cx='9' cy='7' r='4'/><path d='M22 21v-2a4 4 0 0 0-3-3.87'/><path d='M16 3.13a4 4 0 0 1 0 7.75'/></svg>", children:["Clients","Requests"] },
-  { id:"Settings",  label:"Settings",  icon:"<svg viewBox='0 0 24 24' width='15' height='15' fill='none' stroke='currentColor' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round' style='vertical-align:-2px'><circle cx='12' cy='12' r='3'/><path d='M12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4'/></svg>", children:["Profile","Date & Time","Technical Classifications","Users","Email","WhatsApp","Share","Entry Manage","Recycle Bin"] },
+  { id:"Settings",  label:"Settings",  icon:"<svg viewBox='0 0 24 24' width='15' height='15' fill='none' stroke='currentColor' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round' style='vertical-align:-2px'><circle cx='12' cy='12' r='3'/><path d='M12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4'/></svg>", children:["Profile","This Device","Date & Time","Technical Classifications","Users","Email","WhatsApp","Share","Entry Manage","Recycle Bin"] },
   { id:"Help",      label:"Help",      icon:"<svg viewBox='0 0 24 24' width='15' height='15' fill='none' stroke='currentColor' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round' style='vertical-align:-2px'><circle cx='12' cy='12' r='10'/><path d='M9.1 9a3 3 0 0 1 5.8 1c0 2-3 2.4-3 4'/><path d='M12 17h.01'/></svg>", children:["Work Instructions"] },
 ];
 function getVisibleGroups(){
@@ -2818,13 +2829,13 @@ function getTabs(){
   }
   // IT role: highly restricted — only Dashboard, Work Instructions, Profile
   if(role === "it"){
-    const base = ["Dashboard","Work Instructions","Profile"];
+    const base = ["Dashboard","Work Instructions","Profile","This Device"];
     if(!base.includes(state.tab)) state.tab = base[0];
     return base;
   }
   // Employee: own-data tabs only
   if(role === "employee"){
-    const base = ["Dashboard","Filters","Daily Log","Overtime","Travel","Leaves","My Tasks","Work Instructions","Profile"];
+    const base = ["Dashboard","Filters","Daily Log","Overtime","Travel","Leaves","My Tasks","Work Instructions","Profile","This Device"];
     if(state.profile && state.profile.canViewReports){
       base.splice(base.indexOf("Work Instructions"), 0, "HR Report","Daily Log Report","Reports","Technical Report");
     }
@@ -2834,20 +2845,20 @@ function getTabs(){
   // HR: full ops but no Users/Share/Clients
   if(role === "hr"){
     const base = ["Dashboard","Filters","Daily Log","Approvals","Overtime","Travel","Leaves","My Tasks","Work Instructions",
-                  "HR Report","Daily Log Report","Technical Report","Reports","Analytics","Requests","Projects","Locations","Departments","Profile"];
+                  "HR Report","Daily Log Report","Technical Report","Reports","Analytics","Requests","Projects","Locations","Departments","Profile","This Device"];
     if(!base.includes(state.tab)) state.tab = base[0];
     return base;
   }
   // Support: full access except Users and Share
   if(role === "support"){
     const base = ["Dashboard","Filters","Daily Log","Approvals","Overtime","Travel","Leaves","My Tasks","Work Instructions",
-                  "HR Report","Daily Log Report","Technical Report","Reports","Requests","Projects","Locations","Departments","Profile"];
+                  "HR Report","Daily Log Report","Technical Report","Reports","Requests","Projects","Locations","Departments","Profile","This Device"];
     if(!base.includes(state.tab)) state.tab = base[0];
     return base;
   }
   // Admin / Owner: everything
   const base = ["Dashboard","Filters","Daily Log","Approvals","Overtime","Travel","Leaves","Work Instructions",
-                "HR Report","Daily Log Report","Technical Report","Reports","Finance Report","Analytics","Executive","Requests","Clients","Projects","Assets","Maintenance","Finance","Dispatch","Incidents","Risks","Locations","Departments","Branches","Users","WhatsApp","Email","Share","Profile","Technical Classifications","Date & Time","Entry Manage","Recycle Bin","My Tasks"];
+                "HR Report","Daily Log Report","Technical Report","Reports","Finance Report","Analytics","Executive","Requests","Clients","Projects","Assets","Maintenance","Finance","Dispatch","Incidents","Risks","Locations","Departments","Branches","Users","WhatsApp","Email","Share","Profile","This Device","Technical Classifications","Date & Time","Entry Manage","Recycle Bin","My Tasks"];
   if(!base.includes(state.tab)) state.tab = base[0];
   return base;
 }
@@ -3231,6 +3242,7 @@ function renderTab(){
     "Clients":renderClients,"Requests":renderRequests,"My Tasks":renderMyTasks,"Daily Log Report":renderDailyLogReport,"My Project":renderClientPortal,
     "WhatsApp":renderWhatsApp,
     "Email":renderEmailTab,
+    "This Device":renderThisDevice,
     "Technical Classifications":renderTechClassifications,
     "Entry Manage":renderEntryManage,
   }[state.tab]||(isClient()?renderClientPortal:renderDashboard);

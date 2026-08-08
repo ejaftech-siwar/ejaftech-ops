@@ -325,6 +325,10 @@ function renderUsers(){
           ${(u.role||"")==="employee"?`<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;user-select:none">
             <input type="checkbox" ${u.canViewReports?"checked":""} onchange="toggleViewReports('${u.id}')" style="width:16px;height:16px;cursor:pointer">
             <span style="color:${u.canViewReports?'#00695C':'#666'};font-weight:600">📊 View Reports</span>
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;user-select:none" title="Show critical incidents, maintenance-due and stalled-work alerts on this employee's dashboard. Off by default, so an ordinary employee sees only their own day.">
+            <input type="checkbox" ${u.canOpsAlerts?"checked":""} onchange="toggleOpsAlerts('${u.id}')" style="width:16px;height:16px;cursor:pointer">
+            <span style="color:${u.canOpsAlerts?'#C62828':'#666'};font-weight:600">🚨 Ops Alerts</span>
           </label>`:""}
           ${hasActiveSession && !isAdminUser ? `<button class="btn btn-sm" style="background:#FFF3E0;border:1px solid #FB8C00;color:#E65100;font-size:11px;padding:4px 10px" onclick="resetUserSession('${u.id}')">🔓 Reset Session</button>` : ''}
         </div>
