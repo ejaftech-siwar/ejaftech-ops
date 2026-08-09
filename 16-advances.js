@@ -38,6 +38,9 @@ const ADV_STATUS = {
   open:    {lb:"Open",    bg:"#FFF3E0", fg:"#E65100"},
   partly:  {lb:"Partly settled", bg:"#FFF8E1", fg:"#8F6E22"},
   settled: {lb:"Settled", bg:"#E8F5E9", fg:"#2E7D32"},
+  // Closed by an administrator rather than by a claim \u2014 cash returned intact,
+  // or written off. Kept distinct from "Settled" so the books stay legible.
+  closed:  {lb:"Closed by hand", bg:"#ECEFF1", fg:"#455A64"},
 };
 
 // ╔═══════════════════════════════════════════════════════════════════════╗
@@ -67,7 +70,8 @@ function advancesFor(employee, onlyOpen){
   const e=String(employee||"").trim();
   return (state.advances||[]).filter(a=>{
     if(e && String(a.employee||"").trim()!==e) return false;
-    if(onlyOpen && advSettledFully(a)) return false;
+    // Closed by hand counts as finished: it must never be offered to a claim.
+    if(onlyOpen && (advSettledFully(a) || advManuallyClosed(a))) return false;
     return true;
   }).slice().sort((a,b)=>String(b.date||"").localeCompare(String(a.date||"")));
 }
@@ -87,6 +91,13 @@ function advOutstanding(a){
   return {usd:+Math.max(0,num(a.usd)-ap.usd).toFixed(2),
           iqd:Math.max(0,num(a.iqd)-ap.iqd), applied:ap};
 }
+// A manual close is an accounting act, not a display toggle: it says the money
+// came back (or was written off) outside the claim process. It carries its own
+// reason and signature, and it never rewrites the claim arithmetic \u2014
+// advApplied() stays untouched so the audit trail remains honest about what a
+// claim actually settled versus what an administrator closed by hand.
+function advManuallyClosed(a){ return !!(a && a.closedManually); }
+
 function advSettledFully(a){
   const o=advOutstanding(a);
   return o.usd<=0.005 && o.iqd<=0;
@@ -94,6 +105,9 @@ function advSettledFully(a){
 function advStatusOf(a){
   const o=advOutstanding(a);
   if(o.usd<=0.005 && o.iqd<=0) return "settled";
+  // Closed by hand while a balance remained: still closed, but labelled
+  // differently so nobody mistakes it for a claim-settled advance.
+  if(advManuallyClosed(a)) return "closed";
   if(o.applied.usd>0 || o.applied.iqd>0) return "partly";
   return "open";
 }
@@ -101,13 +115,48 @@ function advStatusOf(a){
 function advOutstandingTotals(){
   let usd=0, iqd=0, count=0;
   (state.advances||[]).forEach(a=>{
+    if(advManuallyClosed(a)) return;   // money is back \u2014 no longer exposure
     const o=advOutstanding(a);
     if(o.usd>0.005||o.iqd>0){ usd+=o.usd; iqd+=o.iqd; count++; }
   });
   return {usd:+usd.toFixed(2), iqd:Math.round(iqd), count};
 }
 Object.assign(window,{EXR_GROUPS, EXR_STATUS, ADV_STATUS, advBlank, advancesFor,
-  advApplied, advOutstanding, advSettledFully, advStatusOf, advOutstandingTotals});
+  advApplied, advOutstanding, advSettledFully, advStatusOf, advOutstandingTotals,
+  advManuallyClosed});
+
+// Close an advance without a claim: the cash came back intact, or the balance
+// is being written off. Admin only, because it removes money from the company's
+// outstanding exposure. The reason is required \u2014 a closure nobody can explain
+// later is exactly the hole this feature could otherwise create.
+window.advCloseManual = async function(id){
+  if(!isAdmin()) return toast("Admin only");
+  const a=(state.advances||[]).find(x=>x.id===id); if(!a) return;
+  const o=advOutstanding(a);
+  const bal=`${o.usd>0?_usd(o.usd):""}${o.usd>0&&o.iqd>0?" + ":""}${o.iqd>0?_iqd(o.iqd):""}`;
+  const why = (typeof uiPrompt==="function")
+    ? await uiPrompt(`Close this advance with ${bal} still outstanding?\n\nWhy is it being closed?`, "Cash returned in full")
+    : "Closed by hand";
+  if(why===null || why===false) return;                 // cancelled
+  const reason=String(why||"").trim();
+  if(!reason) return toast("\u26a0 A reason is required to close an advance");
+  try{
+    await fbSave("advances", {...a, closedManually:true, closedReason:reason,
+      closedBy:(state.profile&&(state.profile.name||state.profile.employeeName))||"Admin",
+      closedAt:new Date().toISOString()});
+    toast("\u2713 Advance closed \u2014 removed from outstanding");
+  }catch(e){ toast("Failed: "+e.message); }
+};
+window.advReopen = async function(id){
+  if(!isAdmin()) return toast("Admin only");
+  const a=(state.advances||[]).find(x=>x.id===id); if(!a) return;
+  if(typeof uiConfirm==="function" && !(await uiConfirm("Reopen this advance? It goes back into outstanding."))) return;
+  try{
+    await fbSave("advances", {...a, closedManually:false, closedReason:"", closedBy:"", closedAt:""});
+    toast("Advance reopened");
+  }catch(e){ toast("Failed: "+e.message); }
+};
+Object.assign(window,{advCloseManual, advReopen});
 
 window.advSet   = function(k,v){ window._adv[k]=v; };
 window._advProjDraft = window._advProjDraft || "";
@@ -637,8 +686,17 @@ function renderAdvances(){
         ${(o.usd>0||o.iqd>0)?_advRow("Still outstanding",
           `<span style="color:#E65100">${o.usd>0?_usd(o.usd):""}${o.usd>0&&o.iqd>0?" + ":""}${o.iqd>0?_iqd(o.iqd):""}</span>`, true):""}
       </table>
+      ${advManuallyClosed(a)?`<div style="background:#ECEFF1;border-radius:8px;padding:8px 10px;margin-top:8px;font-size:10px;color:#37474F;line-height:1.7">
+        <strong>Closed by hand</strong> \u00b7 ${escapeHtml(a.closedBy||"\u2014")}${a.closedAt?" \u00b7 "+escapeHtml(fmtDate(String(a.closedAt).slice(0,10))):""}
+        ${a.closedReason?`<br>${escapeHtml(a.closedReason)}`:""}
+      </div>`:""}
       <div style="display:flex;gap:5px;margin-top:10px;flex-wrap:wrap">
         <button class="btn btn-sm btn-secondary" onclick="advEdit('${a.id}')">\u270e Edit</button>
+        ${isAdmin()?(advManuallyClosed(a)
+          ? `<button class="btn btn-sm btn-secondary" onclick="advReopen('${a.id}')">\u21ba Reopen</button>`
+          : ((o.usd>0||o.iqd>0)
+             ? `<button class="btn btn-sm btn-secondary" onclick="advCloseManual('${a.id}')" title="The money came back without an expense claim">\u2713 Close</button>`
+             : "")):""}
         <button class="btn btn-sm" style="background:#FDECEA;color:#C62828;border:none;margin-left:auto" onclick="advDel('${a.id}')">\u00d7</button>
       </div>
     </div>`;}).join("")}`;

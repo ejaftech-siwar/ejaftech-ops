@@ -541,9 +541,22 @@ function renderDashboard(){
   // nobody acts on.
   // Directly after the greeting, before the operational panels: money is the
   // first question an owner asks and it should not be scrolled to.
-  h += (typeof renderHealthCard==="function"?renderHealthCard():"");
-  h += (typeof renderHealth==="function"?renderHealth():"")
-     + dashStalledPanel() + dashFieldToday() + dashProjectHealth() + dashProblemDevices(); }catch(e){ console.error("dash blocks",e); }
+  // Every block is built exactly as before; only the sequence is chosen.
+  const B={
+    money  : (typeof renderHealthCard==="function"?renderHealthCard():"")
+           + (typeof renderHealth==="function"?renderHealth():""),
+    stalled: dashStalledPanel(),
+    field  : dashFieldToday(),
+    projects: dashProjectHealth(),
+    devices: dashProblemDevices()
+  };
+  // Ordered by the first question each role actually asks on opening the app.
+  const ORDER = isAdmin()               ? ["money","stalled","field","projects","devices"]
+              : (typeof isHR==="function" && isHR())
+                                        ? ["field","stalled","money","projects","devices"]
+              : isSupport()             ? ["stalled","field","projects","devices","money"]
+              :                           ["field","stalled","projects","devices","money"];
+  h += ORDER.map(k=>B[k]||"").join(""); }catch(e){ console.error("dash blocks",e); }
   }
 
   if(!isEmployee()){

@@ -2183,6 +2183,25 @@ function watchAuth(){
   // stall trying to refresh the token — and then this callback never runs at all,
   // which is another way to sit on the spinner forever.
   let _authFired = false;
+
+  // ── Fast offline cold start (v220) ────────────────────────────────────
+  // Runs only when the browser reports no connection and this device already
+  // has a saved session. It is the same restore the 15-second deadline would
+  // perform, taken early because there is nothing to wait for. If a connection
+  // does exist, or there is no snapshot, this does nothing at all.
+  const _fastOffline = setTimeout(async ()=>{
+    if(_authFired || state.initialized) return;
+    if(navigator.onLine !== false) return;          // might genuinely be loading
+    try{ if(auth.currentUser) return; }catch(e){}   // real session won the race
+    const local = readLocalSession();
+    if(!local) return;                              // nothing to restore
+    console.warn("Gir\u00eak: offline with a saved session \u2014 opening straight from cache.");
+    state.user    = {uid:local.uid, email:local.email};
+    state.profile = local.profile;
+    state.offlineSession = true;
+    try{ await subscribeData(); }catch(e){ console.error(e); }
+    if(!state.initialized){ state.initialized = true; try{ renderApp(); }catch(e){} }
+  }, 1200);
   // MY MISTAKE IN v155: this deadline showed the SIGN-IN screen. Offline, signing
   // in is impossible — Firebase must reach its servers — so an already-signed-in
   // user was locked out of their own cached data by the very safety net meant to
@@ -2223,6 +2242,7 @@ function watchAuth(){
   }, 15000);
   onAuthStateChanged(auth,async(user)=>{
     _authFired = true;
+    try{ clearTimeout(_fastOffline); }catch(e){}
     if(user){
       state.user=user;
       // Distinguish "profile is absent" from "we could not read it yet".
@@ -4535,7 +4555,9 @@ function profileEmployee(name){
   ${lv.length?_pfBlock("Leave","\u{1F334}",lv,r=>_pfRow(
       escapeHtml(r.type||"Leave"),
       `${_pfDate(r.from)} \u2192 ${_pfDate(r.to)}`,
-      r.days?String(r.days)+"d":"")):""}`;
+      // fmtDays() exists precisely so a two-hour leave never prints as
+      // "0.2222222222222222d". This row was the one place still bypassing it.
+      r.days?fmtDays(r.days):"")):""}`;
 }
 
 // ── Project profile: cost, people, assets, documents ─────────────────────
