@@ -782,6 +782,11 @@ function renderAdvancesRegister(){
   const TD='padding:6px 8px;border-bottom:1px solid var(--line);font-size:11px';
   const NM=TD+';text-align:right;white-space:nowrap';
   const money=(u,q)=>`${u?_usd(u):"\u2014"}${q?`<br><span style="color:var(--muted)">${q.toLocaleString()} IQD</span>`:""}`;
+  // Pin the name column: with ten columns on a phone you would otherwise reach
+  // "Outstanding" with no way to see whose balance it is.
+  const STICK_H='position:sticky;left:0;z-index:2;background:var(--navy)';
+  const STICK_C='font-weight:700;position:sticky;left:0;z-index:1;background:var(--card);'
+               +'box-shadow:1px 0 0 var(--line);white-space:normal;min-width:96px';
 
   return `<div class="card">
     <div class="sec-hdr" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">\u{1F4B3} Advances register
@@ -817,63 +822,64 @@ function renderAdvancesRegister(){
       <div style="font-size:11px;color:var(--muted);margin-top:4px;line-height:1.7">
         ${(f.employee||f.status||f.from||f.to)?"Widen or clear the filters above.":"Advances recorded under Finance \u2192 Advances appear here."}</div>
     </div></div>`
-  :`<div class="card" style="overflow-x:auto">
+  :`<div class="card">
     <div class="sec-hdr">Detail</div>
-    <table style="border-collapse:collapse;width:100%;min-width:640px">
+    <div style="font-size:10px;color:var(--muted);margin:-6px 0 8px">Swipe the table sideways to see every column.</div>
+    <div class="tbl-wrap"><table class="tbl">
       <thead><tr>
-        <th style="${TD};text-align:left">Employee</th>
-        <th style="${TD};text-align:left">Date</th>
-        <th style="${TD};text-align:left">Reference</th>
-        <th style="${TD};text-align:left">Purpose</th>
-        <th style="${TD};text-align:left">Projects</th>
-        <th style="${TD};text-align:left">Issued by</th>
-        <th style="${NM}">Advanced</th>
-        <th style="${NM}">Accounted</th>
-        <th style="${NM}">Outstanding</th>
-        <th style="${TD};text-align:center">Status</th>
+        <th style="${STICK_H}">Employee</th>
+        <th>Date</th>
+        <th>Reference</th>
+        <th>Purpose</th>
+        <th>Projects</th>
+        <th>Issued by</th>
+        <th style="text-align:right">Advanced</th>
+        <th style="text-align:right">Accounted</th>
+        <th style="text-align:right">Outstanding</th>
+        <th style="text-align:center">Status</th>
       </tr></thead>
       <tbody>${rows.map(r=>{const S=ADV_STATUS[r.st]||ADV_STATUS.open; const ps=advProjectsOf(r.a);
         return `<tr>
-        <td style="${TD};font-weight:700">${escapeHtml(r.a.employee||"\u2014")}</td>
-        <td style="${TD}">${r.a.date?escapeHtml(fmtDate(r.a.date)):"\u2014"}</td>
-        <td style="${TD}">${escapeHtml(r.a.ref||"\u2014")}</td>
-        <td style="${TD}">${escapeHtml(r.a.purpose||"\u2014")}</td>
-        <td style="${TD};font-size:10px">${ps.length?ps.map(p=>escapeHtml(p)).join(" \u00b7 "):"\u2014"}</td>
-        <td style="${TD}">${escapeHtml(r.a.issuedBy||"\u2014")}</td>
-        <td style="${NM}">${money(r.usd,r.iqd)}</td>
-        <td style="${NM}">${(r.apUSD||r.apIQD)?money(r.apUSD,r.apIQD):"\u2014"}</td>
-        <td style="${NM};font-weight:800;color:${(r.outUSD||r.outIQD)?"#E65100":"var(--muted)"}">${(r.outUSD||r.outIQD)?money(r.outUSD,r.outIQD):"\u2014"}</td>
-        <td style="${TD};text-align:center"><span style="background:${S.bg};color:${S.fg};padding:2px 8px;border-radius:10px;font-size:9.5px;font-weight:800;white-space:nowrap">${S.lb}</span>
-          ${r.a.closedManually&&r.a.closedReason?`<div style="font-size:9px;color:var(--muted);margin-top:3px">${escapeHtml(r.a.closedReason)}</div>`:""}</td>
+        <td style="${STICK_C}">${escapeHtml(r.a.employee||"\u2014")}</td>
+        <td>${r.a.date?escapeHtml(fmtDate(r.a.date)):"\u2014"}</td>
+        <td>${escapeHtml(r.a.ref||"\u2014")}</td>
+        <td style="white-space:normal;min-width:130px">${escapeHtml(r.a.purpose||"\u2014")}</td>
+        <td style="white-space:normal;min-width:120px;font-size:10px">${ps.length?ps.map(p=>escapeHtml(p)).join(" \u00b7 "):"\u2014"}</td>
+        <td>${escapeHtml(r.a.issuedBy||"\u2014")}</td>
+        <td style="text-align:right">${money(r.usd,r.iqd)}</td>
+        <td style="text-align:right">${(r.apUSD||r.apIQD)?money(r.apUSD,r.apIQD):"\u2014"}</td>
+        <td style="text-align:right;font-weight:800;color:${(r.outUSD||r.outIQD)?"#E65100":"var(--muted)"}">${(r.outUSD||r.outIQD)?money(r.outUSD,r.outIQD):"\u2014"}</td>
+        <td style="text-align:center"><span style="background:${S.bg};color:${S.fg};padding:2px 8px;border-radius:10px;font-size:9.5px;font-weight:800;white-space:nowrap">${S.lb}</span>
+          ${r.a.closedManually&&r.a.closedReason?`<div style="font-size:9px;color:var(--muted);margin-top:3px;white-space:normal">${escapeHtml(r.a.closedReason)}</div>`:""}</td>
       </tr>`;}).join("")}
       <tr style="background:var(--bg)">
-        <td style="${TD};font-weight:800" colspan="6">Totals \u00b7 ${T.count} advance(s)</td>
-        <td style="${NM};font-weight:800">${money(T.usd,T.iqd)}</td>
-        <td style="${NM};font-weight:800">${money(T.apUSD,T.apIQD)}</td>
-        <td style="${NM};font-weight:800;color:#E65100">${money(T.outUSD,T.outIQD)}</td>
-        <td style="${TD}"></td>
+        <td style="font-weight:800;white-space:normal;position:sticky;left:0;background:var(--bg);z-index:1" colspan="6">Totals \u00b7 ${T.count} advance(s)</td>
+        <td style="text-align:right;font-weight:800">${money(T.usd,T.iqd)}</td>
+        <td style="text-align:right;font-weight:800">${money(T.apUSD,T.apIQD)}</td>
+        <td style="text-align:right;font-weight:800;color:#E65100">${money(T.outUSD,T.outIQD)}</td>
+        <td></td>
       </tr></tbody>
-    </table>
+    </table></div>
   </div>
 
   <div class="card">
     <div class="sec-hdr">Held by each person</div>
     <p style="font-size:11px;color:var(--muted);line-height:1.7;margin-bottom:9px">
       Company cash still in someone's hands. This is the figure to chase before issuing a new advance.</p>
-    <table style="border-collapse:collapse;width:100%">
+    <div class="tbl-wrap"><table class="tbl">
       <thead><tr>
-        <th style="${TD};text-align:left">Employee</th>
-        <th style="${TD};text-align:center">Advances</th>
-        <th style="${NM}">Total advanced</th>
-        <th style="${NM}">Still outstanding</th>
+        <th>Employee</th>
+        <th style="text-align:center">Advances</th>
+        <th style="text-align:right">Total advanced</th>
+        <th style="text-align:right">Still outstanding</th>
       </tr></thead>
       <tbody>${T.empRows.map(e=>`<tr>
-        <td style="${TD};font-weight:700">${escapeHtml(e.name)}</td>
-        <td style="${TD};text-align:center;color:var(--muted)">${e.n}</td>
-        <td style="${NM}">${money(e.usd,e.iqd)}</td>
-        <td style="${NM};font-weight:800;color:${(e.outUSD||e.outIQD)?"#E65100":"var(--green)"}">${(e.outUSD||e.outIQD)?money(e.outUSD,e.outIQD):"clear"}</td>
+        <td style="font-weight:700;white-space:normal">${escapeHtml(e.name)}</td>
+        <td style="text-align:center;color:var(--muted)">${e.n}</td>
+        <td style="text-align:right">${money(e.usd,e.iqd)}</td>
+        <td style="text-align:right;font-weight:800;color:${(e.outUSD||e.outIQD)?"#E65100":"var(--green)"}">${(e.outUSD||e.outIQD)?money(e.outUSD,e.outIQD):"clear"}</td>
       </tr>`).join("")}</tbody>
-    </table>
+    </table></div>
   </div>`}`;
 }
 Object.assign(window,{renderAdvancesRegister});
@@ -975,55 +981,98 @@ window.advRegisterExcel = function(){
   const rows=advRegRows(), T=advRegTotals(rows), f=window._advRep;
   if(!rows.length) return toast("Nothing to export \u2014 no advances match the filters");
   if(typeof XLSX==="undefined") return toast("Excel engine not loaded");
+
+  const per=(f.from||f.to)?`${f.from||"start"} \u2192 ${f.to||"today"}`:"All dates";
+  const stLabel={outstanding:"Still outstanding", open:"Open", partly:"Partly settled",
+                 settled:"Settled by claim", closed:"Closed"}[f.status]||"All statuses";
+
   const A=[];
-  A.push(["ADVANCES REGISTER"]);
-  A.push(["Employee", f.employee||"All employees"]);
-  A.push(["Period", (f.from||"\u2014")+" \u2192 "+(f.to||"\u2014")]);
-  A.push(["Generated", (typeof todayStr==="function"?todayStr():"")]);
-  A.push([]);
-  A.push(["Employee","Date","Reference","Purpose","Projects","Issued by",
-          "Advanced USD","Advanced IQD","Accounted USD","Accounted IQD",
-          "Outstanding USD","Outstanding IQD","Status"]);
-  const FIRST=A.length+1;
+  A.push(...xlHeaderRows("Advances Register",
+    `${f.employee||"All employees"}  \u00b7  ${per}  \u00b7  ${stLabel}`, 13));
+  A.push([{v:"ADVANCES PAID OUT", s:"section", m:13}]);
+  A.push([
+    {v:"Employee",s:"header"},{v:"Date",s:"header"},{v:"Reference",s:"header"},
+    {v:"Purpose",s:"header"},{v:"Projects",s:"header"},{v:"Issued by",s:"header"},
+    {v:"Advanced USD",s:"header"},{v:"Advanced IQD",s:"header"},
+    {v:"Accounted USD",s:"header"},{v:"Accounted IQD",s:"header"},
+    {v:"Outstanding USD",s:"header"},{v:"Outstanding IQD",s:"header"},
+    {v:"Status",s:"header"}]);
+
+  const FIRST=A.length+1;                       // first data row, 1-based
   rows.forEach(r=>{
     const rn=A.length+1;
-    A.push([r.a.employee||"", r.a.date||"", r.a.ref||"", r.a.purpose||"",
-            advProjectsOf(r.a).join(" \u00b7 "), r.a.issuedBy||"",
-            r.usd||0, r.iqd||0, r.apUSD||0, r.apIQD||0,
-            // Outstanding is a formula, not a baked number: change what was
-            // accounted for and the balance re-computes in the sheet itself.
-            {f:`MAX(0,G${rn}-I${rn})`}, {f:`MAX(0,H${rn}-J${rn})`},
-            (ADV_STATUS[r.st]||{lb:""}).lb]);
+    const S=ADV_STATUS[r.st]||ADV_STATUS.open;
+    A.push([
+      {v:r.a.employee||"", s:"label"},
+      {v:r.a.date||"",     s:"date"},
+      {v:r.a.ref||"",      s:"cell"},
+      {v:r.a.purpose||"",  s:"cell"},
+      {v:advProjectsOf(r.a).join(" \u00b7 "), s:"cell"},
+      {v:r.a.issuedBy||"", s:"cell"},
+      {v:r.usd||0,   s:"usd"}, {v:r.iqd||0,   s:"iqd"},
+      {v:r.apUSD||0, s:"usd"}, {v:r.apIQD||0, s:"iqd"},
+      // Live, so a corrected "accounted" figure re-computes the balance in the
+      // sheet itself rather than silently disagreeing with the app.
+      {v:r.outUSD||0, s:"usd", f:`MAX(0,G${rn}-I${rn})`},
+      {v:r.outIQD||0, s:"iqd", f:`MAX(0,H${rn}-J${rn})`},
+      {v:S.lb, s:"cell"}]);
   });
   const LAST=A.length;
-  A.push(["TOTAL","","","","","",
-    {f:`SUM(G${FIRST}:G${LAST})`},{f:`SUM(H${FIRST}:H${LAST})`},
-    {f:`SUM(I${FIRST}:I${LAST})`},{f:`SUM(J${FIRST}:J${LAST})`},
-    {f:`SUM(K${FIRST}:K${LAST})`},{f:`SUM(L${FIRST}:L${LAST})`},""]);
+  A.push([
+    {v:`TOTAL \u00b7 ${T.count} advance(s)`, s:"total", m:6},
+    null,null,null,null,null,
+    {v:T.usd,   s:"totalNum", f:`SUM(G${FIRST}:G${LAST})`},
+    {v:T.iqd,   s:"totalNum", f:`SUM(H${FIRST}:H${LAST})`},
+    {v:T.apUSD, s:"totalNum", f:`SUM(I${FIRST}:I${LAST})`},
+    {v:T.apIQD, s:"totalNum", f:`SUM(J${FIRST}:J${LAST})`},
+    {v:T.outUSD,s:"totalNum", f:`SUM(K${FIRST}:K${LAST})`},
+    {v:T.outIQD,s:"totalNum", f:`SUM(L${FIRST}:L${LAST})`},
+    {v:"", s:"total"}]);
   A.push([]);
-  A.push(["US dollars and Iraqi dinars are kept in separate columns and are never added together."]);
-  A.push([]);
-  A.push(["BALANCE HELD BY EACH EMPLOYEE"]);
-  A.push(["Employee","Advances","Advanced USD","Advanced IQD","Outstanding USD","Outstanding IQD"]);
-  const EF=A.length+1;
+  A.push([{v:"US dollars and Iraqi dinars are held in separate columns and are never added together. Outstanding balances are live formulas: correct an accounted figure and the balance re-computes.", s:"note", m:13}]);
+
+  const ws=xlSheet(A, {
+    cols:[{wch:22},{wch:12},{wch:15},{wch:30},{wch:24},{wch:18},
+          {wch:15},{wch:16},{wch:15},{wch:16},{wch:16},{wch:17},{wch:16}],
+    rows:[{hpt:26},{hpt:16},{hpt:16},{hpt:6},{hpt:20},{hpt:30}],
+    freezeAt:{x:1, y:FIRST-1} });
+
+  // ── Second sheet: what each person still holds ──
+  const B=[];
+  B.push(...xlHeaderRows("Balance Held by Each Employee", per, 6));
+  B.push([{v:"OUTSTANDING BY EMPLOYEE", s:"section", m:6}]);
+  B.push([{v:"Employee",s:"header"},{v:"Advances",s:"header"},
+          {v:"Advanced USD",s:"header"},{v:"Advanced IQD",s:"header"},
+          {v:"Outstanding USD",s:"header"},{v:"Outstanding IQD",s:"header"}]);
+  const EF=B.length+1;
   T.empRows.forEach(e=>{
     const nm=`"${String(e.name).replace(/"/g,'""')}"`;
-    A.push([e.name,
-      {f:`COUNTIF($A$${FIRST}:$A$${LAST},${nm})`},
-      {f:`SUMIF($A$${FIRST}:$A$${LAST},${nm},$G$${FIRST}:$G$${LAST})`},
-      {f:`SUMIF($A$${FIRST}:$A$${LAST},${nm},$H$${FIRST}:$H$${LAST})`},
-      {f:`SUMIF($A$${FIRST}:$A$${LAST},${nm},$K$${FIRST}:$K$${LAST})`},
-      {f:`SUMIF($A$${FIRST}:$A$${LAST},${nm},$L$${FIRST}:$L$${LAST})`}]);
+    B.push([
+      {v:e.name, s:"label"},
+      {v:e.n, s:"int", f:`COUNTIF(Advances!$A$${FIRST}:$A$${LAST},${nm})`},
+      {v:e.usd,    s:"usd", f:`SUMIF(Advances!$A$${FIRST}:$A$${LAST},${nm},Advances!$G$${FIRST}:$G$${LAST})`},
+      {v:e.iqd,    s:"iqd", f:`SUMIF(Advances!$A$${FIRST}:$A$${LAST},${nm},Advances!$H$${FIRST}:$H$${LAST})`},
+      {v:e.outUSD, s:(e.outUSD?"warn":"usd"), f:`SUMIF(Advances!$A$${FIRST}:$A$${LAST},${nm},Advances!$K$${FIRST}:$K$${LAST})`},
+      {v:e.outIQD, s:(e.outIQD?"warn":"iqd"), f:`SUMIF(Advances!$A$${FIRST}:$A$${LAST},${nm},Advances!$L$${FIRST}:$L$${LAST})`}]);
   });
-  const EL=A.length;
-  A.push(["TOTAL",{f:`SUM(B${EF}:B${EL})`},{f:`SUM(C${EF}:C${EL})`},{f:`SUM(D${EF}:D${EL})`},
-          {f:`SUM(E${EF}:E${EL})`},{f:`SUM(F${EF}:F${EL})`}]);
+  const EL=B.length;
+  B.push([
+    {v:"TOTAL", s:"total"},
+    {v:T.count,  s:"totalNum", f:`SUM(B${EF}:B${EL})`},
+    {v:T.usd,    s:"totalNum", f:`SUM(C${EF}:C${EL})`},
+    {v:T.iqd,    s:"totalNum", f:`SUM(D${EF}:D${EL})`},
+    {v:T.outUSD, s:"totalNum", f:`SUM(E${EF}:E${EL})`},
+    {v:T.outIQD, s:"totalNum", f:`SUM(F${EF}:F${EL})`}]);
+  B.push([]);
+  B.push([{v:"Every figure here is pulled from the Advances sheet by formula, so the two can never disagree.", s:"note", m:6}]);
+  const ws2=xlSheet(B, {
+    cols:[{wch:26},{wch:12},{wch:16},{wch:17},{wch:17},{wch:18}],
+    rows:[{hpt:26},{hpt:16},{hpt:16},{hpt:6},{hpt:20},{hpt:30}],
+    freezeAt:{x:1, y:EF-1} });
 
-  const ws=XLSX.utils.aoa_to_sheet(A);
-  ws["!cols"]=[{wch:20},{wch:11},{wch:14},{wch:28},{wch:20},{wch:16},
-               {wch:13},{wch:14},{wch:13},{wch:14},{wch:14},{wch:15},{wch:15}];
   const wb=XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Advances");
+  XLSX.utils.book_append_sheet(wb, ws,  "Advances");
+  XLSX.utils.book_append_sheet(wb, ws2, "By Employee");
   XLSX.writeFile(wb, `Advances-register-${(typeof todayStr==="function"?todayStr():"export")}.xlsx`);
   toast("\u2713 Excel exported");
 };
@@ -1105,9 +1154,10 @@ function renderExpenseClaims(){
       </div>`:""}
     </div>
 
-    <div class="card" style="overflow-x:auto">
+    <div class="card">
       <div class="sec-hdr">Expenses <span style="font-size:10px;color:var(--muted);font-weight:500">(${t.filled} of ${t.lines} rows used)</span></div>
-      <table style="border-collapse:collapse;min-width:900px;width:100%">
+      <div style="font-size:10px;color:var(--muted);margin:-6px 0 8px">Swipe the grid sideways to reach every column.</div>
+      <div class="tbl-wrap"><table style="border-collapse:collapse;min-width:900px;width:100%">
         <thead>
           <tr><th rowspan="2" style="padding:4px;border:1px solid var(--line);font-size:10px;background:var(--bg);width:110px">Date</th>
               <th rowspan="2" style="padding:4px;border:1px solid var(--line);font-size:10px;background:var(--bg);min-width:190px">Description<br><span style="font-weight:400">(from beginning to destination)</span></th>
@@ -1134,7 +1184,7 @@ function renderExpenseClaims(){
             <td style="padding:6px;border:1px solid var(--line);text-align:right;font-weight:800;font-size:11px" id="exrG_${g.k}_iqd">${t.byGroup[g.k].iqd?t.byGroup[g.k].iqd.toLocaleString():"\u2014"}</td>`).join("")}
           <td style="border:1px solid var(--line)"></td></tr>
         </tbody>
-      </table>
+      </table></div>
       <button class="btn btn-sm btn-secondary" style="margin-top:10px" onclick="exrLineAdd()">+ Add a row</button>
     </div>
 
@@ -1550,6 +1600,26 @@ window.expenseClaimExcel = function(id){
     });
     ["A","B","C","D"].forEach((_,i)=>merges.push({s:{r:HDR_ROW,c:i},e:{r:HDR_ROW+1,c:i}}));
     ws["!merges"]=merges;
+
+    // Presentation only \u2014 values, formulas and merges above are left alone.
+    if(typeof xlDress==="function"){
+      xlDress(ws, {
+        rows:{0:"title", 1:"subtitle", 2:"subtitle", [HDR_ROW]:"header", [HDR_ROW+1]:"header"},
+        match:[
+          [/^(Employee name|Department|Date|Status|Projects covered|Exchange rate)$/, "label"],
+          [/^Totals$/, "total"],
+          [/^(TOTAL REIMBURSEMENT DUE|TO BE RETURNED BY THE EMPLOYEE)/, "total"],
+          [/^(Subtotal|Less advances)/, "label"],
+          [/^(Cost by project|Advances applied|Notes)$/, "section"],
+          [/^(Project|Reference)$/, "header"],
+          [/^All projects$/, "total"],
+          [/^(These project rows|US dollar and Iraqi)/, "note"],
+          [/^(Completed by|Signature)$/, "label"]
+        ],
+        rowsHt:[{hpt:24},{hpt:18},{hpt:16}],
+        freezeAt:{x:4, y:HDR_ROW+2}
+      });
+    }
 
     const wb=XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Expense Report");

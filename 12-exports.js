@@ -492,6 +492,48 @@ async function exportFilteredExcel(){
     wsL['!cols']=[{wch:26},{wch:18},{wch:12},{wch:12},{wch:8},{wch:30}];
     XLSX.utils.book_append_sheet(wb, wsL, 'Leaves');
 
+    // ── Project breakdown sheet ────────────────────────────────────────
+    // Grouped from the entries, so work booked to a project that was later
+    // renamed still appears rather than dropping out of the totals.
+    const _pm={};
+    dr.forEach(r=>{ const k=String(r.project||'').trim()||'— Unassigned';
+      if(!_pm[k]) _pm[k]={h:0,n:0,ot:0,emps:new Set()};
+      _pm[k].h+=Number(r.duration||0); _pm[k].n++; _pm[k].emps.add(r.employee); });
+    or.forEach(r=>{ const k=String(r.project||'').trim()||'— Unassigned';
+      if(!_pm[k]) _pm[k]={h:0,n:0,ot:0,emps:new Set()};
+      _pm[k].ot+=Number(r.hours||0); });
+    const _pk=Object.keys(_pm).sort((a,b)=>{
+      if(a.startsWith('—')) return 1; if(b.startsWith('—')) return -1;
+      return _pm[b].h-_pm[a].h; });
+    const _pTot=_pk.reduce((s,k)=>s+_pm[k].h,0);
+    const projData=_pk.map(k=>[k,_pm[k].n,_pm[k].emps.size,fmtHM(_pm[k].h),
+      _pm[k].ot?fmtHM(_pm[k].ot):'—',
+      (_pTot>0?(_pm[k].h/_pTot*100).toFixed(1):'0.0')+'%']);
+    projData.push(['TOTAL', dr.length, '', fmtHM(_pTot), fmtHM(totOT), '100%']);
+    const wsP = buildDetail('Project Breakdown',
+      ['Project','Sessions','People','Hours','Overtime','Share'], projData, COLORS.navyLight);
+    wsP['!cols']=[{wch:30},{wch:11},{wch:9},{wch:12},{wch:12},{wch:10}];
+    XLSX.utils.book_append_sheet(wb, wsP, 'By Project');
+
+    // ── Project-code breakdown sheet ───────────────────────────────────
+    const _cm={};
+    dr.forEach(r=>{ const k=String(r.projectCode||'').trim()||'— No code';
+      if(!_cm[k]) _cm[k]={h:0,n:0,projects:new Set()};
+      _cm[k].h+=Number(r.duration||0); _cm[k].n++;
+      if(r.project) _cm[k].projects.add(r.project); });
+    const _ck=Object.keys(_cm).sort((a,b)=>{
+      if(a.startsWith('—')) return 1; if(b.startsWith('—')) return -1;
+      return _cm[b].h-_cm[a].h; });
+    const _cTot=_ck.reduce((s,k)=>s+_cm[k].h,0);
+    const codeData=_ck.map(k=>[k, Array.from(_cm[k].projects).sort().join(' · ')||'—',
+      _cm[k].n, fmtHM(_cm[k].h),
+      (_cTot>0?(_cm[k].h/_cTot*100).toFixed(1):'0.0')+'%']);
+    codeData.push(['TOTAL','', dr.length, fmtHM(_cTot), '100%']);
+    const wsC = buildDetail('Project Code Breakdown',
+      ['Code','Projects','Sessions','Hours','Share'], codeData, COLORS.orange);
+    wsC['!cols']=[{wch:24},{wch:34},{wch:11},{wch:12},{wch:10}];
+    XLSX.utils.book_append_sheet(wb, wsC, 'By Code');
+
     XLSX.writeFile(wb, `Period_Report_${periodStr}.xlsx`);
     toast('Filtered Excel exported ✓');
   }catch(e){
@@ -557,6 +599,39 @@ async function exportFilteredPDF(){
     });
 
 
+    // ── Project breakdown ───────────────────────────────────────────────
+    // Grouped from the entries themselves rather than the project register, so
+    // work booked to a project that was later renamed or removed still appears
+    // instead of vanishing from the totals.
+    const projMap={};
+    const addTo=(map,key,h,ot,n)=>{ const k=String(key||"").trim()||"\u2014 Unassigned";
+      if(!map[k]) map[k]={hours:0,ot:0,count:0,emps:new Set()};
+      map[k].hours+=h; map[k].ot+=ot; map[k].count+=n; return map[k]; };
+    dr.forEach(r=>{ addTo(projMap, r.project, Number(r.duration||0), 0, 1).emps.add(r.employee); });
+    or.forEach(r=>{ addTo(projMap, r.project, 0, Number(r.hours||0), 0); });
+    const projStats=Object.keys(projMap).sort((a,b)=>{
+      if(a.startsWith("\u2014")) return 1; if(b.startsWith("\u2014")) return -1;
+      return projMap[b].hours-projMap[a].hours;
+    }).map(k=>({name:k, ...projMap[k], emps:projMap[k].emps.size}));
+    const projTotal=projStats.reduce((s,p)=>s+p.hours,0);
+
+    // ── Project-code breakdown ──────────────────────────────────────────
+    // Codes are recorded on each daily entry (e.g. AC-001, Preventive
+    // Maintenance), which is what finance codes the work against.
+    const codeMap={};
+    dr.forEach(r=>{ const k=String(r.projectCode||"").trim()||"\u2014 No code";
+      if(!codeMap[k]) codeMap[k]={hours:0,count:0,projects:new Set()};
+      codeMap[k].hours+=Number(r.duration||0); codeMap[k].count++;
+      if(r.project) codeMap[k].projects.add(r.project); });
+    const codeStats=Object.keys(codeMap).sort((a,b)=>{
+      if(a.startsWith("\u2014")) return 1; if(b.startsWith("\u2014")) return -1;
+      return codeMap[b].hours-codeMap[a].hours;
+    }).map(k=>({code:k, hours:codeMap[k].hours, count:codeMap[k].count,
+                projects:Array.from(codeMap[k].projects).sort()}));
+    const codeTotal=codeStats.reduce((s,x)=>s+x.hours,0);
+
+    const PC=["#03308B","#C9A84C","#2E7D32","#E65100","#6A1B9A","#00897B","#3949AB","#D81B60","#5D4037"];
+
     const kpiCards = `<div class="kpi-grid">
       <div class="kpi" style="border-left-color:#2E5FA3"><div class="kpi-label">Total Hours</div><div class="kpi-val" style="color:#2E5FA3">${fmtHM(totH)}</div><div class="kpi-sub">${dr.length} sessions</div></div>
       <div class="kpi" style="border-left-color:#E65100"><div class="kpi-label">Overtime</div><div class="kpi-val" style="color:#E65100">${fmtHM(totOT)}</div><div class="kpi-sub">${or.length} entries</div></div>
@@ -593,6 +668,33 @@ async function exportFilteredPDF(){
       <td>${fmtHM(totH)}</td><td>${fmtHM(totOT)}</td><td>${fmtDays(totTr)}</td><td>${fmtMoney(totPD)}</td><td>${fmtDays(totLv)}</td>
     </tr>`:'';
 
+    const projBlocks = projStats.map((p,i)=>{
+      const col=PC[i%PC.length];
+      const pct=projTotal>0?(p.hours/projTotal*100).toFixed(1):'0.0';
+      return `<div class="dept-card" style="border-left-color:${col}">
+        <div class="dept-row"><span class="dept-name" style="color:${col}">${escapeHtml(p.name)}</span>
+          <span class="dept-val" style="color:${col}">${fmtHM(p.hours)}</span></div>
+        <div class="dept-sub">${p.count} session${p.count===1?'':'s'} · ${p.emps} employee${p.emps===1?'':'s'}${p.ot?` · ${fmtHM(p.ot)} OT`:''} · ${pct}% of hours</div>
+        <div class="bar"><div class="bar-fill" style="background:${col};width:${pct}%"></div></div>
+      </div>`;}).join('');
+
+    const projRows = projStats.map(p=>`<tr>
+      <td><strong style="color:#1B3A6B">${escapeHtml(p.name)}</strong></td>
+      <td style="text-align:right">${p.count}</td>
+      <td style="text-align:right">${p.emps}</td>
+      <td style="text-align:right;font-weight:700">${fmtHM(p.hours)}</td>
+      <td style="text-align:right;color:#E65100;font-weight:600">${p.ot?fmtHM(p.ot):'—'}</td>
+      <td style="text-align:right;color:#6B7B8F">${projTotal>0?(p.hours/projTotal*100).toFixed(1):'0.0'}%</td>
+    </tr>`).join('');
+
+    const codeRows = codeStats.map(x=>`<tr>
+      <td><strong style="color:#1B3A6B">${escapeHtml(x.code)}</strong></td>
+      <td style="font-size:9px;color:#6B7B8F">${x.projects.length?x.projects.map(p=>escapeHtml(p)).join(' · '):'—'}</td>
+      <td style="text-align:right">${x.count}</td>
+      <td style="text-align:right;font-weight:700">${fmtHM(x.hours)}</td>
+      <td style="text-align:right;color:#6B7B8F">${codeTotal>0?(x.hours/codeTotal*100).toFixed(1):'0.0'}%</td>
+    </tr>`).join('');
+
     const rangeLabel=`${f.from||'Start'} → ${f.to||'Today'}${f.project?' · Project: '+f.project:''}`;
     const kpiCardsU=`<div class="kr">
       <div class="kc kb"><div class="kl">Total Hours</div><div class="kv">${fmtHM(totH)}</div><div class="ks">${dr.length} sessions</div></div>
@@ -601,19 +703,40 @@ async function exportFilteredPDF(){
       <div class="kc kp"><div class="kl">Per Diem</div><div class="kv">${fmtMoney(totPD)}</div><div class="ks">IQD total</div></div>
       <div class="kc krd"><div class="kl">Leave Days</div><div class="kv">${fmtDays(totLv)}</div><div class="ks">${lv.length} entries</div></div>
     </div>`;
+    // Counted section numbers: adding a section never means renumbering by hand.
+    const KS=(()=>{let n=0;return()=>String(++n).padStart(2,"0");})();
     const bodyHTMLF=`
       <div class="actions no-print" style="padding:10px;background:#FFF8E1;border:1px solid #FFE082;border-radius:8px;margin-bottom:14px;text-align:center;font-size:13px;color:#7F6000">
         📄 Choose <strong>"Save as PDF"</strong> in the print dialog
         <br><br><button onclick="window.print()" style="background:#03308B;color:#C9A84C;border:none;padding:10px 24px;border-radius:8px;font-weight:700;cursor:pointer;font-size:13px">🖨️ Print / Save as PDF</button>
         <button onclick="window.close()" style="background:#888;color:white;border:none;padding:10px 20px;border-radius:8px;font-weight:700;cursor:pointer;font-size:13px;margin-left:6px">Close</button>
       </div>
-      <div class="ksec"><span class="kbad">01</span><h3>Executive Summary</h3></div>
+      <div class="ksec"><span class="kbad">${KS()}</span><h3>Executive Summary</h3></div>
       ${kpiCardsU}
-      <div class="ksec"><span class="kbad">02</span><h3>Department Performance</h3></div>
+      <div class="ksec"><span class="kbad">${KS()}</span><h3>Department Performance</h3></div>
       ${deptBlocks||'<div class="empty">No departments configured</div>'}
-      ${!isEmployee()?`<div class="ksec"><span class="kbad">03</span><h3>Employee Breakdown</h3></div>
+      ${!isEmployee()?`<div class="ksec"><span class="kbad">${KS()}</span><h3>Employee Breakdown</h3></div>
       <table><thead><tr><th>Employee</th>${deptHeaders}<th>Total</th><th>OT</th><th>Travel</th><th>Per Diem</th><th>Leave</th></tr></thead>
       <tbody>${empRows}</tbody><tfoot>${grandRow}</tfoot></table>`:''}
+
+      ${projStats.length?`<div class="ksec"><span class="kbad">${KS()}</span><h3>Project Breakdown</h3></div>
+      <div class="grid2">${projBlocks}</div>
+      <table><thead><tr><th>Project</th><th style="text-align:right">Sessions</th><th style="text-align:right">People</th>
+        <th style="text-align:right">Hours</th><th style="text-align:right">Overtime</th><th style="text-align:right">Share</th></tr></thead>
+      <tbody>${projRows}</tbody>
+      <tfoot><tr><td>TOTAL</td><td style="text-align:right">${dr.length}</td><td style="text-align:right">—</td>
+        <td style="text-align:right">${fmtHM(projTotal)}</td><td style="text-align:right">${fmtHM(totOT)}</td>
+        <td style="text-align:right">100%</td></tr></tfoot></table>`:''}
+
+      ${codeStats.length?`<div class="ksec"><span class="kbad">${KS()}</span><h3>Project Code Breakdown</h3></div>
+      <p style="font-size:9.5px;color:#6B7B8F;line-height:1.7;margin:0 0 6px">
+        Hours grouped by the code recorded on each entry — the reference the work is charged against.
+        Entries carrying no code are listed last, so these figures still reconcile with the summary above.</p>
+      <table><thead><tr><th>Code</th><th>Projects</th><th style="text-align:right">Sessions</th>
+        <th style="text-align:right">Hours</th><th style="text-align:right">Share</th></tr></thead>
+      <tbody>${codeRows}</tbody>
+      <tfoot><tr><td>TOTAL</td><td></td><td style="text-align:right">${dr.length}</td>
+        <td style="text-align:right">${fmtHM(codeTotal)}</td><td style="text-align:right">100%</td></tr></tfoot></table>`:''}
       <script>setTimeout(()=>window.print(),500)<\/script>`;
     await openReportPDF("PERIOD_REPORT", rangeLabel, bodyHTMLF);
     toast('PDF export ready!');
@@ -1005,6 +1128,55 @@ async function exportDashboardPDF(){
 
     const tLeave = s.reduce((a,b)=>a+(b.leaveDays||0),0);
 
+    // ── Project health ──────────────────────────────────────────────────
+    const PHC=["#03308B","#C9A84C","#2E7D32","#E65100","#6A1B9A","#00897B","#3949AB","#D81B60"];
+    const dailyAll = state.daily||[];
+    const phStats = (state.projects||[]).filter(p=>String(p.name||'').trim()).map(p=>{
+      const nm=String(p.name).trim();
+      const mine=dailyAll.filter(x=>String(x.project||'').trim()===nm);
+      const logged=mine.reduce((a,x)=>a+Number(x.duration||0),0);
+      const est=Number(p.estimatedHours||0);
+      const pct=est>0?Math.round(logged/est*100):null;
+      const last=mine.reduce((m,x)=>String(x.date||'')>m?String(x.date||''):m,'');
+      const openInc=(state.incidents||[]).filter(i=>String(i.project||'').trim()===nm
+        && !["Resolved","Closed"].includes(i.status||"Open")).length;
+      const pms=(state.pmSchedules||[]).filter(x=>String(x.project||'').trim()===nm && x.active!==false);
+      const overdue=pms.filter(x=>(typeof pmDaysLeft==='function'?pmDaysLeft(x):0)<0).length;
+      return {name:nm, logged, est, pct, last, openInc, pms:pms.length, overdue,
+              people:new Set(mine.map(x=>x.employee)).size};
+    }).sort((a,b)=>b.logged-a.logged);
+
+    const phBlocks = phStats.map((p,i)=>{
+      const col=PHC[i%PHC.length];
+      // Over 100% of the estimate is the number that matters most, so it is
+      // coloured as a warning rather than quietly clipped to a full bar.
+      const over=p.pct!==null && p.pct>100;
+      const barPct=p.pct===null?0:Math.min(p.pct,100);
+      const barCol=over?'#C62828':col;
+      return `<div class="dept-card" style="border-left-color:${barCol}">
+        <div class="dept-row"><span class="dept-name" style="color:${barCol}">${escapeHtml(p.name)}</span>
+          <span class="dept-val" style="color:${barCol}">${p.pct===null?fmtHM(p.logged):p.pct+'%'}</span></div>
+        <div class="dept-sub">
+          ${fmtHM(p.logged)} logged${p.est>0?` of ${fmtHM(p.est)} estimated`:' · no estimate set'} · ${p.people} ${p.people===1?'person':'people'}
+          ${p.last?` · last entry ${escapeHtml(p.last)}`:' · no entries yet'}
+          ${p.openInc?`<br><span style="color:#C62828;font-weight:700">${p.openInc} open incident${p.openInc>1?'s':''}</span>`:''}
+          ${p.overdue?`${p.openInc?' · ':'<br>'}<span style="color:#E65100;font-weight:700">${p.overdue} maintenance overdue</span>`:''}
+          ${over?`<br><span style="color:#C62828;font-weight:700">Over the estimate by ${fmtHM(p.logged-p.est)}</span>`:''}
+        </div>
+        ${p.est>0?`<div class="bar"><div class="bar-fill" style="background:${barCol};width:${barPct}%"></div></div>`:''}
+      </div>`;}).join('');
+
+    const phRows = phStats.map(p=>`<tr>
+      <td><strong style="color:#1B3A6B">${escapeHtml(p.name)}</strong></td>
+      <td style="text-align:right;font-weight:700">${fmtHM(p.logged)}</td>
+      <td style="text-align:right">${p.est>0?fmtHM(p.est):'—'}</td>
+      <td style="text-align:right;font-weight:700;color:${p.pct!==null&&p.pct>100?'#C62828':'#2E7D32'}">${p.pct===null?'—':p.pct+'%'}</td>
+      <td style="text-align:right">${p.people}</td>
+      <td style="text-align:right;color:${p.openInc?'#C62828':'#6B7B8F'};font-weight:${p.openInc?'700':'400'}">${p.openInc||'—'}</td>
+      <td style="text-align:right;color:${p.overdue?'#E65100':'#6B7B8F'};font-weight:${p.overdue?'700':'400'}">${p.overdue||'—'}</td>
+      <td style="text-align:right;font-size:9px;color:#6B7B8F">${p.last?escapeHtml(p.last):'—'}</td>
+    </tr>`).join('');
+
     // KPI cards (5 columns now including leaves)
     const kpis = `<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:7px;margin-bottom:16px">
       <div style="background:#FFFFFF;border-left:4px solid #2E5FA3;border-radius:8px;padding:10px 11px">
@@ -1036,13 +1208,15 @@ async function exportDashboardPDF(){
 
     // Build body using universal template
     const totalLeaveDays = s.reduce((a,b)=>a+(b.leaveDays||0),0);
+    // Counted section numbers, so the employee-only variant never prints a gap.
+    const KD=(()=>{let n=0;return()=>String(++n).padStart(2,"0");})();
     const dashBodyHTML=`
       <div class="actions no-print" style="padding:10px;background:#FFF8E1;border:1px solid #FFE082;border-radius:8px;margin-bottom:14px;text-align:center;font-size:13px;color:#7F6000">
         📄 Choose <strong>"Save as PDF"</strong> in the print dialog
         <br><br><button onclick="window.print()" style="background:#03308B;color:#C9A84C;border:none;padding:10px 24px;border-radius:8px;font-weight:700;cursor:pointer;font-size:13px">🖨️ Print / Save as PDF</button>
         <button onclick="window.close()" style="background:#888;color:white;border:none;padding:10px 20px;border-radius:8px;font-weight:700;cursor:pointer;font-size:13px;margin-left:6px">Close</button>
       </div>
-      <div class="ksec"><span class="kbad">01</span><h3>Executive Summary</h3></div>
+      <div class="ksec"><span class="kbad">${KD()}</span><h3>Executive Summary</h3></div>
       <div class="kr">
         <div class="kc kb"><div class="kl">Total Hours</div><div class="kv">${fmtHM(tHrs)}</div><div class="ks">${applyReportFilters(state.daily).length} sessions</div></div>
         <div class="kc ko"><div class="kl">Overtime</div><div class="kv">${fmtHM(tOT)}</div><div class="ks">${applyReportFilters(state.overtime).length} entries</div></div>
@@ -1050,13 +1224,24 @@ async function exportDashboardPDF(){
         <div class="kc kp"><div class="kl">Per Diem</div><div class="kv">${fmtMoney(tPD)}</div><div class="ks">IQD total</div></div>
         <div class="kc krd"><div class="kl">Leave Days</div><div class="kv">${fmtDays(totalLeaveDays)}</div><div class="ks">${applyReportFilters(state.leaves,"from").length} entries</div></div>
       </div>
-      ${!isEmployee()?`<div class="ksec"><span class="kbad">02</span><h3>Employee Hours Distribution</h3></div>
+      ${!isEmployee()?`<div class="ksec"><span class="kbad">${KD()}</span><h3>Employee Hours Distribution</h3></div>
       <div style="display:flex;align-items:center;gap:20px;margin:10px 0">
         ${donutSVG}
         <div style="flex:1">${legendHTML}</div>
       </div>`:''}
-      <div class="ksec"><span class="kbad">${!isEmployee()?'03':'02'}</span><h3>Department Performance</h3></div>
+      <div class="ksec"><span class="kbad">${KD()}</span><h3>Department Performance</h3></div>
       ${deptBlocks||'<div class="empty">No departments configured</div>'}
+
+      ${phStats.length?`<div class="ksec"><span class="kbad">${KD()}</span><h3>Project Health</h3></div>
+      <p style="font-size:9.5px;color:#6B7B8F;line-height:1.7;margin:0 0 6px">
+        Hours logged against each project measured on its estimate, with open incidents and overdue
+        maintenance alongside. A figure above 100% means the project has passed its estimated hours.</p>
+      <div class="grid2">${phBlocks}</div>
+      <table><thead><tr><th>Project</th><th style="text-align:right">Logged</th><th style="text-align:right">Estimated</th>
+        <th style="text-align:right">Used</th><th style="text-align:right">People</th>
+        <th style="text-align:right">Incidents</th><th style="text-align:right">PM overdue</th>
+        <th style="text-align:right">Last entry</th></tr></thead>
+      <tbody>${phRows}</tbody></table>`:''}
       <script>window.onload=function(){setTimeout(function(){window.print();},600);};<\/script>`;
     await openReportPDF("DASHBOARD", period, dashBodyHTML);
     toast('PDF export ready!');
@@ -1209,7 +1394,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v222';"
+      var swCode = "const CACHE='ejaftech-v225';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
@@ -3344,6 +3529,6 @@ window.forceUpdate = async function(){
 // The build actually running, so nobody has to infer it from behaviour.
 // A single named constant, updated with every release, so the screen can state
 // the build without inferring it from a variable that lives inside a function.
-const APP_BUILD = "v222";
+const APP_BUILD = "v225";
 window.APP_BUILD = APP_BUILD;
 window.runningVersion = function(){ return APP_BUILD; };

@@ -200,6 +200,25 @@ function buildReportHTML(refNo, reportType, periodLabel, bodyHTML){
     tfoot td{color:#C9A84C;padding:9px 10px;font-weight:700;font-size:10px;border-top:2px solid #C9A84C}
     tr.grand td{background:linear-gradient(135deg,#C9A84C,#B58E2E)!important;color:#03308B;font-weight:800!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 
+    /* BREAKDOWN CARDS \u2014 department, project and project-code blocks */
+    .dept-card{border:1px solid #D6E4F0;border-left:4px solid #03308B;border-radius:8px;
+      padding:10px 13px;margin-bottom:8px;background:#fff;page-break-inside:avoid}
+    .dept-row{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+    .dept-name{font-size:11px;font-weight:800;letter-spacing:.2px}
+    .dept-val{font-size:14px;font-weight:800;font-family:Georgia,serif;white-space:nowrap}
+    .dept-sub{font-size:9px;color:#6B7B8F;margin-top:3px;line-height:1.6}
+    .bar{height:5px;background:#E8EEF6;border-radius:4px;overflow:hidden;margin-top:6px}
+    .bar-fill{height:100%;border-radius:4px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    .kpi-grid{display:flex;gap:8px;margin:14px 0;flex-wrap:wrap}
+    .kpi{flex:1;min-width:110px;padding:12px;border-radius:8px;border-left:4px solid #03308B;
+      background:#f8faff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    .kpi-label{font-size:9px;text-transform:uppercase;letter-spacing:1px;color:#888}
+    .kpi-val{font-size:18px;font-weight:700;margin-top:2px}
+    .kpi-sub{font-size:9px;color:#888;margin-top:1px}
+    /* Two-column grid so breakdown cards do not run one-per-line down a page */
+    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    @media print{ .grid2{grid-template-columns:1fr 1fr} }
+
     /* EMPLOYEE BLOCKS */
     .emp-block{margin-bottom:10px;border:1px solid #D6E4F0;border-radius:8px;overflow:hidden;page-break-inside:avoid;border-left:4px solid #03308B}
     .emp-head{background:linear-gradient(135deg,#03308B,#1a4db5);color:white;padding:8px 14px;font-size:11px;font-weight:700;display:flex;justify-content:space-between;align-items:center;-webkit-print-color-adjust:exact;print-color-adjust:exact}
@@ -1335,3 +1354,194 @@ function renderXlPicker(){
   </div>`;
 }
 Object.assign(window,{renderXlPicker});
+
+// ═══════════════════════════════════════════════════════════════════════
+//  EXCEL HOUSE STYLE (v225)
+// ═══════════════════════════════════════════════════════════════════════
+// The finance workbooks were written with aoa_to_sheet and no styling at all,
+// so they opened looking like a CSV while the PDFs were typeset. The library in
+// use (xlsx-js-style) does support cell formatting, so the fix is to give every
+// finance export one shared vocabulary rather than restyling each in isolation.
+//
+// A sheet is described as rows of cells:
+//   {v:value, s:"header"|"cell"|"num"|"money"|"total"|..., f:"SUM(...)", m:span}
+// and xlSheet() turns that into a styled worksheet. Formulas survive: a cell
+// with `f` stays live in Excel, which is what finance needs to re-check totals.
+
+const XLC = {
+  navy:"1B3A6B", navyMid:"2E5FA3", gold:"C9A84C", goldDark:"B58E2E",
+  green:"2E7D32", orange:"E65100", purple:"6A1B9A", red:"C62828",
+  bgAlt:"F5F8FC", line:"D6E4F0", white:"FFFFFF", ink:"1A1A2E", muted:"6B7B8F"
+};
+
+const _xlBorder = (c=XLC.line, style="thin") => ({
+  top:{style,color:{rgb:c}}, bottom:{style,color:{rgb:c}},
+  left:{style,color:{rgb:c}}, right:{style,color:{rgb:c}}
+});
+
+// One place to look up what a named style means.
+function xlStyle(name, alt, accent){
+  const A = accent || XLC.navy;
+  switch(name){
+    case "title": return {
+      font:{bold:true, sz:16, color:{rgb:XLC.gold}, name:"Calibri"},
+      fill:{fgColor:{rgb:XLC.navy}}, alignment:{horizontal:"center", vertical:"center"},
+      border:{top:{style:"medium",color:{rgb:XLC.gold}}, bottom:{style:"medium",color:{rgb:XLC.gold}}}};
+    case "subtitle": return {
+      font:{italic:true, sz:10, color:{rgb:XLC.muted}},
+      alignment:{horizontal:"center", vertical:"center"}};
+    case "section": return {
+      font:{bold:true, sz:11, color:{rgb:XLC.white}},
+      fill:{fgColor:{rgb:A}}, alignment:{horizontal:"left", vertical:"center"},
+      border:_xlBorder(A)};
+    case "header": return {
+      font:{bold:true, sz:10, color:{rgb:XLC.white}, name:"Calibri"},
+      fill:{fgColor:{rgb:A}}, alignment:{horizontal:"center", vertical:"center", wrapText:true},
+      border:{top:{style:"thin",color:{rgb:A}}, bottom:{style:"thin",color:{rgb:XLC.gold}},
+              left:{style:"thin",color:{rgb:A}}, right:{style:"thin",color:{rgb:A}}}};
+    case "label": return {
+      font:{bold:true, sz:10, color:{rgb:XLC.navy}},
+      fill:{fgColor:{rgb: alt?XLC.bgAlt:XLC.white}},
+      alignment:{vertical:"center"}, border:_xlBorder()};
+    case "num": return {
+      font:{sz:10, bold:true, color:{rgb:XLC.ink}},
+      fill:{fgColor:{rgb: alt?XLC.bgAlt:XLC.white}},
+      alignment:{horizontal:"right", vertical:"center"}, border:_xlBorder(),
+      numFmt:"#,##0.00"};
+    case "int": return {
+      font:{sz:10, color:{rgb:XLC.ink}},
+      fill:{fgColor:{rgb: alt?XLC.bgAlt:XLC.white}},
+      alignment:{horizontal:"right", vertical:"center"}, border:_xlBorder(),
+      numFmt:"#,##0"};
+    // Currency cells are formatted per currency and never share a column, so a
+    // dollar figure can never be read as dinars by accident.
+    case "usd": return {
+      font:{sz:10, bold:true, color:{rgb:XLC.navy}},
+      fill:{fgColor:{rgb: alt?XLC.bgAlt:XLC.white}},
+      alignment:{horizontal:"right", vertical:"center"}, border:_xlBorder(),
+      numFmt:'"$"#,##0.00'};
+    case "iqd": return {
+      font:{sz:10, bold:true, color:{rgb:XLC.green}},
+      fill:{fgColor:{rgb: alt?XLC.bgAlt:XLC.white}},
+      alignment:{horizontal:"right", vertical:"center"}, border:_xlBorder(),
+      numFmt:'#,##0" IQD"'};
+    case "warn": return {
+      font:{sz:10, bold:true, color:{rgb:XLC.orange}},
+      fill:{fgColor:{rgb: alt?XLC.bgAlt:XLC.white}},
+      alignment:{horizontal:"right", vertical:"center"}, border:_xlBorder(),
+      numFmt:"#,##0.00"};
+    case "date": return {
+      font:{sz:10, color:{rgb:XLC.ink}},
+      fill:{fgColor:{rgb: alt?XLC.bgAlt:XLC.white}},
+      alignment:{horizontal:"center", vertical:"center"}, border:_xlBorder()};
+    case "total": return {
+      font:{bold:true, sz:11, color:{rgb:XLC.navy}},
+      fill:{fgColor:{rgb:XLC.gold}}, alignment:{vertical:"center"},
+      border:{top:{style:"medium",color:{rgb:XLC.navy}}, bottom:{style:"medium",color:{rgb:XLC.navy}},
+              left:{style:"thin",color:{rgb:XLC.goldDark}}, right:{style:"thin",color:{rgb:XLC.goldDark}}}};
+    case "totalNum": return {
+      font:{bold:true, sz:11, color:{rgb:XLC.navy}},
+      fill:{fgColor:{rgb:XLC.gold}}, alignment:{horizontal:"right", vertical:"center"},
+      border:{top:{style:"medium",color:{rgb:XLC.navy}}, bottom:{style:"medium",color:{rgb:XLC.navy}},
+              left:{style:"thin",color:{rgb:XLC.goldDark}}, right:{style:"thin",color:{rgb:XLC.goldDark}}},
+      numFmt:"#,##0.00"};
+    case "note": return {
+      font:{italic:true, sz:9, color:{rgb:XLC.muted}},
+      alignment:{vertical:"center", wrapText:true}};
+    case "badge": return {
+      font:{bold:true, sz:9, color:{rgb:XLC.white}},
+      fill:{fgColor:{rgb:A}}, alignment:{horizontal:"center", vertical:"center"},
+      border:_xlBorder(A)};
+    default: return {
+      font:{sz:10, color:{rgb:XLC.ink}},
+      fill:{fgColor:{rgb: alt?XLC.bgAlt:XLC.white}},
+      alignment:{vertical:"center", wrapText:true}, border:_xlBorder()};
+  }
+}
+
+const _xlAddr = (r,c)=>XLSX.utils.encode_cell({r,c});
+
+// Build a styled worksheet from rows of cell descriptors.
+function xlSheet(rows, opts){
+  const o = opts||{};
+  const ws = {};
+  let maxC = 0;
+  rows.forEach((row,r)=>{
+    (row||[]).forEach((cell,c)=>{
+      if(cell===null || cell===undefined) return;
+      const d = (typeof cell==="object" && !(cell instanceof Date)) ? cell : {v:cell};
+      const addr = _xlAddr(r,c);
+      const isNum = typeof d.v === "number";
+      const o2 = {t: d.f ? "n" : (isNum ? "n" : "s"), v: d.v===undefined ? "" : d.v};
+      if(d.f) o2.f = d.f;                       // stays live in Excel
+      o2.s = d.s ? xlStyle(d.s, r%2===1, d.accent) : xlStyle("cell", r%2===1);
+      ws[addr] = o2;
+      if(d.m){                                   // horizontal span
+        if(!ws["!merges"]) ws["!merges"]=[];
+        ws["!merges"].push({s:{r,c}, e:{r, c:c+d.m-1}});
+        for(let k=1;k<d.m;k++) ws[_xlAddr(r,c+k)] = {t:"s", v:"", s:o2.s};
+        maxC = Math.max(maxC, c+d.m-1);
+      }
+      maxC = Math.max(maxC, c);
+    });
+  });
+  ws["!ref"] = XLSX.utils.encode_range({s:{r:0,c:0}, e:{r:Math.max(rows.length-1,0), c:maxC}});
+  if(o.cols)   ws["!cols"] = o.cols;
+  if(o.rows)   ws["!rows"] = o.rows;
+  if(o.freeze) ws["!freeze"] = o.freeze;
+  // Freeze panes so the header stays put while scrolling a long register.
+  if(o.freezeAt) ws["!freeze"] = {xSplit:o.freezeAt.x||0, ySplit:o.freezeAt.y||0};
+  return ws;
+}
+
+// The banner every finance workbook opens with, so they are recognisably one
+// family of documents rather than a pile of loose sheets.
+function xlHeaderRows(title, subtitle, span){
+  const n = span || 8;
+  return [
+    [{v:`EJAF Technology \u2014 Gir\u00eak`, s:"title", m:n}],
+    [{v:title, s:"subtitle", m:n}],
+    [{v:subtitle||"", s:"subtitle", m:n}],
+    []
+  ];
+}
+
+Object.assign(window,{XLC, xlStyle, xlSheet, xlHeaderRows});
+
+// Dress an ALREADY-BUILT worksheet. Used where a sheet has intricate formula
+// logic that must not be touched: the cells keep their values and formulas,
+// and only presentation is added. `spec.rows` maps a 0-based row index to a
+// style name; `spec.match` lets a rule be chosen from the row's first cell.
+function xlDress(ws, spec){
+  if(!ws || !ws["!ref"]) return ws;
+  const R = XLSX.utils.decode_range(ws["!ref"]);
+  const s = spec||{};
+  for(let r=R.s.r; r<=R.e.r; r++){
+    // A rule may be set explicitly by index, or inferred from the label cell.
+    let name = s.rows && s.rows[r];
+    if(!name && s.match){
+      const first = ws[XLSX.utils.encode_cell({r, c:0})];
+      const label = first ? String(first.v||"") : "";
+      for(const [re, nm] of s.match){ if(re.test(label)){ name = nm; break; } }
+    }
+    for(let c=R.s.c; c<=R.e.c; c++){
+      const addr = XLSX.utils.encode_cell({r,c});
+      const cell = ws[addr];
+      if(!cell) continue;
+      let use = name;
+      if(!use){
+        // Default: numbers right-aligned and bold, text plain, banded rows.
+        use = (cell.t==="n" || cell.f) ? "num" : "cell";
+      } else if(use==="header" || use==="section" || use==="title" || use==="total"){
+        // Totals rows keep their number alignment on numeric cells.
+        if(use==="total" && (cell.t==="n" || cell.f)) use="totalNum";
+      }
+      cell.s = xlStyle(use, r%2===1, s.accent);
+    }
+  }
+  if(s.cols)   ws["!cols"]   = s.cols;
+  if(s.rowsHt) ws["!rows"]   = s.rowsHt;
+  if(s.freezeAt) ws["!freeze"] = {xSplit:s.freezeAt.x||0, ySplit:s.freezeAt.y||0};
+  return ws;
+}
+Object.assign(window,{xlDress});

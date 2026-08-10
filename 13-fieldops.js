@@ -1121,10 +1121,10 @@ function renderDispatch(){
     ${pmDue.length?`<div style="background:#FFF3E0;border:1px solid #FFB74D;border-radius:8px;padding:9px 11px;margin-top:10px;font-size:11px;color:#E65100;line-height:1.6">\u{1F6E0}\uFE0F ${pmDue.length} preventive maintenance visit(s) fall in this week and are not assigned to anyone: ${pmDue.slice(0,4).map(s=>escapeHtml(s.title||s.system||"PM")).join(", ")}${pmDue.length>4?"\u2026":""}</div>`:""}
   </div>
 
-  <div class="card" style="overflow-x:auto">
+  <div class="card">
     <div class="sec-hdr">\u{1F4C5} Week board</div>
     ${!people.length?`<div class="empty">No employees selected yet.</div>`:`
-    <table class="data-table" style="border-collapse:collapse;min-width:640px;width:100%">
+    <div class="tbl-wrap"><table class="data-table" style="border-collapse:collapse;min-width:640px;width:100%">
       <thead><tr>
         <th style="position:sticky;left:0;background:#03308B;color:#fff;padding:6px 9px;text-align:left;font-size:11px;z-index:1">Employee</th>
         ${days.map((d,i)=>`<th style="background:${d===today?"#C9A84C":"#03308B"};color:${d===today?"#1B3A6B":"#fff"};padding:6px 4px;font-size:10px;min-width:74px">
@@ -1145,7 +1145,7 @@ function renderDispatch(){
           </td>`;
         }).join("")}
       </tr>`).join("")}</tbody>
-    </table>`}
+    </table></div>`}
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:9px;font-size:10px;color:var(--muted)">
       <span><span style="display:inline-block;width:10px;height:10px;background:#E8F5E9;border:1px solid var(--line)"></span> hours logged</span>
       <span><span style="display:inline-block;width:10px;height:10px;background:#FFF8E1;border:1px solid var(--line)"></span> task due</span>
