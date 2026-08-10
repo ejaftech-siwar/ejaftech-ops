@@ -635,7 +635,12 @@ function renderAdvances(){
         <div class="field"><label>Amount IQD</label><input value="${escapeHtml(String(a.iqd||""))}" oninput="advSet('iqd',this.value)" inputmode="decimal" placeholder="0"></div>
         <div class="field" style="grid-column:1/-1"><label>Purpose <span class="req">*</span></label>
           <input value="${escapeHtml(a.purpose||"")}" oninput="advSet('purpose',this.value)" placeholder="e.g. Fuel and transport \u2014 Basra site visit"></div>
-        <div class="field"><label>Paid by</label><input value="${escapeHtml(a.method||"")}" oninput="advSet('method',this.value)" placeholder="Cash / transfer"></div>
+        <div class="field"><label>Paid by <span style="font-weight:500;color:var(--muted);font-size:10px">\u2014 method</span></label>
+          <input value="${escapeHtml(a.method||"")}" oninput="advSet('method',this.value)" placeholder="Cash / transfer"></div>
+        <div class="field"><label>Issued by <span style="font-weight:500;color:var(--muted);font-size:10px">\u2014 accountant / cashier</span></label>
+          <input list="advIssuers" value="${escapeHtml(a.issuedBy||"")}" oninput="advSet('issuedBy',this.value)" placeholder="Who released the cash">
+          <datalist id="advIssuers">${people.map(p=>`<option>${escapeHtml(p)}</option>`).join("")}</datalist>
+          <div style="font-size:10px;color:var(--muted);margin-top:4px;line-height:1.6">Names the person who authorised the payment, so the register can show who released each amount \u2014 not only who received it.</div></div>
         <div class="field" style="grid-column:1/-1"><label>Notes</label>
           <textarea rows="2" oninput="advSet('notes',this.value)">${escapeHtml(a.notes||"")}</textarea></div>
       </div>
@@ -701,6 +706,322 @@ function renderAdvances(){
       </div>
     </div>`;}).join("")}`;
 }
+
+// ═══ ADVANCES REGISTER (v221) ════════════════════════════════════════════
+// Everything handed out, what came back, and what is still against each
+// person. The two currencies are tallied separately throughout \u2014 a dollar and
+// a dinar are never added into one figure.
+window._advRep = window._advRep || {employee:"", status:"", from:"", to:""};
+
+function advRegRows(){
+  const f=window._advRep;
+  const from=String(f.from||""), to=String(f.to||"");
+  return (state.advances||[]).filter(a=>{
+    if(f.employee && String(a.employee||"").trim()!==f.employee) return false;
+    const d=String(a.date||"");
+    if(from && d && d<from) return false;
+    if(to   && d && d>to)   return false;
+    if(f.status){
+      const st=advStatusOf(a);
+      if(f.status==="outstanding"){ if(st==="settled"||st==="closed") return false; }
+      else if(f.status==="closed"){ if(st!=="settled" && st!=="closed") return false; }
+      else if(st!==f.status) return false;
+    }
+    return true;
+  }).map(a=>{
+    const o=advOutstanding(a);
+    const closed=advManuallyClosed(a);
+    return {a, st:advStatusOf(a), closed,
+            usd:num(a.usd), iqd:num(a.iqd),
+            apUSD:o.applied.usd, apIQD:o.applied.iqd,
+            // Closed by hand: nothing is still held, whatever the claim maths says.
+            outUSD:closed?0:o.usd, outIQD:closed?0:o.iqd,
+            // Kept so the document can still show what was written off.
+            unclearedUSD:o.usd, unclearedIQD:o.iqd};
+  }).sort((x,y)=>String(y.a.date||"").localeCompare(String(x.a.date||""))
+              || String(x.a.employee||"").localeCompare(String(y.a.employee||"")));
+}
+
+function advRegTotals(rows){
+  const T={usd:0,iqd:0,apUSD:0,apIQD:0,outUSD:0,outIQD:0};
+  rows.forEach(r=>{ T.usd+=r.usd; T.iqd+=r.iqd; T.apUSD+=r.apUSD; T.apIQD+=r.apIQD;
+                    T.outUSD+=r.outUSD; T.outIQD+=r.outIQD; });
+  // Per person, so a supervisor can see instantly who is carrying company cash.
+  const byEmp={};
+  rows.forEach(r=>{
+    const k=String(r.a.employee||"\u2014").trim()||"\u2014";
+    if(!byEmp[k]) byEmp[k]={usd:0,iqd:0,outUSD:0,outIQD:0,n:0};
+    byEmp[k].usd+=r.usd; byEmp[k].iqd+=r.iqd;
+    byEmp[k].outUSD+=r.outUSD; byEmp[k].outIQD+=r.outIQD; byEmp[k].n++;
+  });
+  const empRows=Object.keys(byEmp).sort().map(k=>({name:k,
+    usd:+byEmp[k].usd.toFixed(2), iqd:Math.round(byEmp[k].iqd),
+    outUSD:+byEmp[k].outUSD.toFixed(2), outIQD:Math.round(byEmp[k].outIQD), n:byEmp[k].n}));
+  return {usd:+T.usd.toFixed(2), iqd:Math.round(T.iqd),
+          apUSD:+T.apUSD.toFixed(2), apIQD:Math.round(T.apIQD),
+          outUSD:+T.outUSD.toFixed(2), outIQD:Math.round(T.outIQD),
+          count:rows.length, empRows};
+}
+Object.assign(window,{advRegRows, advRegTotals});
+
+window.advRepSet = function(k,v){ window._advRep[k]=v; render(); };
+window.advRepClear = function(){ window._advRep={employee:"",status:"",from:"",to:""}; render(); };
+
+function renderAdvancesRegister(){
+  if(!(isAdmin()||hasCap("canAnalytics")))
+    return `<div class="card"><div class="empty">No access.</div></div>`;
+  const f=window._advRep;
+  const people=(typeof allEmployees==="function")?allEmployees().slice().sort():[];
+  const rows=advRegRows(), T=advRegTotals(rows);
+  const TD='padding:6px 8px;border-bottom:1px solid var(--line);font-size:11px';
+  const NM=TD+';text-align:right;white-space:nowrap';
+  const money=(u,q)=>`${u?_usd(u):"\u2014"}${q?`<br><span style="color:var(--muted)">${q.toLocaleString()} IQD</span>`:""}`;
+
+  return `<div class="card">
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">\u{1F4B3} Advances register
+      <span style="font-size:10px;color:var(--muted);font-weight:500">${T.count} advance(s)</span>
+      <button class="btn btn-sm btn-secondary" style="margin-left:auto" onclick="advRegisterPDF()">\u{1F4C4} PDF</button>
+      <button class="btn btn-sm btn-secondary" onclick="advRegisterExcel()">\u{1F4CA} Excel</button></div>
+    <p style="font-size:11px;color:var(--muted);line-height:1.7;margin-bottom:10px">
+      Every advance paid out, what has been accounted for against it, and what is still held by the employee.
+      US dollars and Iraqi dinars are tallied in separate columns and are never added together.
+    </p>
+    <div class="form-grid">
+      <div class="field"><label>Employee</label>
+        <select onchange="advRepSet('employee',this.value)"><option value="">\u2014 everyone \u2014</option>
+          ${people.map(p=>`<option ${f.employee===p?"selected":""}>${escapeHtml(p)}</option>`).join("")}</select></div>
+      <div class="field"><label>Status</label>
+        <select onchange="advRepSet('status',this.value)">
+          <option value="" ${!f.status?"selected":""}>\u2014 all \u2014</option>
+          <option value="outstanding" ${f.status==="outstanding"?"selected":""}>Still outstanding</option>
+          <option value="open"    ${f.status==="open"?"selected":""}>Open \u2014 nothing settled</option>
+          <option value="partly"  ${f.status==="partly"?"selected":""}>Partly settled</option>
+          <option value="settled" ${f.status==="settled"?"selected":""}>Settled by claim</option>
+          <option value="closed"  ${f.status==="closed"?"selected":""}>Closed (settled or by hand)</option>
+        </select></div>
+      <div class="field"><label>From</label><input type="date" value="${escapeHtml(f.from||"")}" onchange="advRepSet('from',this.value)"></div>
+      <div class="field"><label>To</label><input type="date" value="${escapeHtml(f.to||"")}" onchange="advRepSet('to',this.value)"></div>
+    </div>
+    ${(f.employee||f.status||f.from||f.to)?`<button class="btn btn-sm btn-secondary" onclick="advRepClear()">Clear filters</button>`:""}
+  </div>
+
+  ${!rows.length?`<div class="card"><div class="empty">
+      <div style="font-size:30px">\u{1F4B3}</div>
+      <div style="font-weight:800;margin-top:6px">No advances match</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px;line-height:1.7">
+        ${(f.employee||f.status||f.from||f.to)?"Widen or clear the filters above.":"Advances recorded under Finance \u2192 Advances appear here."}</div>
+    </div></div>`
+  :`<div class="card" style="overflow-x:auto">
+    <div class="sec-hdr">Detail</div>
+    <table style="border-collapse:collapse;width:100%;min-width:640px">
+      <thead><tr>
+        <th style="${TD};text-align:left">Employee</th>
+        <th style="${TD};text-align:left">Date</th>
+        <th style="${TD};text-align:left">Reference</th>
+        <th style="${TD};text-align:left">Purpose</th>
+        <th style="${TD};text-align:left">Projects</th>
+        <th style="${TD};text-align:left">Issued by</th>
+        <th style="${NM}">Advanced</th>
+        <th style="${NM}">Accounted</th>
+        <th style="${NM}">Outstanding</th>
+        <th style="${TD};text-align:center">Status</th>
+      </tr></thead>
+      <tbody>${rows.map(r=>{const S=ADV_STATUS[r.st]||ADV_STATUS.open; const ps=advProjectsOf(r.a);
+        return `<tr>
+        <td style="${TD};font-weight:700">${escapeHtml(r.a.employee||"\u2014")}</td>
+        <td style="${TD}">${r.a.date?escapeHtml(fmtDate(r.a.date)):"\u2014"}</td>
+        <td style="${TD}">${escapeHtml(r.a.ref||"\u2014")}</td>
+        <td style="${TD}">${escapeHtml(r.a.purpose||"\u2014")}</td>
+        <td style="${TD};font-size:10px">${ps.length?ps.map(p=>escapeHtml(p)).join(" \u00b7 "):"\u2014"}</td>
+        <td style="${TD}">${escapeHtml(r.a.issuedBy||"\u2014")}</td>
+        <td style="${NM}">${money(r.usd,r.iqd)}</td>
+        <td style="${NM}">${(r.apUSD||r.apIQD)?money(r.apUSD,r.apIQD):"\u2014"}</td>
+        <td style="${NM};font-weight:800;color:${(r.outUSD||r.outIQD)?"#E65100":"var(--muted)"}">${(r.outUSD||r.outIQD)?money(r.outUSD,r.outIQD):"\u2014"}</td>
+        <td style="${TD};text-align:center"><span style="background:${S.bg};color:${S.fg};padding:2px 8px;border-radius:10px;font-size:9.5px;font-weight:800;white-space:nowrap">${S.lb}</span>
+          ${r.a.closedManually&&r.a.closedReason?`<div style="font-size:9px;color:var(--muted);margin-top:3px">${escapeHtml(r.a.closedReason)}</div>`:""}</td>
+      </tr>`;}).join("")}
+      <tr style="background:var(--bg)">
+        <td style="${TD};font-weight:800" colspan="6">Totals \u00b7 ${T.count} advance(s)</td>
+        <td style="${NM};font-weight:800">${money(T.usd,T.iqd)}</td>
+        <td style="${NM};font-weight:800">${money(T.apUSD,T.apIQD)}</td>
+        <td style="${NM};font-weight:800;color:#E65100">${money(T.outUSD,T.outIQD)}</td>
+        <td style="${TD}"></td>
+      </tr></tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <div class="sec-hdr">Held by each person</div>
+    <p style="font-size:11px;color:var(--muted);line-height:1.7;margin-bottom:9px">
+      Company cash still in someone's hands. This is the figure to chase before issuing a new advance.</p>
+    <table style="border-collapse:collapse;width:100%">
+      <thead><tr>
+        <th style="${TD};text-align:left">Employee</th>
+        <th style="${TD};text-align:center">Advances</th>
+        <th style="${NM}">Total advanced</th>
+        <th style="${NM}">Still outstanding</th>
+      </tr></thead>
+      <tbody>${T.empRows.map(e=>`<tr>
+        <td style="${TD};font-weight:700">${escapeHtml(e.name)}</td>
+        <td style="${TD};text-align:center;color:var(--muted)">${e.n}</td>
+        <td style="${NM}">${money(e.usd,e.iqd)}</td>
+        <td style="${NM};font-weight:800;color:${(e.outUSD||e.outIQD)?"#E65100":"var(--green)"}">${(e.outUSD||e.outIQD)?money(e.outUSD,e.outIQD):"clear"}</td>
+      </tr>`).join("")}</tbody>
+    </table>
+  </div>`}`;
+}
+Object.assign(window,{renderAdvancesRegister});
+
+// ── Advances register \u2192 PDF, in the same house style as every other document.
+window.advRegisterPDF = async function(){
+  const rows=advRegRows(), T=advRegTotals(rows), f=window._advRep;
+  if(!rows.length) return toast("Nothing to print \u2014 no advances match the filters");
+  const TH='padding:5px 6px;border:1px solid #D6E4F0;background:#03308B;color:#fff;text-align:center;font-size:9px';
+  const TD='padding:5px 6px;border:1px solid #D6E4F0;font-size:9.5px';
+  const NUM=TD+';text-align:right;white-space:nowrap';
+  const R2=(l,v,strong)=>`<tr><td style="padding:6px 10px;border:1px solid #D6E4F0;${strong?"font-weight:800":""};width:62%">${l}</td>
+    <td style="padding:6px 10px;border:1px solid #D6E4F0;text-align:right;${strong?"font-weight:800;font-size:13px":""}">${v}</td></tr>`;
+  const K=(()=>{let n=0;return()=>String(++n).padStart(2,"0");})();
+  const per=(f.from||f.to)?`${f.from?fmtDate(f.from):"\u2014"} \u2192 ${f.to?fmtDate(f.to):"\u2014"}`:"All dates";
+  const stLabel={outstanding:"Still outstanding", open:"Open", partly:"Partly settled",
+                 settled:"Settled by claim", closed:"Closed"}[f.status]||"All statuses";
+
+  const body=`
+  <div class="ksec"><span class="kbad">${K()}</span><h3>Register Particulars</h3></div>
+  <table style="border-collapse:collapse;width:100%">
+    ${R2("Employee", escapeHtml(f.employee||"All employees"))}
+    ${R2("Period", escapeHtml(per))}
+    ${R2("Status filter", escapeHtml(stLabel))}
+    ${R2("Advances listed", String(T.count))}
+  </table>
+
+  <div class="ksec" style="page-break-inside:avoid"><span class="kbad">${K()}</span><h3>Advances Paid Out</h3></div>
+  <table style="border-collapse:collapse;width:100%">
+    <thead><tr>
+      <th style="${TH};text-align:left">Employee</th>
+      <th style="${TH};width:60px">Date</th>
+      <th style="${TH};width:62px">Reference</th>
+      <th style="${TH};text-align:left">Purpose</th>
+      <th style="${TH};width:66px">Issued by</th>
+      <th style="${TH};width:74px">Advanced</th>
+      <th style="${TH};width:74px">Accounted</th>
+      <th style="${TH};width:74px">Outstanding</th>
+      <th style="${TH};width:62px">Status</th>
+    </tr></thead>
+    <tbody>${rows.map(r=>{const S=ADV_STATUS[r.st]||ADV_STATUS.open; const ps=advProjectsOf(r.a);
+      const m=(u,q)=>`${u?"$"+u.toLocaleString():""}${u&&q?"<br>":""}${q?q.toLocaleString()+" IQD":""}`||"\u2014";
+      return `<tr>
+      <td style="${TD}">${escapeHtml(r.a.employee||"\u2014")}</td>
+      <td style="${TD};text-align:center">${r.a.date?escapeHtml(fmtDate(r.a.date)):"\u2014"}</td>
+      <td style="${TD};text-align:center">${escapeHtml(r.a.ref||"\u2014")}</td>
+      <td style="${TD}">${escapeHtml(r.a.purpose||"\u2014")}${ps.length?`<br><span style="font-size:8.5px;color:#555">${ps.map(p=>escapeHtml(p)).join(" \u00b7 ")}</span>`:""}</td>
+      <td style="${TD};text-align:center">${escapeHtml(r.a.issuedBy||"\u2014")}</td>
+      <td style="${NUM}">${m(r.usd,r.iqd)||"\u2014"}</td>
+      <td style="${NUM}">${m(r.apUSD,r.apIQD)||"\u2014"}</td>
+      <td style="${NUM};font-weight:800">${m(r.outUSD,r.outIQD)||"\u2014"}</td>
+      <td style="${TD};text-align:center;font-size:8.5px">${escapeHtml(S.lb)}</td>
+    </tr>`;}).join("")}
+    <tr>
+      <td style="${TD};font-weight:800;background:#F5F8FC" colspan="5">Totals \u00b7 ${T.count} advance(s)</td>
+      <td style="${NUM};font-weight:800;background:#F5F8FC">${T.usd?"$"+T.usd.toLocaleString():""}${T.usd&&T.iqd?"<br>":""}${T.iqd?T.iqd.toLocaleString()+" IQD":""}</td>
+      <td style="${NUM};font-weight:800;background:#F5F8FC">${T.apUSD?"$"+T.apUSD.toLocaleString():""}${T.apUSD&&T.apIQD?"<br>":""}${T.apIQD?T.apIQD.toLocaleString()+" IQD":""}</td>
+      <td style="${NUM};font-weight:800;background:#F5F8FC">${T.outUSD?"$"+T.outUSD.toLocaleString():""}${T.outUSD&&T.outIQD?"<br>":""}${T.outIQD?T.outIQD.toLocaleString()+" IQD":""}</td>
+      <td style="${TD};background:#F5F8FC"></td>
+    </tr></tbody>
+  </table>
+  <div style="margin-top:6px;font-size:9px;font-style:italic;color:#555;line-height:1.6">
+    US dollars and Iraqi dinars are listed and totalled separately. No figure in this register combines the two currencies.
+  </div>
+
+  <div class="ksec" style="page-break-inside:avoid"><span class="kbad">${K()}</span><h3>Balance Held by Each Employee</h3></div>
+  <table style="border-collapse:collapse;width:100%">
+    <thead><tr>
+      <th style="${TH};text-align:left">Employee</th>
+      <th style="${TH};width:60px">Advances</th>
+      <th style="${TH};width:96px">Total advanced</th>
+      <th style="${TH};width:96px">Still outstanding</th>
+    </tr></thead>
+    <tbody>${T.empRows.map(e=>`<tr>
+      <td style="${TD}">${escapeHtml(e.name)}</td>
+      <td style="${TD};text-align:center">${e.n}</td>
+      <td style="${NUM}">${e.usd?"$"+e.usd.toLocaleString():""}${e.usd&&e.iqd?"<br>":""}${e.iqd?e.iqd.toLocaleString()+" IQD":""}</td>
+      <td style="${NUM};font-weight:800">${(e.outUSD||e.outIQD)?`${e.outUSD?"$"+e.outUSD.toLocaleString():""}${e.outUSD&&e.outIQD?"<br>":""}${e.outIQD?e.outIQD.toLocaleString()+" IQD":""}`:"clear"}</td>
+    </tr>`).join("")}</tbody>
+  </table>
+
+  <div class="ksec" style="page-break-inside:avoid"><span class="kbad">${K()}</span><h3>Certification</h3></div>
+  <p style="font-size:10.5px;line-height:1.8">
+    The advances listed above are recorded as paid out by the company. Amounts shown as outstanding remain the
+    responsibility of the named employee until accounted for by an approved expense claim or returned to the company.
+  </p>
+  <table style="border-collapse:collapse;width:100%"><tr>
+    ${sigBlockHTML("advreg_prep", (state.profile&&(state.profile.name||state.profile.employeeName))||"", "Prepared by", "EJAF Technology")}
+    ${sigBlockHTML("advreg_acc", "", "Accountant", "EJAF Technology")}
+    ${sigBlockHTML("advreg_apr", "", "Approved by", "EJAF Technology")}
+  </tr></table>`;
+
+  await openReportPDF("ADVANCES_REGISTER", per, body, {project:"", client:""});
+  toast("Advances register ready!");
+};
+
+// ── Advances register \u2192 Excel, with live formulas so finance can re-check.
+window.advRegisterExcel = function(){
+  const rows=advRegRows(), T=advRegTotals(rows), f=window._advRep;
+  if(!rows.length) return toast("Nothing to export \u2014 no advances match the filters");
+  if(typeof XLSX==="undefined") return toast("Excel engine not loaded");
+  const A=[];
+  A.push(["ADVANCES REGISTER"]);
+  A.push(["Employee", f.employee||"All employees"]);
+  A.push(["Period", (f.from||"\u2014")+" \u2192 "+(f.to||"\u2014")]);
+  A.push(["Generated", (typeof todayStr==="function"?todayStr():"")]);
+  A.push([]);
+  A.push(["Employee","Date","Reference","Purpose","Projects","Issued by",
+          "Advanced USD","Advanced IQD","Accounted USD","Accounted IQD",
+          "Outstanding USD","Outstanding IQD","Status"]);
+  const FIRST=A.length+1;
+  rows.forEach(r=>{
+    const rn=A.length+1;
+    A.push([r.a.employee||"", r.a.date||"", r.a.ref||"", r.a.purpose||"",
+            advProjectsOf(r.a).join(" \u00b7 "), r.a.issuedBy||"",
+            r.usd||0, r.iqd||0, r.apUSD||0, r.apIQD||0,
+            // Outstanding is a formula, not a baked number: change what was
+            // accounted for and the balance re-computes in the sheet itself.
+            {f:`MAX(0,G${rn}-I${rn})`}, {f:`MAX(0,H${rn}-J${rn})`},
+            (ADV_STATUS[r.st]||{lb:""}).lb]);
+  });
+  const LAST=A.length;
+  A.push(["TOTAL","","","","","",
+    {f:`SUM(G${FIRST}:G${LAST})`},{f:`SUM(H${FIRST}:H${LAST})`},
+    {f:`SUM(I${FIRST}:I${LAST})`},{f:`SUM(J${FIRST}:J${LAST})`},
+    {f:`SUM(K${FIRST}:K${LAST})`},{f:`SUM(L${FIRST}:L${LAST})`},""]);
+  A.push([]);
+  A.push(["US dollars and Iraqi dinars are kept in separate columns and are never added together."]);
+  A.push([]);
+  A.push(["BALANCE HELD BY EACH EMPLOYEE"]);
+  A.push(["Employee","Advances","Advanced USD","Advanced IQD","Outstanding USD","Outstanding IQD"]);
+  const EF=A.length+1;
+  T.empRows.forEach(e=>{
+    const nm=`"${String(e.name).replace(/"/g,'""')}"`;
+    A.push([e.name,
+      {f:`COUNTIF($A$${FIRST}:$A$${LAST},${nm})`},
+      {f:`SUMIF($A$${FIRST}:$A$${LAST},${nm},$G$${FIRST}:$G$${LAST})`},
+      {f:`SUMIF($A$${FIRST}:$A$${LAST},${nm},$H$${FIRST}:$H$${LAST})`},
+      {f:`SUMIF($A$${FIRST}:$A$${LAST},${nm},$K$${FIRST}:$K$${LAST})`},
+      {f:`SUMIF($A$${FIRST}:$A$${LAST},${nm},$L$${FIRST}:$L$${LAST})`}]);
+  });
+  const EL=A.length;
+  A.push(["TOTAL",{f:`SUM(B${EF}:B${EL})`},{f:`SUM(C${EF}:C${EL})`},{f:`SUM(D${EF}:D${EL})`},
+          {f:`SUM(E${EF}:E${EL})`},{f:`SUM(F${EF}:F${EL})`}]);
+
+  const ws=XLSX.utils.aoa_to_sheet(A);
+  ws["!cols"]=[{wch:20},{wch:11},{wch:14},{wch:28},{wch:20},{wch:16},
+               {wch:13},{wch:14},{wch:13},{wch:14},{wch:14},{wch:15},{wch:15}];
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Advances");
+  XLSX.writeFile(wb, `Advances-register-${(typeof todayStr==="function"?todayStr():"export")}.xlsx`);
+  toast("\u2713 Excel exported");
+};
+Object.assign(window,{advRegisterPDF, advRegisterExcel});
 
 function renderExpenseClaims(){
   if(!(isAdmin()||hasCap("canAnalytics")||isEmployee())) return `<div class="card"><div class="empty">No access.</div></div>`;

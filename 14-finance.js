@@ -1065,10 +1065,12 @@ Object.assign(window,{renderFinance, renderQuotes, renderVariations});
 function renderFinanceReport(){
   if(!(isAdmin()||hasCap("canAnalytics")||isEmployee()))
     return `<div class="card"><div class="empty">No access.</div></div>`;
-  const h=_pills('_finRepView',[{id:"claims",ic:"\u{1F9FE}",lb:"Expense Reports"},
-                                {id:"cost",  ic:"\u{1F4CA}",lb:"Cost Report"}]);
+  const h=_pills('_finRepView',[{id:"claims",   ic:"\u{1F9FE}",lb:"Expense Reports"},
+                                {id:"advances", ic:"\u{1F4B3}",lb:"Advances"},
+                                {id:"cost",     ic:"\u{1F4CA}",lb:"Cost Report"}]);
   const v=window._finRepView||"claims";
-  if(v==="cost") return h + renderCostReport();
+  if(v==="cost")     return h + renderCostReport();
+  if(v==="advances") return h + renderAdvancesRegister();
   return h + renderExpenseClaims();
 }
 Object.assign(window,{renderFinanceReport});
