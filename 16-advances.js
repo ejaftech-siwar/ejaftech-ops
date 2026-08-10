@@ -69,6 +69,7 @@ window._advView = window._advView || "list";
 function advancesFor(employee, onlyOpen){
   const e=String(employee||"").trim();
   return (state.advances||[]).filter(a=>{
+    if(!a) return false;
     if(e && String(a.employee||"").trim()!==e) return false;
     // Closed by hand counts as finished: it must never be offered to a claim.
     if(onlyOpen && (advSettledFully(a) || advManuallyClosed(a))) return false;
@@ -87,6 +88,7 @@ function advApplied(advId){
   return {usd:+usd.toFixed(2), iqd:Math.round(iqd)};
 }
 function advOutstanding(a){
+  if(!a) return {usd:0, iqd:0, applied:{usd:0, iqd:0}};
   const ap=advApplied(a.id);
   return {usd:+Math.max(0,num(a.usd)-ap.usd).toFixed(2),
           iqd:Math.max(0,num(a.iqd)-ap.iqd), applied:ap};
@@ -99,10 +101,12 @@ function advOutstanding(a){
 function advManuallyClosed(a){ return !!(a && a.closedManually); }
 
 function advSettledFully(a){
+  if(!a) return false;
   const o=advOutstanding(a);
   return o.usd<=0.005 && o.iqd<=0;
 }
 function advStatusOf(a){
+  if(!a) return "open";
   const o=advOutstanding(a);
   if(o.usd<=0.005 && o.iqd<=0) return "settled";
   // Closed by hand while a balance remained: still closed, but labelled
@@ -115,6 +119,7 @@ function advStatusOf(a){
 function advOutstandingTotals(){
   let usd=0, iqd=0, count=0;
   (state.advances||[]).forEach(a=>{
+    if(!a) return;
     if(advManuallyClosed(a)) return;   // money is back \u2014 no longer exposure
     const o=advOutstanding(a);
     if(o.usd>0.005||o.iqd>0){ usd+=o.usd; iqd+=o.iqd; count++; }
@@ -717,6 +722,7 @@ function advRegRows(){
   const f=window._advRep;
   const from=String(f.from||""), to=String(f.to||"");
   return (state.advances||[]).filter(a=>{
+    if(!a) return false;                       // a malformed record, not a row
     if(f.employee && String(a.employee||"").trim()!==f.employee) return false;
     const d=String(a.date||"");
     if(from && d && d<from) return false;
