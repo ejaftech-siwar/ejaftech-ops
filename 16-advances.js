@@ -793,6 +793,7 @@ function renderAdvancesRegister(){
       <span style="font-size:10px;color:var(--muted);font-weight:500">${T.count} advance(s)</span>
       <button class="btn btn-sm btn-secondary" style="margin-left:auto" onclick="advRegisterPDF()">\u{1F4C4} PDF</button>
       <button class="btn btn-sm btn-secondary" onclick="advRegisterExcel()">\u{1F4CA} Excel</button></div>
+    ${typeof refOverrideField==="function"?refOverrideField():""}
     <p style="font-size:11px;color:var(--muted);line-height:1.7;margin-bottom:10px">
       Every advance paid out, what has been accounted for against it, and what is still held by the employee.
       US dollars and Iraqi dinars are tallied in separate columns and are never added together.
@@ -888,8 +889,8 @@ Object.assign(window,{renderAdvancesRegister});
 window.advRegisterPDF = async function(){
   const rows=advRegRows(), T=advRegTotals(rows), f=window._advRep;
   if(!rows.length) return toast("Nothing to print \u2014 no advances match the filters");
-  const TH='padding:5px 6px;border:1px solid #D6E4F0;background:#03308B;color:#fff;text-align:center;font-size:9px';
-  const TD='padding:5px 6px;border:1px solid #D6E4F0;font-size:9.5px';
+  const TH='padding:5px 6px;border:1px solid #D6E4F0;background:#03308B;color:#fff;text-align:center;font-size:8pt';
+  const TD='padding:5px 6px;border:1px solid #D6E4F0;font-size:8.5pt';
   const NUM=TD+';text-align:right;white-space:nowrap';
   const R2=(l,v,strong)=>`<tr><td style="padding:6px 10px;border:1px solid #D6E4F0;${strong?"font-weight:800":""};width:62%">${l}</td>
     <td style="padding:6px 10px;border:1px solid #D6E4F0;text-align:right;${strong?"font-weight:800;font-size:13px":""}">${v}</td></tr>`;
@@ -926,12 +927,12 @@ window.advRegisterPDF = async function(){
       <td style="${TD}">${escapeHtml(r.a.employee||"\u2014")}</td>
       <td style="${TD};text-align:center">${r.a.date?escapeHtml(fmtDate(r.a.date)):"\u2014"}</td>
       <td style="${TD};text-align:center">${escapeHtml(r.a.ref||"\u2014")}</td>
-      <td style="${TD}">${escapeHtml(r.a.purpose||"\u2014")}${ps.length?`<br><span style="font-size:8.5px;color:#555">${ps.map(p=>escapeHtml(p)).join(" \u00b7 ")}</span>`:""}</td>
+      <td style="${TD}">${escapeHtml(r.a.purpose||"\u2014")}${ps.length?`<br><span style="font-size:7.5pt;color:#555">${ps.map(p=>escapeHtml(p)).join(" \u00b7 ")}</span>`:""}</td>
       <td style="${TD};text-align:center">${escapeHtml(r.a.issuedBy||"\u2014")}</td>
       <td style="${NUM}">${m(r.usd,r.iqd)||"\u2014"}</td>
       <td style="${NUM}">${m(r.apUSD,r.apIQD)||"\u2014"}</td>
       <td style="${NUM};font-weight:800">${m(r.outUSD,r.outIQD)||"\u2014"}</td>
-      <td style="${TD};text-align:center;font-size:8.5px">${escapeHtml(S.lb)}</td>
+      <td style="${TD};text-align:center;font-size:7.5pt">${escapeHtml(S.lb)}</td>
     </tr>`;}).join("")}
     <tr>
       <td style="${TD};font-weight:800;background:#F5F8FC" colspan="5">Totals \u00b7 ${T.count} advance(s)</td>
@@ -941,7 +942,7 @@ window.advRegisterPDF = async function(){
       <td style="${TD};background:#F5F8FC"></td>
     </tr></tbody>
   </table>
-  <div style="margin-top:6px;font-size:9px;font-style:italic;color:#555;line-height:1.6">
+  <div style="margin-top:6px;font-size:8pt;font-style:italic;color:#555;line-height:1.6">
     US dollars and Iraqi dinars are listed and totalled separately. No figure in this register combines the two currencies.
   </div>
 
@@ -962,7 +963,7 @@ window.advRegisterPDF = async function(){
   </table>
 
   <div class="ksec" style="page-break-inside:avoid"><span class="kbad">${K()}</span><h3>Certification</h3></div>
-  <p style="font-size:10.5px;line-height:1.8">
+  <p style="font-size:9pt;line-height:1.8">
     The advances listed above are recorded as paid out by the company. Amounts shown as outstanding remain the
     responsibility of the named employee until accounted for by an approved expense claim or returned to the company.
   </p>
@@ -989,9 +990,11 @@ window.advRegisterExcel = function(){
   // Built as a plain array-of-arrays and converted with aoa_to_sheet \u2014 the same
   // path every other working export in this app uses. Styling is applied
   // afterwards by xlDress, so presentation never risks the data.
+  const manualRef=String(window._refOverride||"").trim();
+  if(manualRef) window._refOverride="";
   const A=[];
   A.push(["EJAF Technology \u2014 Gir\u00eak"]);
-  A.push(["Advances Register"]);
+  A.push(["Advances Register" + (manualRef?"  \u00b7  "+manualRef:"")]);
   A.push([`${f.employee||"All employees"}  \u00b7  ${per}  \u00b7  ${stLabel}`]);
   A.push([]);
   A.push(["Employee","Date","Reference","Purpose","Projects","Issued by",
@@ -1274,7 +1277,7 @@ function renderExpenseClaims(){
       <button class="btn btn-primary" onclick="exrNew()">+ New claim</button>
       <span style="font-size:11px;color:var(--muted);margin-left:auto">${mine.length} claim(s)</span>
     </div>
-    <div style="margin-top:10px">${typeof rptFormatToggle==="function"?rptFormatToggle(true):""}${typeof brandLink==="function"?brandLink():""}</div>
+    <div style="margin-top:10px">${typeof rptFormatToggle==="function"?rptFormatToggle(true):""}${typeof refOverrideField==="function"?refOverrideField():""}${typeof brandLink==="function"?brandLink():""}</div>
     <div style="font-size:10px;color:var(--muted);margin-top:2px;line-height:1.6">
       Excel keeps the totals as live formulas, so finance can re-check the arithmetic \u2014 the usual choice for a claim. PDF is the one to sign and file.
     </div>
@@ -1474,9 +1477,13 @@ window.expenseClaimExcel = function(id){
     const lines=(r.lines||[]).filter(l=>String(l.desc||"").trim() ||
       EXR_GROUPS.some(g=>num(l[g.k+"USD"])||num(l[g.k+"IQD"])));
     const A=[];
+    // Single-use, exactly like the PDF: it stamps this document and then clears
+    // itself, so the next export is not silently given the same number.
+    const manualRef=String(window._refOverride||"").trim();
+    if(manualRef) window._refOverride="";
     A.push(["EJAF TECHNOLOGY"]);
     A.push(["Local Transportation and Expense Report \u2014 Reimbursement Claim"]);
-    A.push([r.ref||""]);
+    A.push([manualRef || r.ref || ""]);
     A.push([]);
     A.push(["Employee name", r.employee||"", "", "Title", r.title||""]);
     A.push(["Department",    r.department||"", "", "Manager", r.manager||""]);
@@ -1518,58 +1525,75 @@ window.expenseClaimExcel = function(id){
     // Currency subtotals, each from ITS OWN four cells only.
     const usdCells=EXR_GROUPS.map((_,gi)=>`${col(4+gi*2)}${TOT}`).join(",");
     const iqdCells=EXR_GROUPS.map((_,gi)=>`${col(5+gi*2)}${TOT}`).join(",");
+    // The two currencies keep their own columns \u2014 the last two money columns of
+    // the grid \u2014 so the settlement lines up under the figures it settles.
+    let _proj=null, _adv=null;              // section anchors for the styling pass
+    const NC = 4+EXR_GROUPS.length*2;       // total column count
+    const cUSD = col(NC-2), cIQD = col(NC-1);
+    const pad = (label, usd, iqd)=>{
+      const row=new Array(NC).fill("");
+      row[0]=label; row[NC-2]=usd; row[NC-1]=iqd;
+      return row;
+    };
     A.push([]);
-    A.push(["Subtotal \u00b7 USD","","","", lines.length?{f:`SUM(${usdCells})`}:0]);
-    A.push(["Subtotal \u00b7 IQD","","","", lines.length?{f:`SUM(${iqdCells})`}:0]);
-    const SUB_USD=A.length-1, SUB_IQD=A.length;
-    A.push(["Less advances \u00b7 USD","","","", t.advUSD||0]);
-    A.push(["Less advances \u00b7 IQD","","","", t.advIQD||0]);
-    const ADV_USD=A.length-1, ADV_IQD=A.length;
-    A.push([t.owedByEmployee?"TO BE RETURNED BY THE EMPLOYEE \u00b7 USD":"TOTAL REIMBURSEMENT DUE \u00b7 USD",
-            "","","", {f:`E${SUB_USD}-E${ADV_USD}`}]);
-    A.push([t.owedByEmployee?"TO BE RETURNED BY THE EMPLOYEE \u00b7 IQD":"TOTAL REIMBURSEMENT DUE \u00b7 IQD",
-            "","","", {f:`E${SUB_IQD}-E${ADV_IQD}`}]);
+    A.push(pad("", "USD", "IQD"));
+    const SET_HDR=A.length-1;               // 0-based, for the header styling
+    A.push(pad("Subtotal",
+      lines.length?{f:`SUM(${usdCells})`}:0,
+      lines.length?{f:`SUM(${iqdCells})`}:0));
+    const SUB=A.length;                     // 1-based row of the subtotal line
+    A.push(pad("Less advances applied", t.advUSD||0, t.advIQD||0));
+    const ADV=A.length;
+    A.push(pad(t.owedByEmployee?"TO BE RETURNED BY THE EMPLOYEE":"TOTAL REIMBURSEMENT DUE",
+      {f:`${cUSD}${SUB}-${cUSD}${ADV}`},
+      {f:`${cIQD}${SUB}-${cIQD}${ADV}`}));
+    const SET_TOT=A.length-1;               // 0-based, for the total styling
     // ── Cost by project, as live formulas ──────────────────────────────
     // The project column is D. Each currency is summed across its own four
     // group columns only, so a dollar figure can never reach a dinar total.
-    if(lines.length){
-      const names=[];
-      lines.forEach(l=>{ const k=String(l.project||"").trim()||"\u2014 Unassigned";
-                         if(!names.includes(k)) names.push(k); });
-      const named=names.filter(n=>!n.startsWith("\u2014")).sort((a,b)=>a.localeCompare(b));
-      const hasUnassigned=names.some(n=>n.startsWith("\u2014"));
+    // A project only earns a row if it actually carries money. Printing a
+    // project that recorded nothing is noise on a document meant to be signed.
+    const _spent={};
+    lines.forEach(l=>{
+      const k=String(l.project||"").trim()||"\u2014 Unassigned";
+      let u=0,q=0; EXR_GROUPS.forEach(g=>{ u+=num(l[g.k+"USD"]); q+=num(l[g.k+"IQD"]); });
+      if(!_spent[k]) _spent[k]={usd:0,iqd:0};
+      _spent[k].usd+=u; _spent[k].iqd+=q;
+    });
+    const spentNames=Object.keys(_spent).filter(k=>_spent[k].usd>0 || _spent[k].iqd>0);
+
+    if(lines.length && spentNames.length){
+      const named=spentNames.filter(n=>!n.startsWith("\u2014")).sort((a,b)=>a.localeCompare(b));
+      const hasUnassigned=spentNames.some(n=>n.startsWith("\u2014"));
       A.push([]);
       A.push(["Cost by project"]);
-      A.push(["Project","Rows","USD","IQD"]);
+      A.push(pad("Project","USD","IQD"));
+      const PHDR=A.length-1;                // 0-based, for header styling
       const PFIRST=A.length+1;
       named.forEach(nm=>{
         const crit=`"${String(nm).replace(/"/g,'""')}"`;
         const sums=(off)=>EXR_GROUPS.map((_,gi)=>
           `SUMIF($D$${FIRST}:$D$${LAST},${crit},${col(4+gi*2+off)}$${FIRST}:${col(4+gi*2+off)}$${LAST})`).join("+");
-        A.push([nm,
-                {f:`COUNTIF($D$${FIRST}:$D$${LAST},${crit})`},
-                {f:sums(0)},
-                {f:sums(1)}]);
+        A.push(pad(nm, {f:sums(0)}, {f:sums(1)}));
       });
       const NLAST=A.length;                 // last named-project row
       if(hasUnassigned){
         // Remainder, so the parts always reconcile with the whole.
-        const nb=named.length?`-SUM(B${PFIRST}:B${NLAST})`:"";
-        const nc=named.length?`-SUM(C${PFIRST}:C${NLAST})`:"";
-        const nd=named.length?`-SUM(D${PFIRST}:D${NLAST})`:"";
+        const nc=named.length?`-SUM(${cUSD}${PFIRST}:${cUSD}${NLAST})`:"";
+        const nd=named.length?`-SUM(${cIQD}${PFIRST}:${cIQD}${NLAST})`:"";
         const usdCellsT=EXR_GROUPS.map((_,gi)=>`${col(4+gi*2)}${TOT}`).join(",");
         const iqdCellsT=EXR_GROUPS.map((_,gi)=>`${col(5+gi*2)}${TOT}`).join(",");
-        A.push(["\u2014 Unassigned",
-                {f:`${lines.length}${nb}`},
+        A.push(pad("\u2014 Unassigned",
                 {f:`SUM(${usdCellsT})${nc}`},
-                {f:`SUM(${iqdCellsT})${nd}`}]);
+                {f:`SUM(${iqdCellsT})${nd}`}));
       }
       const PLAST=A.length;
-      A.push(["All projects",
-              {f:`SUM(B${PFIRST}:B${PLAST})`},
-              {f:`SUM(C${PFIRST}:C${PLAST})`},
-              {f:`SUM(D${PFIRST}:D${PLAST})`}]);
+      A.push(pad("All projects",
+              {f:`SUM(${cUSD}${PFIRST}:${cUSD}${PLAST})`},
+              {f:`SUM(${cIQD}${PFIRST}:${cIQD}${PLAST})`}));
+      const PTOT=A.length-1;                // 0-based, for total styling
       A.push(["These project rows re-total themselves from the table above, and must add back to the claim subtotals."]);
+      _proj={hdr:PHDR, tot:PTOT};
     }
 
     A.push([]);
@@ -1577,8 +1601,17 @@ window.expenseClaimExcel = function(id){
 
     if((r.advanceIds||[]).length){
       A.push([]); A.push(["Advances applied"]);
-      A.push(["Reference","Date","USD","IQD"]);
-      (r.advanceIds||[]).forEach(a=>A.push([a.ref||"Advance", a.date||"", num(a.usd)||"", num(a.iqd)||""]));
+      A.push(pad("Reference","USD","IQD"));
+      const AHDR=A.length-1;
+      (r.advanceIds||[]).forEach(a=>{
+        const label=[a.ref||"Advance", a.date?`(${a.date})`:""].filter(Boolean).join(" ");
+        A.push(pad(label, num(a.usd)||0, num(a.iqd)||0));
+      });
+      const ALAST=A.length;
+      A.push(pad("Total advances applied",
+        {f:`SUM(${cUSD}${AHDR+2}:${cUSD}${ALAST})`},
+        {f:`SUM(${cIQD}${AHDR+2}:${cIQD}${ALAST})`}));
+      _adv={hdr:AHDR, tot:A.length-1};
     }
     if(r.notes){ A.push([]); A.push(["Notes"]); A.push([r.notes]); }
     A.push([]);
@@ -1586,8 +1619,10 @@ window.expenseClaimExcel = function(id){
     A.push(["Signature","","", "Signature",""]);
 
     const ws=XLSX.utils.aoa_to_sheet(A);
-    ws["!cols"]=[{wch:12},{wch:42},{wch:14},{wch:20}]
-      .concat(EXR_GROUPS.flatMap(()=>[{wch:11},{wch:14}]));
+    // Column A carries both dates and the long settlement labels, so it is
+    // sized for the longest of them rather than for a date alone.
+    ws["!cols"]=[{wch:34},{wch:40},{wch:14},{wch:22}]
+      .concat(EXR_GROUPS.flatMap(()=>[{wch:13},{wch:16}]));
     // Merge the group headings so the sheet reads like the printed form.
     const merges=[{s:{r:0,c:0},e:{r:0,c:3+EXR_GROUPS.length*2}},
                   {s:{r:1,c:0},e:{r:1,c:3+EXR_GROUPS.length*2}}];
@@ -1599,8 +1634,13 @@ window.expenseClaimExcel = function(id){
 
     // Presentation only \u2014 values, formulas and merges above are left alone.
     if(typeof xlDress==="function"){
+      const rowMap={0:"title", 1:"subtitle", 2:"subtitle",
+                    [HDR_ROW]:"header", [HDR_ROW+1]:"header",
+                    [SET_HDR]:"header", [SET_TOT]:"total"};
+      if(_proj){ rowMap[_proj.hdr]="header"; rowMap[_proj.tot]="total"; }
+      if(_adv){  rowMap[_adv.hdr]="header";  rowMap[_adv.tot]="total"; }
       xlDress(ws, {
-        rows:{0:"title", 1:"subtitle", 2:"subtitle", [HDR_ROW]:"header", [HDR_ROW+1]:"header"},
+        rows:rowMap,
         match:[
           [/^(Employee name|Department|Date|Status|Projects covered|Exchange rate)$/, "label"],
           [/^Totals$/, "total"],

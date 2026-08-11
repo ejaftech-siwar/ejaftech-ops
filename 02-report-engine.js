@@ -147,7 +147,8 @@ function buildReportHTML(refNo, reportType, periodLabel, bodyHTML){
   const css=`
     @page{margin:0;size:A4}
     *{margin:0;padding:0;box-sizing:border-box}
-    body{font-family:'Segoe UI',Arial,sans-serif;color:#1A1A2E;font-size:11px;line-height:1.4;background:#FFFFFF}
+    body{font-family:'Segoe UI',Arial,sans-serif;color:#1A1A2E;font-size:10.5pt;line-height:1.55;background:#FFFFFF}
+    p{line-height:1.7}
 
     /* HEADER */
     .rh{background:linear-gradient(135deg,#03308B 0%,#1a4db5 60%,#0a1628 100%);
@@ -157,11 +158,11 @@ function buildReportHTML(refNo, reportType, periodLabel, bodyHTML){
     .rlmark{border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.28);-webkit-print-color-adjust:exact;print-color-adjust:exact}
     .rl{color:white;font-size:18px;font-weight:800;letter-spacing:1.4px;line-height:1.15;text-transform:uppercase}
     .rl span{color:#C9A84C}
-    .rs{color:rgba(255,255,255,.62);font-size:10px;margin-top:5px;letter-spacing:.4px}
-    .rt{color:rgba(255,255,255,.45);font-size:9px;text-transform:uppercase;letter-spacing:1px;margin-top:2px}
+    .rs{color:rgba(255,255,255,.62);font-size:8.5pt;margin-top:5px;letter-spacing:.4px}
+    .rt{color:rgba(255,255,255,.45);font-size:8pt;text-transform:uppercase;letter-spacing:1px;margin-top:2px}
     .rr{text-align:right}
-    .rn{color:#C9A84C;font-size:13px;font-weight:700}
-    .rm{color:rgba(255,255,255,.65);font-size:9px;margin-top:4px;line-height:1.7}
+    .rn{color:#C9A84C;font-size:12.5pt;font-weight:700;letter-spacing:.3px}
+    .rm{color:rgba(255,255,255,.72);font-size:8.5pt;margin-top:5px;line-height:1.75}
 
     /* GOLD DIVIDER */
     .rd{height:3px;background:linear-gradient(90deg,#C9A84C,#03308B);
@@ -172,18 +173,18 @@ function buildReportHTML(refNo, reportType, periodLabel, bodyHTML){
 
     /* SECTION HEADERS */
     .ksec{display:flex;align-items:center;gap:10px;margin:18px 0 10px;page-break-inside:avoid}
-    .kbad{background:#03308B;color:#C9A84C;font-size:9px;font-weight:700;padding:3px 8px;
+    .kbad{background:#03308B;color:#C9A84C;font-size:9pt;font-weight:700;padding:4px 9px;
           border-radius:4px;letter-spacing:1px;
           -webkit-print-color-adjust:exact;print-color-adjust:exact}
-    .ksec h3{font-size:12px;font-weight:700;color:#03308B}
+    .ksec h3{font-size:13pt;font-weight:700;color:#03308B;letter-spacing:.2px}
 
     /* KPI CARDS */
     .kr{display:flex;gap:8px;margin:14px 0}
     .kc{flex:1;padding:12px;border-radius:8px;border-left:4px solid;background:#f8faff;
         page-break-inside:avoid;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-    .kl{font-size:9px;text-transform:uppercase;letter-spacing:1px;color:#888}
-    .kv{font-size:18px;font-weight:700;margin-top:2px}
-    .ks{font-size:9px;color:#888;margin-top:1px}
+    .kl{font-size:8.5pt;text-transform:uppercase;letter-spacing:1px;color:#6B7B8F}
+    .kv{font-size:19pt;font-weight:700;margin-top:3px;line-height:1.1}
+    .ks{font-size:8.5pt;color:#6B7B8F;margin-top:2px}
     .kb{border-color:#03308B}.kb .kv{color:#03308B}
     .ko{border-color:#E65100}.ko .kv{color:#E65100}
     .kg{border-color:#2e7d32}.kg .kv{color:#2e7d32}
@@ -191,39 +192,40 @@ function buildReportHTML(refNo, reportType, periodLabel, bodyHTML){
     .krd{border-color:#C62828}.krd .kv{color:#C62828}
 
     /* TABLES */
-    table{width:100%;border-collapse:collapse;margin:8px 0;font-size:10px;border-radius:8px;overflow:hidden}
+    table{width:100%;border-collapse:collapse;margin:10px 0;font-size:9.5pt;border-radius:8px;overflow:hidden}
     thead tr{background:#03308B;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-    thead th{color:white;padding:9px 10px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:.5px;font-weight:700}
+    thead th{color:white;padding:9px 10px;text-align:left;font-size:8.5pt;text-transform:uppercase;letter-spacing:.6px;font-weight:700;line-height:1.35}
     tbody tr:nth-child(even) td{background:#f0f4ff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-    tbody td{padding:7px 10px;border-bottom:1px solid #e0e8ff}
+    /* Rows breathe, and long descriptions wrap instead of being squeezed. */
+    tbody td{padding:8px 10px;border-bottom:1px solid #e0e8ff;line-height:1.5;vertical-align:top}
     tfoot tr{background:#0a1628;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-    tfoot td{color:#C9A84C;padding:9px 10px;font-weight:700;font-size:10px;border-top:2px solid #C9A84C}
+    tfoot td{color:#C9A84C;padding:10px;font-weight:700;font-size:10pt;border-top:2px solid #C9A84C}
     tr.grand td{background:linear-gradient(135deg,#C9A84C,#B58E2E)!important;color:#03308B;font-weight:800!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 
     /* BREAKDOWN CARDS \u2014 department, project and project-code blocks */
     .dept-card{border:1px solid #D6E4F0;border-left:4px solid #03308B;border-radius:8px;
       padding:10px 13px;margin-bottom:8px;background:#fff;page-break-inside:avoid}
     .dept-row{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
-    .dept-name{font-size:11px;font-weight:800;letter-spacing:.2px}
-    .dept-val{font-size:14px;font-weight:800;font-family:Georgia,serif;white-space:nowrap}
-    .dept-sub{font-size:9px;color:#6B7B8F;margin-top:3px;line-height:1.6}
+    .dept-name{font-size:10.5pt;font-weight:800;letter-spacing:.2px}
+    .dept-val{font-size:13.5pt;font-weight:800;font-family:Georgia,serif;white-space:nowrap}
+    .dept-sub{font-size:8.5pt;color:#6B7B8F;margin-top:4px;line-height:1.7}
     .bar{height:5px;background:#E8EEF6;border-radius:4px;overflow:hidden;margin-top:6px}
     .bar-fill{height:100%;border-radius:4px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
     .kpi-grid{display:flex;gap:8px;margin:14px 0;flex-wrap:wrap}
     .kpi{flex:1;min-width:110px;padding:12px;border-radius:8px;border-left:4px solid #03308B;
       background:#f8faff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-    .kpi-label{font-size:9px;text-transform:uppercase;letter-spacing:1px;color:#888}
+    .kpi-label{font-size:8pt;text-transform:uppercase;letter-spacing:1px;color:#888}
     .kpi-val{font-size:18px;font-weight:700;margin-top:2px}
-    .kpi-sub{font-size:9px;color:#888;margin-top:1px}
+    .kpi-sub{font-size:8pt;color:#888;margin-top:1px}
     /* Two-column grid so breakdown cards do not run one-per-line down a page */
     .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
     @media print{ .grid2{grid-template-columns:1fr 1fr} }
 
     /* EMPLOYEE BLOCKS */
     .emp-block{margin-bottom:10px;border:1px solid #D6E4F0;border-radius:8px;overflow:hidden;page-break-inside:avoid;border-left:4px solid #03308B}
-    .emp-head{background:linear-gradient(135deg,#03308B,#1a4db5);color:white;padding:8px 14px;font-size:11px;font-weight:700;display:flex;justify-content:space-between;align-items:center;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-    .emp-head-tag{background:#C9A84C;color:#03308B;padding:2px 9px;border-radius:10px;font-size:10px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-    .emp-sub{padding:7px 14px;font-size:11px;font-weight:700;color:white;display:flex;justify-content:space-between;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    .emp-head{background:linear-gradient(135deg,#03308B,#1a4db5);color:white;padding:8px 14px;font-size:9.5pt;font-weight:700;display:flex;justify-content:space-between;align-items:center;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    .emp-head-tag{background:#C9A84C;color:#03308B;padding:2px 9px;border-radius:10px;font-size:8.5pt;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    .emp-sub{padding:7px 14px;font-size:9.5pt;font-weight:700;color:white;display:flex;justify-content:space-between;-webkit-print-color-adjust:exact;print-color-adjust:exact}
     .emp-block.ot{border-left-color:#E65100}.emp-block.ot .emp-sub{background:linear-gradient(135deg,#E65100,#BF360C)}
     .emp-block.tr{border-left-color:#2e7d32}.emp-block.tr .emp-sub{background:linear-gradient(135deg,#2e7d32,#1B5E20)}
     .emp-block.lv{border-left-color:#C62828}.emp-block.lv .emp-sub{background:linear-gradient(135deg,#C62828,#8B1818)}
@@ -232,13 +234,13 @@ function buildReportHTML(refNo, reportType, periodLabel, bodyHTML){
     .rf{margin-top:24px;padding:12px 26px;background:#f0f4ff;border-top:3px solid #03308B;
         display:flex;justify-content:space-between;align-items:center;
         -webkit-print-color-adjust:exact;print-color-adjust:exact}
-    .rfl{font-size:9px;color:#888;line-height:1.6}
-    .rfr{font-size:9px;color:#03308B;font-weight:700}
+    .rfl{font-size:8pt;color:#888;line-height:1.6}
+    .rfr{font-size:8pt;color:#03308B;font-weight:700}
 
-    .empty{padding:14px;text-align:center;color:#888;font-style:italic;font-size:10px}
+    .empty{padding:14px;text-align:center;color:#888;font-style:italic;font-size:8.5pt}
     .actions{padding:12px;background:#FFF8E1;border:1px solid #FFE082;border-radius:8px;margin-bottom:14px;text-align:center;font-size:13px;color:#7F6000}
     .actions button{background:#03308B;color:#C9A84C;border:none;padding:10px 24px;border-radius:8px;font-weight:700;cursor:pointer;font-size:13px;margin:0 4px}
-    .lv-badge{padding:2px 8px;border-radius:12px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;display:inline-block}
+    .lv-badge{padding:2px 8px;border-radius:12px;font-size:8pt;font-weight:700;text-transform:uppercase;letter-spacing:.3px;display:inline-block}
     /* EJAF watermark — light blue, tilted, centered on every printed page */
     .wm{position:fixed;top:0;left:0;width:100%;height:100%;z-index:0;pointer-events:none;
         display:flex;align-items:center;justify-content:center;-webkit-print-color-adjust:exact;print-color-adjust:exact}
@@ -536,10 +538,10 @@ function workItemsReportHTML(rows,badge){
   return `<div class="ksec"><span class="kbad">${badge||"WI"}</span><h3>Work Items — ${wis.length} job(s), ${open} still open</h3></div>
   <table><thead><tr><th>Work item</th><th>Scope</th><th>Status journey</th><th>Current</th><th>Visits</th><th>Hours</th></tr></thead>
   <tbody>${wis.slice(0,60).map(w=>`<tr>
-    <td><strong>${escapeHtml(w.title)}</strong><br><span style="font-size:9px;color:#888">${fmtDate(w.firstDate)}${w.visits>1?` → ${fmtDate(w.lastDate)}`:""}</span></td>
-    <td style="font-size:10px">${escapeHtml(w.scopeLabel)}</td>
-    <td style="font-size:10px">${w.timeline.map(t=>escapeHtml(t.status)).join(" → ")}</td>
-    <td style="font-size:10px;font-weight:800;color:${w.closed?"#2E7D32":"#E65100"}">${escapeHtml(w.status)}</td>
+    <td><strong>${escapeHtml(w.title)}</strong><br><span style="font-size:8pt;color:#888">${fmtDate(w.firstDate)}${w.visits>1?` → ${fmtDate(w.lastDate)}`:""}</span></td>
+    <td style="font-size:8.5pt">${escapeHtml(w.scopeLabel)}</td>
+    <td style="font-size:8.5pt">${w.timeline.map(t=>escapeHtml(t.status)).join(" → ")}</td>
+    <td style="font-size:8.5pt;font-weight:800;color:${w.closed?"#2E7D32":"#E65100"}">${escapeHtml(w.status)}</td>
     <td>${w.visits}</td><td>${fmtHM(w.hours)}</td></tr>`).join("")}</tbody></table>`;
 }
 window.workItemsReportHTML=workItemsReportHTML;
@@ -587,7 +589,7 @@ async function exportDailyPDF(){
     const dh = rows.filter(r=>r.dept===d.name).reduce((s,r)=>s+Number(r.duration||0),0);
     const dc = rows.filter(r=>r.dept===d.name).length;
     if(!dh && !dc) return '';
-    return `<tr><td><span style="background:${d.color}22;color:${d.color};padding:2px 8px;border-radius:12px;font-weight:700;font-size:10px">${escapeHtml(d.name)}</span></td>
+    return `<tr><td><span style="background:${d.color}22;color:${d.color};padding:2px 8px;border-radius:12px;font-weight:700;font-size:8.5pt">${escapeHtml(d.name)}</span></td>
       <td style="color:${d.color};font-weight:700">${fmtHM(dh)}</td><td>${dc}</td></tr>`;
   }).filter(Boolean).join('');
 
@@ -603,13 +605,13 @@ async function exportDailyPDF(){
   const entryRows = rows.map(r=>`<tr>
     <td style="text-align:center;font-weight:700;color:#03308B;background:#f0f4ff">${r.entryNo ? formatEntryNo(r.entryNo) : '—'}</td>
     <td>${fmtDate(r.date)}</td>
-    <td style="font-size:10px;color:#555;white-space:nowrap">${r.start&&r.end?`${r.start}–${r.end}`:'—'}</td>
+    <td style="font-size:8.5pt;color:#555;white-space:nowrap">${r.start&&r.end?`${r.start}–${r.end}`:'—'}</td>
     <td><strong style="color:#03308B">${escapeHtml(r.employee||'')}</strong></td>
-    <td>${escapeHtml(r.project||'')}${(r.area||r.site)?`<br><span style="font-size:9px;color:#1565C0">${r.area?`🗺️ ${escapeHtml(r.area)}`:''}${r.site?` · 📍 ${escapeHtml(r.site)}`:''}</span>`:''}${(r.taskCategory||r.taskStatus||r.workType)?`<br><span style="font-size:9px;color:#6A1B9A">${r.taskCategory?escapeHtml(r.taskCategory):''}${r.taskSubcategory?'›'+escapeHtml(r.taskSubcategory):''}${r.taskStatus?` · ${escapeHtml(r.taskStatus)}`:''}${r.workType?` · ${escapeHtml(r.workType)}`:''}</span>`:''}</td>
-    <td><span style="background:${(state.departments.find(d=>d.name===r.dept)||{color:'#888'}).color}22;color:${(state.departments.find(d=>d.name===r.dept)||{color:'#888'}).color};padding:2px 7px;border-radius:8px;font-size:10px;font-weight:700">${escapeHtml(r.dept||'')}</span></td>
-    <td>${r.location?`<span style="background:#E3F2FD;color:#1565C0;padding:2px 7px;border-radius:8px;font-size:10px">📍 ${escapeHtml(r.location)}</span>`:'—'}${r.gpsLat?` <a href="${gpsMapLink(r.gpsLat,r.gpsLng)}" style="font-size:9px;color:#2E7D32;font-weight:700;text-decoration:none">🛰️ Map</a>`:r.gpsDenied?` <span style="font-size:9px;color:#C62828">🚫 GPS</span>`:''}</td>
+    <td>${escapeHtml(r.project||'')}${(r.area||r.site)?`<br><span style="font-size:8pt;color:#1565C0">${r.area?`🗺️ ${escapeHtml(r.area)}`:''}${r.site?` · 📍 ${escapeHtml(r.site)}`:''}</span>`:''}${(r.taskCategory||r.taskStatus||r.workType)?`<br><span style="font-size:8pt;color:#6A1B9A">${r.taskCategory?escapeHtml(r.taskCategory):''}${r.taskSubcategory?'›'+escapeHtml(r.taskSubcategory):''}${r.taskStatus?` · ${escapeHtml(r.taskStatus)}`:''}${r.workType?` · ${escapeHtml(r.workType)}`:''}</span>`:''}</td>
+    <td><span style="background:${(state.departments.find(d=>d.name===r.dept)||{color:'#888'}).color}22;color:${(state.departments.find(d=>d.name===r.dept)||{color:'#888'}).color};padding:2px 7px;border-radius:8px;font-size:8.5pt;font-weight:700">${escapeHtml(r.dept||'')}</span></td>
+    <td>${r.location?`<span style="background:#E3F2FD;color:#1565C0;padding:2px 7px;border-radius:8px;font-size:8.5pt">📍 ${escapeHtml(r.location)}</span>`:'—'}${r.gpsLat?` <a href="${gpsMapLink(r.gpsLat,r.gpsLng)}" style="font-size:8pt;color:#2E7D32;font-weight:700;text-decoration:none">🛰️ Map</a>`:r.gpsDenied?` <span style="font-size:8pt;color:#C62828">🚫 GPS</span>`:''}</td>
     <td style="color:#2E7D32;font-weight:700">${fmtHM(r.duration)}</td>
-    <td style="font-size:10px;color:#555;max-width:120px;word-break:break-word">${escapeHtml((r.resolutionText||'').slice(0,80))}${(r.resolutionText||'').length>80?'…':''}</td>
+    <td style="font-size:8.5pt;color:#555;max-width:120px;word-break:break-word">${escapeHtml((r.resolutionText||'').slice(0,80))}${(r.resolutionText||'').length>80?'…':''}</td>
   </tr>`).join('');
 
   const bodyHTML = `
