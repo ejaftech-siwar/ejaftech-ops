@@ -1402,6 +1402,10 @@ const _xlBorder = (c=XLC.line, style="thin") => ({
 // One place to look up what a named style means.
 function xlStyle(name, alt, accent){
   const A = accent || XLC.navy;
+  if(typeof name==="string" && name.endsWith("Right")){
+    const base = xlStyle(name.slice(0,-5), alt, accent);
+    return {...base, alignment:{...(base.alignment||{}), horizontal:"right"}};
+  }
   switch(name){
     case "title": return {
       font:{bold:true, sz:16, color:{rgb:XLC.gold}, name:"Calibri"},
@@ -1501,6 +1505,9 @@ function xlDress(ws, spec){
       const addr = XLSX.utils.encode_cell({r,c});
       const cell = ws[addr];
       if(!cell) continue;
+      // An explicit per-cell rule outranks everything else.
+      const exact = s.cells && s.cells[r+","+c];
+      if(exact){ cell.s = xlStyle(exact, r%2===1, s.accent); continue; }
       let use = name;
       if(!use){
         // A column rule wins for data cells: it is what carries the currency

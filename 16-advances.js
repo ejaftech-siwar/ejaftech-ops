@@ -1174,7 +1174,9 @@ function renderExpenseClaims(){
             ${people.map(p=>`<option ${r.employee===p?"selected":""}>${escapeHtml(p)}</option>`).join("")}</select></div>
         <div class="field"><label>Title</label><input value="${escapeHtml(r.title||"")}" oninput="exrSet('title',this.value)"></div>
         <div class="field"><label>Department</label><input value="${escapeHtml(r.department||"")}" oninput="exrSet('department',this.value)"></div>
-        <div class="field"><label>Manager</label><input value="${escapeHtml(r.manager||"")}" oninput="exrSet('manager',this.value)"></div>
+        <div class="field"><label>Manager <span style="font-weight:500;color:var(--muted);font-size:10px">\u2014 prints on the "Approved by" signature</span></label>
+          <input list="exrManagers" value="${escapeHtml(r.manager||"")}" oninput="exrSet('manager',this.value)" placeholder="e.g. Waseem Shweiky">
+          <datalist id="exrManagers">${people.map(p=>`<option>${escapeHtml(p)}</option>`).join("")}</datalist></div>
         <div class="field"><label>Date</label><input type="date" value="${escapeHtml(r.date||"")}" onchange="exrSet('date',this.value)"></div>
         <div class="field"><label>Period from</label><input type="date" value="${escapeHtml(r.periodFrom||"")}" onchange="exrSet('periodFrom',this.value)"></div>
         <div class="field"><label>Period to</label><input type="date" value="${escapeHtml(r.periodTo||"")}" onchange="exrSet('periodTo',this.value)"></div>
@@ -1520,7 +1522,7 @@ window.expenseClaimDoc = async function(id){
   </p>
   <table style="border-collapse:collapse;width:100%"><tr>
     ${sigBlockHTML("exr_emp", r.completedBy||r.employee||"", "Completed by \u2014 Employee Signature", "EJAF Technology")}
-    ${sigBlockHTML("exr_apr", r.approvedBy||"", "Approved by", "EJAF Technology")}
+    ${sigBlockHTML("exr_apr", r.manager||r.approvedBy||"", "Approved by", "EJAF Technology")}
   </tr></table>`;
 
   await openReportPDF("EXPENSE_CLAIM",
@@ -1553,7 +1555,7 @@ window.expenseClaimExcel = function(id){
     A.push([manualRef || r.ref || ""]);
     A.push([]);
     A.push(["Employee name", r.employee||"", "", "Title", r.title||""]);
-    A.push(["Department",    r.department||"", "", "Manager", r.manager||""]);
+    A.push(["Department",    r.department||"", "", "Approved by", r.manager||r.approvedBy||""]);
     A.push(["Date",          r.date||"", "", "Period",
             (r.periodFrom||r.periodTo) ? `${r.periodFrom||""} \u2192 ${r.periodTo||""}` : ""]);
     A.push(["Status", (EXR_STATUS[r.status||"draft"]||{lb:"Draft"}).lb]);
@@ -1597,9 +1599,11 @@ window.expenseClaimExcel = function(id){
     let _proj=null, _adv=null;              // section anchors for the styling pass
     const NC = 4+EXR_GROUPS.length*2;       // total column count
     const cUSD = col(NC-2), cIQD = col(NC-1);
+    const padRows=[];                       // rows whose label spans A..J
     const pad = (label, usd, iqd)=>{
       const row=new Array(NC).fill("");
       row[0]=label; row[NC-2]=usd; row[NC-1]=iqd;
+      padRows.push(A.length);               // 0-based index this row will take
       return row;
     };
     A.push([]);
@@ -1609,8 +1613,10 @@ window.expenseClaimExcel = function(id){
       lines.length?{f:`SUM(${usdCells})`}:0,
       lines.length?{f:`SUM(${iqdCells})`}:0));
     const SUB=A.length;                     // 1-based row of the subtotal line
+    const SUB_R=A.length-1;                 // 0-based, for the styling pass
     A.push(pad("Less advances applied", t.advUSD||0, t.advIQD||0));
     const ADV=A.length;
+    const ADV_R=A.length-1;                 // 0-based
     A.push(pad(t.owedByEmployee?"TO BE RETURNED BY THE EMPLOYEE":"TOTAL REIMBURSEMENT DUE",
       {f:`${cUSD}${SUB}-${cUSD}${ADV}`},
       {f:`${cIQD}${SUB}-${cIQD}${ADV}`}));
@@ -1697,6 +1703,9 @@ window.expenseClaimExcel = function(id){
       merges.push({s:{r:HDR_ROW,c:4+gi*2}, e:{r:HDR_ROW,c:5+gi*2}});
     });
     ["A","B","C","D"].forEach((_,i)=>merges.push({s:{r:HDR_ROW,c:i},e:{r:HDR_ROW+1,c:i}}));
+    // Each summary label spans A..J so it ends beside its figures instead of
+    // leaving most of a page blank between the name and the number.
+    padRows.forEach(r=>merges.push({s:{r,c:0},e:{r,c:NC-3}}));
     ws["!merges"]=merges;
 
     // Presentation only \u2014 values, formulas and merges above are left alone.
@@ -1706,16 +1715,20 @@ window.expenseClaimExcel = function(id){
                     [SET_HDR]:"header", [SET_TOT]:"total"};
       if(_proj){ rowMap[_proj.hdr]="header"; rowMap[_proj.tot]="total"; }
       if(_adv){  rowMap[_adv.hdr]="header";  rowMap[_adv.tot]="total"; }
+      // The label cell of each summary row: same style as its row, but pushed
+      // right so it sits against the numbers.
+      const cellMap={};
+      padRows.forEach(r=>{ cellMap[r+",0"]=(rowMap[r]||"label")+"Right"; });
+      // These two are plain lines: bold label, ordinary currency figures.
+      cellMap[SUB_R+",0"]="labelRight";
+      cellMap[ADV_R+",0"]="labelRight";
       xlDress(ws, {
         rows:rowMap,
+        cells:cellMap,
         match:[
-          [/^(Employee name|Department|Date|Status|Projects covered|Exchange rate)$/, "label"],
+          [/^(Employee name|Department|Date|Status|Projects covered|Exchange rate|Approved by)$/, "label"],
           [/^Totals$/, "total"],
-          [/^(TOTAL REIMBURSEMENT DUE|TO BE RETURNED BY THE EMPLOYEE)/, "total"],
-          [/^(Subtotal|Less advances)/, "label"],
           [/^(Cost by project|Advances applied|Notes)$/, "section"],
-          [/^(Project|Reference)$/, "header"],
-          [/^All projects$/, "total"],
           [/^(These project rows|US dollar and Iraqi)/, "note"],
           [/^(Completed by|Signature)$/, "label"]
         ],
