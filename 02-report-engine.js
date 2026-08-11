@@ -324,6 +324,23 @@ window.gotoBranding = function(){
   if(typeof switchTab==="function") switchTab("Technical Classifications");
   else { state.tab="Technical Classifications"; render(); }
 };
+// The company name for a spreadsheet banner. Taken from the branding settings
+// rather than hard-coded, so it follows whatever the company calls itself.
+// (Excel cannot hold the drawn logo: the sheet writer in use has no image
+// support, so the name is set in the brand colours instead.)
+function xlBrandName(){
+  const b=(typeof brandCfg==="function")?brandCfg():null;
+  const left=b?String(b.footerLeft||"").trim():"";
+  // "EJAF Technology \u00b7 Gir\u00eak" \u2192 "EJAF Technology"
+  const name=left.split("\u00b7")[0].trim();
+  return (name || "EJAF Technology").toUpperCase();
+}
+function xlBrandSubtitle(){
+  const b=(typeof brandCfg==="function")?brandCfg():null;
+  return (b && b.showSubtitle && String(b.subtitle||"").trim()) || "";
+}
+Object.assign(window,{xlBrandName, xlBrandSubtitle});
+
 Object.assign(window,{brandLink});
 
 function refOverrideField(){

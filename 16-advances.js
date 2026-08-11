@@ -560,6 +560,11 @@ window.exrStatus = async function(id, next){
   const r=(state.expenseReports||[]).find(x=>x.id===id); if(!r) return;
   if(next!=="submitted" && !isAdmin()) return toast("Only a manager can approve or settle a claim");
   const t=exrTotals(r);
+  // Approving straight from Returned skips the resubmit step, so say so plainly
+  // rather than letting an administrator do it without noticing.
+  if(next==="approved" && r.status==="rejected"){
+    if(!await uiConfirm(`${r.ref||"This claim"} was returned to ${r.employee}.\n\nApprove it anyway, without waiting for a corrected version?`)) return;
+  }
   if(next==="approved"){
     const msg = t.owedByEmployee
       ? `Approve ${r.ref||"this claim"}?\n\nThe advances exceed the expenses, so ${r.employee} must return ${t.dueUSD<0?"$"+Math.abs(t.dueUSD):""}${t.dueUSD<0&&t.dueIQD<0?" and ":""}${t.dueIQD<0?Math.abs(t.dueIQD)+" IQD":""}.`
@@ -993,7 +998,7 @@ window.advRegisterExcel = function(){
   const manualRef=String(window._refOverride||"").trim();
   if(manualRef) window._refOverride="";
   const A=[];
-  A.push(["EJAF Technology \u2014 Gir\u00eak"]);
+  A.push([(typeof xlBrandName==="function")?xlBrandName():"EJAF TECHNOLOGY"]);
   A.push(["Advances Register" + (manualRef?"  \u00b7  "+manualRef:"")]);
   A.push([`${f.employee||"All employees"}  \u00b7  ${per}  \u00b7  ${stLabel}`]);
   A.push([]);
@@ -1037,7 +1042,7 @@ window.advRegisterExcel = function(){
 
   // ── Sheet 2: what each person still holds ──
   const B=[];
-  B.push(["EJAF Technology \u2014 Gir\u00eak"]);
+  B.push([(typeof xlBrandName==="function")?xlBrandName():"EJAF TECHNOLOGY"]);
   B.push(["Balance Held by Each Employee"]);
   B.push([per]);
   B.push([]);
@@ -1316,9 +1321,11 @@ function renderExpenseClaims(){
         <button class="btn btn-sm btn-secondary" onclick="exrEdit('${r.id}')">\u270e Edit</button>
         <button class="btn btn-sm btn-secondary" onclick="expenseClaimOut('${r.id}')">${window._rptFormat==="excel"?"\u{1F4CA} Excel":window._rptFormat==="word"?"\u{1F4DD} Word":"\u{1F4C4} PDF"}</button>
         ${r.status==="draft"?`<button class="btn btn-sm btn-secondary" onclick="exrStatus('${r.id}','submitted')">Submit</button>`:""}
-        ${(r.status==="submitted"&&isAdmin())?`<button class="btn btn-sm" style="background:#1565C0;color:#fff;border:none" onclick="exrStatus('${r.id}','approved')">\u2713 Approve</button>
-          <button class="btn btn-sm btn-secondary" onclick="exrStatus('${r.id}','rejected')">Return</button>`:""}
+        ${r.status==="rejected"?`<button class="btn btn-sm btn-secondary" onclick="exrStatus('${r.id}','submitted')">\u21ba Resubmit</button>`:""}
+        ${((r.status==="submitted"||r.status==="rejected")&&isAdmin())?`<button class="btn btn-sm" style="background:#1565C0;color:#fff;border:none" onclick="exrStatus('${r.id}','approved')">\u2713 Approve</button>`:""}
+        ${(r.status==="submitted"&&isAdmin())?`<button class="btn btn-sm btn-secondary" onclick="exrStatus('${r.id}','rejected')">Return</button>`:""}
         ${(r.status==="approved"&&isAdmin())?`<button class="btn btn-sm" style="background:#2E7D32;color:#fff;border:none" onclick="exrStatus('${r.id}','paid')">\u{1F4B5} Settled</button>`:""}
+        ${(r.status==="paid"&&isAdmin())?`<button class="btn btn-sm btn-secondary" onclick="exrStatus('${r.id}','approved')" title="Undo the settled mark">\u21ba Unsettle</button>`:""}
         ${isAdmin()?`<button class="btn btn-sm" style="background:#FDECEA;color:#C62828;border:none;margin-left:auto" onclick="exrDel('${r.id}')">\u00d7</button>`:""}
       </div>
     </div>`;}).join("")}`;
@@ -1481,7 +1488,7 @@ window.expenseClaimExcel = function(id){
     // itself, so the next export is not silently given the same number.
     const manualRef=String(window._refOverride||"").trim();
     if(manualRef) window._refOverride="";
-    A.push(["EJAF TECHNOLOGY"]);
+    A.push([(typeof xlBrandName==="function")?xlBrandName():"EJAF TECHNOLOGY"]);
     A.push(["Local Transportation and Expense Report \u2014 Reimbursement Claim"]);
     A.push([manualRef || r.ref || ""]);
     A.push([]);
