@@ -81,9 +81,21 @@ function advApplied(advId){
   let usd=0, iqd=0;
   (state.expenseReports||[]).forEach(r=>{
     if(!["approved","paid"].includes(r.status)) return;
-    ((r.advanceIds)||[]).forEach(x=>{
-      if(x && x.id===advId){ usd+=num(x.usd); iqd+=num(x.iqd); }
-    });
+    const mine=((r.advanceIds)||[]).filter(x=>x && x.id===advId);
+    if(!mine.length) return;
+
+    // What this claim actually justifies, per currency, and what it claims to
+    // draw down. Each currency is scaled on its own \u2014 dollars can be fully
+    // spent while dinars are not.
+    const t=exrTotals(r);
+    const drawnUSD=((r.advanceIds)||[]).reduce((s,x)=>s+num(x&&x.usd),0);
+    const drawnIQD=((r.advanceIds)||[]).reduce((s,x)=>s+num(x&&x.iqd),0);
+    // Ratio of 1 means the spend covered the draw; below 1 means part of the
+    // advance was never spent and therefore was never discharged.
+    const kUSD = drawnUSD>0 ? Math.min(1, t.subUSD/drawnUSD) : 1;
+    const kIQD = drawnIQD>0 ? Math.min(1, t.subIQD/drawnIQD) : 1;
+
+    mine.forEach(x=>{ usd += num(x.usd)*kUSD; iqd += num(x.iqd)*kIQD; });
   });
   return {usd:+usd.toFixed(2), iqd:Math.round(iqd)};
 }
@@ -808,6 +820,15 @@ function advRegTotals(rows){
 }
 Object.assign(window,{advRegRows, advRegTotals});
 
+// Jump from the register straight into the advance form. The form belongs to
+// the Finance tab, so this moves there rather than duplicating it.
+window.advEditFrom = function(id){
+  if(!isAdmin()) return toast("Admin only");
+  if(typeof advEdit!=="function") return;
+  advEdit(id);
+  window._finView="advances";
+  if(typeof switchTab==="function") switchTab("Finance"); else render();
+};
 window.advRepSet = function(k,v){ window._advRep[k]=v; render(); };
 window.advRepClear = function(){ window._advRep={employee:"",status:"",from:"",to:""}; render(); };
 
@@ -876,6 +897,7 @@ function renderAdvancesRegister(){
         <th style="text-align:right">Accounted</th>
         <th style="text-align:right">Outstanding</th>
         <th style="text-align:center">Status</th>
+        ${isAdmin()?`<th style="text-align:center">Action</th>`:""}
       </tr></thead>
       <tbody>${rows.map(r=>{const S=ADV_STATUS[r.st]||ADV_STATUS.open; const ps=advProjectsOf(r.a);
         return `<tr>
@@ -890,13 +912,18 @@ function renderAdvancesRegister(){
         <td style="text-align:right;font-weight:800;color:${(r.outUSD||r.outIQD)?"#E65100":"var(--muted)"}">${(r.outUSD||r.outIQD)?money(r.outUSD,r.outIQD):"\u2014"}</td>
         <td style="text-align:center"><span style="background:${S.bg};color:${S.fg};padding:2px 8px;border-radius:10px;font-size:9.5px;font-weight:800;white-space:nowrap">${S.lb}</span>
           ${r.a.closedManually&&r.a.closedReason?`<div style="font-size:9px;color:var(--muted);margin-top:3px;white-space:normal">${escapeHtml(r.a.closedReason)}</div>`:""}</td>
+        ${isAdmin()?`<td style="text-align:center;white-space:nowrap">
+          <button class="btn btn-sm btn-secondary" style="padding:3px 8px;font-size:10px" onclick="advEditFrom('${r.a.id}')" title="Correct the amount, purpose or projects">\u270e</button>
+          ${(r.outUSD>0||r.outIQD>0)?`<button class="btn btn-sm btn-secondary" style="padding:3px 8px;font-size:10px" onclick="advCloseManual('${r.a.id}')" title="The balance came back without a claim">\u2713</button>`
+            :(advManuallyClosed(r.a)?`<button class="btn btn-sm btn-secondary" style="padding:3px 8px;font-size:10px" onclick="advReopen('${r.a.id}')" title="Reopen">\u21ba</button>`:"")}
+        </td>`:""}
       </tr>`;}).join("")}
       <tr style="background:var(--bg)">
         <td style="font-weight:800;white-space:normal;position:sticky;left:0;background:var(--bg);z-index:1" colspan="6">Totals \u00b7 ${T.count} advance(s)</td>
         <td style="text-align:right;font-weight:800">${money(T.usd,T.iqd)}</td>
         <td style="text-align:right;font-weight:800">${money(T.apUSD,T.apIQD)}</td>
         <td style="text-align:right;font-weight:800;color:#E65100">${money(T.outUSD,T.outIQD)}</td>
-        <td></td>
+        <td></td>${isAdmin()?`<td></td>`:""}
       </tr></tbody>
     </table></div>
   </div>
