@@ -566,9 +566,42 @@ window.exrStatus = async function(id, next){
     if(!await uiConfirm(`${r.ref||"This claim"} was returned to ${r.employee}.\n\nApprove it anyway, without waiting for a corrected version?`)) return;
   }
   if(next==="approved"){
-    const msg = t.owedByEmployee
-      ? `Approve ${r.ref||"this claim"}?\n\nThe advances exceed the expenses, so ${r.employee} must return ${t.dueUSD<0?"$"+Math.abs(t.dueUSD):""}${t.dueUSD<0&&t.dueIQD<0?" and ":""}${t.dueIQD<0?Math.abs(t.dueIQD)+" IQD":""}.`
-      : `Approve ${r.ref||"this claim"}?\n\n${t.dueUSD>0?"$"+t.dueUSD:""}${t.dueUSD>0&&t.dueIQD>0?" and ":""}${t.dueIQD>0?t.dueIQD+" IQD":""} to be reimbursed to ${r.employee}.\n\nThe applied advances will be marked as accounted for.`;
+    const nUSD=(v)=>"$"+Math.abs(v).toLocaleString(undefined,{maximumFractionDigits:2});
+    const nIQD=(v)=>Math.abs(v).toLocaleString()+" IQD";
+    // Show a currency only if it appears anywhere in this claim, so a dinar-only
+    // claim is not padded with rows of "$0.00".
+    const hasUSD = t.subUSD>0 || t.advUSD>0;
+    const hasIQD = t.subIQD>0 || t.advIQD>0;
+    const line=(label, u, q)=>{
+      const parts=[];
+      if(hasUSD) parts.push(nUSD(u));
+      if(hasIQD) parts.push(nIQD(q));
+      return `${label}: ${parts.join("  +  ")}`;
+    };
+    const rows=[
+      line("Expenses claimed", t.subUSD, t.subIQD),
+      line("Advances applied", t.advUSD, t.advIQD),
+    ];
+    // The balance is stated as a plain sentence, with its direction spelled out,
+    // because a bare negative number is the easiest thing in the world to misread.
+    const verdicts=[];
+    const say=(amount, fmt)=>{
+      if(amount>0) verdicts.push(`${fmt(amount)} to be reimbursed to ${r.employee}.`);
+      else if(amount<0) verdicts.push(`${r.employee} must return ${fmt(amount)}.`);
+    };
+    if(hasUSD) say(t.dueUSD, nUSD);
+    if(hasIQD) say(t.dueIQD, nIQD);
+    const verdict = verdicts.length===0
+      ? "The advances cover the expenses exactly \u2014 nothing changes hands."
+      : verdicts.join("\n");
+
+    const applied=(r.advanceIds||[]).length;
+    const msg = `Approve ${r.ref||"this claim"}?\n\n`
+      + rows.join("\n") + "\n" + "\u2500".repeat(28) + "\n"
+      + verdict + "\n\n"
+      + (applied
+          ? `${applied} advance(s) will be marked as accounted for by this claim.`
+          : `\u26a0 No advance is applied to this claim, so nothing will be settled against ${r.employee}.`);
     if(!await uiConfirm(msg)) return;
   }
   await fbSave("expenseReports", {...r, status:next, statusAt:new Date().toISOString(),
