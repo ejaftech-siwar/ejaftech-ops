@@ -21,6 +21,7 @@
   --teal:#00695C;    --teal-bg:#E0F2F1;
   --surface-2:#F5F8FC;   /* subtle raised panel — flips in dark mode  */
   --on-brand:#FFFFFF;    /* text that sits on navy/gold brand fills   */
+  --ink-brand:#1B3A6B;   /* brand-coloured TEXT printed on a card     */
 }
 
 
@@ -72,6 +73,11 @@
 [data-theme="dark"]{
   --bg:#0C1524; --card:#152238; --line:#2A3D5C;
   --text:#E7EDF6; --muted:#96A7C0;
+  /* Brand fills are dimmed so they read as surfaces rather than glowing
+     patches; brand ink is lifted so headings stay legible on a dark card. */
+  --navy:#22375C; --navy-2:#2D4A79;
+  --ink-brand:#9DC0F0;
+  --on-brand:#F2F6FC;
   --green:#7CDA8C; --green-bg:#1D3326;
   --orange:#FFA366; --orange-bg:#3A2C1C;
   --purple:#CE93E8; --purple-bg:#2E2140;

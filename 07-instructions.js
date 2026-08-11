@@ -233,7 +233,7 @@ function renderTechClassifications(){
       <div class="sec-hdr">\u{1F441}\uFE0F Preview</div>
       <div style="border:1px solid var(--line);border-radius:var(--r-md);overflow:hidden">
         <div style="padding:10px 12px;border-bottom:1px solid var(--line);background:var(--surface-2)">
-          <div style="font-size:13px;font-weight:800;color:var(--navy)">INCIDENT REPORT</div>
+          <div style="font-size:13px;font-weight:800;color:var(--ink-brand)">INCIDENT REPORT</div>
           <div id="bpSub" style="font-size:10px;color:var(--muted);margin-top:2px">${(b.showSubtitle && String(b.subtitle||"").trim())?escapeHtml(String(b.subtitle).trim()):""}</div>
         </div>
         <div style="padding:18px 12px;text-align:center;font-size:11px;color:var(--muted)">\u2026 report body \u2026</div>
@@ -792,7 +792,7 @@ function thisDeviceBody(){
     <div class="card">
       <div class="sec-hdr">\u{1F504} App version</div>
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-        <span style="font-size:13px;font-weight:800;color:var(--navy)">${typeof runningVersion==="function"?escapeHtml(runningVersion()):"\u2014"}</span>
+        <span style="font-size:13px;font-weight:800;color:var(--ink-brand)">${typeof runningVersion==="function"?escapeHtml(runningVersion()):"\u2014"}</span>
         <button class="btn btn-sm btn-primary" style="margin-left:auto" onclick="forceUpdate()">Update now</button>
       </div>
       <div style="font-size:10px;color:var(--muted);margin-top:8px;line-height:1.7">

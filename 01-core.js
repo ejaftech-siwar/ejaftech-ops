@@ -2306,7 +2306,7 @@ function watchAuth(){
             <div style="margin-top:8px;color:#7F6000">⚠ Firestore must have a document at:<br><code>users/${uid}</code></div>
           </div>
           <button class="login-btn" onclick="navigator.clipboard?.writeText('${uid}');toast('UID copied!')" style="margin-top:12px">📋 Copy UID</button>
-          <button class="login-btn" onclick="doSignOut()" style="margin-top:8px;background:transparent;color:var(--navy);border:2px solid var(--navy)">Sign Out</button>
+          <button class="login-btn" onclick="doSignOut()" style="margin-top:8px;background:transparent;color:var(--ink-brand);border:2px solid var(--navy)">Sign Out</button>
         </div></div>`);
       }
     } else {

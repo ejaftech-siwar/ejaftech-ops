@@ -13,7 +13,7 @@ body{padding-bottom:env(safe-area-inset-bottom,0px)}
 .login-card{background:#fff;color:var(--text);border-radius:0;padding:44px 24px calc(44px + env(safe-area-inset-bottom,0px));max-width:none;width:100%;min-height:100dvh;box-shadow:none;display:flex;flex-direction:column;justify-content:center;align-items:center;border-top:4px solid var(--gold)}
 .login-card form{width:100%;max-width:400px}
 .login-logo{width:104px;height:104px;border-radius:24px;display:flex;align-items:center;justify-content:center;margin:0 auto 22px;overflow:hidden;box-shadow:0 0 0 6px rgba(201,168,76,0.16),0 12px 32px rgba(27,58,107,0.16)}
-.login-card h2{font-family:'DM Serif Display',serif;font-size:30px;color:var(--navy);text-align:center;margin:0 0 4px;letter-spacing:0.5px}
+.login-card h2{font-family:'DM Serif Display',serif;font-size:30px;color:var(--ink-brand);text-align:center;margin:0 0 4px;letter-spacing:0.5px}
 .login-card .sub{text-align:center;color:var(--gold-2);font-size:11px;font-weight:700;letter-spacing:3px;text-transform:uppercase;margin-bottom:30px}
 .login-card label{display:block;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;margin-top:14px}
 .login-card input{width:100%;padding:13px 15px;border:1.5px solid var(--line);border-radius:12px;font-size:15px;font-family:inherit;outline:none;background:#FBFDFF}
@@ -73,7 +73,7 @@ body{
 .app-title h1{margin:0;font-size:15px;font-weight:700;color:white;line-height:1.1}
 .app-title p{margin:2px 0 0;font-size:11px;color:#B8CFE8}
 .user-chip{display:flex;align-items:center;gap:6px;padding:6px 10px;border-radius:14px;font-size:11px;font-weight:600;background:rgba(255,255,255,0.12);color:white;cursor:pointer}
-.user-chip .role-badge{background:var(--gold);color:var(--navy);padding:1px 6px;border-radius:8px;font-size:9px;font-weight:800;text-transform:uppercase}
+.user-chip .role-badge{background:var(--gold);color:var(--ink-brand);padding:1px 6px;border-radius:8px;font-size:9px;font-weight:800;text-transform:uppercase}
 .tab-bar{display:flex;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;border-top:1px solid rgba(255,255,255,0.1);background:rgba(0,0,0,0.15);position:relative}
 .tab-bar::-webkit-scrollbar{display:none}
 .tab{flex:0 0 auto;padding:12px 14px;font-size:12px;font-weight:600;color:#9FB6D2;background:transparent;border:none;border-bottom:3px solid transparent;cursor:pointer;white-space:nowrap;font-family:inherit;transition:color 0.25s ease,background 0.25s ease,border-color 0.25s ease}
@@ -89,7 +89,7 @@ body{
 
 .content{padding:14px 12px 80px;max-width:760px;margin:0 auto;-webkit-overflow-scrolling:touch}
 .card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);border:1px solid var(--line);padding:16px;margin-bottom:14px;contain:layout style;content-visibility:auto;contain-intrinsic-size:auto 200px}
-.card-title{font-size:13px;font-weight:700;color:var(--navy);margin:0 0 12px;text-transform:uppercase;letter-spacing:0.5px;display:flex;align-items:center;gap:8px}
+.card-title{font-size:13px;font-weight:700;color:var(--ink-brand);margin:0 0 12px;text-transform:uppercase;letter-spacing:0.5px;display:flex;align-items:center;gap:8px}
 .card-title::before{content:'';width:3px;height:14px;background:var(--gold);border-radius:2px}
 .sec-hdr{background:linear-gradient(90deg,var(--navy-2),var(--navy));color:white;margin:-16px -16px 14px;padding:10px 16px;border-radius:var(--radius) var(--radius) 0 0;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px}
 
@@ -119,7 +119,7 @@ body{
 .btn:active{transform:scale(0.97)}
 .btn-primary{background:var(--navy);color:var(--gold);box-shadow:0 3px 10px rgba(27,58,107,0.22)}
 .btn-secondary{background:var(--navy-2);color:white}
-.btn-ghost{background:transparent;color:var(--navy);border:1.5px solid var(--navy)}
+.btn-ghost{background:transparent;color:var(--ink-brand);border:1.5px solid var(--navy)}
 .btn-danger{background:var(--red);color:white}
 .btn-sm{padding:6px 12px;font-size:11px}
 .btn-row{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
@@ -153,7 +153,7 @@ body{
 .dept-body{padding:12px 14px;background:white}
 .dept-row{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;padding:8px 4px;border-bottom:1px solid var(--line);font-size:13px}
 .dept-row:last-child{border-bottom:none}
-.dept-row .name{font-weight:600;color:var(--navy)}
+.dept-row .name{font-weight:600;color:var(--ink-brand)}
 .dept-row .hrs{font-weight:700;font-variant-numeric:tabular-nums}
 .dept-row .pct{font-size:11px;color:var(--muted);font-weight:600;min-width:44px;text-align:right}
 .dept-row .bar-container{grid-column:1/-1;height:4px;background:var(--line);border-radius:2px;overflow:hidden;margin-top:4px}
@@ -167,17 +167,17 @@ body{
 .donut-legend{width:100%;display:grid;gap:6px}
 .donut-leg-item{display:flex;align-items:center;gap:10px;padding:8px 12px;background:#F8FAFD;border-radius:var(--radius-sm);font-size:12px}
 .donut-leg-swatch{width:12px;height:12px;border-radius:3px;flex-shrink:0}
-.donut-leg-name{flex:1;font-weight:600;color:var(--navy)}
+.donut-leg-name{flex:1;font-weight:600;color:var(--ink-brand)}
 .donut-leg-val{font-weight:700;font-variant-numeric:tabular-nums}
 .donut-leg-pct{font-size:11px;color:var(--muted);font-weight:600;min-width:40px;text-align:right}
 
 .proj-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
-.proj-chip{background:#F8FAFD;border:1px solid var(--line);padding:4px 10px;border-radius:14px;font-size:11px;color:var(--navy);display:flex;align-items:center;gap:6px}
+.proj-chip{background:#F8FAFD;border:1px solid var(--line);padding:4px 10px;border-radius:14px;font-size:11px;color:var(--ink-brand);display:flex;align-items:center;gap:6px}
 
 .user-row{display:flex;align-items:center;gap:10px;padding:10px;border:1px solid var(--line);border-radius:10px;margin-bottom:8px;background:white}
 .user-avatar{width:36px;height:36px;border-radius:50%;background:var(--navy);color:var(--gold);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;flex-shrink:0}
 .user-info{flex:1;min-width:0}
-.user-info .name{font-weight:700;color:var(--navy);font-size:13px}
+.user-info .name{font-weight:700;color:var(--ink-brand);font-size:13px}
 .user-info .email{font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--navy);color:var(--gold);padding:11px 22px;border-radius:22px;font-size:13px;font-weight:700;z-index:200;border:1px solid rgba(201,168,76,0.55);box-shadow:0 10px 28px rgba(11,24,48,0.35);opacity:0;pointer-events:none;transition:opacity 0.25s,transform 0.25s;max-width:88vw;text-align:center}
@@ -391,7 +391,7 @@ body{
 [data-theme="dark"] .donut-leg-name,[data-theme="dark"] .user-info .name{color:#BFD3F2}
 [data-theme="dark"] .btn-ghost{color:#BFD3F2;border-color:#3E5A85}
 
-[data-theme="dark"] [style*="color:var(--navy)"]{color:#BFD3F2!important}
+[data-theme="dark"] [style*="color:var(--ink-brand)"]{color:#BFD3F2!important}
 
 /* ═══ Dark v3 — dynamic/edge coverage ═══ */
 /* inputs & placeholders anywhere (modals with bare inputs had black text) */
@@ -419,7 +419,7 @@ body{
 [data-theme="dark"] [style*="background:#E4C97A"][style*="color:#1B3A6B"],
 [data-theme="dark"] [style*="background:#D4AF37"][style*="color:#1B3A6B"],
 [data-theme="dark"] [style*="background:#F5E3B0"][style*="color:#7F6000"],
-[data-theme="dark"] [style*="background:#C9A84C"][style*="color:var(--navy)"]{color:#1B2A45!important}
+[data-theme="dark"] [style*="background:#C9A84C"][style*="color:var(--ink-brand)"]{color:#1B2A45!important}
 /* _pills inactive state (conditional template: '#E8EEF7' + navy text) */
 [data-theme="dark"] [style*="background:#E8EEF7"]{background:#1B2740!important;color:#BFD3F2!important}
 /* quoted-template light hexes */
@@ -985,7 +985,7 @@ html[dir="ltr"] .gs-row{ text-align:left }
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
 .gs-tag{
   flex:0 0 auto; font-size:var(--f-xs); font-weight:700;
-  color:var(--navy); background:var(--surface-2);
+  color:var(--ink-brand); background:var(--surface-2);
   padding:2px 8px; border-radius:10px; white-space:nowrap;
 }
 
@@ -1037,13 +1037,13 @@ html[dir="ltr"] .gs-row{ text-align:left }
 }
 .pf-stat{ background:var(--card); border:1px solid var(--line);
   border-radius:var(--r-md); padding:10px 8px; text-align:center }
-.pf-sv{ font-size:16px; font-weight:800; color:var(--navy); line-height:1.3 }
+.pf-sv{ font-size:16px; font-weight:800; color:var(--ink-brand); line-height:1.3 }
 .pf-sl{ font-size:var(--f-xs); color:var(--muted); margin-top:2px }
 .pf-block{ background:var(--card); border:1px solid var(--line);
   border-radius:var(--r-md); margin-bottom:10px; overflow:hidden }
 .pf-bh{
   display:flex; align-items:center; gap:7px;
-  padding:10px 12px; font-size:var(--f-md); font-weight:800; color:var(--navy);
+  padding:10px 12px; font-size:var(--f-md); font-weight:800; color:var(--ink-brand);
   border-bottom:1px solid var(--line); background:var(--surface-2);
 }
 .pf-count{ background:var(--navy); color:#fff; font-size:var(--f-xs);
@@ -1074,7 +1074,7 @@ html[dir="ltr"] .gs-row{ text-align:left }
   cursor:pointer; font-family:inherit; transition:transform .12s ease, box-shadow .12s ease;
 }
 .hl-tile:active{ transform:scale(.97); box-shadow:var(--shadow-sm) }
-.hl-v{ font-size:16px; font-weight:800; color:var(--navy); line-height:1.25 }
+.hl-v{ font-size:16px; font-weight:800; color:var(--ink-brand); line-height:1.25 }
 .hl-l{ font-size:var(--f-xs); color:var(--muted); margin-top:3px }
 .hl-s{ font-size:9px; color:var(--muted); opacity:.85; margin-top:2px; line-height:1.4 }
 .hl-flags{ display:flex; gap:6px; flex-wrap:wrap; margin-top:10px }
@@ -1126,7 +1126,7 @@ html[dir="ltr"] .gs-row{ text-align:left }
 }
 .tbl-prev-h{
   padding:6px 10px; font-size:var(--f-xs); font-weight:700;
-  color:var(--navy); background:var(--surface-2);
+  color:var(--ink-brand); background:var(--surface-2);
   border-bottom:1px solid var(--line);
 }
 .tbl-prev-b{ padding:8px 10px; overflow-x:auto; font-size:var(--f-sm) }
@@ -1158,7 +1158,7 @@ html[dir="ltr"] .gs-row{ text-align:left }
   display:flex; gap:10px; align-items:center; flex-wrap:wrap;
   padding:10px 14px; border-bottom:1px solid var(--line); background:var(--surface-2);
 }
-.xl-ctl label{ display:flex; align-items:center; gap:6px; font-size:var(--f-xs); font-weight:700; color:var(--navy) }
+.xl-ctl label{ display:flex; align-items:center; gap:6px; font-size:var(--f-xs); font-weight:700; color:var(--ink-brand) }
 .xl-ctl input, .xl-ctl select{
   padding:5px 8px; border:1px solid var(--line); border-radius:var(--r-sm);
   font-size:var(--f-sm); background:var(--card); color:var(--text);
@@ -1237,7 +1237,7 @@ code, pre, .mono,
   color:var(--muted); cursor:pointer; line-height:0; border-radius:4px;
   transition:color .14s ease, background .14s ease;
 }
-.cp-btn:active{ color:var(--navy); background:var(--surface-2) }
+.cp-btn:active{ color:var(--ink-brand); background:var(--surface-2) }
 
 /* The date badge lives in the title block and had no reserved width, so each
    control added to its right squeezed it further until the search button
@@ -1255,3 +1255,132 @@ code, pre, .mono,
 @media (max-width:340px){
   .app-title h1{ font-size:13px }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   DARK MODE — brand surfaces and light chips (v228)
+   ═══════════════════════════════════════════════════════════════════════
+   These rules carried literal light-mode blues and pale chip fills, so in dark
+   mode they appeared as bright patches floating on a dark page — the greeting
+   card, the top bar and the section headings all glowed. Everything below dims
+   those fills into the same family as --card, keeping the navy-and-gold
+   identity while letting the eye rest. Nothing changes in light mode. */
+
+/* The greeting hero: same gradient direction, half the brightness, so the gold
+   border still reads as the accent rather than competing with the fill. */
+[data-theme="dark"] .day-hero{
+  background:linear-gradient(135deg,#16233C,#22375C);
+  border-color:var(--gold-2);
+}
+[data-theme="dark"] .dh-act{
+  background:rgba(255,255,255,.05);
+  border-color:rgba(255,255,255,.10);
+}
+
+/* Header bars and panel headings */
+[data-theme="dark"] .app-header{
+  background:linear-gradient(135deg,#101B2E,#1B2C4A);
+}
+[data-theme="dark"] .skel-header{
+  background:linear-gradient(135deg,#101B2E,#1B2C4A);
+}
+[data-theme="dark"] .pf-hd,
+[data-theme="dark"] .xl-hd{
+  background:linear-gradient(135deg,#16233C,#22375C);
+}
+
+/* Pale chips and warning fills: the same meaning, restated for a dark surface.
+   The ink is lifted rather than the fill brightened, which keeps them quiet. */
+[data-theme="dark"] .hl-flag.warn{ background:#332C18; color:#E5CE8F }
+[data-theme="dark"] .hc-note.warn{ background:#332C18; color:#E5CE8F; border-color:#4A3F22 }
+[data-theme="dark"] .tbl-warn{ background:#332C18; color:#E5CE8F; border-color:#4A3F22 }
+[data-theme="dark"] .brand-save.dirty{ background:#332C18; border-color:#4A3F22 }
+[data-theme="dark"] .ex-code{ background:#3A2C1C; color:#FFC49B; border-color:#5A4326 }
+[data-theme="dark"] .fsh-t{ color:var(--text) }
+[data-theme="dark"] .dsh-row,
+[data-theme="dark"] .dsh-proj,
+[data-theme="dark"] .dsh-mini{ background:var(--card); border-color:var(--line) }
+[data-theme="dark"] .dtl-it.fut .dtl-dot{ background:var(--line) }
+[data-theme="dark"] .toast[data-type="info"]{ background:#1B2C45; color:#A9CBFF }
+[data-theme="dark"] .pf-count{ background:var(--navy-2); color:var(--on-brand) }
+
+/* Numbers on the dashboard were mixed at full saturation, which on a dark
+   background reads as neon. The semantic tokens are already tuned for dark, so
+   the KPI figures simply defer to them. */
+[data-theme="dark"] .kpi-val{ color:var(--text) }
+
+/* Anything still painting itself pure white in an inline style would punch a
+   hole in the page; fall back to the card surface. */
+[data-theme="dark"] .sec-hdr{
+  background:linear-gradient(90deg,var(--navy-2),var(--navy));
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   DARK MODE — inline text colours (v228)
+   ═══════════════════════════════════════════════════════════════════════
+   Roughly five hundred inline styles across the app name a literal light-mode
+   ink — #1B3A6B headings, #C62828 warnings, #7F6000 amber notes. Each was
+   chosen to sit on a white card; on a #152238 card the navy ones fall to about
+   1.4:1, which is invisible rather than merely dim.
+
+   Rewriting five hundred inline styles by hand would risk the markup for a
+   purely visual gain, so these rules restate each ink for a dark surface
+   instead. The approach is the one already used above for inline backgrounds.
+   Selectors are case-insensitive because a handful of the values are written
+   in lowercase hex. Light mode is untouched. */
+
+/* Navy and blue inks → a blue that reads on dark */
+[data-theme="dark"] [style*="color:#1B3A6B" i],
+[data-theme="dark"] [style*="color:#03308B" i],
+[data-theme="dark"] [style*="color:#2E5FA3" i],
+[data-theme="dark"] [style*="color:#0D47A1" i],
+[data-theme="dark"] [style*="color:#1565C0" i],
+[data-theme="dark"] [style*="color:#3949AB" i],
+[data-theme="dark"] [style*="color:#0F2347" i],
+[data-theme="dark"] [style*="color:#1B2A44" i]{ color:#9DC0F0 !important }
+
+/* Near-black and slate inks → the ordinary body colour */
+[data-theme="dark"] [style*="color:#1A1A2E" i],
+[data-theme="dark"] [style*="color:#1A202C" i],
+[data-theme="dark"] [style*="color:#1E293B" i],
+[data-theme="dark"] [style*="color:#334155" i],
+[data-theme="dark"] [style*="color:#37474F" i]{ color:var(--text) !important }
+
+/* Muted greys → the muted token, so secondary text stays secondary */
+[data-theme="dark"] [style*="color:#475569" i],
+[data-theme="dark"] [style*="color:#4A5568" i],
+[data-theme="dark"] [style*="color:#546E7A" i],
+[data-theme="dark"] [style*="color:#5A6B80" i]{ color:var(--muted) !important }
+
+/* Reds → the dark-tuned danger ink */
+[data-theme="dark"] [style*="color:#C62828" i],
+[data-theme="dark"] [style*="color:#C53030" i],
+[data-theme="dark"] [style*="color:#B71C1C" i],
+[data-theme="dark"] [style*="color:#7F1D1D" i],
+[data-theme="dark"] [style*="color:#C0392B" i]{ color:var(--danger) !important }
+
+/* Ambers and browns → the dark-tuned warning ink */
+[data-theme="dark"] [style*="color:#7F6000" i],
+[data-theme="dark"] [style*="color:#8F6E22" i],
+[data-theme="dark"] [style*="color:#5C4A12" i],
+[data-theme="dark"] [style*="color:#7A4A00" i],
+[data-theme="dark"] [style*="color:#7A4A10" i],
+[data-theme="dark"] [style*="color:#7F4A00" i]{ color:var(--yellow-text) !important }
+
+[data-theme="dark"] [style*="color:#BF360C" i],
+[data-theme="dark"] [style*="color:#5D4037" i],
+[data-theme="dark"] [style*="color:#6D4C41" i],
+[data-theme="dark"] [style*="color:#E65100" i]{ color:var(--warn) !important }
+
+/* Greens → the dark-tuned success ink */
+[data-theme="dark"] [style*="color:#1B5E20" i],
+[data-theme="dark"] [style*="color:#2E7D32" i]{ color:var(--ok) !important }
+
+/* Teals */
+[data-theme="dark"] [style*="color:#004D40" i],
+[data-theme="dark"] [style*="color:#00695C" i]{ color:var(--teal) !important }
+
+/* Purples and pinks */
+[data-theme="dark"] [style*="color:#6A1B9A" i],
+[data-theme="dark"] [style*="color:#4A148C" i],
+[data-theme="dark"] [style*="color:#880E4F" i],
+[data-theme="dark"] [style*="color:#C2185B" i]{ color:var(--accent) !important }
