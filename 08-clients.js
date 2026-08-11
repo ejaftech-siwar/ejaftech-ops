@@ -495,6 +495,7 @@ window.exportClientPDF = async function(){
   toast("PDF report ready!");
 };
 window.exportClientExcel = function(){
+  if(typeof XLSX==="undefined") return toast("Spreadsheet engine not loaded \u2014 reconnect and try again");
   const D=clientReportData(); if(!D) return toast("Not linked to a client");
   const {c,perms,myProjects,daily,devices,requests,totalHrs}=D;
   if(!perms.reportsExport) return toast("Reports not enabled for your account");

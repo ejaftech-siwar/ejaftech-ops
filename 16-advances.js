@@ -981,100 +981,96 @@ window.advRegisterExcel = function(){
   const rows=advRegRows(), T=advRegTotals(rows), f=window._advRep;
   if(!rows.length) return toast("Nothing to export \u2014 no advances match the filters");
   if(typeof XLSX==="undefined") return toast("Excel engine not loaded");
-
+  try{
   const per=(f.from||f.to)?`${f.from||"start"} \u2192 ${f.to||"today"}`:"All dates";
   const stLabel={outstanding:"Still outstanding", open:"Open", partly:"Partly settled",
                  settled:"Settled by claim", closed:"Closed"}[f.status]||"All statuses";
 
+  // Built as a plain array-of-arrays and converted with aoa_to_sheet \u2014 the same
+  // path every other working export in this app uses. Styling is applied
+  // afterwards by xlDress, so presentation never risks the data.
   const A=[];
-  A.push(...xlHeaderRows("Advances Register",
-    `${f.employee||"All employees"}  \u00b7  ${per}  \u00b7  ${stLabel}`, 13));
-  A.push([{v:"ADVANCES PAID OUT", s:"section", m:13}]);
-  A.push([
-    {v:"Employee",s:"header"},{v:"Date",s:"header"},{v:"Reference",s:"header"},
-    {v:"Purpose",s:"header"},{v:"Projects",s:"header"},{v:"Issued by",s:"header"},
-    {v:"Advanced USD",s:"header"},{v:"Advanced IQD",s:"header"},
-    {v:"Accounted USD",s:"header"},{v:"Accounted IQD",s:"header"},
-    {v:"Outstanding USD",s:"header"},{v:"Outstanding IQD",s:"header"},
-    {v:"Status",s:"header"}]);
-
-  const FIRST=A.length+1;                       // first data row, 1-based
+  A.push(["EJAF Technology \u2014 Gir\u00eak"]);
+  A.push(["Advances Register"]);
+  A.push([`${f.employee||"All employees"}  \u00b7  ${per}  \u00b7  ${stLabel}`]);
+  A.push([]);
+  A.push(["Employee","Date","Reference","Purpose","Projects","Issued by",
+          "Advanced USD","Advanced IQD","Accounted USD","Accounted IQD",
+          "Outstanding USD","Outstanding IQD","Status"]);
+  const HDR=A.length-1;                       // 0-based index of the header row
+  const FIRST=A.length+1;                     // 1-based first data row
   rows.forEach(r=>{
     const rn=A.length+1;
-    const S=ADV_STATUS[r.st]||ADV_STATUS.open;
-    A.push([
-      {v:r.a.employee||"", s:"label"},
-      {v:r.a.date||"",     s:"date"},
-      {v:r.a.ref||"",      s:"cell"},
-      {v:r.a.purpose||"",  s:"cell"},
-      {v:advProjectsOf(r.a).join(" \u00b7 "), s:"cell"},
-      {v:r.a.issuedBy||"", s:"cell"},
-      {v:r.usd||0,   s:"usd"}, {v:r.iqd||0,   s:"iqd"},
-      {v:r.apUSD||0, s:"usd"}, {v:r.apIQD||0, s:"iqd"},
-      // Live, so a corrected "accounted" figure re-computes the balance in the
-      // sheet itself rather than silently disagreeing with the app.
-      {v:r.outUSD||0, s:"usd", f:`MAX(0,G${rn}-I${rn})`},
-      {v:r.outIQD||0, s:"iqd", f:`MAX(0,H${rn}-J${rn})`},
-      {v:S.lb, s:"cell"}]);
+    A.push([r.a.employee||"", r.a.date||"", r.a.ref||"", r.a.purpose||"",
+            advProjectsOf(r.a).join(" \u00b7 "), r.a.issuedBy||"",
+            r.usd||0, r.iqd||0, r.apUSD||0, r.apIQD||0,
+            // Live: correct an accounted figure and the balance re-computes.
+            {f:`MAX(0,G${rn}-I${rn})`}, {f:`MAX(0,H${rn}-J${rn})`},
+            (ADV_STATUS[r.st]||{lb:""}).lb]);
   });
   const LAST=A.length;
-  A.push([
-    {v:`TOTAL \u00b7 ${T.count} advance(s)`, s:"total", m:6},
-    null,null,null,null,null,
-    {v:T.usd,   s:"totalNum", f:`SUM(G${FIRST}:G${LAST})`},
-    {v:T.iqd,   s:"totalNum", f:`SUM(H${FIRST}:H${LAST})`},
-    {v:T.apUSD, s:"totalNum", f:`SUM(I${FIRST}:I${LAST})`},
-    {v:T.apIQD, s:"totalNum", f:`SUM(J${FIRST}:J${LAST})`},
-    {v:T.outUSD,s:"totalNum", f:`SUM(K${FIRST}:K${LAST})`},
-    {v:T.outIQD,s:"totalNum", f:`SUM(L${FIRST}:L${LAST})`},
-    {v:"", s:"total"}]);
+  const TOTROW=A.length;                       // 0-based index of the total row
+  A.push([`TOTAL \u00b7 ${T.count} advance(s)`,"","","","","",
+    {f:`SUM(G${FIRST}:G${LAST})`},{f:`SUM(H${FIRST}:H${LAST})`},
+    {f:`SUM(I${FIRST}:I${LAST})`},{f:`SUM(J${FIRST}:J${LAST})`},
+    {f:`SUM(K${FIRST}:K${LAST})`},{f:`SUM(L${FIRST}:L${LAST})`},""]);
   A.push([]);
-  A.push([{v:"US dollars and Iraqi dinars are held in separate columns and are never added together. Outstanding balances are live formulas: correct an accounted figure and the balance re-computes.", s:"note", m:13}]);
+  A.push(["US dollars and Iraqi dinars are held in separate columns and are never added together. Outstanding balances are live formulas."]);
 
-  const ws=xlSheet(A, {
-    cols:[{wch:22},{wch:12},{wch:15},{wch:30},{wch:24},{wch:18},
-          {wch:15},{wch:16},{wch:15},{wch:16},{wch:16},{wch:17},{wch:16}],
-    rows:[{hpt:26},{hpt:16},{hpt:16},{hpt:6},{hpt:20},{hpt:30}],
-    freezeAt:{x:1, y:FIRST-1} });
+  const ws=XLSX.utils.aoa_to_sheet(A);
+  ws["!cols"]=[{wch:22},{wch:12},{wch:15},{wch:30},{wch:24},{wch:18},
+               {wch:15},{wch:16},{wch:15},{wch:16},{wch:16},{wch:17},{wch:16}];
+  ws["!merges"]=[{s:{r:0,c:0},e:{r:0,c:12}},
+                 {s:{r:1,c:0},e:{r:1,c:12}},
+                 {s:{r:2,c:0},e:{r:2,c:12}},
+                 {s:{r:TOTROW,c:0},e:{r:TOTROW,c:5}},
+                 {s:{r:A.length-1,c:0},e:{r:A.length-1,c:12}}];
+  if(typeof xlDress==="function") xlDress(ws, {
+    rows:{0:"title", 1:"subtitle", 2:"subtitle", [HDR]:"header", [TOTROW]:"total",
+          [A.length-1]:"note"},
+    colStyles:{0:"label", 1:"date", 6:"usd", 7:"iqd", 8:"usd", 9:"iqd", 10:"usd", 11:"iqd"},
+    rowsHt:[{hpt:26},{hpt:18},{hpt:16},{hpt:6},{hpt:30}]
+  });
 
-  // ── Second sheet: what each person still holds ──
+  // ── Sheet 2: what each person still holds ──
   const B=[];
-  B.push(...xlHeaderRows("Balance Held by Each Employee", per, 6));
-  B.push([{v:"OUTSTANDING BY EMPLOYEE", s:"section", m:6}]);
-  B.push([{v:"Employee",s:"header"},{v:"Advances",s:"header"},
-          {v:"Advanced USD",s:"header"},{v:"Advanced IQD",s:"header"},
-          {v:"Outstanding USD",s:"header"},{v:"Outstanding IQD",s:"header"}]);
-  const EF=B.length+1;
+  B.push(["EJAF Technology \u2014 Gir\u00eak"]);
+  B.push(["Balance Held by Each Employee"]);
+  B.push([per]);
+  B.push([]);
+  B.push(["Employee","Advances","Advanced USD","Advanced IQD","Outstanding USD","Outstanding IQD"]);
+  const BHDR=B.length-1, EF=B.length+1;
   T.empRows.forEach(e=>{
     const nm=`"${String(e.name).replace(/"/g,'""')}"`;
-    B.push([
-      {v:e.name, s:"label"},
-      {v:e.n, s:"int", f:`COUNTIF(Advances!$A$${FIRST}:$A$${LAST},${nm})`},
-      {v:e.usd,    s:"usd", f:`SUMIF(Advances!$A$${FIRST}:$A$${LAST},${nm},Advances!$G$${FIRST}:$G$${LAST})`},
-      {v:e.iqd,    s:"iqd", f:`SUMIF(Advances!$A$${FIRST}:$A$${LAST},${nm},Advances!$H$${FIRST}:$H$${LAST})`},
-      {v:e.outUSD, s:(e.outUSD?"warn":"usd"), f:`SUMIF(Advances!$A$${FIRST}:$A$${LAST},${nm},Advances!$K$${FIRST}:$K$${LAST})`},
-      {v:e.outIQD, s:(e.outIQD?"warn":"iqd"), f:`SUMIF(Advances!$A$${FIRST}:$A$${LAST},${nm},Advances!$L$${FIRST}:$L$${LAST})`}]);
+    B.push([e.name,
+      {f:`COUNTIF(Advances!$A$${FIRST}:$A$${LAST},${nm})`},
+      {f:`SUMIF(Advances!$A$${FIRST}:$A$${LAST},${nm},Advances!$G$${FIRST}:$G$${LAST})`},
+      {f:`SUMIF(Advances!$A$${FIRST}:$A$${LAST},${nm},Advances!$H$${FIRST}:$H$${LAST})`},
+      {f:`SUMIF(Advances!$A$${FIRST}:$A$${LAST},${nm},Advances!$K$${FIRST}:$K$${LAST})`},
+      {f:`SUMIF(Advances!$A$${FIRST}:$A$${LAST},${nm},Advances!$L$${FIRST}:$L$${LAST})`}]);
   });
-  const EL=B.length;
-  B.push([
-    {v:"TOTAL", s:"total"},
-    {v:T.count,  s:"totalNum", f:`SUM(B${EF}:B${EL})`},
-    {v:T.usd,    s:"totalNum", f:`SUM(C${EF}:C${EL})`},
-    {v:T.iqd,    s:"totalNum", f:`SUM(D${EF}:D${EL})`},
-    {v:T.outUSD, s:"totalNum", f:`SUM(E${EF}:E${EL})`},
-    {v:T.outIQD, s:"totalNum", f:`SUM(F${EF}:F${EL})`}]);
+  const EL=B.length, BTOT=B.length;
+  B.push(["TOTAL",{f:`SUM(B${EF}:B${EL})`},{f:`SUM(C${EF}:C${EL})`},
+          {f:`SUM(D${EF}:D${EL})`},{f:`SUM(E${EF}:E${EL})`},{f:`SUM(F${EF}:F${EL})`}]);
   B.push([]);
-  B.push([{v:"Every figure here is pulled from the Advances sheet by formula, so the two can never disagree.", s:"note", m:6}]);
-  const ws2=xlSheet(B, {
-    cols:[{wch:26},{wch:12},{wch:16},{wch:17},{wch:17},{wch:18}],
-    rows:[{hpt:26},{hpt:16},{hpt:16},{hpt:6},{hpt:20},{hpt:30}],
-    freezeAt:{x:1, y:EF-1} });
+  B.push(["Every figure here is pulled from the Advances sheet by formula, so the two can never disagree."]);
+  const ws2=XLSX.utils.aoa_to_sheet(B);
+  ws2["!cols"]=[{wch:26},{wch:12},{wch:16},{wch:17},{wch:17},{wch:18}];
+  ws2["!merges"]=[{s:{r:0,c:0},e:{r:0,c:5}},{s:{r:1,c:0},e:{r:1,c:5}},
+                  {s:{r:2,c:0},e:{r:2,c:5}},{s:{r:B.length-1,c:0},e:{r:B.length-1,c:5}}];
+  if(typeof xlDress==="function") xlDress(ws2, {
+    rows:{0:"title", 1:"subtitle", 2:"subtitle", [BHDR]:"header", [BTOT]:"total",
+          [B.length-1]:"note"},
+    colStyles:{0:"label", 1:"int", 2:"usd", 3:"iqd", 4:"usd", 5:"iqd"},
+    rowsHt:[{hpt:26},{hpt:18},{hpt:16},{hpt:6},{hpt:30}]
+  });
 
   const wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws,  "Advances");
   XLSX.utils.book_append_sheet(wb, ws2, "By Employee");
   XLSX.writeFile(wb, `Advances-register-${(typeof todayStr==="function"?todayStr():"export")}.xlsx`);
   toast("\u2713 Excel exported");
+  }catch(e){ console.error(e); toast("Excel export failed: "+e.message); }
 };
 Object.assign(window,{advRegisterPDF, advRegisterExcel});
 
@@ -1616,8 +1612,10 @@ window.expenseClaimExcel = function(id){
           [/^(These project rows|US dollar and Iraqi)/, "note"],
           [/^(Completed by|Signature)$/, "label"]
         ],
-        rowsHt:[{hpt:24},{hpt:18},{hpt:16}],
-        freezeAt:{x:4, y:HDR_ROW+2}
+        // Columns 4+ are the money pairs: USD then IQD for each group, so the
+        // two currencies carry visibly different formats in the sheet.
+        colStyles:Object.fromEntries(EXR_GROUPS.flatMap((_,gi)=>[[4+gi*2,"usd"],[5+gi*2,"iqd"]])),
+        rowsHt:[{hpt:24},{hpt:18},{hpt:16}]
       });
     }
 

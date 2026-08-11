@@ -430,6 +430,7 @@ function renderHRReport(){
 // Trigger a hidden file picker for a given department
 window.importProjectsForDept = function(deptName){
   if(!isAdmin()) return toast("Admin only");
+  if(typeof XLSX==="undefined") return toast("Spreadsheet engine not loaded \u2014 reconnect and try again");
   const input = document.createElement('input');
   input.type = 'file';
   input.accept = '.csv,.xlsx,.xls';
@@ -442,6 +443,7 @@ window.importProjectsForDept = function(deptName){
 
 // Download a sample template so the admin knows the exact columns
 window.downloadImportTemplate = function(){
+  if(typeof XLSX==="undefined") return toast("Spreadsheet engine not loaded \u2014 reconnect and try again");
   const sample = [
     ["Project","Area Name","Site Name","Status"],
     ["Asia Cell","Erbil Area","Tower-A","Active"],

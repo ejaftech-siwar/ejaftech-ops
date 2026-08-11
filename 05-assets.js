@@ -465,6 +465,7 @@ let _assetImportRows = null;  // cached rows for column-mapper fallback
 
 window.importAssets = function(){
   if(!isHR()) return toast("HR/Admin only");
+  if(typeof XLSX==="undefined") return toast("Spreadsheet engine not loaded \u2014 reconnect and try again");
   const input = document.createElement('input');
   input.type = 'file';
   input.accept = '.csv,.xlsx,.xls';

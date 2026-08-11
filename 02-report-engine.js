@@ -1363,10 +1363,11 @@ Object.assign(window,{renderXlPicker});
 // use (xlsx-js-style) does support cell formatting, so the fix is to give every
 // finance export one shared vocabulary rather than restyling each in isolation.
 //
-// A sheet is described as rows of cells:
-//   {v:value, s:"header"|"cell"|"num"|"money"|"total"|..., f:"SUM(...)", m:span}
-// and xlSheet() turns that into a styled worksheet. Formulas survive: a cell
-// with `f` stays live in Excel, which is what finance needs to re-check totals.
+// Sheets are still built with XLSX.utils.aoa_to_sheet \u2014 the path every working
+// export in this app uses \u2014 and then dressed by xlDress() below. Keeping the
+// data and the presentation in separate steps means styling can never put a
+// value or a formula at risk: a cell carrying `f` stays live in Excel, which is
+// what finance needs in order to re-check a total.
 
 const XLC = {
   navy:"1B3A6B", navyMid:"2E5FA3", gold:"C9A84C", goldDark:"B58E2E",
@@ -1459,54 +1460,7 @@ function xlStyle(name, alt, accent){
   }
 }
 
-const _xlAddr = (r,c)=>XLSX.utils.encode_cell({r,c});
-
-// Build a styled worksheet from rows of cell descriptors.
-function xlSheet(rows, opts){
-  const o = opts||{};
-  const ws = {};
-  let maxC = 0;
-  rows.forEach((row,r)=>{
-    (row||[]).forEach((cell,c)=>{
-      if(cell===null || cell===undefined) return;
-      const d = (typeof cell==="object" && !(cell instanceof Date)) ? cell : {v:cell};
-      const addr = _xlAddr(r,c);
-      const isNum = typeof d.v === "number";
-      const o2 = {t: d.f ? "n" : (isNum ? "n" : "s"), v: d.v===undefined ? "" : d.v};
-      if(d.f) o2.f = d.f;                       // stays live in Excel
-      o2.s = d.s ? xlStyle(d.s, r%2===1, d.accent) : xlStyle("cell", r%2===1);
-      ws[addr] = o2;
-      if(d.m){                                   // horizontal span
-        if(!ws["!merges"]) ws["!merges"]=[];
-        ws["!merges"].push({s:{r,c}, e:{r, c:c+d.m-1}});
-        for(let k=1;k<d.m;k++) ws[_xlAddr(r,c+k)] = {t:"s", v:"", s:o2.s};
-        maxC = Math.max(maxC, c+d.m-1);
-      }
-      maxC = Math.max(maxC, c);
-    });
-  });
-  ws["!ref"] = XLSX.utils.encode_range({s:{r:0,c:0}, e:{r:Math.max(rows.length-1,0), c:maxC}});
-  if(o.cols)   ws["!cols"] = o.cols;
-  if(o.rows)   ws["!rows"] = o.rows;
-  if(o.freeze) ws["!freeze"] = o.freeze;
-  // Freeze panes so the header stays put while scrolling a long register.
-  if(o.freezeAt) ws["!freeze"] = {xSplit:o.freezeAt.x||0, ySplit:o.freezeAt.y||0};
-  return ws;
-}
-
-// The banner every finance workbook opens with, so they are recognisably one
-// family of documents rather than a pile of loose sheets.
-function xlHeaderRows(title, subtitle, span){
-  const n = span || 8;
-  return [
-    [{v:`EJAF Technology \u2014 Gir\u00eak`, s:"title", m:n}],
-    [{v:title, s:"subtitle", m:n}],
-    [{v:subtitle||"", s:"subtitle", m:n}],
-    []
-  ];
-}
-
-Object.assign(window,{XLC, xlStyle, xlSheet, xlHeaderRows});
+Object.assign(window,{XLC, xlStyle});
 
 // Dress an ALREADY-BUILT worksheet. Used where a sheet has intricate formula
 // logic that must not be touched: the cells keep their values and formulas,
@@ -1530,8 +1484,10 @@ function xlDress(ws, spec){
       if(!cell) continue;
       let use = name;
       if(!use){
-        // Default: numbers right-aligned and bold, text plain, banded rows.
-        use = (cell.t==="n" || cell.f) ? "num" : "cell";
+        // A column rule wins for data cells: it is what carries the currency
+        // format, and $ vs IQD must never be decided row by row.
+        const byCol = s.colStyles && s.colStyles[c];
+        use = byCol ? byCol : ((cell.t==="n" || cell.f) ? "num" : "cell");
       } else if(use==="header" || use==="section" || use==="title" || use==="total"){
         // Totals rows keep their number alignment on numeric cells.
         if(use==="total" && (cell.t==="n" || cell.f)) use="totalNum";
@@ -1539,9 +1495,8 @@ function xlDress(ws, spec){
       cell.s = xlStyle(use, r%2===1, s.accent);
     }
   }
-  if(s.cols)   ws["!cols"]   = s.cols;
-  if(s.rowsHt) ws["!rows"]   = s.rowsHt;
-  if(s.freezeAt) ws["!freeze"] = {xSplit:s.freezeAt.x||0, ySplit:s.freezeAt.y||0};
+  if(s.cols)   ws["!cols"] = s.cols;
+  if(s.rowsHt) ws["!rows"] = s.rowsHt;
   return ws;
 }
 Object.assign(window,{xlDress});
