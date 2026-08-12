@@ -1268,8 +1268,8 @@ window.tblInsert = function(setterPath, rows, cols){
 function tableToolbar(setterPath){
   return `<div class="tbl-tools">
     <label class="btn btn-sm btn-secondary" style="cursor:pointer;margin:0">
-      \u{1F4D7} Import from Excel
-      <input type="file" accept=".xlsx,.xlsm,.xls,.csv" style="display:none"
+      \u{1F4D7} Import file
+      <input type="file" accept=".xlsx,.xlsm,.xls,.csv,.docx" style="display:none"
              onchange="xlImportOpen(this,${jsArg(setterPath)})">
     </label>
     <button type="button" class="btn btn-sm btn-secondary" onclick="tblInsert(${jsArg(setterPath)},3,3)">\u{1F4CA} Blank table</button>
@@ -1328,10 +1328,72 @@ function _xlToText(rows){
 }
 Object.assign(window,{_xlSheetRows, _xlToText});
 
+// A .docx is a zip whose word/document.xml holds the text, and the spreadsheet
+// library already bundles a zip reader for .xlsx. Reading it here avoids adding
+// a second library for one field. Tables in the document are recovered row by
+// row so they land in the field the same way an imported sheet does; if the
+// file cannot be read for any reason the person is told plainly rather than
+// left with an empty box.
+async function _docxToText(file){
+  const buf = await file.arrayBuffer();
+  const cfb = XLSX.CFB.read(new Uint8Array(buf), {type:"array"});
+  const entry = (cfb.FileIndex||[]).find(e=>/word\/document\.xml$/i.test(e.name||""))
+             || (cfb.FullPaths||[]).length ? XLSX.CFB.find(cfb, "/word/document.xml") : null;
+  if(!entry || !entry.content) throw new Error("no document body");
+  const xml = new TextDecoder("utf-8").decode(new Uint8Array(entry.content));
+  const rows=[];
+  // Table rows first, so a table in Word arrives as a table, not one long line.
+  (xml.match(/<w:tr[\s\S]*?<\/w:tr>/g)||[]).forEach(tr=>{
+    const cells=(tr.match(/<w:tc[\s\S]*?<\/w:tc>/g)||[])
+      .map(tc=>(tc.match(/<w:t[^>]*>([\s\S]*?)<\/w:t>/g)||[])
+        .map(t=>t.replace(/<[^>]+>/g,"")).join("").trim());
+    if(cells.some(Boolean)) rows.push(cells.join("\t"));
+  });
+  // Then the ordinary paragraphs that are not inside a table.
+  const body = xml.replace(/<w:tbl[\s\S]*?<\/w:tbl>/g,"");
+  (body.match(/<w:p[\s\S]*?<\/w:p>/g)||[]).forEach(p=>{
+    const txt=(p.match(/<w:t[^>]*>([\s\S]*?)<\/w:t>/g)||[])
+      .map(t=>t.replace(/<[^>]+>/g,"")).join("").trim();
+    if(txt) rows.push(txt);
+  });
+  return rows.join("\n")
+    .replace(/&amp;/g,"&").replace(/&lt;/g,"<").replace(/&gt;/g,">")
+    .replace(/&quot;/g,'"').replace(/&#39;/g,"'").trim();
+}
+Object.assign(window,{_docxToText});
+
 window.xlImportOpen = async function(input, targetPath){
   const f = input && input.files && input.files[0];
   if(!f) return;
   if(typeof XLSX==="undefined"){ toast("Excel library not loaded"); return; }
+
+  // Word goes straight into the field \u2014 there is no sheet to choose from.
+  if(/\.docx?$/i.test(f.name||"")){
+    if(/\.doc$/i.test(f.name||"")){
+      toast("Only .docx can be read \u2014 open it in Word and Save As .docx");
+      input.value=""; return;
+    }
+    toast("Reading the document\u2026");
+    try{
+      const text=await _docxToText(f);
+      if(!text){ toast("That document appears to be empty"); input.value=""; return; }
+      const parts=String(targetPath||"").split(".");
+      let obj=window;
+      for(let i=0;i<parts.length-1;i++) obj=obj[parts[i]];
+      const key=parts[parts.length-1];
+      if(!obj){ toast("Could not reach that field"); input.value=""; return; }
+      const cur=String(obj[key]||"");
+      obj[key] = cur ? (cur.replace(/\s*$/,"") + "\n" + text) : text;
+      input.value="";
+      render();
+      toast("Document imported \u2713");
+    }catch(e){
+      console.error(e);
+      toast("Could not read that Word file \u2014 try saving it as .xlsx or .csv");
+      input.value="";
+    }
+    return;
+  }
   toast("Reading the sheet\u2026");
   try{
     const wb = XLSX.read(await f.arrayBuffer(), {type:"array"});

@@ -1394,7 +1394,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v238';"
+      var swCode = "const CACHE='ejaftech-v240';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
@@ -1618,6 +1618,7 @@ function renderPMReportTab(){
 
   <div class="card">
     <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:700">02</span> Work Description</div>
+    ${typeof tableToolbar==="function"?tableToolbar("_pmRptDesc"):""}
     <textarea rows="4" oninput="window._pmRptDesc=this.value" placeholder="What was performed in this maintenance round — cleaning, tests, replaced parts, findings… (appears in the PDF)" style="width:100%;margin-top:8px">${escapeHtml(window._pmRptDesc)}</textarea>
   </div>
 
@@ -1630,8 +1631,8 @@ function renderPMReportTab(){
   </div>
 
   <div class="card" style="background:linear-gradient(135deg,#1B3A6B 0%,#2E5FA3 100%);border:2px solid #C9A84C">
-    ${typeof refOverrideField==="function"?refOverrideField():""}${typeof brandLink==="function"?brandLink():""}${rptFormatToggle()}
-    <button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:700;border:none;width:100%" onclick="generatePMReport()">${window._rptFormat==="word"?"📝":"📄"} Generate PM Report (${window._rptFormat==="word"?"Word":"PDF"})</button>
+    ${typeof refOverrideField==="function"?refOverrideField():""}${typeof brandLink==="function"?brandLink():""}${rptFormatToggle(true)}
+    <button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:700;border:none;width:100%" onclick="generatePMReport()">${_fmtIcon()} Generate PM Report (${_fmtName()})</button>
   </div>`;
 }
 
@@ -1685,8 +1686,8 @@ function renderIncidentReportTab(){
   </div>
 
   <div class="card" style="background:linear-gradient(135deg,#1B3A6B 0%,#2E5FA3 100%);border:2px solid #C9A84C">
-    ${typeof refOverrideField==="function"?refOverrideField():""}${typeof brandLink==="function"?brandLink():""}${rptFormatToggle()}
-    <button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:700;border:none;width:100%" onclick="generateIncidentReport()">${window._rptFormat==="word"?"📝":"📄"} Generate Incident Report (${window._rptFormat==="word"?"Word":"PDF"})</button>
+    ${typeof refOverrideField==="function"?refOverrideField():""}${typeof brandLink==="function"?brandLink():""}${rptFormatToggle(true)}
+    <button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:700;border:none;width:100%" onclick="generateIncidentReport()">${_fmtIcon()} Generate Incident Report (${_fmtName()})</button>
   </div>`}`;
 }
 Object.assign(window,{renderPMReportTab,renderIncidentReportTab});
@@ -1771,8 +1772,8 @@ function _pmManualLayout(){
     </div>`:""}
   </div>
   <div class="card" style="background:linear-gradient(135deg,#1B3A6B 0%,#2E5FA3 100%);border:2px solid #C9A84C">
-    ${typeof refOverrideField==="function"?refOverrideField():""}${typeof brandLink==="function"?brandLink():""}${rptFormatToggle()}
-    <button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:700;border:none;width:100%" onclick="generatePMReport()">${window._rptFormat==="word"?"📝":"📄"} Generate PM Report (${window._rptFormat==="word"?"Word":"PDF"})</button>
+    ${typeof refOverrideField==="function"?refOverrideField():""}${typeof brandLink==="function"?brandLink():""}${rptFormatToggle(true)}
+    <button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:700;border:none;width:100%" onclick="generatePMReport()">${_fmtIcon()} Generate PM Report (${_fmtName()})</button>
   </div>`;
 }
 
@@ -1856,8 +1857,8 @@ function _incManualLayout(){
     </div>
   </div>
   <div class="card" style="background:linear-gradient(135deg,#1B3A6B 0%,#2E5FA3 100%);border:2px solid #C9A84C">
-    ${typeof refOverrideField==="function"?refOverrideField():""}${typeof brandLink==="function"?brandLink():""}${rptFormatToggle()}
-    <button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:700;border:none;width:100%" onclick="generateIncidentReport()">${window._rptFormat==="word"?"📝":"📄"} Generate Incident Report (${window._rptFormat==="word"?"Word":"PDF"})</button>
+    ${typeof refOverrideField==="function"?refOverrideField():""}${typeof brandLink==="function"?brandLink():""}${rptFormatToggle(true)}
+    <button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:700;border:none;width:100%" onclick="generateIncidentReport()">${_fmtIcon()} Generate Incident Report (${_fmtName()})</button>
   </div>`;
 }
 
@@ -2047,6 +2048,7 @@ function renderFM200Section(){
   </div>
   <div class="card">
     <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:700">05</span> Result of Test</div>
+    ${typeof tableToolbar==="function"?tableToolbar("_fm.resultText"):""}
     <textarea rows="4" oninput="window._fm.resultText=this.value" placeholder="e.g. System health for the FM200 infrastructure is verified as optimal. No trouble states, discharge events, or system degradation have been logged…" style="width:100%;margin-top:8px">${escapeHtml(m.resultText||"")}</textarea>
   </div>
   <div class="card">
@@ -2062,6 +2064,7 @@ function renderFM200Section(){
 
   <div class="card">
     <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:700">${fv==="test"?"07":"03"}</span> Notes / Recommendations</div>
+    ${typeof tableToolbar==="function"?tableToolbar("_fm.notes"):""}
     <textarea rows="3" oninput="window._fm.notes=this.value" placeholder="Observations, recommendations… (appears in the PDF)" style="width:100%;margin-top:8px">${escapeHtml(m.notes||"")}</textarea>
   </div>
 
@@ -2467,6 +2470,7 @@ function renderSystemReports(){
 
   <div class="card">
     <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:700">${N()}</span> Result of Test</div>
+    ${typeof tableToolbar==="function"?tableToolbar("_sr.resultText"):""}
     <textarea rows="4" oninput="window._sr.resultText=this.value" placeholder="Overall condition, findings and recommendations…" style="width:100%;margin-top:8px">${escapeHtml(m.resultText||"")}</textarea>
   </div>
 
@@ -3128,7 +3132,7 @@ function renderHandoverDossier(){
   </div>
 
   <div class="card" style="background:linear-gradient(135deg,#1B3A6B 0%,#2E5FA3 100%);border:2px solid #C9A84C">
-    ${typeof refOverrideField==="function"?refOverrideField():""}${typeof brandLink==="function"?brandLink():""}${rptFormatToggle()}
+    ${typeof refOverrideField==="function"?refOverrideField():""}${typeof brandLink==="function"?brandLink():""}${rptFormatToggle(true)}
     <button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:700;border:none;width:100%" onclick="generateHandoverDossier()">\u{1F4E6} Generate Handover Dossier</button>
   </div>`:""}`;
 }
@@ -3381,8 +3385,8 @@ function renderProgressReport(kind){
   </div>
 
   <div class="card" style="background:linear-gradient(135deg,#1B3A6B 0%,#2E5FA3 100%);border:2px solid #C9A84C">
-    ${typeof refOverrideField==="function"?refOverrideField():""}${typeof brandLink==="function"?brandLink():""}${rptFormatToggle()}
-    <button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:700;border:none;width:100%" onclick="generateProgressReport('${kind}')">${window._rptFormat==="word"?"📝":"📄"} Generate ${daily?"Daily":"Weekly"} Report (${window._rptFormat==="word"?"Word":"PDF"})</button>
+    ${typeof refOverrideField==="function"?refOverrideField():""}${typeof brandLink==="function"?brandLink():""}${rptFormatToggle(true)}
+    <button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:700;border:none;width:100%" onclick="generateProgressReport('${kind}')">${_fmtIcon()} Generate ${daily?"Daily":"Weekly"} Report (${_fmtName()})</button>
   </div>`;
 }
 
@@ -3529,6 +3533,6 @@ window.forceUpdate = async function(){
 // The build actually running, so nobody has to infer it from behaviour.
 // A single named constant, updated with every release, so the screen can state
 // the build without inferring it from a variable that lives inside a function.
-const APP_BUILD = "v238";
+const APP_BUILD = "v240";
 window.APP_BUILD = APP_BUILD;
 window.runningVersion = function(){ return APP_BUILD; };
