@@ -1273,7 +1273,8 @@ function tableToolbar(setterPath){
              onchange="xlImportOpen(this,${jsArg(setterPath)})">
     </label>
     <button type="button" class="btn btn-sm btn-secondary" onclick="tblInsert(${jsArg(setterPath)},3,3)">\u{1F4CA} Blank table</button>
-    <span class="tbl-hint">Importing the file keeps every cell exactly where it is \u2014 safer than pasting, which can split a wrapped cell across two rows.</span>
+    <span class="tbl-hint">Excel and CSV keep every cell exactly where it is \u2014 safer than pasting, which can split a wrapped cell across two rows.
+      Word (.docx) brings across the wording, its line breaks, lists and tables; colours and fonts do not transfer, because this is a text field. A table imported here is still printed as a table in the finished report.</span>
   </div>`;
 }
 Object.assign(window,{tablePreviewHTML, tableToolbar});
@@ -1334,31 +1335,91 @@ Object.assign(window,{_xlSheetRows, _xlToText});
 // row so they land in the field the same way an imported sheet does; if the
 // file cannot be read for any reason the person is told plainly rather than
 // left with an empty box.
+// Read a .docx. A Word file is a zip whose word/document.xml holds the body,
+// and the spreadsheet library already bundles a zip reader, so no second
+// library is needed for this one field.
+//
+// What this CAN carry over is structure: the order of the document, its line
+// breaks, tables, lists and headings. What it cannot carry is presentation —
+// colours, fonts, margins — because the destination is a plain text field, not
+// a document canvas. The report engine renders tab-separated lines back into a
+// real table when the PDF is produced, so a table imported here is still a
+// table in the finished document; it simply is not coloured in the meantime.
+function _docxRunsToText(frag){
+  // Walk the runs of one paragraph in order, so a soft line break inside a
+  // paragraph stays a line break instead of gluing two words together.
+  let out = "";
+  // Word emits these either self-closed (<w:tab/>) or paired (<w:tab></w:tab>),
+  // and a paragraph boundary inside a table cell has to become a space so the
+  // cell stays one cell.
+  const re = /<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>|<w:tab\b[^>]*\/?>|<w:br\b[^>]*\/?>|<w:cr\b[^>]*\/?>|<\/w:p>/g;
+  let m;
+  while((m = re.exec(frag))){
+    if(m[1] !== undefined)          out += m[1].replace(/<[^>]+>/g, "");
+    else if(/^<w:tab/.test(m[0]))   out += "\t";
+    else if(/^<\/w:p>/.test(m[0]))  out += "\u0001";  // paragraph boundary marker
+    else                            out += "\n";      // <w:br> and <w:cr>
+  }
+  return out;
+}
+
+function _docxParaText(p){
+  let txt = _docxRunsToText(p).replace(/\u0001/g, "\n");
+  if(!txt.trim()) return "";
+  // A list item is marked by numbering properties rather than by a character,
+  // so the bullet has to be restored or the list arrives as loose lines.
+  if(/<w:numPr[\s>]/.test(p)) txt = "- " + txt.trim();
+  return txt;
+}
+
+function _docxTableText(tbl){
+  const rows = [];
+  (tbl.match(/<w:tr[\s\S]*?<\/w:tr>/g) || []).forEach(tr => {
+    const cells = (tr.match(/<w:tc[\s\S]*?<\/w:tc>/g) || [])
+      // A cell may hold several paragraphs; they are joined with a space so the
+      // cell stays one cell and the columns after it do not shift.
+      .map(tc => _docxRunsToText(tc).replace(/\u0001/g, " ").replace(/\s+/g, " ").trim());
+    if(cells.some(Boolean)) rows.push(cells.join("\t"));
+  });
+  return rows;
+}
+
 async function _docxToText(file){
   const buf = await file.arrayBuffer();
   const cfb = XLSX.CFB.read(new Uint8Array(buf), {type:"array"});
-  const entry = (cfb.FileIndex||[]).find(e=>/word\/document\.xml$/i.test(e.name||""))
-             || (cfb.FullPaths||[]).length ? XLSX.CFB.find(cfb, "/word/document.xml") : null;
+  let entry = null;
+  try{ entry = XLSX.CFB.find(cfb, "/word/document.xml"); }catch(e){}
+  if(!entry) entry = (cfb.FileIndex||[]).find(e => /word\/document\.xml$/i.test(e.name||""));
   if(!entry || !entry.content) throw new Error("no document body");
   const xml = new TextDecoder("utf-8").decode(new Uint8Array(entry.content));
-  const rows=[];
-  // Table rows first, so a table in Word arrives as a table, not one long line.
-  (xml.match(/<w:tr[\s\S]*?<\/w:tr>/g)||[]).forEach(tr=>{
-    const cells=(tr.match(/<w:tc[\s\S]*?<\/w:tc>/g)||[])
-      .map(tc=>(tc.match(/<w:t[^>]*>([\s\S]*?)<\/w:t>/g)||[])
-        .map(t=>t.replace(/<[^>]+>/g,"")).join("").trim());
-    if(cells.some(Boolean)) rows.push(cells.join("\t"));
-  });
-  // Then the ordinary paragraphs that are not inside a table.
-  const body = xml.replace(/<w:tbl[\s\S]*?<\/w:tbl>/g,"");
-  (body.match(/<w:p[\s\S]*?<\/w:p>/g)||[]).forEach(p=>{
-    const txt=(p.match(/<w:t[^>]*>([\s\S]*?)<\/w:t>/g)||[])
-      .map(t=>t.replace(/<[^>]+>/g,"")).join("").trim();
-    if(txt) rows.push(txt);
-  });
-  return rows.join("\n")
+
+  // Walk paragraphs and tables in the order they appear. Reading all the
+  // tables first and the paragraphs afterwards — which is what this used to do
+  // — silently reordered the document: every table jumped above the text that
+  // introduced it.
+  const out = [];
+  const re = /<w:tbl[\s>][\s\S]*?<\/w:tbl>|<w:p[\s>][\s\S]*?<\/w:p>|<w:p\/>/g;
+  let m;
+  while((m = re.exec(xml))){
+    const frag = m[0];
+    if(frag.startsWith("<w:tbl")){
+      const rows = _docxTableText(frag);
+      if(rows.length){ if(out.length) out.push(""); out.push(...rows); out.push(""); }
+    }else{
+      const t = _docxParaText(frag);
+      if(t) out.push(t);
+    }
+  }
+
+  return out.join("\n")
     .replace(/&amp;/g,"&").replace(/&lt;/g,"<").replace(/&gt;/g,">")
-    .replace(/&quot;/g,'"').replace(/&#39;/g,"'").trim();
+    .replace(/&quot;/g,'"').replace(/&#39;/g,"'").replace(/&#(\d+);/g,(s,n)=>String.fromCharCode(+n))
+    // Collapse runs of blank lines left by empty paragraphs, but keep one so
+    // the sections of the document still read apart from each other.
+    .replace(/\u0001/g,"\n")
+    .replace(/\n{3,}/g,"\n\n")
+    .replace(/[ \t]+\n/g,"\n")
+    .trim();
 }
 Object.assign(window,{_docxToText});
 
