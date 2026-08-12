@@ -77,25 +77,45 @@ function advancesFor(employee, onlyOpen){
   }).slice().sort((a,b)=>String(b.date||"").localeCompare(String(a.date||"")));
 }
 // How much of an advance has been consumed by approved claims.
+// The date an applied advance carries. The claim line keeps its own copy, but
+// an older record may not have one, so the advance itself is the fallback.
+function _advDateOf(x){
+  if(x && x.date) return x.date;
+  const a=(state.advances||[]).find(y=>y && y.id===(x&&x.id));
+  return (a && a.date) || "";
+}
+
 function advApplied(advId){
   let usd=0, iqd=0;
   (state.expenseReports||[]).forEach(r=>{
     if(!["approved","paid"].includes(r.status)) return;
-    const mine=((r.advanceIds)||[]).filter(x=>x && x.id===advId);
-    if(!mine.length) return;
+    if(!((r.advanceIds)||[]).some(x=>x && x.id===advId)) return;
 
-    // What this claim actually justifies, per currency, and what it claims to
-    // draw down. Each currency is scaled on its own \u2014 dollars can be fully
-    // spent while dinars are not.
+    // Spending clears the OLDEST advance first; only what is left over reaches
+    // the next one. Spreading the shortfall proportionally \u2014 which is what this
+    // used to do \u2014 left every advance partly settled and none of them ever
+    // closed. That is not how an account is worked off: the employee spends the
+    // money in the order it was handed over, so the early advances close and
+    // only the most recent one carries the remainder.
     const t=exrTotals(r);
-    const drawnUSD=((r.advanceIds)||[]).reduce((s,x)=>s+num(x&&x.usd),0);
-    const drawnIQD=((r.advanceIds)||[]).reduce((s,x)=>s+num(x&&x.iqd),0);
-    // Ratio of 1 means the spend covered the draw; below 1 means part of the
-    // advance was never spent and therefore was never discharged.
-    const kUSD = drawnUSD>0 ? Math.min(1, t.subUSD/drawnUSD) : 1;
-    const kIQD = drawnIQD>0 ? Math.min(1, t.subIQD/drawnIQD) : 1;
+    const order=((r.advanceIds)||[]).map((x,i)=>({x,i}))
+      .filter(o=>o.x)
+      .sort((a,b)=>{
+        // Oldest first; where two share a date, the order they were added to
+        // the claim decides, so the outcome is never arbitrary.
+        const da=String(_advDateOf(a.x)||"9999-12-31");
+        const db=String(_advDateOf(b.x)||"9999-12-31");
+        if(da!==db) return da.localeCompare(db);
+        return a.i-b.i;
+      });
 
-    mine.forEach(x=>{ usd += num(x.usd)*kUSD; iqd += num(x.iqd)*kIQD; });
+    let poolUSD=t.subUSD, poolIQD=t.subIQD;   // what this claim justifies
+    order.forEach(o=>{
+      const takeUSD=Math.min(num(o.x.usd), Math.max(0,poolUSD));
+      const takeIQD=Math.min(num(o.x.iqd), Math.max(0,poolIQD));
+      poolUSD-=takeUSD; poolIQD-=takeIQD;
+      if(o.x.id===advId){ usd+=takeUSD; iqd+=takeIQD; }
+    });
   });
   return {usd:+usd.toFixed(2), iqd:Math.round(iqd)};
 }
