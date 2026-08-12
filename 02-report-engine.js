@@ -156,7 +156,7 @@ function buildReportHTML(refNo, reportType, periodLabel, bodyHTML){
         -webkit-print-color-adjust:exact;print-color-adjust:exact}
     .rlrow{display:flex;align-items:center;gap:13px}
     .rlmark{border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.28);-webkit-print-color-adjust:exact;print-color-adjust:exact}
-    .rl{color:white;font-size:18px;font-weight:800;letter-spacing:1.4px;line-height:1.15;text-transform:uppercase}
+    .rl{color:white;font-size:18px;font-weight:700;letter-spacing:1.4px;line-height:1.15;text-transform:uppercase}
     .rl span{color:#C9A84C}
     .rs{color:rgba(255,255,255,.62);font-size:8.5pt;margin-top:5px;letter-spacing:.4px}
     .rt{color:rgba(255,255,255,.45);font-size:8pt;text-transform:uppercase;letter-spacing:1px;margin-top:2px}
@@ -200,14 +200,14 @@ function buildReportHTML(refNo, reportType, periodLabel, bodyHTML){
     tbody td{padding:8px 10px;border-bottom:1px solid #e0e8ff;line-height:1.5;vertical-align:top}
     tfoot tr{background:#0a1628;-webkit-print-color-adjust:exact;print-color-adjust:exact}
     tfoot td{color:#C9A84C;padding:10px;font-weight:700;font-size:10pt;border-top:2px solid #C9A84C}
-    tr.grand td{background:linear-gradient(135deg,#C9A84C,#B58E2E)!important;color:#03308B;font-weight:800!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    tr.grand td{background:linear-gradient(135deg,#C9A84C,#B58E2E)!important;color:#03308B;font-weight:700!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 
     /* BREAKDOWN CARDS \u2014 department, project and project-code blocks */
     .dept-card{border:1px solid #D6E4F0;border-left:4px solid #03308B;border-radius:8px;
       padding:10px 13px;margin-bottom:8px;background:#fff;page-break-inside:avoid}
     .dept-row{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
-    .dept-name{font-size:10.5pt;font-weight:800;letter-spacing:.2px}
-    .dept-val{font-size:13.5pt;font-weight:800;font-family:Georgia,serif;white-space:nowrap}
+    .dept-name{font-size:10.5pt;font-weight:700;letter-spacing:.2px}
+    .dept-val{font-size:13.5pt;font-weight:700;font-family:Georgia,serif;white-space:nowrap}
     .dept-sub{font-size:8.5pt;color:#6B7B8F;margin-top:4px;line-height:1.7}
     .bar{height:5px;background:#E8EEF6;border-radius:4px;overflow:hidden;margin-top:6px}
     .bar-fill{height:100%;border-radius:4px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
@@ -528,7 +528,7 @@ window.downloadReportWord=downloadReportWord;
 function rptFormatToggle(withExcel){
   if(withExcel){
     const f=window._rptFormat||"pdf";
-    const B=(id,lb,bg,fg)=>`<button class="btn btn-sm ${f===id?"":"btn-secondary"}" style="${f===id?`background:${bg};color:${fg};border:none;`:""}flex:1;font-weight:800" onclick="window._rptFormat='${id}';render()">${lb}</button>`;
+    const B=(id,lb,bg,fg)=>`<button class="btn btn-sm ${f===id?"":"btn-secondary"}" style="${f===id?`background:${bg};color:${fg};border:none;`:""}flex:1;font-weight:700" onclick="window._rptFormat='${id}';render()">${lb}</button>`;
     return `<div style="display:flex;gap:6px;margin-bottom:9px">
       ${B("pdf","\u{1F4C4} PDF","#C9A84C","#1B3A6B")}
       ${B("excel","\u{1F4CA} Excel","#1B7A43","#fff")}
@@ -537,8 +537,8 @@ function rptFormatToggle(withExcel){
   }
   const w=window._rptFormat==="word";
   return `<div style="display:flex;gap:6px;margin-bottom:9px">
-    <button class="btn btn-sm ${w?"btn-secondary":""}" style="${w?"":"background:#C9A84C;color:#1B3A6B;border:none;"}flex:1;font-weight:800" onclick="window._rptFormat='pdf';render()">📄 PDF</button>
-    <button class="btn btn-sm ${w?"":"btn-secondary"}" style="${w?"background:#2E5FA3;color:#fff;border:none;":""}flex:1;font-weight:800" onclick="window._rptFormat='word';render()">📝 Word</button>
+    <button class="btn btn-sm ${w?"btn-secondary":""}" style="${w?"":"background:#C9A84C;color:#1B3A6B;border:none;"}flex:1;font-weight:700" onclick="window._rptFormat='pdf';render()">📄 PDF</button>
+    <button class="btn btn-sm ${w?"":"btn-secondary"}" style="${w?"background:#2E5FA3;color:#fff;border:none;":""}flex:1;font-weight:700" onclick="window._rptFormat='word';render()">📝 Word</button>
   </div>`;
 }
 window.rptFormatToggle=rptFormatToggle;
@@ -558,7 +558,7 @@ function workItemsReportHTML(rows,badge){
     <td><strong>${escapeHtml(w.title)}</strong><br><span style="font-size:8pt;color:#888">${fmtDate(w.firstDate)}${w.visits>1?` → ${fmtDate(w.lastDate)}`:""}</span></td>
     <td style="font-size:8.5pt">${escapeHtml(w.scopeLabel)}</td>
     <td style="font-size:8.5pt">${w.timeline.map(t=>escapeHtml(t.status)).join(" → ")}</td>
-    <td style="font-size:8.5pt;font-weight:800;color:${w.closed?"#2E7D32":"#E65100"}">${escapeHtml(w.status)}</td>
+    <td style="font-size:8.5pt;font-weight:700;color:${w.closed?"#2E7D32":"#E65100"}">${escapeHtml(w.status)}</td>
     <td>${w.visits}</td><td>${fmtHM(w.hours)}</td></tr>`).join("")}</tbody></table>`;
 }
 window.workItemsReportHTML=workItemsReportHTML;

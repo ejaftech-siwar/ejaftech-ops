@@ -712,25 +712,25 @@ function monthlyTable(rows, cur, showEntries){
       ${anyPD?`<td style="${TD}">${b.perDiem?curFmt(b.perDiem,cur):"\u2014"}</td>`:""}
       ${anyMat?`<td style="${TD}">${b.material?curFmt(b.material,cur):"\u2014"}</td>`:""}
       ${anyExp?`<td style="${TD};color:${b.expenses?"#5E35B1":"var(--muted)"}">${b.expenses?curFmt(b.expenses,cur):"\u2014"}</td>`:""}
-      <td style="${TD};font-weight:800">${curFmt(b.cost,cur)}</td>
+      <td style="${TD};font-weight:700">${curFmt(b.cost,cur)}</td>
     </tr>`).join("")}</tbody>
     <tfoot><tr>
-      <td style="${TD};text-align:left;font-weight:800;border-top:2px solid var(--line)">Total</td>
-      <td style="${TD};font-weight:800;border-top:2px solid var(--line)">${fmtHM(tot.hours)}</td>
-      <td style="${TD};font-weight:800;border-top:2px solid var(--line)">${curFmt(tot.labour,cur)}</td>
-      ${anyOT?`<td style="${TD};font-weight:800;border-top:2px solid var(--line)">${curFmt(tot.otCost,cur)}</td>`:""}
-      ${anyPD?`<td style="${TD};font-weight:800;border-top:2px solid var(--line)">${curFmt(tot.perDiem,cur)}</td>`:""}
-      ${anyMat?`<td style="${TD};font-weight:800;border-top:2px solid var(--line)">${curFmt(tot.material,cur)}</td>`:""}
-      ${anyExp?`<td style="${TD};font-weight:800;border-top:2px solid var(--line)">${curFmt(tot.expenses,cur)}</td>`:""}
-      <td style="${TD};font-weight:800;border-top:2px solid var(--line)">${curFmt(tot.cost,cur)}</td>
+      <td style="${TD};text-align:left;font-weight:700;border-top:2px solid var(--line)">Total</td>
+      <td style="${TD};font-weight:700;border-top:2px solid var(--line)">${fmtHM(tot.hours)}</td>
+      <td style="${TD};font-weight:700;border-top:2px solid var(--line)">${curFmt(tot.labour,cur)}</td>
+      ${anyOT?`<td style="${TD};font-weight:700;border-top:2px solid var(--line)">${curFmt(tot.otCost,cur)}</td>`:""}
+      ${anyPD?`<td style="${TD};font-weight:700;border-top:2px solid var(--line)">${curFmt(tot.perDiem,cur)}</td>`:""}
+      ${anyMat?`<td style="${TD};font-weight:700;border-top:2px solid var(--line)">${curFmt(tot.material,cur)}</td>`:""}
+      ${anyExp?`<td style="${TD};font-weight:700;border-top:2px solid var(--line)">${curFmt(tot.expenses,cur)}</td>`:""}
+      <td style="${TD};font-weight:700;border-top:2px solid var(--line)">${curFmt(tot.cost,cur)}</td>
     </tr></tfoot>
   </table></div>`;
 }
 Object.assign(window,{monthlyTable});
 
 function financeRow(l,v,strong){
-  return `<tr><td style="padding:5px 8px;border-bottom:1px solid var(--line);font-size:11px;${strong?"font-weight:800":"color:var(--muted)"}">${l}</td>
-    <td style="padding:5px 8px;border-bottom:1px solid var(--line);text-align:right;font-size:${strong?"13px":"12px"};${strong?"font-weight:800":""}">${v}</td></tr>`;
+  return `<tr><td style="padding:5px 8px;border-bottom:1px solid var(--line);font-size:11px;${strong?"font-weight:700":"color:var(--muted)"}">${l}</td>
+    <td style="padding:5px 8px;border-bottom:1px solid var(--line);text-align:right;font-size:${strong?"13px":"12px"};${strong?"font-weight:700":""}">${v}</td></tr>`;
 }
 // The P&L card, reused on the Finance screen and anywhere a project is shown.
 function projectFinanceCard(name){
@@ -739,7 +739,7 @@ function projectFinanceCard(name){
   const L=FIN_LEVEL[f.level];
   return `<div class="card" style="border-left:4px solid ${L.fg}">
     <div class="sec-hdr" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">\u{1F4CA} ${escapeHtml(name)}
-      <span style="background:${L.bg};color:${L.fg};padding:2px 9px;border-radius:10px;font-size:10px;font-weight:800">${L.lb}${f.marginPct!=null?` \u00b7 ${f.marginPct}%`:""}</span>
+      <span style="background:${L.bg};color:${L.fg};padding:2px 9px;border-radius:10px;font-size:10px;font-weight:700">${L.lb}${f.marginPct!=null?` \u00b7 ${f.marginPct}%`:""}</span>
     </div>
     <table style="border-collapse:collapse;width:100%">
       ${financeRow("Contract value", curDual(f.base,f.currency,f.rate))}
@@ -776,7 +776,7 @@ function _finLineEditor(kind, lines, setFn, pickFn, delFn, addFn, currency, idPf
   const cat=(typeof partsList==="function")?partsList():[];
   return `${lines.map((l,i)=>`<div style="border:1px solid var(--line);border-radius:8px;padding:8px;margin-top:8px">
     <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-      <span style="font-size:10px;font-weight:800;color:var(--muted);min-width:20px">${String(i+1).padStart(2,"0")}</span>
+      <span style="font-size:10px;font-weight:700;color:var(--muted);min-width:20px">${String(i+1).padStart(2,"0")}</span>
       <select onchange="${setFn}(${i},'kind',this.value)" style="width:104px;font-size:11px">
         ${LINE_KINDS.map(k=>`<option value="${k.k}" ${(l.kind||"material")===k.k?"selected":""}>${k.ic} ${k.lb}</option>`).join("")}
       </select>
@@ -792,7 +792,7 @@ function _finLineEditor(kind, lines, setFn, pickFn, delFn, addFn, currency, idPf
       <input value="${escapeHtml(l.unit||"")}" oninput="${setFn}(${i},'unit',this.value)" placeholder="Unit" style="width:64px">
       <input value="${escapeHtml(String(l.unitPrice==null?"":l.unitPrice))}" oninput="${setFn}(${i},'unitPrice',this.value)" placeholder="Unit price" inputmode="decimal" style="width:104px">
       <input value="${escapeHtml(String(l.discountPct||""))}" oninput="${setFn}(${i},'discountPct',this.value)" placeholder="Disc %" inputmode="decimal" style="width:70px">
-      <span style="margin-left:auto;font-size:12px;font-weight:800" id="${idPfx}${i}">${curFmt(lineNet(l),currency)}</span>
+      <span style="margin-left:auto;font-size:12px;font-weight:700" id="${idPfx}${i}">${curFmt(lineNet(l),currency)}</span>
     </div>
   </div>`).join("")}
   <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
@@ -893,7 +893,7 @@ function renderQuotes(){
       ${[["Sent","sent"],["Accepted","accepted"],["Declined","declined"]].map(([lb,st])=>{
         const S=QUO_STATUS[st];
         return `<div style="background:${S.bg};border-radius:8px;padding:8px;text-align:center">
-          <div style="font-size:13px;font-weight:800;color:${S.fg}">${curFmt(sum(st),curBase())}</div>
+          <div style="font-size:13px;font-weight:700;color:${S.fg}">${curFmt(sum(st),curBase())}</div>
           <div style="font-size:10px;color:${S.fg}">${lb}</div></div>`;}).join("")}
     </div>
   </div>
@@ -906,15 +906,15 @@ function renderQuotes(){
     return `<div class="card">
       <div style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap">
         <div style="flex:1;min-width:150px">
-          <div style="font-weight:800;font-size:13px">${escapeHtml(q.title||"\u2014")}</div>
+          <div style="font-weight:700;font-size:13px">${escapeHtml(q.title||"\u2014")}</div>
           <div style="font-size:10px;color:var(--muted);line-height:1.7">
             ${q.ref?escapeHtml(q.ref)+" \u00b7 ":""}${escapeHtml(q.client||"\u2014")}${q.project?" \u00b7 "+escapeHtml(q.project):""}<br>
             ${q.date?escapeHtml(fmtDate(q.date)):"\u2014"}${quoteValidUntil(q)?` \u00b7 valid until ${escapeHtml(fmtDate(quoteValidUntil(q)))}`:""}
           </div>
         </div>
-        <span style="background:${S.bg};color:${S.fg};padding:2px 9px;border-radius:10px;font-size:10px;font-weight:800;white-space:nowrap">${S.ic} ${S.lb}</span>
+        <span style="background:${S.bg};color:${S.fg};padding:2px 9px;border-radius:10px;font-size:10px;font-weight:700;white-space:nowrap">${S.ic} ${S.lb}</span>
       </div>
-      <div style="font-size:15px;font-weight:800;margin-top:8px">${curDual(t.total,q.currency,q.rate)}</div>
+      <div style="font-size:15px;font-weight:700;margin-top:8px">${curDual(t.total,q.currency,q.rate)}</div>
       <div style="display:flex;gap:5px;margin-top:10px;flex-wrap:wrap">
         <button class="btn btn-sm btn-secondary" onclick="quoEdit('${q.id}')">\u270e Edit</button>
         <button class="btn btn-sm btn-secondary" onclick="quotePDF('${q.id}')">${window._rptFormat==="word"?"\u{1F4DD} Word":"\u{1F4C4} PDF"}</button>
@@ -982,14 +982,14 @@ function renderVariations(){
     return `<div class="card">
       <div style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap">
         <div style="flex:1;min-width:150px">
-          <div style="font-weight:800;font-size:13px">${escapeHtml(v.title||"\u2014")}</div>
+          <div style="font-weight:700;font-size:13px">${escapeHtml(v.title||"\u2014")}</div>
           <div style="font-size:10px;color:var(--muted);line-height:1.7">
             ${v.ref?escapeHtml(v.ref)+" \u00b7 ":""}${escapeHtml(v.project||"\u2014")} \u00b7 ${v.date?escapeHtml(fmtDate(v.date)):"\u2014"}</div>
         </div>
-        <span style="background:${S.bg};color:${S.fg};padding:2px 9px;border-radius:10px;font-size:10px;font-weight:800;white-space:nowrap">${S.ic} ${S.lb}</span>
+        <span style="background:${S.bg};color:${S.fg};padding:2px 9px;border-radius:10px;font-size:10px;font-weight:700;white-space:nowrap">${S.ic} ${S.lb}</span>
       </div>
       <div style="font-size:11px;color:var(--muted);margin-top:6px;line-height:1.6">${escapeHtml(v.reason||"")}</div>
-      <div style="font-size:15px;font-weight:800;margin-top:8px;color:${t.total<0?"#C62828":"inherit"}">${t.total<0?"- ":""}${curDual(Math.abs(t.total),v.currency,v.rate)}</div>
+      <div style="font-size:15px;font-weight:700;margin-top:8px;color:${t.total<0?"#C62828":"inherit"}">${t.total<0?"- ":""}${curDual(Math.abs(t.total),v.currency,v.rate)}</div>
       <div style="display:flex;gap:5px;margin-top:10px;flex-wrap:wrap">
         <button class="btn btn-sm btn-secondary" onclick="varEdit('${v.id}')">\u270e Edit</button>
         ${v.status==="draft"?`<button class="btn btn-sm btn-secondary" onclick="varStatus('${v.id}','submitted')">Submit</button>`:""}
@@ -1034,7 +1034,7 @@ function renderFinance(){
          ["Margin",curFmt(marg,curBase()),marg<0?"#C62828":"#2E7D32"],
          ["Margin %",rev>0?Math.round(marg/rev*100)+"%":"\u2014",marg<0?"#C62828":"#2E7D32"]]
         .map(([l,val,c])=>`<div style="background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:9px;text-align:center">
-          <div style="font-size:14px;font-weight:800;color:${c}">${val}</div>
+          <div style="font-size:14px;font-weight:700;color:${c}">${val}</div>
           <div style="font-size:10px;color:var(--muted)">${l}</div></div>`).join("")}
     </div>
     ${curRate()?`<div style="font-size:10px;color:var(--muted);margin-top:9px">Totals shown in ${escapeHtml(curBase())} at each document's own rate. 1 ${escapeHtml(curSecondary())} = ${escapeHtml(String(curRate()))} ${escapeHtml(curBase())}.</div>`:`<div style="font-size:10px;color:#E65100;margin-top:9px">No exchange rate set \u2014 amounts in a second currency cannot be converted. Set it under <strong>Currency</strong>.</div>`}`}
@@ -1083,8 +1083,8 @@ window.quotePDF = async function(id){
   const TH='padding:6px 9px;border:1px solid #D6E4F0;background:#03308B;color:#fff;text-align:left';
   const TD='padding:6px 9px;border:1px solid #D6E4F0';
   const row=(l,v,strong)=>`<tr>
-    <td style="padding:6px 10px;border:1px solid #D6E4F0;${strong?"font-weight:800":""};width:60%">${l}</td>
-    <td style="padding:6px 10px;border:1px solid #D6E4F0;text-align:right;${strong?"font-weight:800;font-size:13px":""}">${v}</td></tr>`;
+    <td style="padding:6px 10px;border:1px solid #D6E4F0;${strong?"font-weight:700":""};width:60%">${l}</td>
+    <td style="padding:6px 10px;border:1px solid #D6E4F0;text-align:right;${strong?"font-weight:700;font-size:13px":""}">${v}</td></tr>`;
   const body=`
   <div class="ksec"><span class="kbad">01</span><h3>Quotation</h3></div>
   <table style="border-collapse:collapse;width:100%">
@@ -1129,7 +1129,7 @@ window.quotePDF = async function(id){
     ${row("Total", curDualPlain(t.total,q.currency,q.rate), true)}
     ${t.hours?row("Labour included", fmtHM(t.hours)):""}
   </table>
-  ${q.terms?`<div style="margin-top:12px"><div style="font-weight:800;font-size:12px;color:#03308B;margin-bottom:5px">Terms</div>
+  ${q.terms?`<div style="margin-top:12px"><div style="font-weight:700;font-size:12px;color:#03308B;margin-bottom:5px">Terms</div>
     <div style="font-size:11px;line-height:1.8;white-space:pre-wrap">${escapeHtml(q.terms)}</div></div>`:""}
   <div style="margin-top:10px;font-size:10px;font-style:italic;color:#555;line-height:1.7">
     Prices are stated in ${escapeHtml(q.currency||curBase())} at the exchange rate recorded on this document; a later change in the market rate does not alter this quotation.
@@ -1339,7 +1339,7 @@ function renderExpenses(){
       ${[["Total",curFmt(tot,cur),"#03308B"],["Unpaid",curFmt(unpaid,cur),unpaid?"#E65100":"#2E7D32"],
          ["Entries",String(rows.length),"#546E7A"]]
         .map(([l,v,c])=>`<div style="background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:9px;text-align:center">
-          <div style="font-size:14px;font-weight:800;color:${c}">${v}</div>
+          <div style="font-size:14px;font-weight:700;color:${c}">${v}</div>
           <div style="font-size:10px;color:var(--muted)">${l}</div></div>`).join("")}
     </div>
     ${Object.keys(byCat).length?`<div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:10px">
@@ -1353,15 +1353,15 @@ function renderExpenses(){
     return `<div class="card" style="border-left:4px solid ${cc.color}">
       <div style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap">
         <div style="flex:1;min-width:150px">
-          <div style="font-weight:800;font-size:13px">${cc.ic} ${escapeHtml(e.desc||"\u2014")}</div>
+          <div style="font-weight:700;font-size:13px">${cc.ic} ${escapeHtml(e.desc||"\u2014")}</div>
           <div style="font-size:10px;color:var(--muted);line-height:1.7">
             ${escapeHtml(e.project||"\u2014")} \u00b7 ${e.date?escapeHtml(fmtDate(e.date)):"\u2014"}
             ${e.payee?`<br>to ${escapeHtml(e.payee)}`:""}${e.invoiceRef?` \u00b7 ${escapeHtml(e.invoiceRef)}`:""}
           </div>
         </div>
-        <span style="background:${P.bg};color:${P.fg};padding:2px 9px;border-radius:10px;font-size:10px;font-weight:800;white-space:nowrap">${P.lb}${e.paid&&e.paidDate?" "+escapeHtml(fmtDate(e.paidDate)):""}</span>
+        <span style="background:${P.bg};color:${P.fg};padding:2px 9px;border-radius:10px;font-size:10px;font-weight:700;white-space:nowrap">${P.lb}${e.paid&&e.paidDate?" "+escapeHtml(fmtDate(e.paidDate)):""}</span>
       </div>
-      <div style="font-size:15px;font-weight:800;margin-top:8px">${curFmt(num(e.amount), e.currency)}
+      <div style="font-size:15px;font-weight:700;margin-top:8px">${curFmt(num(e.amount), e.currency)}
         ${(e.currency!==cur)?(conv===null
           ? `<span style="font-size:10px;color:#C62828;font-weight:700"> \u26a0 no rate \u2014 excluded from totals</span>`
           : `<span style="font-size:11px;color:var(--muted);font-weight:500"> \u2248 ${curFmt(conv,cur)}</span>`):""}</div>
@@ -1460,7 +1460,7 @@ function crLineRow(l, editable){
     </div>
     <input value="${ov!==undefined&&ov!==null&&ov!==""?escapeHtml(String(ov)):""}" placeholder="${l.v}"
       oninput="crOverride(${jsArg(l.k)},this.value)" inputmode="decimal"
-      style="width:118px;text-align:right;${changed?"border-color:#E65100;font-weight:800":""}">
+      style="width:118px;text-align:right;${changed?"border-color:#E65100;font-weight:700":""}">
     ${changed?`<span style="font-size:10px;color:#E65100;font-weight:700;white-space:nowrap">adjusted</span>`:""}
   </div>`;
 }
@@ -1494,7 +1494,7 @@ function renderCostReport(){
   ${!S?"":`
   <div class="card">
     <div class="sec-hdr" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">Revenue
-      <span style="margin-left:auto;font-size:14px;font-weight:800" id="crRev">${curFmt(T.revenue,T.cur)}</span></div>
+      <span style="margin-left:auto;font-size:14px;font-weight:700" id="crRev">${curFmt(T.revenue,T.cur)}</span></div>
     ${S.revenue.map(l=>crLineRow(l)).join("")}
     ${m.extra.map((x,i)=>x.side!=="revenue"?"":`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:6px 0;border-bottom:1px solid var(--line)">
       <input value="${escapeHtml(x.lb||"")}" oninput="crExtraSet(${i},'lb',this.value)" placeholder="Description" style="flex:1;min-width:120px">
@@ -1506,7 +1506,7 @@ function renderCostReport(){
 
   <div class="card">
     <div class="sec-hdr" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">Cost
-      <span style="margin-left:auto;font-size:14px;font-weight:800" id="crCost">${curFmt(T.cost,T.cur)}</span></div>
+      <span style="margin-left:auto;font-size:14px;font-weight:700" id="crCost">${curFmt(T.cost,T.cur)}</span></div>
     ${S.cost.map(l=>crLineRow(l)).join("")}
     ${m.extra.map((x,i)=>x.side!=="cost"?"":`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:6px 0;border-bottom:1px solid var(--line)">
       <input value="${escapeHtml(x.lb||"")}" oninput="crExtraSet(${i},'lb',this.value)" placeholder="Description" style="flex:1;min-width:120px">
@@ -1520,7 +1520,7 @@ function renderCostReport(){
   <div class="card" style="border:2px solid ${T.margin<0?"#C62828":"#2E7D32"}">
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
       <strong style="font-size:14px">Margin</strong>
-      <span style="margin-left:auto;font-size:18px;font-weight:800" id="crMargin">
+      <span style="margin-left:auto;font-size:18px;font-weight:700" id="crMargin">
         <span style="color:${T.margin<0?"#C62828":"#2E7D32"}">${curFmt(T.margin,T.cur)}${T.pct!=null?` (${T.pct}%)`:""}</span></span>
     </div>
     ${adj?`<div style="font-size:11px;color:#E65100;margin-top:8px;line-height:1.6">\u270e ${adj} line(s) adjusted by hand. The report prints both figures.
@@ -1528,7 +1528,7 @@ function renderCostReport(){
     <div class="field" style="margin-top:10px"><label>Commentary <span style="font-weight:500;color:var(--muted);font-size:10px">\u2014 printed under the summary</span></label>
       <textarea rows="3" oninput="crSet('notes',this.value)" placeholder="Explain any adjustment, and what the figures mean for this project\u2026">${escapeHtml(m.notes||"")}</textarea></div>
     <div style="margin-top:12px">${typeof refOverrideField==="function"?refOverrideField():""}${typeof brandLink==="function"?brandLink():""}${typeof rptFormatToggle==="function"?rptFormatToggle():""}</div>
-    <button class="btn btn-primary" style="width:100%;background:#C9A84C;color:#1B3A6B;border:none;font-weight:800" onclick="costReportDoc()">
+    <button class="btn btn-primary" style="width:100%;background:#C9A84C;color:#1B3A6B;border:none;font-weight:700" onclick="costReportDoc()">
       ${window._rptFormat==="word"?"\u{1F4DD} Generate Word":"\u{1F4C4} Generate PDF"}</button>
   </div>`}`;
 }
@@ -1542,8 +1542,8 @@ window.costReportDoc = async function(){
   const period=(m.from||m.to)?`${m.from?fmtDate(m.from):"start"} \u2192 ${m.to?fmtDate(m.to):"date"}`:"Whole project to date";
   const TH='padding:6px 9px;border:1px solid #D6E4F0;background:#03308B;color:#fff;text-align:left';
   const TD='padding:6px 9px;border:1px solid #D6E4F0';
-  const R2=(l,v,strong)=>`<tr><td style="${TD};${strong?"font-weight:800":""};width:62%">${l}</td>
-    <td style="${TD};text-align:right;${strong?"font-weight:800;font-size:13px":""}">${v}</td></tr>`;
+  const R2=(l,v,strong)=>`<tr><td style="${TD};${strong?"font-weight:700":""};width:62%">${l}</td>
+    <td style="${TD};text-align:right;${strong?"font-weight:700;font-size:13px":""}">${v}</td></tr>`;
   const secTable=(lines, extras)=>`<table style="border-collapse:collapse;width:100%">
     <thead><tr><th style="${TH}">Item</th><th style="${TH};width:96px;text-align:right">Computed</th>
       <th style="${TH};width:96px;text-align:right">Reported</th><th style="${TH};width:140px">Basis</th></tr></thead>
@@ -1557,7 +1557,7 @@ window.costReportDoc = async function(){
     ${extras.map(x=>`<tr>
         <td style="${TD}"><strong>${escapeHtml(x.lb||"\u2014")}</strong></td>
         <td style="${TD};text-align:right;color:#6B7B8F">\u2014</td>
-        <td style="${TD};text-align:right;font-weight:800;color:#E65100">${curFmt(num(x.v),cur)}</td>
+        <td style="${TD};text-align:right;font-weight:700;color:#E65100">${curFmt(num(x.v),cur)}</td>
         <td style="${TD};font-size:10px">added by hand</td></tr>`).join("")}
     </tbody></table>`;
 
@@ -1584,11 +1584,11 @@ window.costReportDoc = async function(){
     ${R2("Total revenue", curDualPlain(T.revenue,cur,S.f.rate), true)}
     ${R2("Total cost",    curDualPlain(T.cost,cur,S.f.rate), true)}
     ${R2("Margin", `<span style="color:${T.margin<0?"#C62828":"#2E7D32"}">${curDualPlain(T.margin,cur,S.f.rate)}${T.pct!=null?` \u00b7 ${T.pct}%`:""}</span>`, true)}
-    ${R2("Result", T.margin<0?'<span style="color:#C62828;font-weight:800">LOSS</span>':'<span style="color:#2E7D32;font-weight:800">PROFIT</span>', true)}
+    ${R2("Result", T.margin<0?'<span style="color:#C62828;font-weight:700">LOSS</span>':'<span style="color:#2E7D32;font-weight:700">PROFIT</span>', true)}
   </table>
   ${Object.keys(m.overrides||{}).length?`<div style="margin-top:9px;padding:9px 11px;background:#FFF8E1;border:1px solid #FFE082;border-radius:8px;font-size:10px;color:#7F6000;line-height:1.7">
     ${Object.keys(m.overrides).length} line(s) were adjusted by hand. Both the computed and the reported figure are shown above so the difference is visible.</div>`:""}
-  ${m.notes?`<div style="margin-top:10px"><div style="font-weight:800;font-size:12px;color:#03308B;margin-bottom:5px">Commentary</div>
+  ${m.notes?`<div style="margin-top:10px"><div style="font-weight:700;font-size:12px;color:#03308B;margin-bottom:5px">Commentary</div>
     <div style="font-size:11px;line-height:1.8;white-space:pre-wrap">${escapeHtml(m.notes)}</div></div>`:""}
 
   <div class="ksec" style="page-break-inside:avoid"><span class="kbad">05</span><h3>Month by month</h3></div>
@@ -1610,7 +1610,7 @@ window.costReportDoc = async function(){
         <td style="${TD};text-align:right">${b.perDiem?curFmt(b.perDiem,cur):"\u2014"}</td>
         <td style="${TD};text-align:right">${b.material?curFmt(b.material,cur):"\u2014"}</td>
         <td style="${TD};text-align:right">${b.expenses?curFmt(b.expenses,cur):"\u2014"}</td>
-        <td style="${TD};text-align:right;font-weight:800">${curFmt(b.cost,cur)}</td></tr>`).join("")}</tbody></table>`;})()}
+        <td style="${TD};text-align:right;font-weight:700">${curFmt(b.cost,cur)}</td></tr>`).join("")}</tbody></table>`;})()}
 
   <div class="ksec" style="page-break-before:always"><span class="kbad">06</span><h3>Expense register</h3></div>
   ${(()=>{const rows=S.exp.rows;

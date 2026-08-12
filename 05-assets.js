@@ -89,7 +89,7 @@ function showColumnMapper(rows, header, deptName){
   <div onclick="if(event.target===this)document.getElementById('colMapOverlay').remove()" style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:flex-start;justify-content:center;padding:20px;overflow-y:auto">
     <div style="background:var(--card);border-radius:16px;max-width:480px;width:100%;box-shadow:0 24px 64px rgba(0,0,0,0.4);margin-top:30px">
       <div style="background:#00897B;color:white;padding:16px 20px;border-radius:16px 16px 0 0;display:flex;align-items:center;justify-content:space-between">
-        <div style="font-size:16px;font-weight:800">🔗 Match Your Columns</div>
+        <div style="font-size:16px;font-weight:700">🔗 Match Your Columns</div>
         <button onclick="document.getElementById('colMapOverlay').remove()" style="background:rgba(255,255,255,0.2);border:none;color:white;width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:18px;font-weight:700">×</button>
       </div>
       <div style="padding:20px">
@@ -235,7 +235,7 @@ function renderSitesModal(){
     <div style="background:var(--card);border-radius:16px;max-width:580px;width:100%;box-shadow:0 24px 64px rgba(0,0,0,0.4);margin-top:20px">
       <div style="background:#03308B;color:white;padding:16px 20px;border-radius:16px 16px 0 0;display:flex;align-items:center;justify-content:space-between">
         <div>
-          <div style="font-size:16px;font-weight:800">🗺️ Areas & Sites</div>
+          <div style="font-size:16px;font-weight:700">🗺️ Areas & Sites</div>
           <div style="font-size:12px;opacity:0.85">${escapeHtml(proj.name)}</div>
         </div>
         <button onclick="closeSitesModal()" style="background:rgba(255,255,255,0.2);border:none;color:white;width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:18px;font-weight:700">×</button>
@@ -244,7 +244,7 @@ function renderSitesModal(){
 
         <!-- Project Codes -->
         <div style="background:#FFF8E1;border:1px solid #FFE082;border-radius:12px;padding:12px;margin-bottom:16px">
-          <div style="font-weight:800;color:#F57F17;font-size:13px;margin-bottom:8px">🔖 Project Codes</div>
+          <div style="font-weight:700;color:#F57F17;font-size:13px;margin-bottom:8px">🔖 Project Codes</div>
           <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">
             ${(proj.codes||[]).length===0?`<span style="font-size:12px;color:#999">No codes yet</span>`:(proj.codes||[]).map((c,ci)=>`
               <span style="display:inline-flex;align-items:center;gap:5px;background:var(--card);border:1px solid #FFE082;color:#F57F17;padding:4px 8px 4px 12px;border-radius:12px;font-size:12px;font-weight:700">
@@ -259,7 +259,7 @@ function renderSitesModal(){
         </div>
 
         <!-- Add new area -->
-        <div style="font-weight:800;color:#03308B;font-size:13px;margin-bottom:8px">🗺️ Areas</div>
+        <div style="font-weight:700;color:#03308B;font-size:13px;margin-bottom:8px">🗺️ Areas</div>
         <!-- Add new area -->
         <div style="display:flex;gap:6px;margin-bottom:16px">
           <input value="${escapeHtml(newAreaName)}" oninput="window._setNewAreaName(this.value)" placeholder="New area name (e.g. Erbil Area, North Zone)" style="flex:1;padding:9px 12px;border:1px solid var(--line);border-radius:8px;font-size:13px">
@@ -271,7 +271,7 @@ function renderSitesModal(){
           : areas.map((a,ai)=>`
             <div style="border:1px solid #CBD5E1;border-radius:12px;padding:14px;margin-bottom:12px;background:#F8FAFC">
               <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;flex-wrap:wrap">
-                <div style="font-weight:800;color:#03308B;font-size:14px;flex:1;min-width:120px">🗺️ ${escapeHtml(a.name)}</div>
+                <div style="font-weight:700;color:#03308B;font-size:14px;flex:1;min-width:120px">🗺️ ${escapeHtml(a.name)}</div>
                 ${statusPill(a.active!==false, `toggleAreaStatus(${ai})`)}
                 <button class="btn btn-sm btn-danger" onclick="delArea(${ai})">${ICN.del}</button>
               </div>
@@ -682,7 +682,7 @@ function showAssetColumnMapper(rows, header){
   wrap.innerHTML=`<div onclick="if(event.target===this)document.getElementById('assetMapOverlay').remove()" style="position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:flex-start;justify-content:center;padding:20px;overflow-y:auto">
     <div style="background:var(--card);border-radius:16px;max-width:520px;width:100%;box-shadow:0 24px 64px rgba(0,0,0,0.4);margin-top:20px">
       <div style="background:#00897B;color:white;padding:16px 20px;border-radius:16px 16px 0 0;display:flex;align-items:center;justify-content:space-between">
-        <div style="font-size:16px;font-weight:800">🔗 Match Columns</div>
+        <div style="font-size:16px;font-weight:700">🔗 Match Columns</div>
         <button onclick="document.getElementById('assetMapOverlay').remove()" style="background:rgba(255,255,255,0.2);border:none;color:white;width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:18px;font-weight:700">×</button>
       </div>
       <div style="padding:20px;max-height:70vh;overflow-y:auto">
@@ -911,18 +911,18 @@ function renderAssets(){
     return `<div class="card">
       <div class="card-title">📊 Inventory Summary</div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;margin-bottom:14px">
-        <div style="background:linear-gradient(135deg,#1B3A6B,#2E5FA3);color:white;border-radius:12px;padding:12px"><div style="font-size:11px;opacity:0.8">TOTAL DEVICES</div><div style="font-size:22px;font-weight:800">${devices.length}</div></div>
-        <div style="background:linear-gradient(135deg,#2E7D32,#43A047);color:white;border-radius:12px;padding:12px"><div style="font-size:11px;opacity:0.8">ACTIVE</div><div style="font-size:22px;font-weight:800">${byStatus["Active"]||0}</div></div>
-        <div style="background:linear-gradient(135deg,#E65100,#FB8C00);color:white;border-radius:12px;padding:12px"><div style="font-size:11px;opacity:0.8">WARRANTY ≤90d</div><div style="font-size:22px;font-weight:800">${expiring.length}</div></div>
-        <div style="background:linear-gradient(135deg,#C62828,#E53935);color:white;border-radius:12px;padding:12px"><div style="font-size:11px;opacity:0.8">EXPIRED</div><div style="font-size:22px;font-weight:800">${expired.length}</div></div>
+        <div style="background:linear-gradient(135deg,#1B3A6B,#2E5FA3);color:white;border-radius:12px;padding:12px"><div style="font-size:11px;opacity:0.8">TOTAL DEVICES</div><div style="font-size:22px;font-weight:700">${devices.length}</div></div>
+        <div style="background:linear-gradient(135deg,#2E7D32,#43A047);color:white;border-radius:12px;padding:12px"><div style="font-size:11px;opacity:0.8">ACTIVE</div><div style="font-size:22px;font-weight:700">${byStatus["Active"]||0}</div></div>
+        <div style="background:linear-gradient(135deg,#E65100,#FB8C00);color:white;border-radius:12px;padding:12px"><div style="font-size:11px;opacity:0.8">WARRANTY ≤90d</div><div style="font-size:22px;font-weight:700">${expiring.length}</div></div>
+        <div style="background:linear-gradient(135deg,#C62828,#E53935);color:white;border-radius:12px;padding:12px"><div style="font-size:11px;opacity:0.8">EXPIRED</div><div style="font-size:22px;font-weight:700">${expired.length}</div></div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
         <div>
-          <div style="font-size:12px;font-weight:800;color:#03308B;margin-bottom:6px">By Status</div>
+          <div style="font-size:12px;font-weight:700;color:#03308B;margin-bottom:6px">By Status</div>
           ${Object.keys(byStatus).sort((a,b)=>byStatus[b]-byStatus[a]).map(s=>`<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #f0f0f0;font-size:12px"><span>${deviceStatusBadge(s)}</span><strong>${byStatus[s]}</strong></div>`).join("")}
         </div>
         <div>
-          <div style="font-size:12px;font-weight:800;color:#6A1B9A;margin-bottom:6px">Top Vendors</div>
+          <div style="font-size:12px;font-weight:700;color:#6A1B9A;margin-bottom:6px">Top Vendors</div>
           ${topVendors.map(v=>`<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #f0f0f0;font-size:12px"><span>${escapeHtml(v)}</span><strong>${byVendor[v]}</strong></div>`).join("")}
         </div>
       </div>
@@ -1823,9 +1823,9 @@ async function _pmCloseRound(s,endDate,sessions,units){
   setTimeout(()=>toast(`🏁 Round closed${scope} — ${sessions} session(s) · next due ${fmtDate(_pmAddDays(endDate,s.freqDays))}`),400);
 }
 const _pmProgBadge=(s)=>{const n=pmOpenSessions(s).length;
-  let h=n?` <span style="font-size:9px;background:#1B2C45;color:#8FB4E8;padding:1px 7px;border-radius:8px;font-weight:800;vertical-align:1px">⏳ IN PROGRESS · ${n}</span>`:"";
+  let h=n?` <span style="font-size:9px;background:#1B2C45;color:#8FB4E8;padding:1px 7px;border-radius:8px;font-weight:700;vertical-align:1px">⏳ IN PROGRESS · ${n}</span>`:"";
   const units=_pmUnitsOf(s), done=_pmRoundDone(s);
-  if(units.length>1&&done.length) h+=` <span title="${done.join(", ")} complete — remaining: ${units.filter(x=>!done.includes(x)).join(", ")}" style="font-size:9px;background:#E8F5E9;color:#2E7D32;padding:1px 7px;border-radius:8px;font-weight:800;vertical-align:1px">📍 ${done.length}/${units.length} SITES</span>`;
+  if(units.length>1&&done.length) h+=` <span title="${done.join(", ")} complete — remaining: ${units.filter(x=>!done.includes(x)).join(", ")}" style="font-size:9px;background:#E8F5E9;color:#2E7D32;padding:1px 7px;border-radius:8px;font-weight:700;vertical-align:1px">📍 ${done.length}/${units.length} SITES</span>`;
   return h;};
 
 // A YYYY-MM-DD string is a calendar date, not an instant. new Date(ds) parses it
@@ -1898,15 +1898,15 @@ function renderMaintenance(){
   const dueRow=(s)=>{const dl=pmDaysLeft(s);const od=dl<0;
     return `<div class="pm-due ${od?'od':'sn'}">
       <div style="flex:1;min-width:0">
-        <div style="font-weight:800;font-size:13px;color:var(--text)">${od?'🔴':'🟠'} ${escapeHtml(s.title)}${_pmProgBadge(s)}</div>
+        <div style="font-weight:700;font-size:13px;color:var(--text)">${od?'🔴':'🟠'} ${escapeHtml(s.title)}${_pmProgBadge(s)}</div>
         <div style="font-size:11px;color:var(--muted)">${escapeHtml(_pmTargetLabel(s))} · due ${fmtDate(pmNextDue(s))} · <strong style="color:${od?'#C62828':'#E65100'}">${od?Math.abs(dl)+"d overdue":(dl===0?"today":"in "+dl+"d")}</strong></div>
       </div>
-      <button class="btn btn-sm" style="background:#2E7D32;color:#fff;border:none;font-weight:800" onclick="markPMDone('${s.id}')">${ICN.check} Done</button>
+      <button class="btn btn-sm" style="background:#2E7D32;color:#fff;border:none;font-weight:700" onclick="markPMDone('${s.id}')">${ICN.check} Done</button>
     </div>
     ${(()=>{const u=_pmUnitsOf(s); if(u.length<2) return "";
       const dn=_pmRoundDone(s);
       return `<div style="padding:2px 12px 10px;margin-top:-6px">
-        <div style="font-size:10px;color:var(--muted);font-weight:800;letter-spacing:.4px;margin-bottom:5px">SITE PROGRESS — tap to mark complete (${dn.length}/${u.length})</div>
+        <div style="font-size:10px;color:var(--muted);font-weight:700;letter-spacing:.4px;margin-bottom:5px">SITE PROGRESS — tap to mark complete (${dn.length}/${u.length})</div>
         <div style="display:flex;gap:5px;flex-wrap:wrap">
           ${u.map(x=>{const on=dn.includes(x);
             return `<button type="button" class="btn btn-sm ${on?"":"btn-secondary"}" style="${on?"background:#2E7D32;color:#fff;border:none;":""}font-weight:700;font-size:11px" onclick="pmToggleUnitDone('${s.id}','${escapeHtml(x).replace(/'/g,"\\'")}')">${on?"✓ ":""}${escapeHtml(x)}</button>`;}).join("")}
@@ -1921,7 +1921,7 @@ function renderMaintenance(){
       <td data-l="Target" style="font-size:11px">${escapeHtml(_pmTargetLabel(s))}</td>
       <td data-l="Every">${s.freqDays}d</td>
       <td data-l="Last done" style="font-size:11px">${s.lastDone?fmtDate(s.lastDone):'—'}</td>
-      <td data-l="Next due" style="font-weight:800;color:${col}">${fmtDate(pmNextDue(s))}${off?' (paused)':dl<0?` · ${Math.abs(dl)}d late`:''}</td>
+      <td data-l="Next due" style="font-weight:700;color:${col}">${fmtDate(pmNextDue(s))}${off?' (paused)':dl<0?` · ${Math.abs(dl)}d late`:''}</td>
       <td class="rsp-actions">
         <button class="btn btn-sm" style="background:#2E7D32;color:#fff;border:none" title="Mark done today" onclick="markPMDone('${s.id}')">${ICN.check}</button>
         <button class="btn btn-sm btn-secondary" onclick="editPM('${s.id}')">${ICN.edit}</button>
@@ -1933,26 +1933,26 @@ function renderMaintenance(){
     const groups={};
     list.forEach(s=>{const _S=_pmSitesOf(s),_A=_pmAreasOf(s);const k=_S.length?( _S.length>1?`${_S.length} sites`:_S[0]):(_A.length?(_A.length>1?`${_A.length} areas`:_A[0]):"Project-wide");(groups[k]=groups[k]||[]).push(s);});
     tableBody=Object.entries(groups).map(([g,rows])=>
-      `<tr><td colspan="6" style="background:var(--line);font-weight:800;font-size:11px;letter-spacing:.5px;padding:6px 10px">📍 ${escapeHtml(g)} · ${rows.length}</td></tr>`+tableRows(rows)
+      `<tr><td colspan="6" style="background:var(--line);font-weight:700;font-size:11px;letter-spacing:.5px;padding:6px 10px">📍 ${escapeHtml(g)} · ${rows.length}</td></tr>`+tableRows(rows)
     ).join("");
   } else tableBody=tableRows(list);
 
   return `
   <div class="card" style="background:linear-gradient(135deg,#1B3A6B,#2E5FA3);border:none;color:#fff">
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
-      <div><div style="font-size:16px;font-weight:800">🛠️ Preventive Maintenance</div>
+      <div><div style="font-size:16px;font-weight:700">🛠️ Preventive Maintenance</div>
       <div style="font-size:11px;opacity:.75;margin-top:2px">Project › Area › Site › Device — schedule at any level</div></div>
       <div style="display:flex;gap:14px;text-align:center">
-        <div><div style="font-size:18px;font-weight:800;color:${gc.overdue?'#FF9B9B':'#C9A84C'}">${gc.overdue}</div><div style="font-size:9px;opacity:.8">OVERDUE</div></div>
-        <div><div style="font-size:18px;font-weight:800;color:#F0D68A">${gc.soon}</div><div style="font-size:9px;opacity:.8">≤ 7 DAYS</div></div>
-        <div><div style="font-size:18px;font-weight:800">${gc.total}</div><div style="font-size:9px;opacity:.8">ACTIVE</div></div>
+        <div><div style="font-size:18px;font-weight:700;color:${gc.overdue?'#FF9B9B':'#C9A84C'}">${gc.overdue}</div><div style="font-size:9px;opacity:.8">OVERDUE</div></div>
+        <div><div style="font-size:18px;font-weight:700;color:#F0D68A">${gc.soon}</div><div style="font-size:9px;opacity:.8">≤ 7 DAYS</div></div>
+        <div><div style="font-size:18px;font-weight:700">${gc.total}</div><div style="font-size:9px;opacity:.8">ACTIVE</div></div>
       </div>
     </div>
   </div>
 
   ${projsWithPM.length?`<div class="card" style="padding:12px 16px">
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-      <span style="font-size:12px;font-weight:800;color:var(--muted)">🔎 PROJECT FILTER</span>
+      <span style="font-size:12px;font-weight:700;color:var(--muted)">🔎 PROJECT FILTER</span>
       <select onchange="window.pmProjFilter=this.value;render()" style="flex:1;min-width:180px;padding:8px 12px;border:1.5px solid ${pmProjFilter?'#C9A84C':'var(--line)'};border-radius:8px;font-weight:${pmProjFilter?'800':'400'}">
         <option value="">— All projects —</option>
         ${projsWithPM.map(p=>`<option value="${escapeHtml(p)}" ${pmProjFilter===p?"selected":""}>${escapeHtml(p)}</option>`).join("")}
@@ -1960,7 +1960,7 @@ function renderMaintenance(){
       ${pmProjFilter?`<button class="btn btn-sm" style="background:#C62828;color:#fff;border:none;font-weight:700" onclick="window.pmProjFilter='';render()">${ICN.x} Clear</button>`:""}
     </div>
     ${pmProjFilter?`<div style="margin-top:10px;padding:10px 14px;background:linear-gradient(135deg,#1B3A6B,#2E5FA3);border-radius:12px;color:#fff;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
-      <div><div style="font-weight:800;font-size:14px">📁 ${escapeHtml(pmProjFilter)}</div>
+      <div><div style="font-weight:700;font-size:14px">📁 ${escapeHtml(pmProjFilter)}</div>
 </div>
       <div style="font-size:11px;opacity:.85">${list.length} schedule(s) · ${overdue.length} overdue · ${(state.devices||[]).filter(d=>(d.project||"").trim()===pmProjFilter).length} devices in project</div>
     </div>`:""}
@@ -2013,7 +2013,7 @@ function renderMaintenance(){
           ${customOn?`<div style="display:flex;align-items:center;gap:8px;margin-top:8px">
             <input type="number" min="1" max="1095" value="${Number(pmForm.freqDays)||""}" placeholder="e.g. 120"
               oninput="window.pmForm.freqDays=Number(this.value)||0" onchange="render()"
-              style="width:100px;padding:8px 10px;border:1.5px solid #C9A84C;border-radius:8px;font-weight:800;font-size:14px">
+              style="width:100px;padding:8px 10px;border:1.5px solid #C9A84C;border-radius:8px;font-weight:700;font-size:14px">
             <span style="font-size:12px;font-weight:700">days</span>
             <span style="font-size:10px;color:var(--muted)">${Number(pmForm.freqDays)>0?`≈ ${(Math.round(Number(pmForm.freqDays)/30*10)/10)} month(s)`:"enter contract interval"}</span>
           </div>`:""}`;
@@ -2334,7 +2334,7 @@ function renderIncidents(){
       <div class="field" style="grid-column:1/-1"><label>📷 Photos <span style="font-size:10px;color:var(--muted)">(max 6 · auto-compressed)</span></label>
         <input type="file" accept="image/*" multiple onchange="incAddPhotos(this)">
         ${photos.length?`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
-          ${photos.map((p,i)=>`<div style="position:relative"><img src="${p.data}" style="width:84px;height:84px;object-fit:cover;border-radius:8px;border:1px solid var(--line)"><button onclick="incDelPhoto(${i})" style="position:absolute;top:-6px;right:-6px;background:#C62828;color:#fff;border:none;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:11px;font-weight:800">×</button><div style="font-size:9px;color:var(--muted);text-align:center">${p.sizeKB} KB</div></div>`).join("")}
+          ${photos.map((p,i)=>`<div style="position:relative"><img src="${p.data}" style="width:84px;height:84px;object-fit:cover;border-radius:8px;border:1px solid var(--line)"><button onclick="incDelPhoto(${i})" style="position:absolute;top:-6px;right:-6px;background:#C62828;color:#fff;border:none;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:11px;font-weight:700">×</button><div style="font-size:9px;color:var(--muted);text-align:center">${p.sizeKB} KB</div></div>`).join("")}
         </div>`:""}
       </div>
     </div>
@@ -2346,7 +2346,7 @@ function renderIncidents(){
 
   ${projsWithInc.length?`<div class="card" style="padding:12px 16px">
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-      <span style="font-size:12px;font-weight:800;color:var(--muted)">🔎 FILTER</span>
+      <span style="font-size:12px;font-weight:700;color:var(--muted)">🔎 FILTER</span>
       <select onchange="window.incProjFilter=this.value;render()" style="flex:1;min-width:150px;padding:8px 12px;border:1.5px solid ${incProjFilter?'#C9A84C':'var(--line)'};border-radius:8px">
         <option value="">— All projects —</option>
         ${projsWithInc.map(p=>`<option value="${escapeHtml(p)}" ${incProjFilter===p?"selected":""}>${escapeHtml(p)}</option>`).join("")}
@@ -2367,9 +2367,9 @@ function renderIncidents(){
         <td style="white-space:nowrap;font-size:11px">${fmtDate(i.date)}${i.time?`<br><span style="color:var(--muted)">${i.time}</span>`:""}</td>
         <td style="font-weight:700">${escapeHtml(i.title)}</td>
         <td style="font-size:11px">${escapeHtml(i.project||"")}${i.area?` · ${escapeHtml(i.area)}`:""}${i.site?` · ${escapeHtml(i.site)}`:""}${i.deviceSerial?`<br><span style="font-size:10px;color:#6A1B9A">📟 ${escapeHtml(i.deviceSerial)}</span>`:""}</td>
-        <td>${i.system?`<span style="font-size:10px;background:#E0F2F1;color:#00695C;padding:2px 8px;border-radius:8px;font-weight:800">${escapeHtml(i.system)}</span>`:"—"}</td>
-        <td><span style="font-size:10px;background:${_incSevColor[i.severity]||'#888'}22;color:${_incSevColor[i.severity]||'#888'};padding:2px 8px;border-radius:8px;font-weight:800">${escapeHtml(i.severity||"—")}</span></td>
-        <td><span style="font-size:10px;background:${_incStColor[i.status]||'#888'}22;color:${_incStColor[i.status]||'#888'};padding:2px 8px;border-radius:8px;font-weight:800">${escapeHtml(i.status||"Open")}</span></td>
+        <td>${i.system?`<span style="font-size:10px;background:#E0F2F1;color:#00695C;padding:2px 8px;border-radius:8px;font-weight:700">${escapeHtml(i.system)}</span>`:"—"}</td>
+        <td><span style="font-size:10px;background:${_incSevColor[i.severity]||'#888'}22;color:${_incSevColor[i.severity]||'#888'};padding:2px 8px;border-radius:8px;font-weight:700">${escapeHtml(i.severity||"—")}</span></td>
+        <td><span style="font-size:10px;background:${_incStColor[i.status]||'#888'}22;color:${_incStColor[i.status]||'#888'};padding:2px 8px;border-radius:8px;font-weight:700">${escapeHtml(i.status||"Open")}</span></td>
         <td style="font-size:11px">${(i.photos||[]).length||"—"}</td>
         <td style="white-space:nowrap"><button class="btn btn-sm btn-secondary" onclick="editIncident('${i.id}')" title="Edit">${ICN.edit}</button> <button class="btn btn-sm" style="background:#FDECEA;color:#C62828;border:none" onclick="deleteIncident('${i.id}')" title="Delete">${ICN.del}</button></td>
       </tr>`).join("")}</tbody>

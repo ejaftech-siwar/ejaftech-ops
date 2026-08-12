@@ -43,7 +43,7 @@ function renderWorkInstructions(){
       <div style="display:flex;align-items:center;gap:10px">
         <div style="font-size:28px">💻</div>
         <div>
-          <div style="font-size:14px;font-weight:800;color:#03308B;margin-bottom:2px">Work Instructions — IT Access</div>
+          <div style="font-size:14px;font-weight:700;color:#03308B;margin-bottom:2px">Work Instructions — IT Access</div>
           <div style="font-size:12px;color:#0277BD;font-weight:600">You can view all instructions and add new tasks to existing categories. Category management is Admin only.</div>
         </div>
       </div>
@@ -54,7 +54,7 @@ function renderWorkInstructions(){
       <div style="display:flex;align-items:center;gap:10px">
         <div style="font-size:28px">📖</div>
         <div>
-          <div style="font-size:14px;font-weight:800;color:#1B3A6B;margin-bottom:2px">Work Instructions — Reference Library</div>
+          <div style="font-size:14px;font-weight:700;color:#1B3A6B;margin-bottom:2px">Work Instructions — Reference Library</div>
           <div style="font-size:12px;color:#1565C0;font-weight:600">View-only access. Contact your administrator to add or modify content.</div>
         </div>
       </div>
@@ -160,7 +160,7 @@ function renderWorkInstructions(){
 // UI that previously lived inside Work Instructions.
 function _pills(stateVar, views){
   const cur = window[stateVar] || views[0].id;
-  return `<div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap">${views.map(v=>`<button onclick="window.${stateVar}='${v.id}';window.__navFade=true;render()" style="flex:1;min-width:86px;padding:10px 6px;border:none;border-radius:8px;font-weight:800;font-size:11px;cursor:pointer;background:${cur===v.id?'#03308B':'#E8EEF7'};color:${cur===v.id?'#C9A84C':'#1B3A6B'}">${v.ic} ${v.lb}</button>`).join("")}</div>`;
+  return `<div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap">${views.map(v=>`<button onclick="window.${stateVar}='${v.id}';window.__navFade=true;render()" style="flex:1;min-width:86px;padding:10px 6px;border:none;border-radius:8px;font-weight:700;font-size:11px;cursor:pointer;background:${cur===v.id?'#03308B':'#E8EEF7'};color:${cur===v.id?'#C9A84C':'#1B3A6B'}">${v.ic} ${v.lb}</button>`).join("")}</div>`;
 }
 
 function renderTechClassifications(){
@@ -233,7 +233,7 @@ function renderTechClassifications(){
       <div class="sec-hdr">\u{1F441}\uFE0F Preview</div>
       <div style="border:1px solid var(--line);border-radius:var(--r-md);overflow:hidden">
         <div style="padding:10px 12px;border-bottom:1px solid var(--line);background:var(--surface-2)">
-          <div style="font-size:13px;font-weight:800;color:var(--ink-brand)">INCIDENT REPORT</div>
+          <div style="font-size:13px;font-weight:700;color:var(--ink-brand)">INCIDENT REPORT</div>
           <div id="bpSub" style="font-size:10px;color:var(--muted);margin-top:2px">${(b.showSubtitle && String(b.subtitle||"").trim())?escapeHtml(String(b.subtitle).trim()):""}</div>
         </div>
         <div style="padding:18px 12px;text-align:center;font-size:11px;color:var(--muted)">\u2026 report body \u2026</div>
@@ -308,13 +308,13 @@ function renderTechClassifications(){
         if(!f.totalCo2) return `<div style="font-size:11px;color:var(--muted);line-height:1.7">Nothing to report yet \u2014 no fuel or travel has been recorded.</div>`;
         return `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:8px">
           <div style="background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;text-align:center">
-            <div style="font-size:17px;font-weight:800;color:#2E7D32">${f.tonnes}</div>
+            <div style="font-size:17px;font-weight:700;color:#2E7D32">${f.tonnes}</div>
             <div style="font-size:10px;color:var(--muted)">tonnes CO\u2082e</div></div>
           <div style="background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;text-align:center">
-            <div style="font-size:17px;font-weight:800">${f.litres.toLocaleString()}</div>
+            <div style="font-size:17px;font-weight:700">${f.litres.toLocaleString()}</div>
             <div style="font-size:10px;color:var(--muted)">litres</div></div>
           <div style="background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;text-align:center">
-            <div style="font-size:17px;font-weight:800">${f.travelKm.toLocaleString()}</div>
+            <div style="font-size:17px;font-weight:700">${f.travelKm.toLocaleString()}</div>
             <div style="font-size:10px;color:var(--muted)">km</div></div>
         </div>`;
       })()}
@@ -341,12 +341,12 @@ function renderTechClassifications(){
     const custom=(state.systemChecks||[]).filter(x=>x.template===ct).slice().sort((a,b)=>(a.order||0)-(b.order||0));
     h += `<!-- SYSTEM CHECK LISTS -->
       <div style="margin-bottom:14px">
-        <div style="font-weight:800;color:#1B3A6B;font-size:13px;margin-bottom:8px">📋 Inspection Check Lists <span style="font-weight:500;font-size:11px;color:var(--muted)">— used by Technical Report → System Reports</span></div>
+        <div style="font-weight:700;color:#1B3A6B;font-size:13px;margin-bottom:8px">📋 Inspection Check Lists <span style="font-weight:500;font-size:11px;color:var(--muted)">— used by Technical Report → System Reports</span></div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
           ${chkGroups().map(t=>`<button class="btn btn-sm ${ct===t.id?"":"btn-secondary"}" style="${ct===t.id?`background:${t.color};color:#fff;border:none;`:""}font-weight:700" onclick="window._chkTpl='${t.id}';render()">${t.icon} ${escapeHtml(t.short||t.name.split(" ")[0])}</button>`).join("")}
         </div>
         <div style="background:#F5F8FC;border-left:3px solid ${tpl.color};border-radius:8px;padding:10px 12px;margin-bottom:10px">
-          <div style="font-size:12px;font-weight:800;color:#1B3A6B">${tpl.icon} ${escapeHtml(tpl.name)}</div>
+          <div style="font-size:12px;font-weight:700;color:#1B3A6B">${tpl.icon} ${escapeHtml(tpl.name)}</div>
           <div style="font-size:10px;color:var(--muted);margin-top:4px;line-height:1.6">📐 ${escapeHtml(tpl.standards||"")}</div>
           <div style="font-size:10px;margin-top:6px;color:${custom.length?"#00695C":"#8A6D00"};font-weight:700">${custom.length?`✏️ Customised — ${custom.length} item(s)`:`📘 Using the ${(tpl.checks||[]).length} standards defaults`}</div>
         </div>
@@ -354,9 +354,9 @@ function renderTechClassifications(){
           ${items.map((it,i)=>{
             const rec=custom[i];
             return `<div style="display:flex;align-items:center;gap:8px;background:var(--card,#fff);border:1px solid var(--line);border-radius:8px;padding:7px 10px">
-              <span style="font-size:10px;font-weight:800;color:var(--muted);min-width:20px">${String(i+1).padStart(2,"0")}</span>
+              <span style="font-size:10px;font-weight:700;color:var(--muted);min-width:20px">${String(i+1).padStart(2,"0")}</span>
               <span style="flex:1;font-size:12px">${escapeHtml(it)}</span>
-              ${rec?`<button onclick="delTechItem('systemChecks','${rec.id}')" style="background:#FDECEA;border:none;color:#C62828;width:20px;height:20px;border-radius:50%;cursor:pointer;font-weight:800;font-size:11px">×</button>`:""}
+              ${rec?`<button onclick="delTechItem('systemChecks','${rec.id}')" style="background:#FDECEA;border:none;color:#C62828;width:20px;height:20px;border-radius:50%;cursor:pointer;font-weight:700;font-size:11px">×</button>`:""}
             </div>`;}).join("")}
         </div>
         <div style="display:flex;gap:6px;flex-wrap:wrap">
@@ -370,7 +370,7 @@ function renderTechClassifications(){
   }
   if(tv==="systems") h += `<!-- SYSTEMS -->
       <div style="margin-bottom:18px">
-        <div style="font-weight:800;color:#00695C;font-size:13px;margin-bottom:8px">🧩 Systems <span style="font-weight:500;font-size:11px;color:var(--muted)">— used by device records & Maintenance / Incident reports (e.g. Fire Alarm, CCTV, ELV)</span></div>
+        <div style="font-weight:700;color:#00695C;font-size:13px;margin-bottom:8px">🧩 Systems <span style="font-weight:500;font-size:11px;color:var(--muted)">— used by device records & Maintenance / Incident reports (e.g. Fire Alarm, CCTV, ELV)</span></div>
         <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">
           ${systems.length===0?`<span style="font-size:12px;color:#999">None yet — e.g. Fire Alarm · CCTV · ELV · Access Control · Public Address · Networking</span>`:systems.map(w=>`
             <span style="display:inline-flex;align-items:center;gap:5px;background:#E0F2F1;color:#00695C;padding:5px 8px 5px 12px;border-radius:16px;font-size:12px;font-weight:600">
@@ -385,7 +385,7 @@ function renderTechClassifications(){
       </div>`;
   if(tv==="types")      h += `<!-- WORK TYPES -->
       <div style="margin-bottom:18px">
-        <div style="font-weight:800;color:#3949AB;font-size:13px;margin-bottom:8px">🧭 Work Types</div>
+        <div style="font-weight:700;color:#3949AB;font-size:13px;margin-bottom:8px">🧭 Work Types</div>
         <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">
           ${workTypes.length===0?`<span style="font-size:12px;color:#999">None yet</span>`:workTypes.map(w=>`
             <span style="display:inline-flex;align-items:center;gap:5px;background:#E8EAF6;color:#3949AB;padding:5px 8px 5px 12px;border-radius:16px;font-size:12px;font-weight:600">
@@ -402,7 +402,7 @@ function renderTechClassifications(){
       `;
   if(tv==="statuses")   h += `<!-- TASK STATUSES -->
       <div style="margin-bottom:18px">
-        <div style="font-weight:800;color:#00897B;font-size:13px;margin-bottom:8px">📊 Task Statuses</div>
+        <div style="font-weight:700;color:#00897B;font-size:13px;margin-bottom:8px">📊 Task Statuses</div>
         <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">
           ${statuses.length===0?`<span style="font-size:12px;color:#999">None yet</span>`:statuses.map(s=>`
             <span style="display:inline-flex;align-items:center;gap:5px;background:#E0F2F1;color:#00897B;padding:5px 8px 5px 12px;border-radius:16px;font-size:12px;font-weight:600">
@@ -419,7 +419,7 @@ function renderTechClassifications(){
       `;
   if(tv==="categories") h += `<!-- CATEGORIES + SUBCATEGORIES -->
       <div>
-        <div style="font-weight:800;color:#C2185B;font-size:13px;margin-bottom:8px">🗂️ Categories & Subcategories</div>
+        <div style="font-weight:700;color:#C2185B;font-size:13px;margin-bottom:8px">🗂️ Categories & Subcategories</div>
         <div style="display:flex;gap:6px;margin-bottom:10px">
           <input id="newCategory" placeholder="Add category (e.g. Wireless)" style="flex:1;padding:7px 10px;border:1px solid var(--line);border-radius:8px;font-size:12px">
           <button class="btn btn-sm" style="background:#C2185B;color:white;border:none;font-weight:700" onclick="addTechCategory(${cats2.length})">+ Category</button>
@@ -427,7 +427,7 @@ function renderTechClassifications(){
         ${cats2.map(c=>`
           <div style="border:1px solid #F8BBD0;border-radius:12px;padding:10px 12px;margin-bottom:8px;background:#FFF5F8">
             <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px">
-              <div style="font-weight:800;color:#C2185B;font-size:13px">🗂️ ${escapeHtml(c.name)}</div>
+              <div style="font-weight:700;color:#C2185B;font-size:13px">🗂️ ${escapeHtml(c.name)}</div>
               <button class="btn btn-sm btn-danger" onclick="delTechItem('techCategories','${c.id}')">🗑 Category</button>
             </div>
             <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px">
@@ -792,7 +792,7 @@ function thisDeviceBody(){
     <div class="card">
       <div class="sec-hdr">\u{1F504} App version</div>
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-        <span style="font-size:13px;font-weight:800;color:var(--ink-brand)">${typeof runningVersion==="function"?escapeHtml(runningVersion()):"\u2014"}</span>
+        <span style="font-size:13px;font-weight:700;color:var(--ink-brand)">${typeof runningVersion==="function"?escapeHtml(runningVersion()):"\u2014"}</span>
         <button class="btn btn-sm btn-primary" style="margin-left:auto" onclick="forceUpdate()">Update now</button>
       </div>
       <div style="font-size:10px;color:var(--muted);margin-top:8px;line-height:1.7">
@@ -821,7 +821,7 @@ function thisDeviceBody(){
             <span style="width:16px;height:16px;border-radius:4px;background:#C9A84C"></span>
             <span style="width:16px;height:16px;border-radius:4px;background:#fff;border:1px solid rgba(0,0,0,.12)"></span>
           </div>
-          <div style="font-size:11px;font-weight:800;color:#1A1A2E">${on?"\u2713 ":""}${escapeHtml(p.lb)}</div>
+          <div style="font-size:11px;font-weight:700;color:#1A1A2E">${on?"\u2713 ":""}${escapeHtml(p.lb)}</div>
           <div style="font-size:9px;color:#6B7B8F;line-height:1.5;margin-top:2px">${escapeHtml(p.note)}</div>
         </button>`;}).join("")}
     </div>
@@ -834,17 +834,17 @@ function thisDeviceBody(){
   ${isAdmin()?(()=>{ const src=(window.__fb&&window.__fb.sdkSource)||"unknown";
     const ok = src==="bundled" || src==="mirror";
     return `<div class="card" style="border-left:4px solid ${ok?'var(--ok)':'var(--warn)'}">
-      <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:var(--f-sm);padding:2px 8px;border-radius:var(--r-md);font-weight:800">📡</span> Offline readiness</div>
+      <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:var(--f-sm);padding:2px 8px;border-radius:var(--r-md);font-weight:700">📡</span> Offline readiness</div>
       <p style="font-size:var(--f-md);color:var(--muted);margin:8px 0 0;line-height:1.65">Engine loaded via <strong style="color:${ok?'var(--ok)':'var(--warn)'}">${escapeHtml(src)}</strong>.<br>${
         src==="bundled" ? "✅ Guaranteed — the engine ships with the app, so it starts with no signal at all."
         : src==="mirror" ? "✅ Cached on this device — offline launch should work."
         : "⚠️ Loaded straight from the internet, so a cold start with no signal will fail. Put the three Firebase SDK files in a <strong>sdk/</strong> folder beside index.html to fix this permanently."}</p>
     </div>`; })():""}
   <div class="card" style="border-left:4px solid ${_sn?'#2E7D32':'#C9A84C'}">
-    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">05</span> 🔔 Device Notifications ${_sn?'<span style="font-size:10px;background:#E8F5E9;color:#2E7D32;padding:2px 8px;border-radius:8px;font-weight:800">ON</span>':''}</div>
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:700">05</span> 🔔 Device Notifications ${_sn?'<span style="font-size:10px;background:#E8F5E9;color:#2E7D32;padding:2px 8px;border-radius:8px;font-weight:700">ON</span>':''}</div>
     <p style="font-size:12px;color:var(--muted);margin:8px 0 12px">Task assignments & alerts appear in your phone's notification tray with sound — while the app is open or in the background.</p>
     ${_sn?`<button class="btn btn-secondary" onclick="disableSysNotifs()">Turn off</button>`
-         :`<button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:800;border:none" onclick="enableSysNotifs()">🔔 Enable</button>`}
+         :`<button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:700;border:none" onclick="enableSysNotifs()">🔔 Enable</button>`}
   </div>`;
 }
 Object.assign(window,{thisDeviceBody});

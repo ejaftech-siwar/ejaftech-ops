@@ -53,7 +53,7 @@ window.openNotifPanel=function(){
     <div onclick="openNotif('${n.id}')" style="padding:10px 12px;border-bottom:1px solid #eee;cursor:pointer;background:${n.read?'#fff':'#EEF4FF'}">
       <div style="display:flex;justify-content:space-between;gap:8px">
         <strong style="font-size:12px;color:#03308B">${n.read?'':'🔵 '}${escapeHtml(n.title||'')}</strong>
-        <span style="display:flex;align-items:center;gap:6px;white-space:nowrap"><span style="font-size:10px;color:#999">${escapeHtml(fmtLastSeen(n.createdAt)||'')}</span><button onclick="event.stopPropagation();deleteNotif('${n.id}')" title="Delete" style="background:#FFEBEE;color:#C62828;border:none;width:18px;height:18px;border-radius:8px;font-size:10px;font-weight:800;cursor:pointer;line-height:1">${ICN.x}</button></span>
+        <span style="display:flex;align-items:center;gap:6px;white-space:nowrap"><span style="font-size:10px;color:#999">${escapeHtml(fmtLastSeen(n.createdAt)||'')}</span><button onclick="event.stopPropagation();deleteNotif('${n.id}')" title="Delete" style="background:#FFEBEE;color:#C62828;border:none;width:18px;height:18px;border-radius:8px;font-size:10px;font-weight:700;cursor:pointer;line-height:1">${ICN.x}</button></span>
       </div>
       <div style="font-size:11px;color:#444;margin-top:3px;line-height:1.5">${escapeHtml(n.body||'')}</div>
 
@@ -207,7 +207,7 @@ function _renderAssignModal(){
         </select></div>
       <div><label style="font-size:11px;font-weight:700;color:#555">📝 Task Description *</label>
         <textarea oninput="window._assignCtx.desc=this.value" rows="3" placeholder="Describe what the employee should do..." style="${inp};resize:vertical">${escapeHtml(c.desc||"")}</textarea></div>
-      <button onclick="confirmAssignTask()" style="background:#03308B;color:#C9A84C;border:none;padding:11px;border-radius:8px;font-weight:800;font-size:13px;cursor:pointer">👤 Assign Task</button>
+      <button onclick="confirmAssignTask()" style="background:#03308B;color:#C9A84C;border:none;padding:11px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer">👤 Assign Task</button>
     </div>
   </div>`;
 }
@@ -296,22 +296,22 @@ function miniAvatar(uid, nameFallback){
   const nm=(u&&(u.employeeName||u.name||u.email))||nameFallback||"?";
   const ph=u&&u.photoData;
   if(ph) return `<img src="${ph}" alt="" style="width:18px;height:18px;border-radius:50%;object-fit:cover;vertical-align:-4px;margin-right:3px;border:1px solid var(--line)">`;
-  return `<span style="display:inline-flex;width:18px;height:18px;border-radius:50%;background:var(--navy);color:var(--gold);font-size:9px;font-weight:800;align-items:center;justify-content:center;vertical-align:-4px;margin-right:3px">${escapeHtml(nm.charAt(0).toUpperCase())}</span>`;
+  return `<span style="display:inline-flex;width:18px;height:18px;border-radius:50%;background:var(--navy);color:var(--gold);font-size:9px;font-weight:700;align-items:center;justify-content:center;vertical-align:-4px;margin-right:3px">${escapeHtml(nm.charAt(0).toUpperCase())}</span>`;
 }
 
 function taskStatusChip(t){
   return t.status==="confirmed"
-    ? `<span style="background:#E8F5E9;color:#2E7D32;padding:3px 10px;border-radius:12px;font-size:10px;font-weight:800;white-space:nowrap">✅ CONFIRMED</span>`
-    : `<span style="background:#FFF8E1;color:#B26A00;padding:3px 10px;border-radius:12px;font-size:10px;font-weight:800;white-space:nowrap">⏳ AWAITING CONFIRM</span>`;
+    ? `<span style="background:#E8F5E9;color:#2E7D32;padding:3px 10px;border-radius:12px;font-size:10px;font-weight:700;white-space:nowrap">✅ CONFIRMED</span>`
+    : `<span style="background:#FFF8E1;color:#B26A00;padding:3px 10px;border-radius:12px;font-size:10px;font-weight:700;white-space:nowrap">⏳ AWAITING CONFIRM</span>`;
 }
 function taskAssignBlockHTML(r){
   const t=(state.tasks||[]).find(x=>x.requestId===r.id);
   if(t){
     return `<div style="margin-top:8px;background:#F0F7F0;border:1px solid #C8E6C9;border-radius:8px;padding:7px 10px;font-size:11px;display:flex;justify-content:space-between;align-items:center;gap:6px;flex-wrap:wrap">
-      <span>👤 Assigned to <strong>${escapeHtml(t.assignedTo||"")}</strong> · by ${escapeHtml(t.assignedBy||"")}</span><span style="display:flex;gap:5px;align-items:center">${taskStatusChip(t)}${(isAdmin()||t.assignedByUid===(state.profile&&state.profile.uid))?`<button onclick="deleteTask('${t.id}')" title="Delete task" style="background:#FFEBEE;color:#C62828;border:none;width:22px;height:22px;border-radius:12px;font-weight:800;cursor:pointer;font-size:11px">${ICN.del}</button>`:""}</span></div>`;
+      <span>👤 Assigned to <strong>${escapeHtml(t.assignedTo||"")}</strong> · by ${escapeHtml(t.assignedBy||"")}</span><span style="display:flex;gap:5px;align-items:center">${taskStatusChip(t)}${(isAdmin()||t.assignedByUid===(state.profile&&state.profile.uid))?`<button onclick="deleteTask('${t.id}')" title="Delete task" style="background:#FFEBEE;color:#C62828;border:none;width:22px;height:22px;border-radius:12px;font-weight:700;cursor:pointer;font-size:11px">${ICN.del}</button>`:""}</span></div>`;
   }
   if(canAssignTasks()){
-    return `<div style="margin-top:8px"><button onclick="openAssignTask('${r.id}')" style="background:#03308B;color:#C9A84C;border:none;padding:7px 14px;border-radius:8px;font-weight:800;font-size:11px;cursor:pointer">👤 Assign Task</button></div>`;
+    return `<div style="margin-top:8px"><button onclick="openAssignTask('${r.id}')" style="background:#03308B;color:#C9A84C;border:none;padding:7px 14px;border-radius:8px;font-weight:700;font-size:11px;cursor:pointer">👤 Assign Task</button></div>`;
   }
   return "";
 }
@@ -368,8 +368,8 @@ function _taskCard(t, mineView){
         ? `${miniAvatar(t.assignedByUid,t.assignedBy)} By: <strong>${escapeHtml(t.assignedBy||"")}</strong>`
         : `${miniAvatar(t.assignedToUid,t.assignedTo)} To: <strong>${escapeHtml(t.assignedTo||"")}</strong>`} · 📅 ${escapeHtml(fmtDate((t.createdAt||"").slice(0,10)))}${(t.status==="confirmed"&&t.confirmedAt)?` · ✅ ${escapeHtml(fmtLastSeen(t.confirmedAt)||"")}`:""}</span>
       <div style="display:flex;gap:6px;align-items:center">
-        ${(mineView&&t.status==="pending")?`<button onclick="confirmTask('${t.id}')" style="background:#2E7D32;color:#fff;border:none;padding:8px 18px;border-radius:8px;font-weight:800;font-size:12px;cursor:pointer">✅ Confirm</button>`:""}
-        ${(isAdmin()||t.assignedByUid===(state.profile&&state.profile.uid))?`<button onclick="deleteTask('${t.id}')" title="Delete task" style="background:#FFEBEE;color:#C62828;border:1px solid #EF9A9A;padding:8px 12px;border-radius:8px;font-weight:800;font-size:12px;cursor:pointer">${ICN.del}</button>`:""}
+        ${(mineView&&t.status==="pending")?`<button onclick="confirmTask('${t.id}')" style="background:#2E7D32;color:#fff;border:none;padding:8px 18px;border-radius:8px;font-weight:700;font-size:12px;cursor:pointer">✅ Confirm</button>`:""}
+        ${(isAdmin()||t.assignedByUid===(state.profile&&state.profile.uid))?`<button onclick="deleteTask('${t.id}')" title="Delete task" style="background:#FFEBEE;color:#C62828;border:1px solid #EF9A9A;padding:8px 12px;border-radius:8px;font-weight:700;font-size:12px;cursor:pointer">${ICN.del}</button>`:""}
       </div>
     </div>
   </div>`;
@@ -389,7 +389,7 @@ function renderMyTasks(){
         <div style="font-size:11px;opacity:0.85;margin-top:2px">${mv==="assigned"
           ? `${byMe.length} assigned by you${pendBy?` · ${pendBy} awaiting confirmation`:""}`
           : `${mine.length} task(s)${pend?` · ${pend} awaiting your confirmation`:""}`}</div></div>
-      ${canAsg?`<button onclick="openAssignTask('')" style="background:#C9A84C;color:#03308B;border:none;padding:9px 14px;border-radius:8px;font-weight:800;font-size:12px;cursor:pointer">➕ New Task</button>`:""}
+      ${canAsg?`<button onclick="openAssignTask('')" style="background:#C9A84C;color:#03308B;border:none;padding:9px 14px;border-radius:8px;font-weight:700;font-size:12px;cursor:pointer">➕ New Task</button>`:""}
     </div></div>`;
   if(canAsg) h += _pills('_myTasksView',[{id:"inbox",ic:"📥",lb:`Inbox${pend?` (${pend})`:""}`},{id:"assigned",ic:"📤",lb:`Assigned by Me${pendBy?` (${pendBy})`:""}`}]);
   if(mv==="inbox"){
@@ -408,15 +408,15 @@ function slaChip(r){
       const end=r.completedAt?new Date(r.completedAt).getTime():(r.statusUpdatedAt?new Date(r.statusUpdatedAt).getTime():null);
       if(!end) return "";
       const took=hrs(end-created), ok=took<=sla.completeHrs;
-      return `<span style="font-size:10px;font-weight:800;padding:2px 8px;border-radius:8px;background:${ok?'#E8F5E9':'#FFEBEE'};color:${ok?'#2E7D32':'#C62828'}">${ok?'✔ SLA met':'✖ SLA breached'} · ${took}h</span>`;
+      return `<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:8px;background:${ok?'#E8F5E9':'#FFEBEE'};color:${ok?'#2E7D32':'#C62828'}">${ok?'✔ SLA met':'✖ SLA breached'} · ${took}h</span>`;
     }
     const init=(typeof reqInitialStatus==="function")?reqInitialStatus():"new";
     const isNewR=((r.status||init)===init) && !r.respondedAt;
     const limit=(isNewR?sla.responseHrs:sla.completeHrs)*36e5;
     const left=created+limit-Date.now(), lab=isNewR?"response":"completion", lh=hrs(Math.abs(left));
-    if(left<0) return `<span style="font-size:10px;font-weight:800;padding:2px 8px;border-radius:8px;background:#C62828;color:#fff">⚠ ${lab} SLA · ${lh}h over</span>`;
+    if(left<0) return `<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:8px;background:#C62828;color:#fff">⚠ ${lab} SLA · ${lh}h over</span>`;
     const warn=left<limit*0.25;
-    return `<span style="font-size:10px;font-weight:800;padding:2px 8px;border-radius:8px;background:${warn?'#FFF3E0':'#E3F2FD'};color:${warn?'#E65100':'#1565C0'}">⏱ ${lab}: ${lh}h left</span>`;
+    return `<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:8px;background:${warn?'#FFF3E0':'#E3F2FD'};color:${warn?'#E65100':'#1565C0'}">⏱ ${lab}: ${lh}h left</span>`;
   }catch(e){ return ""; }
 }
 function renderRequests(){
@@ -512,24 +512,24 @@ function renderRequests(){
   const _sla=getSLA();
   return `${renderDeviceSuggestionsAdmin()}${isAdmin()?`<div class="card" style="border-left:4px solid #C9A84C">
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-      <span style="font-size:14px;font-weight:800;color:var(--text)">⏱ Service-Level Targets (SLA)</span>
+      <span style="font-size:14px;font-weight:700;color:var(--text)">⏱ Service-Level Targets (SLA)</span>
       <span style="font-size:10px;color:var(--muted)">— your time promise to clients</span>
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px;margin-top:8px">
       <div style="border:1px solid var(--line);border-radius:12px;padding:10px 12px">
-        <div style="font-weight:800;font-size:12px;color:#1565C0">🫱 First Response</div>
+        <div style="font-weight:700;font-size:12px;color:#1565C0">🫱 First Response</div>
         <div style="font-size:10px;color:var(--muted);margin:3px 0 8px;line-height:1.45">Max time to REACT to a new request (its status leaves "New"). Answers the client's "did they even see it?"</div>
         <div style="display:flex;align-items:center;gap:8px">
-          <input type="number" min="1" value="${_sla.responseHrs}" style="width:76px;padding:7px 9px;border:1.5px solid var(--line);border-radius:8px;font-weight:800;font-size:14px" onchange="saveSLA('responseHrs',this.value)">
+          <input type="number" min="1" value="${_sla.responseHrs}" style="width:76px;padding:7px 9px;border:1.5px solid var(--line);border-radius:8px;font-weight:700;font-size:14px" onchange="saveSLA('responseHrs',this.value)">
           <span style="font-size:12px;font-weight:700">hours</span>
           <span style="font-size:10px;color:var(--muted)">≈ ${(Math.round(_sla.responseHrs/24*10)/10)} day(s)</span>
         </div>
       </div>
       <div style="border:1px solid var(--line);border-radius:12px;padding:10px 12px">
-        <div style="font-weight:800;font-size:12px;color:#2E7D32">🏁 Completion</div>
+        <div style="font-weight:700;font-size:12px;color:#2E7D32">🏁 Completion</div>
         <div style="font-size:10px;color:var(--muted);margin:3px 0 8px;line-height:1.45">Max time to fully CLOSE the request (status becomes Completed). Your delivery promise.</div>
         <div style="display:flex;align-items:center;gap:8px">
-          <input type="number" min="1" value="${_sla.completeHrs}" style="width:76px;padding:7px 9px;border:1.5px solid var(--line);border-radius:8px;font-weight:800;font-size:14px" onchange="saveSLA('completeHrs',this.value)">
+          <input type="number" min="1" value="${_sla.completeHrs}" style="width:76px;padding:7px 9px;border:1.5px solid var(--line);border-radius:8px;font-weight:700;font-size:14px" onchange="saveSLA('completeHrs',this.value)">
           <span style="font-size:12px;font-weight:700">hours</span>
           <span style="font-size:10px;color:var(--muted)">≈ ${(Math.round(_sla.completeHrs/24*10)/10)} day(s)</span>
         </div>
@@ -551,7 +551,7 @@ function renderRequests(){
         return `<div style="border:1px solid var(--line);border-left:4px solid ${reqStatusColor(r.status)};border-radius:12px;padding:14px">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">
             <div style="flex:1;min-width:200px">
-              <div style="font-weight:800;font-size:14px;color:#1A202C">${escapeHtml(r.title)}</div>
+              <div style="font-weight:700;font-size:14px;color:#1A202C">${escapeHtml(r.title)}</div>
               <div style="font-size:11px;color:var(--muted);margin-top:3px">
                 🏢 ${escapeHtml(client?.name||"Unknown client")} · 📁 ${escapeHtml(r.project||"—")} · ${fmtDate((r.createdAt||"").slice(0,10))}
               </div>
@@ -595,11 +595,11 @@ function getProjStatusList(){
 }
 function reqStatusBadge(s){
   const map={
-    new:`<span style="background:#FFEBEE;color:#C62828;padding:4px 12px;border-radius:12px;font-size:11px;font-weight:800;white-space:nowrap">🆕 NEW</span>`,
-    in_progress:`<span style="background:#FFF3E0;color:#E65100;padding:4px 12px;border-radius:12px;font-size:11px;font-weight:800;white-space:nowrap">⚙️ IN PROGRESS</span>`,
-    completed:`<span style="background:#E8F5E9;color:#2E7D32;padding:4px 12px;border-radius:12px;font-size:11px;font-weight:800;white-space:nowrap">✅ COMPLETED</span>`,
+    new:`<span style="background:#FFEBEE;color:#C62828;padding:4px 12px;border-radius:12px;font-size:11px;font-weight:700;white-space:nowrap">🆕 NEW</span>`,
+    in_progress:`<span style="background:#FFF3E0;color:#E65100;padding:4px 12px;border-radius:12px;font-size:11px;font-weight:700;white-space:nowrap">⚙️ IN PROGRESS</span>`,
+    completed:`<span style="background:#E8F5E9;color:#2E7D32;padding:4px 12px;border-radius:12px;font-size:11px;font-weight:700;white-space:nowrap">✅ COMPLETED</span>`,
   };
-  return map[s]||`<span style="background:#F0F4FF;color:#03308B;padding:4px 12px;border-radius:12px;font-size:11px;font-weight:800;white-space:nowrap">📌 ${escapeHtml(prettyStatus(s)).toUpperCase()}</span>`;
+  return map[s]||`<span style="background:#F0F4FF;color:#03308B;padding:4px 12px;border-radius:12px;font-size:11px;font-weight:700;white-space:nowrap">📌 ${escapeHtml(prettyStatus(s)).toUpperCase()}</span>`;
 }
 
 async function submitClientRequest(){

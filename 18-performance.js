@@ -292,12 +292,12 @@ function evmCard(projectName){
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-bottom:10px">
       <div style="background:${cpi.bg};color:${cpi.fg};border-radius:8px;padding:10px;text-align:center">
-        <div style="font-size:17px;font-weight:800">${v.cpi==null?"\u2014":v.cpi.toFixed(2)}</div>
+        <div style="font-size:17px;font-weight:700">${v.cpi==null?"\u2014":v.cpi.toFixed(2)}</div>
         <div style="font-size:10px;font-weight:700">Cost \u00b7 ${escapeHtml(cpi.lb)}</div>
         <div style="font-size:9px;opacity:.85;line-height:1.4;margin-top:2px">${escapeHtml(cpi.note)}</div>
       </div>
       <div style="background:${spi.bg};color:${spi.fg};border-radius:8px;padding:10px;text-align:center">
-        <div style="font-size:17px;font-weight:800">${v.spi==null?"\u2014":v.spi.toFixed(2)}</div>
+        <div style="font-size:17px;font-weight:700">${v.spi==null?"\u2014":v.spi.toFixed(2)}</div>
         <div style="font-size:10px;font-weight:700">Schedule \u00b7 ${escapeHtml(spi.lb)}</div>
         <div style="font-size:9px;opacity:.85;line-height:1.4;margin-top:2px">${v.spi==null?"No dates on the baseline":escapeHtml(spi.note)}</div>
       </div>
@@ -313,7 +313,7 @@ function evmCard(projectName){
       ${v.sv!=null?_pfKV("Schedule variance", `${v.sv>=0?"+":""}${curFmt(v.sv,cur)}`, "earned minus planned", v.sv<0?"#C62828":"#2E7D32"):""}
     </table>
     ${v.eac!=null?`<div style="background:${v.vac<0?"#FDECEA":"#E8F5E9"};border-radius:var(--r-md);padding:10px 12px;margin-top:10px">
-      <div style="font-size:12px;font-weight:800;color:${v.vac<0?"#C62828":"#2E7D32"}">
+      <div style="font-size:12px;font-weight:700;color:${v.vac<0?"#C62828":"#2E7D32"}">
         Forecast final cost: ${curFmt(v.eac,cur)}</div>
       <div style="font-size:10.5px;color:var(--muted);line-height:1.7;margin-top:3px">
         At the rate this project is currently consuming budget it finishes
@@ -339,19 +339,19 @@ function footprintCard(projectName, from, to){
     <div class="sec-hdr">\u{1F331} Environmental footprint</div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:8px">
       <div style="background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;text-align:center">
-        <div style="font-size:16px;font-weight:800;color:#2E7D32">${f.tonnes}</div>
+        <div style="font-size:16px;font-weight:700;color:#2E7D32">${f.tonnes}</div>
         <div style="font-size:10px;color:var(--muted)">tonnes CO\u2082e</div></div>
       <div style="background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;text-align:center">
-        <div style="font-size:16px;font-weight:800">${f.litres.toLocaleString()}</div>
+        <div style="font-size:16px;font-weight:700">${f.litres.toLocaleString()}</div>
         <div style="font-size:10px;color:var(--muted)">litres of fuel</div></div>
       <div style="background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;text-align:center">
-        <div style="font-size:16px;font-weight:800">${f.travelKm.toLocaleString()}</div>
+        <div style="font-size:16px;font-weight:700">${f.travelKm.toLocaleString()}</div>
         <div style="font-size:10px;color:var(--muted)">km travelled</div></div>
       ${f.perHour!=null?`<div style="background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;text-align:center">
-        <div style="font-size:16px;font-weight:800">${f.perHour}</div>
+        <div style="font-size:16px;font-weight:700">${f.perHour}</div>
         <div style="font-size:10px;color:var(--muted)">kg per work hour</div></div>`:""}
       ${f.partsReplaced?`<div style="background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;text-align:center">
-        <div style="font-size:16px;font-weight:800">${f.partsReplaced}</div>
+        <div style="font-size:16px;font-weight:700">${f.partsReplaced}</div>
         <div style="font-size:10px;color:var(--muted)">parts replaced</div></div>`:""}
     </div>
     <div style="font-size:10px;color:var(--muted);margin-top:9px;line-height:1.7">

@@ -374,8 +374,8 @@ window.payDel = async function(id, idx){
 
 // ── Screens ──────────────────────────────────────────────────────────────
 function invRow(l,v,strong){
-  return `<tr><td style="padding:5px 8px;border-bottom:1px solid var(--line);font-size:11px;${strong?"font-weight:800":"color:var(--muted)"}">${l}</td>
-    <td style="padding:5px 8px;border-bottom:1px solid var(--line);text-align:right;font-size:${strong?"13px":"12px"};${strong?"font-weight:800":""}">${v}</td></tr>`;
+  return `<tr><td style="padding:5px 8px;border-bottom:1px solid var(--line);font-size:11px;${strong?"font-weight:700":"color:var(--muted)"}">${l}</td>
+    <td style="padding:5px 8px;border-bottom:1px solid var(--line);text-align:right;font-size:${strong?"13px":"12px"};${strong?"font-weight:700":""}">${v}</td></tr>`;
 }
 
 function renderInvoices(){
@@ -428,7 +428,7 @@ function renderInvoices(){
       <div class="sec-hdr">Lines <span style="font-size:10px;color:var(--muted);font-weight:500">(${t.count})</span></div>
       ${(v.lines||[]).map((l,i)=>`<div style="border:1px solid var(--line);border-radius:8px;padding:8px;margin-top:8px">
         <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-          <span style="font-size:10px;font-weight:800;color:var(--muted);min-width:20px">${String(i+1).padStart(2,"0")}</span>
+          <span style="font-size:10px;font-weight:700;color:var(--muted);min-width:20px">${String(i+1).padStart(2,"0")}</span>
           <select onchange="invLineSet(${i},'kind',this.value)" style="width:104px;font-size:11px">
             ${LINE_KINDS.map(k=>`<option value="${k.k}" ${(l.kind||"other")===k.k?"selected":""}>${k.ic} ${k.lb}</option>`).join("")}
           </select>
@@ -444,7 +444,7 @@ function renderInvoices(){
           <input value="${escapeHtml(l.unit||"")}" oninput="invLineSet(${i},'unit',this.value)" placeholder="Unit" style="width:64px">
           <input value="${escapeHtml(String(l.unitPrice==null?"":l.unitPrice))}" oninput="invLineSet(${i},'unitPrice',this.value)" placeholder="Unit price" inputmode="decimal" style="width:104px">
           <input value="${escapeHtml(String(l.discountPct||""))}" oninput="invLineSet(${i},'discountPct',this.value)" placeholder="Disc %" inputmode="decimal" style="width:70px">
-          <span style="margin-left:auto;font-size:12px;font-weight:800" id="invLine${i}">${curFmt(lineNet(l),v.currency)}</span>
+          <span style="margin-left:auto;font-size:12px;font-weight:700" id="invLine${i}">${curFmt(lineNet(l),v.currency)}</span>
         </div>
       </div>`).join("")}
       <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
@@ -498,7 +498,7 @@ function renderInvoices(){
          ["Net",curFmt(cash.net,cur),cash.net<0?"#C62828":"#03308B"],
          ["Retention held",curFmt(cash.retentionHeld,cur),"#8F6E22"]]
         .map(([l,val,c])=>`<div style="background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:9px;text-align:center">
-          <div style="font-size:14px;font-weight:800;color:${c}">${val}</div>
+          <div style="font-size:14px;font-weight:700;color:${c}">${val}</div>
           <div style="font-size:10px;color:var(--muted)">${l}</div></div>`).join("")}
     </div>
     <div style="font-size:10px;color:var(--muted);margin-top:8px;line-height:1.7">
@@ -517,10 +517,10 @@ function renderInvoices(){
           <td style="padding:6px 8px;border-bottom:1px solid var(--line);font-size:11px">
             <span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${b.color};margin-left:6px"></span>${b.lb}
             <span style="color:var(--muted)"> \u00b7 ${x.count}</span></td>
-          <td style="padding:6px 8px;border-bottom:1px solid var(--line);text-align:right;font-weight:800;font-size:12px;color:${b.color}">${curFmt(x.amount,cur)}</td>
+          <td style="padding:6px 8px;border-bottom:1px solid var(--line);text-align:right;font-weight:700;font-size:12px;color:${b.color}">${curFmt(x.amount,cur)}</td>
         </tr>`:"";}).join("")}
-      <tr><td style="padding:7px 8px;font-weight:800;font-size:12px;border-top:2px solid var(--line)">Total outstanding</td>
-        <td style="padding:7px 8px;text-align:right;font-weight:800;font-size:13px;border-top:2px solid var(--line)">${curFmt(age.total,cur)}</td></tr>
+      <tr><td style="padding:7px 8px;font-weight:700;font-size:12px;border-top:2px solid var(--line)">Total outstanding</td>
+        <td style="padding:7px 8px;text-align:right;font-weight:700;font-size:13px;border-top:2px solid var(--line)">${curFmt(age.total,cur)}</td></tr>
     </table>`}
   </div>
 
@@ -534,24 +534,24 @@ function renderInvoices(){
     return `<div class="card" style="border-left:4px solid ${S.fg}">
       <div style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap">
         <div style="flex:1;min-width:150px">
-          <div style="font-weight:800;font-size:13px">${escapeHtml(v.title||v.ref||"Invoice")}</div>
+          <div style="font-weight:700;font-size:13px">${escapeHtml(v.title||v.ref||"Invoice")}</div>
           <div style="font-size:10px;color:var(--muted);line-height:1.7">
             ${v.ref?escapeHtml(v.ref)+" \u00b7 ":""}${escapeHtml(v.client||"\u2014")}${v.project?" \u00b7 "+escapeHtml(v.project):""}<br>
             ${v.date?escapeHtml(fmtDate(v.date)):"\u2014"}${due?` \u00b7 due ${escapeHtml(fmtDate(due))}`:""}
-            ${(st==="overdue"&&d>0)?`<span style="color:#C62828;font-weight:800"> \u00b7 ${d} day${d>1?"s":""} late</span>`:""}
+            ${(st==="overdue"&&d>0)?`<span style="color:#C62828;font-weight:700"> \u00b7 ${d} day${d>1?"s":""} late</span>`:""}
           </div>
         </div>
-        <span style="background:${S.bg};color:${S.fg};padding:2px 9px;border-radius:10px;font-size:10px;font-weight:800;white-space:nowrap">${S.ic} ${S.lb}</span>
+        <span style="background:${S.bg};color:${S.fg};padding:2px 9px;border-radius:10px;font-size:10px;font-weight:700;white-space:nowrap">${S.ic} ${S.lb}</span>
       </div>
       <table style="border-collapse:collapse;width:100%;margin-top:8px">
         ${invRow("Total", curDual(t.total,v.currency,v.rate), true)}
         ${t.retention?invRow(`Retention ${t.retentionPct}%${t.retentionReleased?" (released)":" (held)"}`, curFmt(t.retention,v.currency)):""}
         ${t.paid?invRow("Received", `<span style="color:#2E7D32">${curFmt(t.paid,v.currency)}</span>`):""}
-        ${t.outstanding?invRow("Outstanding", `<span style="color:${d>0?"#C62828":"#8F6E22"};font-weight:800">${curFmt(t.outstanding,v.currency)}</span>`):""}
+        ${t.outstanding?invRow("Outstanding", `<span style="color:${d>0?"#C62828":"#8F6E22"};font-weight:700">${curFmt(t.outstanding,v.currency)}</span>`):""}
         ${t.overpaid?invRow("Overpaid", `<span style="color:#E65100">${curFmt(t.overpaid,v.currency)}</span>`):""}
       </table>
       ${(v.payments||[]).length?`<div style="margin-top:8px">
-        <div style="font-size:10px;font-weight:800;color:var(--muted);margin-bottom:4px">Receipts</div>
+        <div style="font-size:10px;font-weight:700;color:var(--muted);margin-bottom:4px">Receipts</div>
         ${(v.payments||[]).map((p,i)=>`<div style="display:flex;gap:8px;align-items:center;font-size:11px;padding:3px 0;border-bottom:1px solid var(--line)">
           <span>${p.date?escapeHtml(fmtDate(p.date)):"\u2014"}</span>
           <span style="font-weight:700">${curFmt(num(p.amount),v.currency)}</span>
@@ -560,7 +560,7 @@ function renderInvoices(){
         </div>`).join("")}
       </div>`:""}
       ${payingId===v.id?`<div style="background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;margin-top:10px">
-        <div style="font-size:11px;font-weight:800;margin-bottom:8px">Record a receipt</div>
+        <div style="font-size:11px;font-weight:700;margin-bottom:8px">Record a receipt</div>
         <div class="form-grid">
           <div class="field"><label>Date</label><input type="date" value="${escapeHtml(window._payForm.date||"")}" onchange="paySet('date',this.value)"></div>
           <div class="field"><label>Amount</label><input value="${escapeHtml(String(window._payForm.amount||""))}" oninput="paySet('amount',this.value)" inputmode="decimal"></div>
@@ -592,8 +592,8 @@ window.invoiceDoc = async function(id){
   const t=invTotals(v), due=invDueDate(v), st=invStatus(v), cur=v.currency;
   const TH='padding:6px 9px;border:1px solid #D6E4F0;background:#03308B;color:#fff;text-align:left';
   const TD='padding:6px 9px;border:1px solid #D6E4F0';
-  const R=(l,x,strong)=>`<tr><td style="${TD};${strong?"font-weight:800":""};width:62%">${l}</td>
-    <td style="${TD};text-align:right;${strong?"font-weight:800;font-size:13px":""}">${x}</td></tr>`;
+  const R=(l,x,strong)=>`<tr><td style="${TD};${strong?"font-weight:700":""};width:62%">${l}</td>
+    <td style="${TD};text-align:right;${strong?"font-weight:700;font-size:13px":""}">${x}</td></tr>`;
   const body=`
   <div class="ksec"><span class="kbad">01</span><h3>Invoice</h3></div>
   <table style="border-collapse:collapse;width:100%">
@@ -637,7 +637,7 @@ window.invoiceDoc = async function(id){
     ${t.outstanding?R("Balance outstanding", `<span style="color:#C62828">${curFmt(t.outstanding,cur)}</span>`, true):""}
   </table>
   ${(v.payments||[]).length?`<div style="margin-top:10px">
-    <div style="font-weight:800;font-size:12px;color:#03308B;margin-bottom:5px">Receipts</div>
+    <div style="font-weight:700;font-size:12px;color:#03308B;margin-bottom:5px">Receipts</div>
     <table style="border-collapse:collapse;width:100%">
       <thead><tr><th style="${TH};width:34px;text-align:center">#</th><th style="${TH}">Date</th>
         <th style="${TH}">Method</th><th style="${TH}">Reference</th>
@@ -649,7 +649,7 @@ window.invoiceDoc = async function(id){
         <td style="${TD};font-size:10px">${escapeHtml(p.ref||"\u2014")}</td>
         <td style="${TD};text-align:right;font-weight:700">${curFmt(num(p.amount),cur)}</td>
       </tr>`).join("")}</tbody></table></div>`:""}
-  ${v.terms?`<div style="margin-top:12px"><div style="font-weight:800;font-size:12px;color:#03308B;margin-bottom:5px">Payment terms</div>
+  ${v.terms?`<div style="margin-top:12px"><div style="font-weight:700;font-size:12px;color:#03308B;margin-bottom:5px">Payment terms</div>
     <div style="font-size:11px;line-height:1.8;white-space:pre-wrap">${escapeHtml(v.terms)}</div></div>`:""}
   <div style="margin-top:10px;font-size:10px;font-style:italic;color:#555;line-height:1.7">
     Amounts are stated in ${escapeHtml(cur)} at the exchange rate recorded on this invoice; a later change in the market rate does not alter the sum due.
@@ -675,8 +675,8 @@ function projectBillingCard(name){
     <td style="padding:5px 8px;border-bottom:1px solid var(--line);text-align:right;font-size:12px;font-weight:700${c?`;color:${c}`:""}">${v}</td></tr>`;
   return `<div class="card" style="border-left:4px solid #1565C0">
     <div class="sec-hdr" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">\u{1F4B0} Billing \u2014 ${escapeHtml(name)}
-      ${b.pctBilled!=null?`<span style="background:#E3F2FD;color:#1565C0;padding:2px 9px;border-radius:10px;font-size:10px;font-weight:800">${b.pctBilled}% billed</span>`:""}
-      ${b.pctCollected!=null?`<span style="background:#E8F5E9;color:#2E7D32;padding:2px 9px;border-radius:10px;font-size:10px;font-weight:800">${b.pctCollected}% collected</span>`:""}
+      ${b.pctBilled!=null?`<span style="background:#E3F2FD;color:#1565C0;padding:2px 9px;border-radius:10px;font-size:10px;font-weight:700">${b.pctBilled}% billed</span>`:""}
+      ${b.pctCollected!=null?`<span style="background:#E8F5E9;color:#2E7D32;padding:2px 9px;border-radius:10px;font-size:10px;font-weight:700">${b.pctCollected}% collected</span>`:""}
     </div>
     <table style="border-collapse:collapse;width:100%">
       ${row("Earned (contract + variations)", curFmt(b.earned,cur))}

@@ -1,3 +1,11 @@
+// Jump straight to where the status list is maintained. It lives under
+// Entry Manage rather than the project form, which is not obvious from here.
+window.goProjStatusEditor = function(){
+  if(!isAdmin()) return toast("Admin only");
+  window._emView="requests";
+  if(typeof switchTab==="function") switchTab("Entry Manage"); else render();
+};
+
 function renderProjects(){
   const allDepts = deptNames();
   if(!projForm) projForm={name:"", dept: allDepts[0] || ""};
@@ -56,7 +64,9 @@ function renderProjects(){
       <div class="field"><label>Department</label><select onchange="window.projForm.dept=this.value;render()">
         ${allDepts.map(d=>`<option ${projForm.dept===d?"selected":""}>${escapeHtml(d)}</option>`).join("")}
       </select></div>
-      <div class="field"><label>Status</label><select onchange="window.projForm.status=this.value">
+      <div class="field"><label>Status
+        ${isAdmin()?`<button type="button" onclick="goProjStatusEditor()" style="background:none;border:none;color:var(--ink-brand);font-size:10px;font-weight:700;cursor:pointer;padding:0;text-decoration:underline">\u2699 edit the list</button>`:""}</label>
+        <select onchange="window.projForm.status=this.value">
         <option value="">—</option>
         ${(()=>{
           const opts=getProjStatusList(), cur=projForm.status||"";
@@ -68,7 +78,7 @@ function renderProjects(){
         })()}
       </select>
       ${(projForm.status && !getProjStatusList().includes(projForm.status))
-        ? `<div style="font-size:10px;color:#E65100;margin-top:4px;line-height:1.5">\u26a0 "${escapeHtml(projForm.status)}" is no longer in the status list \u2014 kept so it is not lost. Re-add or rename it in <strong>Entry Manage \u2192 Requests</strong>.</div>`
+        ? `<div style="font-size:10px;color:#E65100;margin-top:4px;line-height:1.5">\u26a0 "${escapeHtml(projForm.status)}" is no longer in the status list \u2014 kept so it is not lost. Re-add or rename it in <strong>Settings \u2192 Entry Manage \u2192 Requests</strong>.</div>`
         : ""}</div>
     </div>
     <div class="btn-row">
@@ -80,7 +90,7 @@ function renderProjects(){
   <div class="card" style="background:#E0F2F1;border:1px solid #80CBC4">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
       <div style="flex:1;min-width:200px">
-        <div style="font-weight:800;color:#00695C;font-size:14px">📥 Bulk Import</div>
+        <div style="font-weight:700;color:#00695C;font-size:14px">📥 Bulk Import</div>
         <p style="font-size:12px;color:#004D40;margin:4px 0 0;line-height:1.5">Use the <strong>📥 Import</strong> button on any department below to upload projects, areas & sites from a CSV/Excel file. Columns: <strong>Project · Area Name · Site Name · Status</strong>.</p>
       </div>
       <button class="btn btn-sm" style="background:#00897B;color:white;border:none;font-weight:700" onclick="downloadImportTemplate()">⬇ Template</button>
@@ -205,7 +215,7 @@ function renderUsers(){
   if(!isAdmin())return `<div class="card"><div class="empty">Access denied — Admin only</div></div>`;
   if(!userForm)userForm={name:"",email:"",password:"",role:"employee",employeeName:"",branch:"",userDept:"",jobTitle:"",supervisorName:"",isSupervisor:false};
   const uv = window._usersView || "team";
-  const _up=(id,ic,lb)=>`<button onclick="window._usersView='${id}';window.__navFade=true;render()" style="flex:1;padding:10px 6px;border:none;border-radius:8px;font-weight:800;font-size:12px;cursor:pointer;background:${uv===id?'#03308B':'#E8EEF7'};color:${uv===id?'#C9A84C':'#1B3A6B'}">${ic} ${lb}</button>`;
+  const _up=(id,ic,lb)=>`<button onclick="window._usersView='${id}';window.__navFade=true;render()" style="flex:1;padding:10px 6px;border:none;border-radius:8px;font-weight:700;font-size:12px;cursor:pointer;background:${uv===id?'#03308B':'#E8EEF7'};color:${uv===id?'#C9A84C':'#1B3A6B'}">${ic} ${lb}</button>`;
   let h = `<div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap">${_up("team","👥","Team Members")}${_up("add","➕","Add User")}${_up("tags","🏷️","Nametags")}${_up("perms","🔐","Permissions")}</div>`;
   if(uv==="add")  h += `<div class="card">
     <div class="sec-hdr">${userEditId?"Edit":"Add"} User</div>
@@ -349,7 +359,7 @@ function renderUsers(){
 
     <!-- Add/Edit Nametag Form -->
     <div style="background:#FFFBEB;border:1px solid #D4AF37;border-radius:12px;padding:14px;margin-bottom:14px">
-      <div style="font-size:13px;font-weight:800;color:#7F6000;margin-bottom:10px">
+      <div style="font-size:13px;font-weight:700;color:#7F6000;margin-bottom:10px">
         ${nametagEditId ? "✎ Edit Nametag Employee" : "➕ Add Nametag Employee"}
       </div>
       <div class="form-grid">
@@ -402,12 +412,12 @@ function renderUsers(){
             const isExt = e.type === "external";
             return `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:${isExt ? "linear-gradient(135deg,#FFF3E0 0%,#FFF8E1 100%)" : "#F7FAFC"};border:1px solid ${isExt ? "#FF9800" : "#CBD5E0"};border-radius:8px;gap:10px">
               <div style="display:flex;align-items:center;gap:10px;flex:1">
-                <div style="width:36px;height:36px;background:${isExt ? "linear-gradient(135deg,#FF9800 0%,#FFB74D 100%)" : "#1B3A6B"};color:white;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;flex-shrink:0">
+                <div style="width:36px;height:36px;background:${isExt ? "linear-gradient(135deg,#FF9800 0%,#FFB74D 100%)" : "#1B3A6B"};color:white;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;flex-shrink:0">
                   ${(e.name||"?").charAt(0).toUpperCase()}
                 </div>
                 <div>
                   <div style="font-weight:700;color:#1A202C;font-size:14px">${escapeHtml(e.name||"")}
-                    ${isExt ? `<span style="display:inline-block;margin-left:6px;padding:1px 7px;background:linear-gradient(135deg,#FF9800,#FFB74D);color:#7F4A00;border-radius:12px;font-size:10px;font-weight:800">EXT</span>` : `<span style="display:inline-block;margin-left:6px;padding:1px 7px;background:#E8F5E9;color:#2F855A;border-radius:12px;font-size:10px;font-weight:700">INTERNAL</span>`}
+                    ${isExt ? `<span style="display:inline-block;margin-left:6px;padding:1px 7px;background:linear-gradient(135deg,#FF9800,#FFB74D);color:#7F4A00;border-radius:12px;font-size:10px;font-weight:700">EXT</span>` : `<span style="display:inline-block;margin-left:6px;padding:1px 7px;background:#E8F5E9;color:#2F855A;border-radius:12px;font-size:10px;font-weight:700">INTERNAL</span>`}
                   </div>
                   <div style="font-size:11px;color:var(--muted)">${isExt ? "External / Outsource" : "Internal employee"} · Nametag only</div>
                   <div style="font-size:10px;margin-top:3px;font-weight:700;color:${_ntTracked(e)?"#2E7D32":"#8F6E22"}">
@@ -871,7 +881,7 @@ function renderBranches(){
         <div style="border:1px solid var(--line);border-left:5px solid #1565C0;border-radius:12px;padding:12px 14px;background:var(--card)">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
             <div style="flex:1;min-width:0">
-              <div style="font-weight:800;color:#1565C0;font-size:14px">🏙️ ${escapeHtml(b.name)}</div>
+              <div style="font-weight:700;color:#1565C0;font-size:14px">🏙️ ${escapeHtml(b.name)}</div>
               <div style="font-size:11px;color:var(--muted);margin-top:4px">
                 ${b.empCount} employee${b.empCount===1?'':'s'} · ${b.dailyCount} work entr${b.dailyCount===1?'y':'ies'}
               </div>
@@ -1108,7 +1118,7 @@ function renderDepartments(){
         <div style="border:1px solid var(--line);border-left:5px solid ${d.color};border-radius:12px;padding:12px 14px;background:var(--card)">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
             <div style="flex:1;min-width:0">
-              <div style="font-weight:800;color:${d.color};font-size:14px">${escapeHtml(d.name)}</div>
+              <div style="font-weight:700;color:${d.color};font-size:14px">${escapeHtml(d.name)}</div>
               <div style="font-size:11px;color:var(--muted);margin-top:4px">
                 ${d.projCount} project${d.projCount===1?'':'s'} · ${d.dailyCount} entr${d.dailyCount===1?'y':'ies'} · ${fmtHM(d.hours)} hrs
               </div>

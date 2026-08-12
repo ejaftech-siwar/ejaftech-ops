@@ -52,7 +52,7 @@ function renderDateTime(){
     <div style="font-size:10px;letter-spacing:1.5px;opacity:.75;text-transform:uppercase">Business Time</div>
     <div id="dtClock" style="font-family:'DM Serif Display',serif;font-size:28px;font-weight:700;color:#C9A84C;margin:8px 0 4px;letter-spacing:1px;line-height:1">--:--:--</div>
     <div id="dtDate" style="font-size:13px;opacity:.9">—</div>
-    <div style="font-size:10px;opacity:.65;margin-top:8px">${escapeHtml(tz)}${_dtDoc().mode==="manual"?' · <span style="color:#F0D68A;font-weight:800">MANUAL</span>':''}</div>
+    <div style="font-size:10px;opacity:.65;margin-top:8px">${escapeHtml(tz)}${_dtDoc().mode==="manual"?' · <span style="color:#F0D68A;font-weight:700">MANUAL</span>':''}</div>
   </div>
 
   <div class="card">
@@ -71,7 +71,7 @@ function renderDateTime(){
     <div class="card-title">🌍 Timezone</div>
     ${TZ_GROUPS.map(([region,list])=>`
       <div style="margin-bottom:16px">
-        <div style="font-size:10px;font-weight:800;color:var(--muted);letter-spacing:.6px;text-transform:uppercase;margin-bottom:7px">${region}</div>
+        <div style="font-size:10px;font-weight:700;color:var(--muted);letter-spacing:.6px;text-transform:uppercase;margin-bottom:7px">${region}</div>
         <div style="display:grid;gap:6px">
           ${list.map(([v,l])=>`<label style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1.5px solid ${tz===v?'#C9A84C':'var(--line)'};border-radius:8px;cursor:pointer;background:${tz===v?'#FFF8E1':'transparent'}">
             <input type="radio" name="dtTz" value="${v}" ${tz===v?"checked":""} onchange="saveAppTZ(this.value)" style="width:16px;height:16px;accent-color:#C9A84C;flex:0 0 auto">
@@ -141,7 +141,7 @@ function renderProfile(){
         <h2 style="font-family:'DM Serif Display',serif;font-size:22px;color:white;margin:0;line-height:1.2">${escapeHtml(p.name || 'User')}</h2>
         <div style="font-size:12px;color:#B8CFE8;margin-top:4px">${escapeHtml(p.email || '')}</div>
         <div style="margin-top:8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-          <span style="background:${roleColor};color:#1B3A6B;font-size:11px;padding:3px 10px;border-radius:12px;font-weight:800;letter-spacing:0.5px">${role}</span>
+          <span style="background:${roleColor};color:#1B3A6B;font-size:11px;padding:3px 10px;border-radius:12px;font-weight:700;letter-spacing:0.5px">${role}</span>
           ${p.photoData
             ? `<button onclick="removeProfilePhoto()" style="background:rgba(255,255,255,0.15);color:#fff;border:none;font-size:11px;padding:4px 10px;border-radius:12px;cursor:pointer;font-family:inherit">Remove photo</button>`
             : `<button onclick="document.getElementById('profilePhotoInput').click()" style="background:rgba(255,255,255,0.15);color:#fff;border:none;font-size:11px;padding:4px 10px;border-radius:12px;cursor:pointer;font-family:inherit">📷 Add photo</button>`}
@@ -151,7 +151,7 @@ function renderProfile(){
   </div>
 
   <div class="card">
-    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">01</span> Account Information</div>
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:700">01</span> Account Information</div>
     <div style="display:grid;gap:10px;margin-top:10px">
       <div style="display:flex;justify-content:space-between;padding:10px 14px;border:1px solid var(--line);border-radius:8px;background:var(--card)">
         <span style="color:var(--muted);font-size:12px">Email</span>
@@ -181,7 +181,7 @@ function renderProfile(){
   </div>
 
   <div class="card">
-    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">02</span> 🔒 Change Password</div>
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:700">02</span> 🔒 Change Password</div>
     <p style="font-size:12px;color:var(--muted);margin:0 0 12px">Keep your account safe by using a strong password. Minimum 6 characters.</p>
 
     <div class="form-grid">
@@ -212,13 +212,13 @@ function renderProfile(){
   </div>
 
   <div class="card">
-    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">03</span> 🔑 Forgot Password?</div>
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:700">03</span> 🔑 Forgot Password?</div>
     <p style="font-size:12px;color:var(--muted);margin:0 0 12px">If you can't remember your current password, click below to receive a reset link via email.</p>
     <button class="btn btn-ghost" style="background:#FFF8E1;border:1px solid #C9A84C;color:#7F6000" onclick="requestPasswordReset()">📧 Send Reset Link to ${escapeHtml(p.email || '')}</button>
   </div>
 
   <div class="card">
-    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">04</span> 🚪 Sign Out</div>
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:700">04</span> 🚪 Sign Out</div>
     <p style="font-size:12px;color:var(--muted);margin:0 0 12px">Sign out from this device. You'll need to enter your credentials again to sign back in.</p>
     <button class="btn btn-danger" onclick="uiConfirm('Sign out from this device?').then(ok=>{if(ok)doSignOut()})">Sign Out</button>
   </div>
@@ -240,7 +240,7 @@ function renderEntryManage(){
   if(emv==="counters") h += `
   <div class="card" style="border-left:4px solid #C9A84C">
     <div class="sec-hdr" style="display:flex;align-items:center;gap:8px">
-      <span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">⚙</span>
+      <span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:700">⚙</span>
       Report Counter Management
     </div>
     <p style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.6">
@@ -258,7 +258,7 @@ function renderEntryManage(){
 
   <div class="card" style="border-left:4px solid #2E7D32">
     <div class="sec-hdr" style="display:flex;align-items:center;gap:8px">
-      <span style="background:#2E7D32;color:white;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">📋</span>
+      <span style="background:#2E7D32;color:white;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:700">📋</span>
       Daily Log Entry Numbering
     </div>
     <p style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.6">
@@ -283,7 +283,7 @@ function renderEntryManage(){
 
   <div class="card" style="border-left:4px solid #C9A84C;background:#FEF3C7">
     <div class="sec-hdr" style="display:flex;align-items:center;gap:8px;color:#7F6000">
-      <span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">🧹</span>
+      <span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:700">🧹</span>
       Storage Cleanup
     </div>
     <p style="font-size:12px;color:#7F6000;margin-bottom:12px;line-height:1.6">
@@ -311,7 +311,7 @@ function renderEntryManage(){
   if(emv==="employees") h += `  <!-- ═══ PER-EMPLOYEE ENTRY PERMISSIONS (Admin) ═══ -->
   <div class="card" style="border-left:4px solid #0277BD">
     <div class="sec-hdr" style="display:flex;align-items:center;gap:8px">
-      <span style="background:#0277BD;color:white;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">🔐</span>
+      <span style="background:#0277BD;color:white;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:700">🔐</span>
       Entry Permissions per Employee
     </div>
     <p style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.6">
@@ -356,7 +356,7 @@ function renderEntryManage(){
   if(emv==="clients") h += `  <!-- ═══ ENTRY PERMISSION PER CLIENT (Admin) ═══ -->
   <div class="card" style="border-left:4px solid #C9A84C">
     <div class="sec-hdr" style="display:flex;align-items:center;gap:8px">
-      <span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">🤝</span>
+      <span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:700">🤝</span>
       Entry Permission per Client
     </div>
     <p style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.6">
@@ -417,7 +417,7 @@ function renderEntryManage(){
         ✎ renames the option <strong>and migrates every record using it</strong>. Deleting leaves records holding the old text — the option simply disappears from pickers, so rename when you want them updated.
       </p>
       <div style="margin-bottom:18px">
-        <div style="font-weight:800;color:#B8860B;font-size:13px;margin-bottom:8px">🔖 Request Statuses <span style="font-weight:400;color:#999;font-size:11px">(defaults: New · In Progress · Completed)</span></div>
+        <div style="font-weight:700;color:#B8860B;font-size:13px;margin-bottom:8px">🔖 Request Statuses <span style="font-weight:400;color:#999;font-size:11px">(defaults: New · In Progress · Completed)</span></div>
         <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">
           ${rss.length===0?`<span style="font-size:12px;color:#999">Using built-in defaults</span>`:rss.map(w=>`
             <span style="display:inline-flex;align-items:center;gap:5px;background:#FFF8E1;color:#7F6000;padding:5px 8px 5px 12px;border-radius:16px;font-size:12px;font-weight:600">
@@ -432,7 +432,7 @@ function renderEntryManage(){
         <div style="font-size:10px;color:#999;margin-top:5px">💡 The <strong>first</strong> status in this list is what new client requests start as.</div>
       </div>
       <div>
-        <div style="font-weight:800;color:#00695C;font-size:13px;margin-bottom:8px">🏗️ Project Statuses <span style="font-weight:400;color:#999;font-size:11px">(defaults: Active · On Hold · Completed)</span></div>
+        <div style="font-weight:700;color:#00695C;font-size:13px;margin-bottom:8px">🏗️ Project Statuses <span style="font-weight:400;color:#999;font-size:11px">(defaults: Active · On Hold · Completed)</span></div>
         <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">
           ${pss.length===0?`<span style="font-size:12px;color:#999">Using built-in defaults</span>`:pss.map(w=>`
             <span style="display:inline-flex;align-items:center;gap:5px;background:#E0F2F1;color:#00695C;padding:5px 8px 5px 12px;border-radius:16px;font-size:12px;font-weight:600">
@@ -589,8 +589,8 @@ window.viewReportLog = async function(){
         <tbody>${show.map(r=>{
           const pfx=r.prefix||String(r.refNo||"").split("-")[0];
           return `<tr>
-            <td style="font-weight:800;color:#03308B;white-space:nowrap">${escapeHtml(r.refNo||"—")}</td>
-            <td><span style="font-size:9px;background:#F0F4FF;color:#03308B;padding:1px 8px;border-radius:8px;font-weight:800">${escapeHtml((window.REF_TYPE_LABEL||{})[pfx]||r.reportType||"—")}</span></td>
+            <td style="font-weight:700;color:#03308B;white-space:nowrap">${escapeHtml(r.refNo||"—")}</td>
+            <td><span style="font-size:9px;background:#F0F4FF;color:#03308B;padding:1px 8px;border-radius:8px;font-weight:700">${escapeHtml((window.REF_TYPE_LABEL||{})[pfx]||r.reportType||"—")}</span></td>
             <td style="font-size:11px">${escapeHtml(r.exportedByName||r.exportedBy||"—")}</td>
             <td style="font-size:11px">${escapeHtml(r.period||"—")}</td>
             <td style="font-size:11px;white-space:nowrap">${r.at?new Date(r.at).toLocaleString("en-GB",{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit"}):"—"}</td>
@@ -772,17 +772,17 @@ function renderRecycleBin(){
   <div class="card" style="border-left:4px solid ${due?'#E65100':'#2E7D32'}">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
       <div style="flex:1;min-width:220px">
-        <div style="font-weight:800;font-size:14px;color:var(--text)">🗄️ Auto-Backup</div>
+        <div style="font-weight:700;font-size:14px;color:var(--text)">🗄️ Auto-Backup</div>
         <div style="font-size:11px;color:var(--muted);margin-top:3px">
           ${bk.lastBackupAt?`Last backup: <strong>${fmtDate(bk.lastBackupAt.slice(0,10))}</strong> (${lastD}d ago)`:"<strong>No backup taken yet</strong>"}
           · target every <select onchange="saveBackupInterval(this.value)" style="padding:2px 6px;border:1px solid var(--line);border-radius:8px;font-size:11px;font-weight:700">
             ${[7,14,30].map(v=>`<option value="${v}" ${bk.intervalDays===v?"selected":""}>${v}</option>`).join("")}
           </select> days.
-          ${due?'<span style="color:#E65100;font-weight:800"> ⚠ Backup due!</span>':' <span style="color:#2E7D32;font-weight:800">✓ On schedule</span>'}
+          ${due?'<span style="color:#E65100;font-weight:700"> ⚠ Backup due!</span>':' <span style="color:#2E7D32;font-weight:700">✓ On schedule</span>'}
         </div>
         <div style="font-size:10px;color:var(--muted);margin-top:4px">Downloads a full JSON snapshot of ALL data (entries, projects, assets, clients, requests, maintenance…). Keep it in Drive/OneDrive. The bell reminds you when a backup is due.</div>
       </div>
-      <button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:800;border:none" onclick="runFullBackup()">⬇ Backup now</button>
+      <button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:700;border:none" onclick="runFullBackup()">⬇ Backup now</button>
     </div>
   </div>
   <div class="card">
@@ -801,12 +801,12 @@ function renderRecycleBin(){
           <div style="flex:1;min-width:180px">
             <div style="font-weight:700;font-size:13px;color:var(--text)">${escapeHtml(_trTitle(t))}</div>
             <div style="font-size:10px;color:var(--muted)">
-              <span style="background:#F0F4FF;color:#03308B;padding:1px 7px;border-radius:8px;font-weight:800;font-size:9px">${escapeHtml(t.origCol)}</span>
+              <span style="background:#F0F4FF;color:#03308B;padding:1px 7px;border-radius:8px;font-weight:700;font-size:9px">${escapeHtml(t.origCol)}</span>
               · deleted ${fmtDate(String(t.deletedAt||"").slice(0,10))} by ${escapeHtml(t.deletedByName||"—")}
               · <span style="color:${leftD<=5?'#C62828':'var(--muted)'};font-weight:700">${leftD}d left</span>
             </div>
           </div>
-          <button class="btn btn-sm" style="background:#2E7D32;color:#fff;border:none;font-weight:800" onclick="restoreTrash('${t.id}')">♻ Restore</button>
+          <button class="btn btn-sm" style="background:#2E7D32;color:#fff;border:none;font-weight:700" onclick="restoreTrash('${t.id}')">♻ Restore</button>
           <button class="btn btn-sm btn-danger" onclick="purgeTrashItem('${t.id}')">🗑 Forever</button>
         </div>`;}).join("")}
     </div>`}

@@ -129,11 +129,11 @@ function riskRefreshScore(){
   const r=window._risk;
   const set=(id,html)=>{ const e=document.getElementById(id); if(e) e.innerHTML=html; };
   const s=riskScore(r), b=riskBand(s);
-  set("rkScore", `<span style="background:${b.bg};color:${b.fg};padding:2px 10px;border-radius:10px;font-weight:800">${s} \u00b7 ${escapeHtml(b.lb)}</span>`);
+  set("rkScore", `<span style="background:${b.bg};color:${b.fg};padding:2px 10px;border-radius:10px;font-weight:700">${s} \u00b7 ${escapeHtml(b.lb)}</span>`);
   set("rkBandNote", escapeHtml(b.note));
   const res=riskResidual(r);
   set("rkResidual", res==null ? "\u2014"
-    : `<span style="background:${riskBand(res).bg};color:${riskBand(res).fg};padding:2px 10px;border-radius:10px;font-weight:800">${res} \u00b7 ${escapeHtml(riskBand(res).lb)}</span>`);
+    : `<span style="background:${riskBand(res).bg};color:${riskBand(res).fg};padding:2px 10px;border-radius:10px;font-weight:700">${res} \u00b7 ${escapeHtml(riskBand(res).lb)}</span>`);
 }
 window.riskNew  = function(){ window._risk=riskBlank(); window._riskId=null; window._riskView="edit"; render(); };
 window.riskEdit = function(id){
@@ -274,7 +274,7 @@ function renderRisks(){
       <table style="border-collapse:collapse;width:100%;margin-top:8px">
         <tr><td style="padding:6px 8px;border-bottom:1px solid var(--line);font-size:11px;color:var(--muted)">Score \u00b7 likelihood \u00d7 impact</td>
             <td style="padding:6px 8px;border-bottom:1px solid var(--line);text-align:right" id="rkScore">
-              <span style="background:${b.bg};color:${b.fg};padding:2px 10px;border-radius:10px;font-weight:800">${s} \u00b7 ${escapeHtml(b.lb)}</span></td></tr>
+              <span style="background:${b.bg};color:${b.fg};padding:2px 10px;border-radius:10px;font-weight:700">${s} \u00b7 ${escapeHtml(b.lb)}</span></td></tr>
       </table>
       <div style="font-size:11px;color:var(--muted);margin-top:6px;line-height:1.7" id="rkBandNote">${escapeHtml(b.note)}</div>
     </div>
@@ -308,7 +308,7 @@ function renderRisks(){
       <table style="border-collapse:collapse;width:100%;margin-top:6px">
         <tr><td style="padding:6px 8px;font-size:11px;color:var(--muted)">Residual score</td>
             <td style="padding:6px 8px;text-align:right" id="rkResidual">${res==null?"\u2014"
-              :`<span style="background:${riskBand(res).bg};color:${riskBand(res).fg};padding:2px 10px;border-radius:10px;font-weight:800">${res} \u00b7 ${escapeHtml(riskBand(res).lb)}</span>`}</td></tr>
+              :`<span style="background:${riskBand(res).bg};color:${riskBand(res).fg};padding:2px 10px;border-radius:10px;font-weight:700">${res} \u00b7 ${escapeHtml(riskBand(res).lb)}</span>`}</td></tr>
       </table>
       <div class="field" style="margin-top:10px"><label>Notes</label>
         <textarea rows="2" oninput="riskSet('notes',this.value)">${escapeHtml(r.notes||"")}</textarea></div>
@@ -341,7 +341,7 @@ function renderRisks(){
       ${[["extreme","Extreme"],["high","High"],["medium","Medium"],["low","Low"]].map(([k,lb])=>{
         const bb=riskBand(k==="extreme"?25:k==="high"?12:k==="medium"?6:2);
         return `<div style="background:${bb.bg};color:${bb.fg};border-radius:8px;padding:9px;text-align:center">
-          <div style="font-size:16px;font-weight:800">${bands[k]}</div>
+          <div style="font-size:16px;font-weight:700">${bands[k]}</div>
           <div style="font-size:10px;opacity:.9">${lb}</div></div>`;}).join("")}
     </div>`:""}
   </div>
@@ -362,15 +362,15 @@ function renderRisks(){
     return `<div class="card" style="border-left:4px solid ${b.k==="low"?"#2E7D32":b.bg}">
       <div style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap">
         <div style="flex:1;min-width:150px">
-          <div style="font-weight:800;font-size:13px">${escapeHtml(r.title||"\u2014")}</div>
+          <div style="font-weight:700;font-size:13px">${escapeHtml(r.title||"\u2014")}</div>
           <div style="font-size:10px;color:var(--muted);line-height:1.7">
             ${cat.ic} ${escapeHtml(cat.lb)}${r.project?" \u00b7 "+escapeHtml(r.project):""}
             ${r.owner?"<br>Owner: "+escapeHtml(r.owner):"<br><span style='color:#E65100'>No owner</span>"}
-            ${r.dueDate?` \u00b7 due ${escapeHtml(fmtDate(r.dueDate))}${late?' <span style="color:#C62828;font-weight:800">overdue</span>':""}`:""}
+            ${r.dueDate?` \u00b7 due ${escapeHtml(fmtDate(r.dueDate))}${late?' <span style="color:#C62828;font-weight:700">overdue</span>':""}`:""}
           </div>
         </div>
         <div style="text-align:right;display:flex;flex-direction:column;gap:4px;align-items:flex-end">
-          <span style="background:${b.bg};color:${b.fg};padding:2px 10px;border-radius:10px;font-size:11px;font-weight:800;white-space:nowrap">${s} \u00b7 ${escapeHtml(b.lb)}</span>
+          <span style="background:${b.bg};color:${b.fg};padding:2px 10px;border-radius:10px;font-size:11px;font-weight:700;white-space:nowrap">${s} \u00b7 ${escapeHtml(b.lb)}</span>
           <span style="background:${S.bg};color:${S.fg};padding:1px 9px;border-radius:10px;font-size:10px;font-weight:700">${escapeHtml(S.lb)}</span>
         </div>
       </div>

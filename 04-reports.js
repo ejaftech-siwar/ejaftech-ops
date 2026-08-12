@@ -99,7 +99,7 @@ function renderTechReport(){
         <td style="font-weight:700">${escapeHtml(w.title)}<br><span style="font-size:10px;color:var(--muted)">${fmtDate(w.firstDate)}${w.visits>1?` → ${fmtDate(w.lastDate)}`:""}</span></td>
         <td style="font-size:11px">${escapeHtml(w.scopeLabel)}</td>
         <td style="font-size:10px;color:#456">${w.timeline.map(t=>escapeHtml(t.status)).join(" → ")}</td>
-        <td><span style="font-size:10px;background:${w.closed?'#E8F5E9':'#FFF3E0'};color:${w.closed?'#2E7D32':'#E65100'};padding:2px 8px;border-radius:8px;font-weight:800">${escapeHtml(w.status)}</span></td>
+        <td><span style="font-size:10px;background:${w.closed?'#E8F5E9':'#FFF3E0'};color:${w.closed?'#2E7D32':'#E65100'};padding:2px 8px;border-radius:8px;font-weight:700">${escapeHtml(w.status)}</span></td>
         <td>${w.visits}</td><td>${fmtHM(w.hours)}</td>
       </tr>`).join("")}</tbody>
     </table></div>
@@ -116,7 +116,7 @@ function renderTechReport(){
   if(canSeeReports()){
     h += `<div class="card" style="background:#0F2347">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
-        <div style="color:#C9A84C;font-weight:800;font-size:14px">📤 Export Technical Report</div>
+        <div style="color:#C9A84C;font-weight:700;font-size:14px">📤 Export Technical Report</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn" style="background:#C9A84C;color:#0F2347;border:none;font-weight:700" onclick="window._rptFormat='pdf';exportTechPDF()">📄 PDF</button>
           <button class="btn" style="background:#2E5FA3;color:white;border:none;font-weight:700" onclick="window._rptFormat='word';exportTechPDF()">📝 Word</button>
@@ -130,14 +130,14 @@ function renderTechReport(){
   h += `<div class="card">
     <div class="card-title">📊 Summary</div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:16px">
-      <div style="background:linear-gradient(135deg,#1B3A6B,#2E5FA3);color:white;border-radius:12px;padding:12px"><div style="font-size:11px;opacity:0.8">TOTAL TASKS</div><div style="font-size:22px;font-weight:800">${totalTasks}</div></div>
-      <div style="background:linear-gradient(135deg,#2E7D32,#43A047);color:white;border-radius:12px;padding:12px"><div style="font-size:11px;opacity:0.8">TOTAL HOURS</div><div style="font-size:22px;font-weight:800">${fmtHM(totalHours)}</div></div>
-      <div style="background:linear-gradient(135deg,#6A1B9A,#8E24AA);color:white;border-radius:12px;padding:12px"><div style="font-size:11px;opacity:0.8">WORK DAYS</div><div style="font-size:22px;font-weight:800">${workDays}</div></div>
+      <div style="background:linear-gradient(135deg,#1B3A6B,#2E5FA3);color:white;border-radius:12px;padding:12px"><div style="font-size:11px;opacity:0.8">TOTAL TASKS</div><div style="font-size:22px;font-weight:700">${totalTasks}</div></div>
+      <div style="background:linear-gradient(135deg,#2E7D32,#43A047);color:white;border-radius:12px;padding:12px"><div style="font-size:11px;opacity:0.8">TOTAL HOURS</div><div style="font-size:22px;font-weight:700">${fmtHM(totalHours)}</div></div>
+      <div style="background:linear-gradient(135deg,#6A1B9A,#8E24AA);color:white;border-radius:12px;padding:12px"><div style="font-size:11px;opacity:0.8">WORK DAYS</div><div style="font-size:22px;font-weight:700">${workDays}</div></div>
     </div>
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
       <div>
-        <div style="font-size:12px;font-weight:800;color:#C2185B;margin-bottom:6px">By Category</div>
+        <div style="font-size:12px;font-weight:700;color:#C2185B;margin-bottom:6px">By Category</div>
         ${Object.keys(byCat).sort((a,b)=>byCat[b]-byCat[a]).map(c=>`
           <div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid #f0f0f0">
             <span style="font-size:12px;color:#333"><span style="display:inline-block;width:10px;height:10px;border-radius:4px;background:${catColors[c]||'#999'};margin-right:6px"></span>${escapeHtml(c)}</span>
@@ -145,7 +145,7 @@ function renderTechReport(){
           </div>`).join("")}
       </div>
       <div>
-        <div style="font-size:12px;font-weight:800;color:#00897B;margin-bottom:6px">By Status</div>
+        <div style="font-size:12px;font-weight:700;color:#00897B;margin-bottom:6px">By Status</div>
         ${Object.keys(byStatus).sort((a,b)=>byStatus[b]-byStatus[a]).map(s=>`
           <div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid #f0f0f0">
             <span style="font-size:12px;color:#333">${escapeHtml(s)}</span>
@@ -220,7 +220,7 @@ function renderDailyLogReport(){
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
       <div style="border:1px solid var(--line);border-radius:12px;padding:12px;background:#F8FAFD">
         <div style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:1px">Period</div>
-        <div style="font-weight:800;color:#03308B;margin-top:3px;font-size:13px">📅 ${period}</div>
+        <div style="font-weight:700;color:#03308B;margin-top:3px;font-size:13px">📅 ${period}</div>
       </div>
       <div style="border:1px solid var(--line);border-radius:12px;padding:12px;background:#F8FAFD">
         <div style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:1px">Entries in report</div>
@@ -229,8 +229,8 @@ function renderDailyLogReport(){
     </div>
     <p style="font-size:11px;color:var(--muted);margin:0 0 14px;line-height:1.6">This report follows the header <strong>period</strong> and all <strong>global filters</strong> (branch, employee, project, work type…). Adjust them, then export.</p>
     <div style="display:flex;gap:10px;flex-wrap:wrap">
-      <button onclick="exportDailyPDF()" style="flex:1;min-width:150px;background:#03308B;color:#C9A84C;border:none;padding:14px;border-radius:12px;font-weight:800;font-size:13px;cursor:pointer;box-shadow:0 3px 10px rgba(27,58,107,0.22)">📄 Export PDF</button>
-      <button onclick="exportDailyExcel()" style="flex:1;min-width:150px;background:#1B5E20;color:#fff;border:none;padding:14px;border-radius:12px;font-weight:800;font-size:13px;cursor:pointer;box-shadow:0 3px 10px rgba(27,94,32,0.22)">📊 Export Excel</button>
+      <button onclick="exportDailyPDF()" style="flex:1;min-width:150px;background:#03308B;color:#C9A84C;border:none;padding:14px;border-radius:12px;font-weight:700;font-size:13px;cursor:pointer;box-shadow:0 3px 10px rgba(27,58,107,0.22)">📄 Export PDF</button>
+      <button onclick="exportDailyExcel()" style="flex:1;min-width:150px;background:#1B5E20;color:#fff;border:none;padding:14px;border-radius:12px;font-weight:700;font-size:13px;cursor:pointer;box-shadow:0 3px 10px rgba(27,94,32,0.22)">📊 Export Excel</button>
     </div>
   </div>`;
 }
@@ -270,7 +270,7 @@ function renderHRReport(){
   const hv = window._hrView || "summary";
   h += _pills('_hrView',[{id:"summary",ic:"📊",lb:"Summary"},{id:"daily",ic:"👥",lb:"Daily"},{id:"leaves",ic:"🏖️",lb:"Leaves"},{id:"overtime",ic:"⏱️",lb:"Overtime"},{id:"travel",ic:"✈️",lb:"Travel"}]);
   if(hv==="summary") h+=`<div class="card">
-    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">01</span> Executive Summary</div>
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:700">01</span> Executive Summary</div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-top:10px">
       <div style="border:1px solid var(--line);border-left:4px solid #2E5FA3;border-radius:8px;padding:12px;background:var(--card)">
         <div style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:1px">Total Hours</div>
@@ -302,7 +302,7 @@ function renderHRReport(){
 
   // ═══════ STAFF WORK SUMMARY (Section 2) ═══════
   if(hv==="daily") h+=`<div class="card">
-    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">02</span> Staff Work Summary</div>
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:700">02</span> Staff Work Summary</div>
     <div class="tbl-wrap"><table class="tbl">
       <thead><tr style="background:linear-gradient(135deg,#1B3A6B,#2E5FA3);color:white"><th style="color:white">Employee</th>${state.departments.map(d=>`<th style="color:white;border-bottom:3px solid ${d.color}">${escapeHtml(d.name.slice(0,8))}</th>`).join("")}<th style="color:white">Total</th><th style="color:white">OT</th><th style="color:white">Travel</th><th style="color:white">Per Diem</th><th style="color:white">Leave</th></tr></thead>
       <tbody>${s.map((r,idx)=>`<tr style="background:${idx%2?'#F5F8FC':'white'}">
@@ -328,7 +328,7 @@ function renderHRReport(){
   // ═══════ LEAVES SECTION (Section 3) — NEW ═══════
   if(hv==="leaves"){
   h+=`<div class="card">
-    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">03</span> Employee Leaves</div>
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:700">03</span> Employee Leaves</div>
     ${state.leaves.length===0?`<div class="empty">No leaves recorded</div>`:`
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;margin-bottom:14px">
       ${LEAVE_TYPES.map(lt=>{
@@ -369,7 +369,7 @@ function renderHRReport(){
   // ═══════ OVERTIME (Section 4) ═══════
   if(hv==="overtime"){
   h+=`<div class="card">
-    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">04</span> Overtime by Employee</div>`;
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:700">04</span> Overtime by Employee</div>`;
   emps.forEach(emp=>{
     const my=applyReportFilters(state.overtime).filter(r=>r.employee===emp);
     const sub=my.reduce((a,r)=>a+Number(r.hours||0),0);
@@ -390,7 +390,7 @@ function renderHRReport(){
   // ═══════ TRAVEL (Section 5) ═══════
   if(hv==="travel"){
   h+=`<div class="card">
-    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">05</span> Travel by Employee</div>`;
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:700">05</span> Travel by Employee</div>`;
   emps.forEach(emp=>{
     const my=applyReportFilters(state.travel).filter(r=>r.employee===emp);
     const sd=my.reduce((a,r)=>a+Number(r.days||0),0);
@@ -599,9 +599,9 @@ function renderAnalytics(){
   return `
   <div class="card" style="background:linear-gradient(135deg,#1B3A6B,#2E5FA3);border:none;color:white">
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
-      <div><div style="font-size:16px;font-weight:800">📊 Smart Analytics</div>
+      <div><div style="font-size:16px;font-weight:700">📊 Smart Analytics</div>
       <div style="font-size:11px;opacity:.75;margin-top:2px">All-time & recent trends · independent of the period filter · works offline</div></div>
-      <div style="text-align:right"><div style="font-size:22px;font-weight:800;color:#C9A84C">${fmtHM(curM)}</div>
+      <div style="text-align:right"><div style="font-size:22px;font-weight:700;color:#C9A84C">${fmtHM(curM)}</div>
       <div style="font-size:10px;opacity:.8">this month ${_anDelta(curM,prevM)}</div></div>
     </div>
   </div>
@@ -699,11 +699,11 @@ function execSLAPanel(){
           return `<tr>
             <td style="font-weight:700">${escapeHtml(x.nm)}</td>
             <td style="font-size:var(--f-sm)">${projectSLA(x.nm).responseHrs}h${projectSLA(x.nm).perProject?"":" <span style='color:var(--muted)'>(global)</span>"}</td>
-            <td>${c?`<span style="font-weight:800;color:${c.pct>=95?'var(--ok)':c.pct>=85?'var(--warn)':'var(--danger)'}">${c.pct}%</span>
+            <td>${c?`<span style="font-weight:700;color:${c.pct>=95?'var(--ok)':c.pct>=85?'var(--warn)':'var(--danger)'}">${c.pct}%</span>
                   <span style="font-size:var(--f-2xs);color:var(--muted)"> ${c.met}/${c.total}</span>`:"—"}</td>
             <td>${e?e.cost.toLocaleString():"—"}</td>
             <td>${e&&e.value?e.value.toLocaleString():"—"}</td>
-            <td style="font-weight:800;color:${col}">${e&&e.margin!==null?`${e.margin.toLocaleString()} (${e.marginPct}%)`:"—"}</td>
+            <td style="font-weight:700;color:${col}">${e&&e.margin!==null?`${e.margin.toLocaleString()} (${e.marginPct}%)`:"—"}</td>
           </tr>`;}).join("")}</tbody></table></div>
       <p style="font-size:var(--f-2xs);color:var(--muted);margin:9px 0 0;line-height:1.6">Set each contract's response target, value and hourly cost in <strong>Database → Projects</strong>. Blank targets fall back to the global SLA in Settings.</p>`:""}
     </div>`;
@@ -749,7 +749,7 @@ function renderExecutive(){
   const sevc={high:"#C62828",med:"#E65100",low:"#2E5FA3"};
   return (typeof execSLAPanel==="function"?execSLAPanel():"") + `
   <div class="card" style="background:linear-gradient(135deg,#101F3C,#1B3A6B);border:1px solid #C9A84C;color:#fff">
-    <div style="font-size:16px;font-weight:800">👑 Executive View</div>
+    <div style="font-size:16px;font-weight:700">👑 Executive View</div>
     <div style="font-size:11px;opacity:.72;margin-top:2px">${now.toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long",year:"numeric"})} · live company snapshot</div>
   </div>
   <div class="ex-grid">
@@ -765,13 +765,13 @@ function renderExecutive(){
     ${alerts.map((al,i)=>`<button class="ex-al" onclick="(window._alertsCache=computeAlerts())&&_alertGo(${i})">
       <span style="width:7px;height:7px;border-radius:4px;background:${sevc[al.sev]};flex:0 0 auto"></span>
       <span style="font-size:14px">${al.icon}</span>
-      <span style="flex:1;text-align:left"><span style="font-weight:800;font-size:12px;display:block">${escapeHtml(al.title)}</span><span style="font-size:10px;color:var(--muted)">${escapeHtml(al.meta||"")}</span></span>
-      <span style="color:#C9A84C;font-weight:800">›</span></button>`).join("")}
+      <span style="flex:1;text-align:left"><span style="font-weight:700;font-size:12px;display:block">${escapeHtml(al.title)}</span><span style="font-size:10px;color:var(--muted)">${escapeHtml(al.meta||"")}</span></span>
+      <span style="color:#C9A84C;font-weight:700">›</span></button>`).join("")}
   </div>`:`<div class="card"><div class="empty empty2"><span class="e-ic">✅</span><div class="e-t">All clear</div><div class="e-m">Nothing needs leadership intervention right now</div></div></div>`}
   <div class="card">
     <div class="card-title">🏗️ Portfolio — active projects</div>
     ${port.length?port.map(p=>`<div class="ex-p">
-      <div class="ex-pt"><span style="font-weight:800">${escapeHtml(p.n)}</span>
+      <div class="ex-pt"><span style="font-weight:700">${escapeHtml(p.n)}</span>
         ${p.code?`<span class="ex-code">${escapeHtml(p.code)}</span>`:""}
         ${p.st?`<span class="ex-st">${escapeHtml(p.st)}</span>`:""}
         <span style="margin-left:auto;font-size:11px;color:var(--muted)">${fmtHM(p.m)} this month</span></div>
@@ -821,10 +821,10 @@ function permsMatrixHTML(){
       <thead><tr><th>User</th><th>Role</th>${CAPS.map(c=>`<th title="${c[2]}" style="text-align:center">${c[1]}</th>`).join("")}</tr></thead>
       <tbody>${users.map(u=>{
         const role=u.role||"employee";
-        const badge=`<span style="font-size:9px;background:${role==="admin"?"#FFF3D6":role==="client"?"#F3E8FF":"#F0F4FF"};color:${role==="admin"?"#8F6E22":role==="client"?"#6A1B9A":"#03308B"};padding:1px 8px;border-radius:8px;font-weight:800">${escapeHtml(role)}</span>`;
+        const badge=`<span style="font-size:9px;background:${role==="admin"?"#FFF3D6":role==="client"?"#F3E8FF":"#F0F4FF"};color:${role==="admin"?"#8F6E22":role==="client"?"#6A1B9A":"#03308B"};padding:1px 8px;border-radius:8px;font-weight:700">${escapeHtml(role)}</span>`;
         let cells;
         if(role==="admin"){
-          cells=CAPS.map(()=>`<td style="text-align:center"><span title="Built into the Admin role — full access always" style="color:#2E7D32;font-weight:800">✓</span></td>`).join("");
+          cells=CAPS.map(()=>`<td style="text-align:center"><span title="Built into the Admin role — full access always" style="color:#2E7D32;font-weight:700">✓</span></td>`).join("");
         } else if(role==="client"){
           cells=`<td colspan="${CAPS.length}" style="text-align:center"><button class="btn btn-sm btn-secondary" style="font-size:11px" onclick="switchTab('Clients')">Managed in Clients ↗</button></td>`;
         } else {
@@ -832,7 +832,7 @@ function permsMatrixHTML(){
             const hrAuto=(role==="hr")&&["canViewReports","canAnalytics","canAssets","canExport"].includes(c[0]);
             const on=hrAuto||!!u[c[0]];
             return `<td style="text-align:center">${hrAuto
-              ?`<span title="Built into the HR role" style="color:#2E7D32;font-weight:800">✓</span>`
+              ?`<span title="Built into the HR role" style="color:#2E7D32;font-weight:700">✓</span>`
               :`<input type="checkbox" ${on?"checked":""} style="width:17px;height:17px;accent-color:#C9A84C;cursor:pointer" onchange="setCap('${u.id}','${c[0]}',this.checked)">`}</td>`;
           }).join("");
         }

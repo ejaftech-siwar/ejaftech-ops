@@ -221,7 +221,7 @@ function openWaShare(record){
       <div style="background:var(--card);border-radius:16px;max-width:400px;width:100%;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,0.3);max-height:85vh;display:flex;flex-direction:column">
         <div style="background:#25D366;padding:16px 20px;color:white;display:flex;align-items:center;gap:10px">
           <span style="font-size:22px">📲</span>
-          <div><div style="font-size:16px;font-weight:800">Share to WhatsApp</div><div style="font-size:11px;opacity:0.9">Choose a contact or group</div></div>
+          <div><div style="font-size:16px;font-weight:700">Share to WhatsApp</div><div style="font-size:11px;opacity:0.9">Choose a contact or group</div></div>
         </div>
         <div style="padding:14px 18px;overflow-y:auto">
           <div style="background:#F0F4FA;border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:11px;color:#475569;white-space:pre-wrap;max-height:120px;overflow-y:auto;border:1px solid #E2E8F0">${escapeHtml(msg)}</div>
@@ -234,7 +234,7 @@ function openWaShare(record){
                     <div style="font-weight:700;font-size:13px;color:#1B3A6B">${escapeHtml(c.name)}</div>
                     <div style="font-size:10px;color:#888">${c.type==="group"?"Group — copy & paste":"Number — opens ready to send"}</div>
                   </div>
-                  <span style="color:#25D366;font-weight:900;font-size:18px">→</span>
+                  <span style="color:#25D366;font-weight:700;font-size:18px">→</span>
                 </button>`).join("")}
               </div>`}
         </div>
@@ -382,7 +382,7 @@ function renderScheduledReportsCard(){
       <div style="display:flex;align-items:center;gap:10px">
         <span style="font-size:22px">📅</span>
         <div>
-          <div style="font-size:14px;font-weight:800;color:#1B3A6B">Automatic Scheduled Reports</div>
+          <div style="font-size:14px;font-weight:700;color:#1B3A6B">Automatic Scheduled Reports</div>
           <div style="font-size:11px;color:${s.enabled?'#2E7D32':'#999'};font-weight:600">${s.enabled?'● Automatic sending ENABLED (runs on server)':'○ Automatic sending OFF — manual button only'}</div>
         </div>
       </div>
@@ -442,7 +442,7 @@ function renderScheduledReportsCard(){
 
     <!-- Recipient Groups -->
     <div style="margin-top:16px;display:flex;align-items:center;justify-content:space-between">
-      <div style="font-size:13px;font-weight:800;color:#1B3A6B">📬 Recipient Groups (${(s.groups||[]).length})</div>
+      <div style="font-size:13px;font-weight:700;color:#1B3A6B">📬 Recipient Groups (${(s.groups||[]).length})</div>
       <button class="btn btn-sm" style="background:#2E7D32;color:white;border:none;font-weight:700" onclick="addSchedGroup()">+ Add Group</button>
     </div>
 
@@ -521,7 +521,7 @@ function renderSchedManagersBlock(){
   const emps = allEmployees();
   return `
   <div style="margin-top:16px;border:1px solid #CE93D8;border-radius:12px;padding:14px;background:#FBF5FC">
-    <div style="font-size:13px;font-weight:800;color:#6A1B9A;margin-bottom:4px">🔑 Who can manage scheduled reports</div>
+    <div style="font-size:13px;font-weight:700;color:#6A1B9A;margin-bottom:4px">🔑 Who can manage scheduled reports</div>
     <p style="font-size:11px;color:#777;margin-bottom:10px">By default only Admin can edit this. Grant access to specific people (e.g. HR) so they can manage groups and recipients too.</p>
     <div style="display:flex;flex-wrap:wrap;gap:6px">
       ${emps.map(emp=>{
@@ -750,7 +750,7 @@ function renderEmailTab(){
   const configured = s.serviceId && s.templateId && s.publicKey;
 
   const ev = window._emailView || "setup";
-  const _ep=(id,ic,lb)=>`<button onclick="window._emailView='${id}';window.__navFade=true;render()" style="flex:1;padding:10px 4px;border:none;border-radius:8px;font-weight:800;font-size:11px;cursor:pointer;background:${ev===id?'#03308B':'#E8EEF7'};color:${ev===id?'#C9A84C':'#1B3A6B'}">${ic} ${lb}</button>`;
+  const _ep=(id,ic,lb)=>`<button onclick="window._emailView='${id}';window.__navFade=true;render()" style="flex:1;padding:10px 4px;border:none;border-radius:8px;font-weight:700;font-size:11px;cursor:pointer;background:${ev===id?'#03308B':'#E8EEF7'};color:${ev===id?'#C9A84C':'#1B3A6B'}">${ic} ${lb}</button>`;
   let h = `<div style="display:flex;gap:6px;margin-bottom:14px">${_ep("setup","🔑","Setup")}${_ep("recipients","👥","Recipients")}${_ep("options","🧩","Options")}${_ep("scheduled","⏰","Scheduled")}</div>`;
   if(ev==="setup")      h += `
   <!-- MASTER SWITCH -->
@@ -759,7 +759,7 @@ function renderEmailTab(){
       <div style="display:flex;align-items:center;gap:12px">
         <span style="font-size:28px">${s.enabled?'📧':'📭'}</span>
         <div>
-          <div style="font-size:16px;font-weight:800;color:#1B3A6B">Email Notifications</div>
+          <div style="font-size:16px;font-weight:700;color:#1B3A6B">Email Notifications</div>
           <div style="font-size:12px;color:${s.enabled?'#2E7D32':'#999'};font-weight:600">${s.enabled?'● Service ACTIVE':'○ Service OFF (saving budget)'}</div>
         </div>
       </div>
@@ -837,7 +837,7 @@ function renderEmailTab(){
       <div style="display:flex;align-items:center;gap:10px">
         <span style="font-size:22px">${s.autoSend?'⚡':'✋'}</span>
         <div>
-          <div style="font-size:14px;font-weight:800;color:#1B3A6B">Automatic Sending</div>
+          <div style="font-size:14px;font-weight:700;color:#1B3A6B">Automatic Sending</div>
           <div style="font-size:11px;color:${s.autoSend?'#2E7D32':'#999'};font-weight:600">${s.autoSend?'● Sends instantly on each new task':'○ Manual only (📧 button)'}</div>
         </div>
       </div>
@@ -1113,7 +1113,7 @@ function openEmailShare(record){
       <div style="background:var(--card);border-radius:16px;max-width:400px;width:100%;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,0.3);max-height:85vh;display:flex;flex-direction:column">
         <div style="background:#03308B;padding:16px 20px;color:white;display:flex;align-items:center;gap:10px">
           <span style="font-size:22px">📧</span>
-          <div><div style="font-size:16px;font-weight:800">Send Email Notification</div><div style="font-size:11px;opacity:0.9">Select recipients</div></div>
+          <div><div style="font-size:16px;font-weight:700">Send Email Notification</div><div style="font-size:11px;opacity:0.9">Select recipients</div></div>
         </div>
         <div style="padding:14px 18px;overflow-y:auto">
           <div style="background:#F0F4FA;border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:11px;color:#475569;white-space:pre-wrap;max-height:120px;overflow-y:auto;border:1px solid #E2E8F0">${escapeHtml(body)}</div>

@@ -388,10 +388,10 @@ function exrProjectRowsHTML(t){
     <td style="${TD};text-align:right">${p.iqd?p.iqd.toLocaleString():"\u2014"}</td></tr>`).join("");
   // The check row exists so a reader can see the parts add back to the whole.
   return body + `<tr>
-    <td style="${TD};font-weight:800">All projects</td>
+    <td style="${TD};font-weight:700">All projects</td>
     <td style="${TD};text-align:center;color:var(--muted)">${rows.reduce((s,p)=>s+p.lines,0)}</td>
-    <td style="${TD};text-align:right;font-weight:800">${_usd(t.subUSD)}</td>
-    <td style="${TD};text-align:right;font-weight:800">${t.subIQD.toLocaleString()}</td></tr>`;
+    <td style="${TD};text-align:right;font-weight:700">${_usd(t.subUSD)}</td>
+    <td style="${TD};text-align:right;font-weight:700">${t.subIQD.toLocaleString()}</td></tr>`;
 }
 Object.assign(window,{exrProjectRowsHTML});
 
@@ -404,7 +404,7 @@ function exrMemoHTML(r,t){
   const eqUSD=t.dueUSD + (t.dueIQD/rate);
   const eqIQD=t.dueIQD + (t.dueUSD*rate);
   return `<div style="background:var(--bg);border:1px dashed var(--line);border-radius:8px;padding:9px;margin-top:10px">
-    <div style="font-size:10px;font-weight:800;color:var(--muted);letter-spacing:.4px;margin-bottom:5px">MEMORANDUM ONLY \u00b7 NOT PAYABLE</div>
+    <div style="font-size:10px;font-weight:700;color:var(--muted);letter-spacing:.4px;margin-bottom:5px">MEMORANDUM ONLY \u00b7 NOT PAYABLE</div>
     <div style="font-size:11px;line-height:1.8">
       At <strong>1 USD = ${escapeHtml(String(rate))} IQD</strong>, the whole settlement is worth about
       <strong>${eqUSD<0?"-":""}$${Math.abs(eqUSD).toLocaleString(undefined,{maximumFractionDigits:2})}</strong>
@@ -633,8 +633,8 @@ window.exrDel = async function(id){
 
 // ── Screens ──────────────────────────────────────────────────────────────
 function _advRow(l,v,strong){
-  return `<tr><td style="padding:5px 8px;border-bottom:1px solid var(--line);font-size:11px;${strong?"font-weight:800":"color:var(--muted)"}">${l}</td>
-    <td style="padding:5px 8px;border-bottom:1px solid var(--line);text-align:right;font-size:${strong?"13px":"12px"};${strong?"font-weight:800":""}">${v}</td></tr>`;
+  return `<tr><td style="padding:5px 8px;border-bottom:1px solid var(--line);font-size:11px;${strong?"font-weight:700":"color:var(--muted)"}">${l}</td>
+    <td style="padding:5px 8px;border-bottom:1px solid var(--line);text-align:right;font-size:${strong?"13px":"12px"};${strong?"font-weight:700":""}">${v}</td></tr>`;
 }
 const _usd=(n)=>"$"+(num(n)).toLocaleString(undefined,{maximumFractionDigits:2});
 const _iqd=(n)=>Math.round(num(n)).toLocaleString()+" IQD";
@@ -716,7 +716,7 @@ function renderAdvances(){
          ["Outstanding IQD",_iqd(tot.iqd),tot.iqd?"#E65100":"#2E7D32"],
          ["Unsettled",String(tot.count),tot.count?"#E65100":"#2E7D32"]]
         .map(([l,v,c])=>`<div style="background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:9px;text-align:center">
-          <div style="font-size:14px;font-weight:800;color:${c}">${v}</div>
+          <div style="font-size:14px;font-weight:700;color:${c}">${v}</div>
           <div style="font-size:10px;color:var(--muted)">${l}</div></div>`).join("")}
     </div>
     <div style="font-size:10px;color:var(--muted);margin-top:8px;line-height:1.7">Cash handed out and not yet accounted for by an approved claim. This is company money sitting in pockets.</div>
@@ -730,13 +730,13 @@ function renderAdvances(){
     return `<div class="card" style="border-left:4px solid ${S.fg}">
       <div style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap">
         <div style="flex:1;min-width:150px">
-          <div style="font-weight:800;font-size:13px">${escapeHtml(a.employee||"\u2014")}</div>
+          <div style="font-weight:700;font-size:13px">${escapeHtml(a.employee||"\u2014")}</div>
           <div style="font-size:10px;color:var(--muted);line-height:1.7">
             ${escapeHtml(a.purpose||"")}<br>
             ${a.date?escapeHtml(fmtDate(a.date)):"\u2014"}${(()=>{const ps=advProjectsOf(a);return ps.length?" \u00b7 "+ps.map(p=>escapeHtml(p)).join(" \u00b7 "):"";})()}${a.ref?" \u00b7 "+escapeHtml(a.ref):""}
           </div>
         </div>
-        <span style="background:${S.bg};color:${S.fg};padding:2px 9px;border-radius:10px;font-size:10px;font-weight:800;white-space:nowrap">${S.lb}</span>
+        <span style="background:${S.bg};color:${S.fg};padding:2px 9px;border-radius:10px;font-size:10px;font-weight:700;white-space:nowrap">${S.lb}</span>
       </div>
       <table style="border-collapse:collapse;width:100%;margin-top:8px">
         ${num(a.usd)?_advRow("Advanced USD", _usd(a.usd)):""}
@@ -878,7 +878,7 @@ function renderAdvancesRegister(){
 
   ${!rows.length?`<div class="card"><div class="empty">
       <div style="font-size:30px">\u{1F4B3}</div>
-      <div style="font-weight:800;margin-top:6px">No advances match</div>
+      <div style="font-weight:700;margin-top:6px">No advances match</div>
       <div style="font-size:11px;color:var(--muted);margin-top:4px;line-height:1.7">
         ${(f.employee||f.status||f.from||f.to)?"Widen or clear the filters above.":"Advances recorded under Finance \u2192 Advances appear here."}</div>
     </div></div>`
@@ -909,8 +909,8 @@ function renderAdvancesRegister(){
         <td>${escapeHtml(r.a.issuedBy||"\u2014")}</td>
         <td style="text-align:right">${money(r.usd,r.iqd)}</td>
         <td style="text-align:right">${(r.apUSD||r.apIQD)?money(r.apUSD,r.apIQD):"\u2014"}</td>
-        <td style="text-align:right;font-weight:800;color:${(r.outUSD||r.outIQD)?"#E65100":"var(--muted)"}">${(r.outUSD||r.outIQD)?money(r.outUSD,r.outIQD):"\u2014"}</td>
-        <td style="text-align:center"><span style="background:${S.bg};color:${S.fg};padding:2px 8px;border-radius:10px;font-size:9.5px;font-weight:800;white-space:nowrap">${S.lb}</span>
+        <td style="text-align:right;font-weight:700;color:${(r.outUSD||r.outIQD)?"#E65100":"var(--muted)"}">${(r.outUSD||r.outIQD)?money(r.outUSD,r.outIQD):"\u2014"}</td>
+        <td style="text-align:center"><span style="background:${S.bg};color:${S.fg};padding:2px 8px;border-radius:10px;font-size:9.5px;font-weight:700;white-space:nowrap">${S.lb}</span>
           ${r.a.closedManually&&r.a.closedReason?`<div style="font-size:9px;color:var(--muted);margin-top:3px;white-space:normal">${escapeHtml(r.a.closedReason)}</div>`:""}</td>
         ${isAdmin()?`<td style="text-align:center;white-space:nowrap">
           <button class="btn btn-sm btn-secondary" style="padding:3px 8px;font-size:10px" onclick="advEditFrom('${r.a.id}')" title="Correct the amount, purpose or projects">\u270e</button>
@@ -919,10 +919,10 @@ function renderAdvancesRegister(){
         </td>`:""}
       </tr>`;}).join("")}
       <tr style="background:var(--bg)">
-        <td style="font-weight:800;white-space:normal;position:sticky;left:0;background:var(--bg);z-index:1" colspan="6">Totals \u00b7 ${T.count} advance(s)</td>
-        <td style="text-align:right;font-weight:800">${money(T.usd,T.iqd)}</td>
-        <td style="text-align:right;font-weight:800">${money(T.apUSD,T.apIQD)}</td>
-        <td style="text-align:right;font-weight:800;color:#E65100">${money(T.outUSD,T.outIQD)}</td>
+        <td style="font-weight:700;white-space:normal;position:sticky;left:0;background:var(--bg);z-index:1" colspan="6">Totals \u00b7 ${T.count} advance(s)</td>
+        <td style="text-align:right;font-weight:700">${money(T.usd,T.iqd)}</td>
+        <td style="text-align:right;font-weight:700">${money(T.apUSD,T.apIQD)}</td>
+        <td style="text-align:right;font-weight:700;color:#E65100">${money(T.outUSD,T.outIQD)}</td>
         <td></td>${isAdmin()?`<td></td>`:""}
       </tr></tbody>
     </table></div>
@@ -943,7 +943,7 @@ function renderAdvancesRegister(){
         <td style="font-weight:700;white-space:normal">${escapeHtml(e.name)}</td>
         <td style="text-align:center;color:var(--muted)">${e.n}</td>
         <td style="text-align:right">${money(e.usd,e.iqd)}</td>
-        <td style="text-align:right;font-weight:800;color:${(e.outUSD||e.outIQD)?"#E65100":"var(--green)"}">${(e.outUSD||e.outIQD)?money(e.outUSD,e.outIQD):"clear"}</td>
+        <td style="text-align:right;font-weight:700;color:${(e.outUSD||e.outIQD)?"#E65100":"var(--green)"}">${(e.outUSD||e.outIQD)?money(e.outUSD,e.outIQD):"clear"}</td>
       </tr>`).join("")}</tbody>
     </table></div>
   </div>`}`;
@@ -957,8 +957,8 @@ window.advRegisterPDF = async function(){
   const TH='padding:5px 6px;border:1px solid #D6E4F0;background:#03308B;color:#fff;text-align:center;font-size:8pt';
   const TD='padding:5px 6px;border:1px solid #D6E4F0;font-size:8.5pt';
   const NUM=TD+';text-align:right;white-space:nowrap';
-  const R2=(l,v,strong)=>`<tr><td style="padding:6px 10px;border:1px solid #D6E4F0;${strong?"font-weight:800":""};width:62%">${l}</td>
-    <td style="padding:6px 10px;border:1px solid #D6E4F0;text-align:right;${strong?"font-weight:800;font-size:13px":""}">${v}</td></tr>`;
+  const R2=(l,v,strong)=>`<tr><td style="padding:6px 10px;border:1px solid #D6E4F0;${strong?"font-weight:700":""};width:62%">${l}</td>
+    <td style="padding:6px 10px;border:1px solid #D6E4F0;text-align:right;${strong?"font-weight:700;font-size:13px":""}">${v}</td></tr>`;
   const K=(()=>{let n=0;return()=>String(++n).padStart(2,"0");})();
   const per=(f.from||f.to)?`${f.from?fmtDate(f.from):"\u2014"} \u2192 ${f.to?fmtDate(f.to):"\u2014"}`:"All dates";
   const stLabel={outstanding:"Still outstanding", open:"Open", partly:"Partly settled",
@@ -996,14 +996,14 @@ window.advRegisterPDF = async function(){
       <td style="${TD};text-align:center">${escapeHtml(r.a.issuedBy||"\u2014")}</td>
       <td style="${NUM}">${m(r.usd,r.iqd)||"\u2014"}</td>
       <td style="${NUM}">${m(r.apUSD,r.apIQD)||"\u2014"}</td>
-      <td style="${NUM};font-weight:800">${m(r.outUSD,r.outIQD)||"\u2014"}</td>
+      <td style="${NUM};font-weight:700">${m(r.outUSD,r.outIQD)||"\u2014"}</td>
       <td style="${TD};text-align:center;font-size:7.5pt">${escapeHtml(S.lb)}</td>
     </tr>`;}).join("")}
     <tr>
-      <td style="${TD};font-weight:800;background:#F5F8FC" colspan="5">Totals \u00b7 ${T.count} advance(s)</td>
-      <td style="${NUM};font-weight:800;background:#F5F8FC">${T.usd?"$"+T.usd.toLocaleString():""}${T.usd&&T.iqd?"<br>":""}${T.iqd?T.iqd.toLocaleString()+" IQD":""}</td>
-      <td style="${NUM};font-weight:800;background:#F5F8FC">${T.apUSD?"$"+T.apUSD.toLocaleString():""}${T.apUSD&&T.apIQD?"<br>":""}${T.apIQD?T.apIQD.toLocaleString()+" IQD":""}</td>
-      <td style="${NUM};font-weight:800;background:#F5F8FC">${T.outUSD?"$"+T.outUSD.toLocaleString():""}${T.outUSD&&T.outIQD?"<br>":""}${T.outIQD?T.outIQD.toLocaleString()+" IQD":""}</td>
+      <td style="${TD};font-weight:700;background:#F5F8FC" colspan="5">Totals \u00b7 ${T.count} advance(s)</td>
+      <td style="${NUM};font-weight:700;background:#F5F8FC">${T.usd?"$"+T.usd.toLocaleString():""}${T.usd&&T.iqd?"<br>":""}${T.iqd?T.iqd.toLocaleString()+" IQD":""}</td>
+      <td style="${NUM};font-weight:700;background:#F5F8FC">${T.apUSD?"$"+T.apUSD.toLocaleString():""}${T.apUSD&&T.apIQD?"<br>":""}${T.apIQD?T.apIQD.toLocaleString()+" IQD":""}</td>
+      <td style="${NUM};font-weight:700;background:#F5F8FC">${T.outUSD?"$"+T.outUSD.toLocaleString():""}${T.outUSD&&T.outIQD?"<br>":""}${T.outIQD?T.outIQD.toLocaleString()+" IQD":""}</td>
       <td style="${TD};background:#F5F8FC"></td>
     </tr></tbody>
   </table>
@@ -1023,7 +1023,7 @@ window.advRegisterPDF = async function(){
       <td style="${TD}">${escapeHtml(e.name)}</td>
       <td style="${TD};text-align:center">${e.n}</td>
       <td style="${NUM}">${e.usd?"$"+e.usd.toLocaleString():""}${e.usd&&e.iqd?"<br>":""}${e.iqd?e.iqd.toLocaleString()+" IQD":""}</td>
-      <td style="${NUM};font-weight:800">${(e.outUSD||e.outIQD)?`${e.outUSD?"$"+e.outUSD.toLocaleString():""}${e.outUSD&&e.outIQD?"<br>":""}${e.outIQD?e.outIQD.toLocaleString()+" IQD":""}`:"clear"}</td>
+      <td style="${NUM};font-weight:700">${(e.outUSD||e.outIQD)?`${e.outUSD?"$"+e.outUSD.toLocaleString():""}${e.outUSD&&e.outIQD?"<br>":""}${e.outIQD?e.outIQD.toLocaleString()+" IQD":""}`:"clear"}</td>
     </tr>`).join("")}</tbody>
   </table>
 
@@ -1184,7 +1184,7 @@ function renderExpenseClaims(){
           <input value="${escapeHtml(String(r.rate||curRate()||""))}" oninput="exrSet('rate',this.value);exrRefresh()" inputmode="decimal" placeholder="${escapeHtml(String(curRate()||"e.g. 1320"))}">
           <div style="font-size:10px;color:var(--muted);margin-top:4px;line-height:1.6">
             The rate this claim was settled at, stored on the document so it stays true even when the company rate moves later.
-            ${curRate()?`Company rate today is <strong>${escapeHtml(String(curRate()))}</strong> \u2014 <button type="button" onclick="exrSet('rate',String(curRate()));render()" style="background:none;border:none;color:#03308B;font-weight:800;font-size:10px;cursor:pointer;padding:0;text-decoration:underline">use it</button>.`
+            ${curRate()?`Company rate today is <strong>${escapeHtml(String(curRate()))}</strong> \u2014 <button type="button" onclick="exrSet('rate',String(curRate()));render()" style="background:none;border:none;color:#03308B;font-weight:700;font-size:10px;cursor:pointer;padding:0;text-decoration:underline">use it</button>.`
                        :`No company rate is set yet \u2014 you can set one under <strong>Finance \u2192 Currency</strong>.`}
             It charges expenses to each project's own currency. <strong>It never merges the two settlement totals.</strong>
           </div></div>
@@ -1244,10 +1244,10 @@ function renderExpenseClaims(){
             <td style="padding:2px;border:1px solid var(--line)"><input value="${escapeHtml(String(l[g.k+"IQD"]||""))}" oninput="exrLineSet(${i},'${g.k}IQD',this.value)" inputmode="decimal" style="width:100%;font-size:11px;padding:5px;text-align:right"></td>`).join("")}
           <td style="padding:2px;border:1px solid var(--line);text-align:center"><button class="btn btn-sm" style="background:#FDECEA;color:#C62828;border:none;padding:2px 6px;font-size:11px" onclick="exrLineDel(${i})">\u00d7</button></td>
         </tr>`).join("")}
-        <tr><td colspan="4" style="padding:6px 8px;border:1px solid var(--line);font-weight:800;font-size:11px;text-align:left">Totals</td>
+        <tr><td colspan="4" style="padding:6px 8px;border:1px solid var(--line);font-weight:700;font-size:11px;text-align:left">Totals</td>
           ${EXR_GROUPS.map(g=>`
-            <td style="padding:6px;border:1px solid var(--line);text-align:right;font-weight:800;font-size:11px" id="exrG_${g.k}_usd">${t.byGroup[g.k].usd?_usd(t.byGroup[g.k].usd):"\u2014"}</td>
-            <td style="padding:6px;border:1px solid var(--line);text-align:right;font-weight:800;font-size:11px" id="exrG_${g.k}_iqd">${t.byGroup[g.k].iqd?t.byGroup[g.k].iqd.toLocaleString():"\u2014"}</td>`).join("")}
+            <td style="padding:6px;border:1px solid var(--line);text-align:right;font-weight:700;font-size:11px" id="exrG_${g.k}_usd">${t.byGroup[g.k].usd?_usd(t.byGroup[g.k].usd):"\u2014"}</td>
+            <td style="padding:6px;border:1px solid var(--line);text-align:right;font-weight:700;font-size:11px" id="exrG_${g.k}_iqd">${t.byGroup[g.k].iqd?t.byGroup[g.k].iqd.toLocaleString():"\u2014"}</td>`).join("")}
           <td style="border:1px solid var(--line)"></td></tr>
         </tbody>
       </table></div>
@@ -1273,7 +1273,7 @@ function renderExpenseClaims(){
                 <strong>${escapeHtml(a.ref||a.purpose||"Advance")}</strong>
                 <div style="color:var(--muted);font-size:10px">${a.date?escapeHtml(fmtDate(a.date)):"\u2014"}${a.project?" \u00b7 "+escapeHtml(a.project):""} \u00b7 outstanding ${o.usd>0?_usd(o.usd):""}${o.usd>0&&o.iqd>0?" + ":""}${o.iqd>0?_iqd(o.iqd):""}</div>
               </div>
-              ${on?`<span style="font-size:10px;font-weight:800;color:#2E7D32;white-space:nowrap">\u2713 Added</span>`
+              ${on?`<span style="font-size:10px;font-weight:700;color:#2E7D32;white-space:nowrap">\u2713 Added</span>`
                  :`<button class="btn btn-sm btn-primary" onclick="exrAddAdvance('${a.id}')">Add</button>`}
             </div>`;}).join("")}
         </div>`;})():""}
@@ -1287,7 +1287,7 @@ function renderExpenseClaims(){
         <input value="${escapeHtml(String(a.iqd||""))}" oninput="exrAdvSet(${i},'iqd',this.value)" inputmode="decimal" placeholder="IQD" style="width:110px;text-align:right">
         <button class="btn btn-sm" style="background:#FDECEA;color:#C62828;border:none" onclick="exrAdvDel(${i})">\u00d7</button>
       </div>`).join("")}
-      ${(r.advanceIds||[]).length?`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:9px 0 0;font-size:11px;font-weight:800">
+      ${(r.advanceIds||[]).length?`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:9px 0 0;font-size:11px;font-weight:700">
         <span style="flex:1;min-width:120px">Total advances \u00b7 ${(r.advanceIds||[]).length} applied</span>
         <span id="exrAdvSumUSD" style="width:90px;text-align:right">${_usd(t.advUSD)}</span>
         <span id="exrAdvSumIQD" style="width:110px;text-align:right">${t.advIQD.toLocaleString()} IQD</span>
@@ -1358,7 +1358,7 @@ function renderExpenseClaims(){
     return `<div class="card" style="border-left:4px solid ${S.fg}">
       <div style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap">
         <div style="flex:1;min-width:150px">
-          <div style="font-weight:800;font-size:13px">${escapeHtml(r.employee||"\u2014")}</div>
+          <div style="font-weight:700;font-size:13px">${escapeHtml(r.employee||"\u2014")}</div>
           <div style="font-size:10px;color:var(--muted);line-height:1.7">
             ${r.ref?escapeHtml(r.ref)+" \u00b7 ":""}${r.date?escapeHtml(fmtDate(r.date)):"\u2014"}
             ${(r.periodFrom||r.periodTo)?`<br>${r.periodFrom?escapeHtml(fmtDate(r.periodFrom)):""} \u2192 ${r.periodTo?escapeHtml(fmtDate(r.periodTo)):""}`:""}
@@ -1369,7 +1369,7 @@ function renderExpenseClaims(){
             ${(r.advanceIds||[]).length?`<br>${(r.advanceIds||[]).length} advance(s) applied`:""}
           </div>
         </div>
-        <span style="background:${S.bg};color:${S.fg};padding:2px 9px;border-radius:10px;font-size:10px;font-weight:800;white-space:nowrap">${S.ic} ${S.lb}</span>
+        <span style="background:${S.bg};color:${S.fg};padding:2px 9px;border-radius:10px;font-size:10px;font-weight:700;white-space:nowrap">${S.ic} ${S.lb}</span>
       </div>
       <table style="border-collapse:collapse;width:100%;margin-top:8px">
         ${t.subUSD?_advRow("Expenses USD", _usd(t.subUSD)):""}
@@ -1406,8 +1406,8 @@ window.expenseClaimDoc = async function(id){
   const TS='padding:5px 6px;border:1px solid #D6E4F0;background:#1B3A6B;color:#fff;text-align:center;font-size:8.5px';
   const TD='padding:5px 6px;border:1px solid #D6E4F0;font-size:9.5px';
   const NUM=TD+';text-align:right';
-  const R=(l,v,strong)=>`<tr><td style="padding:6px 10px;border:1px solid #D6E4F0;${strong?"font-weight:800":""};width:62%">${l}</td>
-    <td style="padding:6px 10px;border:1px solid #D6E4F0;text-align:right;${strong?"font-weight:800;font-size:13px":""}">${v}</td></tr>`;
+  const R=(l,v,strong)=>`<tr><td style="padding:6px 10px;border:1px solid #D6E4F0;${strong?"font-weight:700":""};width:62%">${l}</td>
+    <td style="padding:6px 10px;border:1px solid #D6E4F0;text-align:right;${strong?"font-weight:700;font-size:13px":""}">${v}</td></tr>`;
   const period=(r.periodFrom||r.periodTo)
     ? `${r.periodFrom?fmtDate(r.periodFrom):"\u2014"} \u2192 ${r.periodTo?fmtDate(r.periodTo):"\u2014"}` : "\u2014";
   const lines=(r.lines||[]).filter(l=>String(l.desc||"").trim() ||
@@ -1455,10 +1455,10 @@ window.expenseClaimDoc = async function(id){
         <td style="${NUM}">${num(l[g.k+"IQD"])?escapeHtml(num(l[g.k+"IQD"]).toLocaleString()):""}</td>`).join("")}
     </tr>`).join("")}
     <tr>
-      <td colspan="4" style="${TD};font-weight:800;background:#F5F8FC">Totals</td>
+      <td colspan="4" style="${TD};font-weight:700;background:#F5F8FC">Totals</td>
       ${EXR_GROUPS.map(g=>`
-        <td style="${NUM};font-weight:800;background:#F5F8FC">${t.byGroup[g.k].usd?escapeHtml(t.byGroup[g.k].usd.toLocaleString()):"\u2014"}</td>
-        <td style="${NUM};font-weight:800;background:#F5F8FC">${t.byGroup[g.k].iqd?escapeHtml(t.byGroup[g.k].iqd.toLocaleString()):"\u2014"}</td>`).join("")}
+        <td style="${NUM};font-weight:700;background:#F5F8FC">${t.byGroup[g.k].usd?escapeHtml(t.byGroup[g.k].usd.toLocaleString()):"\u2014"}</td>
+        <td style="${NUM};font-weight:700;background:#F5F8FC">${t.byGroup[g.k].iqd?escapeHtml(t.byGroup[g.k].iqd.toLocaleString()):"\u2014"}</td>`).join("")}
     </tr>
     </tbody>
   </table>
@@ -1481,10 +1481,10 @@ window.expenseClaimDoc = async function(id){
       <td style="${NUM}">${p.iqd?escapeHtml(p.iqd.toLocaleString()):"\u2014"}</td>
     </tr>`).join("")}
     <tr>
-      <td style="${TD};font-weight:800;background:#F5F8FC">All projects</td>
-      <td style="${TD};text-align:center;font-weight:800;background:#F5F8FC">${pr.reduce((s,p)=>s+p.lines,0)}</td>
-      <td style="${NUM};font-weight:800;background:#F5F8FC">${escapeHtml(t.subUSD.toLocaleString())}</td>
-      <td style="${NUM};font-weight:800;background:#F5F8FC">${escapeHtml(t.subIQD.toLocaleString())}</td>
+      <td style="${TD};font-weight:700;background:#F5F8FC">All projects</td>
+      <td style="${TD};text-align:center;font-weight:700;background:#F5F8FC">${pr.reduce((s,p)=>s+p.lines,0)}</td>
+      <td style="${NUM};font-weight:700;background:#F5F8FC">${escapeHtml(t.subUSD.toLocaleString())}</td>
+      <td style="${NUM};font-weight:700;background:#F5F8FC">${escapeHtml(t.subIQD.toLocaleString())}</td>
     </tr></tbody>
   </table>
   <div style="margin-top:6px;font-size:9px;font-style:italic;color:#555;line-height:1.6">
@@ -1503,7 +1503,7 @@ window.expenseClaimDoc = async function(id){
         `<span style="color:${t.dueIQD<0?"#C62828":"#2E7D32"}">${t.dueIQD<0?"- ":""}${Math.abs(t.dueIQD).toLocaleString()} IQD</span>`, true)}
   </table>
   ${(r.advanceIds||[]).length?`<div style="margin-top:10px">
-    <div style="font-weight:800;font-size:11px;color:#03308B;margin-bottom:4px">Advances applied</div>
+    <div style="font-weight:700;font-size:11px;color:#03308B;margin-bottom:4px">Advances applied</div>
     <table style="border-collapse:collapse;width:100%">
       <thead><tr><th style="${TH};text-align:left">Reference</th><th style="${TH};width:80px">Date</th>
         <th style="${TH};width:80px;text-align:right">USD</th><th style="${TH};width:92px;text-align:right">IQD</th></tr></thead>
@@ -1513,7 +1513,7 @@ window.expenseClaimDoc = async function(id){
         <td style="${NUM}">${num(a.usd)?escapeHtml(num(a.usd).toLocaleString()):"\u2014"}</td>
         <td style="${NUM}">${num(a.iqd)?escapeHtml(num(a.iqd).toLocaleString()):"\u2014"}</td>
       </tr>`).join("")}</tbody></table></div>`:""}
-  ${r.notes?`<div style="margin-top:10px"><div style="font-weight:800;font-size:11px;color:#03308B;margin-bottom:4px">Notes</div>
+  ${r.notes?`<div style="margin-top:10px"><div style="font-weight:700;font-size:11px;color:#03308B;margin-bottom:4px">Notes</div>
     <div style="font-size:10.5px;line-height:1.8;white-space:pre-wrap">${escapeHtml(r.notes)}</div></div>`:""}
 
   <div class="ksec" style="page-break-inside:avoid"><span class="kbad">${K()}</span><h3>Authorisation</h3></div>

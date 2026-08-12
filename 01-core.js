@@ -989,7 +989,7 @@ function partialDataNotice(){
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         <span style="font-size:var(--f-2xl)">📴</span>
         <div style="flex:1;min-width:180px">
-          <div style="font-size:var(--f-lg);font-weight:800;color:var(--warn-ink)">Showing ${loaded} of ${total} data sets</div>
+          <div style="font-size:var(--f-lg);font-weight:700;color:var(--warn-ink)">Showing ${loaded} of ${total} data sets</div>
           <div style="font-size:var(--f-sm);color:var(--warn-ink);opacity:.85;margin-top:2px;line-height:1.55">The rest was not saved on this device yet. Figures below cover only what is here — connect once and everything fills in.</div>
         </div>
       </div></div>`;
@@ -1570,7 +1570,7 @@ function employeeBadge(name){
   if(!name) return "—";
   const safe = escapeHtml(name);
   if(isExternalEmployee(name)){
-    return `<span style="display:inline-flex;align-items:center;gap:5px;color:#7F4A00;font-weight:700">${safe}<span style="background:linear-gradient(135deg,#FF9800 0%,#FFB74D 100%);color:#fff;padding:1px 7px;border-radius:8px;font-size:9px;font-weight:800;letter-spacing:0.5px;box-shadow:0 1px 3px rgba(0,0,0,0.15)">EXT</span></span>`;
+    return `<span style="display:inline-flex;align-items:center;gap:5px;color:#7F4A00;font-weight:700">${safe}<span style="background:linear-gradient(135deg,#FF9800 0%,#FFB74D 100%);color:#fff;padding:1px 7px;border-radius:8px;font-size:9px;font-weight:700;letter-spacing:0.5px;box-shadow:0 1px 3px rgba(0,0,0,0.15)">EXT</span></span>`;
   }
   return safe;
 }
@@ -1763,7 +1763,7 @@ function renderEmployeeFilterUI(label){
           const fg = isExt ? '#7F4A00' : 'white';
           return `<span style="background:${bg};color:${fg};padding:3px 10px;border-radius:16px;font-size:11px;font-weight:700;display:inline-flex;align-items:center;gap:4px">
             ${escapeHtml(e)}${isExt ? '<span style="font-size:9px;background:rgba(0,0,0,0.15);padding:1px 4px;border-radius:4px">EXT</span>' : ''}
-            <button onclick="toggleEmployeeFilter(${jsArg(e)});event.stopPropagation()" style="background:rgba(255,255,255,0.3);border:none;color:inherit;width:16px;height:16px;border-radius:50%;cursor:pointer;font-weight:900;font-size:10px;line-height:1;padding:0;display:inline-flex;align-items:center;justify-content:center">×</button>
+            <button onclick="toggleEmployeeFilter(${jsArg(e)});event.stopPropagation()" style="background:rgba(255,255,255,0.3);border:none;color:inherit;width:16px;height:16px;border-radius:50%;cursor:pointer;font-weight:700;font-size:10px;line-height:1;padding:0;display:inline-flex;align-items:center;justify-content:center">×</button>
           </span>`;
         }).join("")}
       </div>
@@ -1836,7 +1836,7 @@ function openEmployeeFilterModal(){
           return `<label style="display:flex;align-items:center;gap:10px;padding:9px 10px;border:1px solid ${checked?'#2E5FA3':'#E0E6ED'};border-radius:8px;background:${checked?'#F0F4FA':'white'};cursor:pointer;margin-bottom:6px;transition:all 0.15s" onclick="event.stopPropagation()">
             <input type="checkbox" ${checked?'checked':''} onchange="toggleEmployeeFilter(${jsArg(e)},true)" style="width:18px;height:18px;cursor:pointer;accent-color:#2E5FA3">
             <span style="flex:1;font-size:13px;font-weight:600;color:#1A202C">${escapeHtml(e)}</span>
-            ${isExt ? '<span style="background:linear-gradient(135deg,#FF9800 0%,#FFB74D 100%);color:#fff;padding:2px 8px;border-radius:8px;font-size:10px;font-weight:800;letter-spacing:0.5px">EXT</span>' : '<span style="background:#E8F5E9;color:#2F855A;padding:2px 8px;border-radius:8px;font-size:10px;font-weight:700;letter-spacing:0.5px">INTERNAL</span>'}
+            ${isExt ? '<span style="background:linear-gradient(135deg,#FF9800 0%,#FFB74D 100%);color:#fff;padding:2px 8px;border-radius:8px;font-size:10px;font-weight:700;letter-spacing:0.5px">EXT</span>' : '<span style="background:#E8F5E9;color:#2F855A;padding:2px 8px;border-radius:8px;font-size:10px;font-weight:700;letter-spacing:0.5px">INTERNAL</span>'}
           </label>`;
         }).join("")}
       </div>
@@ -1988,13 +1988,13 @@ function renderShareView(d){
   renderRoot(`
   <div style="min-height:100vh;background:linear-gradient(160deg,#0E1E3C 0%,#1B3A6B 100%);padding:0 0 40px">
     <div style="background:rgba(255,255,255,.06);backdrop-filter:blur(8px);border-bottom:1px solid rgba(201,168,76,.35);padding:14px 16px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:5">
-      <div style="width:40px;height:40px;border-radius:12px;background:#03308B;display:flex;align-items:center;justify-content:center;color:#C9A84C;font-weight:900;font-size:13px;border:1.5px solid #C9A84C">EJAF</div>
+      <div style="width:40px;height:40px;border-radius:12px;background:#03308B;display:flex;align-items:center;justify-content:center;color:#C9A84C;font-weight:700;font-size:13px;border:1.5px solid #C9A84C">EJAF</div>
       <div style="flex:1">
         <div style="color:#fff;font-family:'DM Serif Display',serif;font-size:16px">${escapeHtml(d.clientName||"Client")} — Live Project View</div>
         <div style="color:#9FB6D2;font-size:10px">EJAF Technology · Girêk Operations</div>
       </div>
       <div style="text-align:right">
-        <span style="display:inline-flex;align-items:center;gap:6px;background:rgba(46,125,50,.25);color:#A5D6A7;font-size:10px;font-weight:800;padding:3px 10px;border-radius:12px;border:1px solid rgba(165,214,167,.4)"><span style="width:7px;height:7px;border-radius:50%;background:#66BB6A;display:inline-block;animation:cfade 1.2s ease-in-out infinite alternate"></span>LIVE</span>
+        <span style="display:inline-flex;align-items:center;gap:6px;background:rgba(46,125,50,.25);color:#A5D6A7;font-size:10px;font-weight:700;padding:3px 10px;border-radius:12px;border:1px solid rgba(165,214,167,.4)"><span style="width:7px;height:7px;border-radius:50%;background:#66BB6A;display:inline-block;animation:cfade 1.2s ease-in-out infinite alternate"></span>LIVE</span>
         <div style="color:#9FB6D2;font-size:9px;margin-top:3px">Updated ${escapeHtml(d.updatedLabel||"")}</div>
       </div>
     </div>
@@ -2003,7 +2003,7 @@ function renderShareView(d){
       <div style="background:var(--card);border-radius:16px;box-shadow:0 6px 24px rgba(0,0,0,.25);margin-bottom:16px;overflow:hidden">
         <div style="background:linear-gradient(135deg,#1B3A6B,#2E5FA3);padding:14px 16px;display:flex;justify-content:space-between;align-items:center;gap:10px">
           <div style="color:#fff;font-family:'DM Serif Display',serif;font-size:18px">${escapeHtml(p.name)}</div>
-          ${p.status?`<span style="background:rgba(201,168,76,.25);color:#F0D68A;font-size:10px;font-weight:800;padding:3px 10px;border-radius:12px">${escapeHtml(p.status)}</span>`:""}
+          ${p.status?`<span style="background:rgba(201,168,76,.25);color:#F0D68A;font-size:10px;font-weight:700;padding:3px 10px;border-radius:12px">${escapeHtml(p.status)}</span>`:""}
         </div>
         <div style="padding:14px 16px">
           ${p.estHours?`
@@ -2016,24 +2016,24 @@ function renderShareView(d){
             <div style="flex:1;min-width:90px;background:#F5F8FC;border-radius:8px;padding:9px;text-align:center"><div style="font-family:'DM Serif Display',serif;font-size:18px;color:${p.openReq?'#E65100':'#5B6C86'}">${p.openReq}</div><div style="font-size:9px;color:#888;font-weight:700;text-transform:uppercase">Open requests</div></div>
           </div>
           ${(p.locations||[]).length?(()=>{const mx=Math.max(...p.locations.map(l=>l.hours),0.1);return `
-          <div style="font-size:10px;color:#888;font-weight:800;text-transform:uppercase;letter-spacing:.5px;margin:2px 0 7px">Work hours by location</div>
+          <div style="font-size:10px;color:#888;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin:2px 0 7px">Work hours by location</div>
           ${p.locations.map(l=>`<div style="display:flex;align-items:center;gap:9px;margin-bottom:6px">
             <div style="width:112px;font-size:11px;color:#333;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">📍 ${escapeHtml(l.name)}</div>
             <div style="flex:1;height:8px;background:#E8EDF5;border-radius:4px;overflow:hidden"><div style="height:100%;width:${Math.max(4,Math.round(l.hours/mx*100))}%;background:linear-gradient(90deg,#2E5FA3,#5E9BFF);border-radius:4px"></div></div>
-            <div style="width:58px;text-align:right;font-size:11px;color:#1B3A6B;font-weight:800">${l.hours} h</div>
+            <div style="width:58px;text-align:right;font-size:11px;color:#1B3A6B;font-weight:700">${l.hours} h</div>
           </div>`).join("")}
           <div style="margin-bottom:12px"></div>`;})():""}
           ${(p.sites||[]).length?`
-          <div style="font-size:10px;color:#888;font-weight:800;text-transform:uppercase;letter-spacing:.5px;margin-bottom:7px">Field sites</div>
+          <div style="font-size:10px;color:#888;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:7px">Field sites</div>
           <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
             ${p.sites.map(s=>`<span style="background:#F0F4FF;color:#03308B;border:1px solid #D6E0F5;font-size:10px;font-weight:700;padding:4px 10px;border-radius:12px">${escapeHtml([s.area,s.site].filter(Boolean).join(" › "))} · ${s.devices} dev</span>`).join("")}
           </div>`:""}
           ${(p.workItems||[]).length?`
-          <div style="font-size:10px;color:#888;font-weight:800;text-transform:uppercase;letter-spacing:.5px;margin-bottom:7px">Work items${p.openJobs?` — ${p.openJobs} open`:""}</div>
+          <div style="font-size:10px;color:#888;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:7px">Work items${p.openJobs?` — ${p.openJobs} open`:""}</div>
           ${p.workItems.map(w=>`<div style="border:1px solid #EDF1F7;border-radius:8px;padding:9px 11px;margin-bottom:7px">
             <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
               <span style="font-size:12px;font-weight:700;color:#1B3A6B">${escapeHtml(w.title)}${w.scope?` <span style="font-weight:500;color:#8A9AB0">· ${escapeHtml(w.scope)}</span>`:""}</span>
-              <span style="font-size:9px;background:${w.closed?'#E8F5E9':'#FFF3E0'};color:${w.closed?'#2E7D32':'#E65100'};padding:2px 9px;border-radius:8px;font-weight:800">${escapeHtml(w.status)}</span>
+              <span style="font-size:9px;background:${w.closed?'#E8F5E9':'#FFF3E0'};color:${w.closed?'#2E7D32':'#E65100'};padding:2px 9px;border-radius:8px;font-weight:700">${escapeHtml(w.status)}</span>
             </div>
             ${(w.journey||[]).length>1?`<div style="margin-top:6px;display:flex;align-items:center;flex-wrap:wrap">
               ${w.journey.map((j,i)=>`${i?`<span style="color:#C4D0E0;margin:0 4px;font-size:10px">→</span>`:""}<span style="font-size:10px;color:#5A6B80;background:#F5F8FC;padding:2px 7px;border-radius:8px">${escapeHtml(j.s)} <span style="color:#9AAABF">${fmtD(j.d)}</span></span>`).join("")}
@@ -2042,11 +2042,11 @@ function renderShareView(d){
           </div>`).join("")}
           <div style="margin-bottom:10px"></div>`:""}
           ${(p.recent||[]).length?`
-          <div style="font-size:10px;color:#888;font-weight:800;text-transform:uppercase;letter-spacing:.5px;margin-bottom:7px">Latest activity</div>
+          <div style="font-size:10px;color:#888;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:7px">Latest activity</div>
           ${p.recent.map(r=>`<div style="display:flex;gap:10px;align-items:flex-start;padding:7px 0;border-top:1px solid #F0F2F7">
             <div style="font-size:10px;color:#999;white-space:nowrap;padding-top:2px">${fmtD(r.date)}</div>
             <div style="flex:1;font-size:12px;color:#333">${escapeHtml(r.text)}</div>
-            ${r.status?`<span style="font-size:9px;font-weight:800;color:${stC[r.status]||'#888'};background:${(stC[r.status]||'#888')}18;padding:2px 8px;border-radius:8px;white-space:nowrap">${escapeHtml(r.status)}</span>`:""}
+            ${r.status?`<span style="font-size:9px;font-weight:700;color:${stC[r.status]||'#888'};background:${(stC[r.status]||'#888')}18;padding:2px 8px;border-radius:8px;white-space:nowrap">${escapeHtml(r.status)}</span>`:""}
           </div>`).join("")}`:""}
         </div>
       </div>`).join("")}
@@ -2768,8 +2768,8 @@ function renderApp(){
         </div>
         <button class="gs-btn" onclick="gsToggle()" title="Search anything" aria-label="Search">
           <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
-        </button><span id="syncPill" class="sync-pill ok" onclick="paintSyncPill()"></span>${state.offlineSession?`<span class="sync-pill off" title="Opened from the session saved on this device. It will re-authenticate the moment you reconnect." style="margin-left:4px">📴 Local session</span>`:""}<span id="netDot" title="You are offline — changes will sync when back online" style="display:${(typeof navigator!=='undefined'&&navigator.onLine===false)?'inline-flex':'none'};align-items:center;gap:5px;background:#7A1F1F;color:#FFD9D9;font-size:10px;font-weight:800;padding:4px 9px;border-radius:12px;margin-right:4px">📴 OFFLINE</span><button id="themeBtn" onclick="toggleTheme()" title="Light / Dark mode" style="background:rgba(255,255,255,0.14);border:none;border-radius:8px;width:32px;height:32px;font-size:14px;cursor:pointer;margin-right:2px;line-height:1">${document.documentElement.getAttribute('data-theme')==='dark'?ICON_SUN:ICON_MOON}</button><span id="notifBell" onclick="openNotifPanel()" style="position:relative;cursor:pointer;font-size:18px;padding:4px 6px;margin-right:2px;user-select:none" class="bell-btn ${bellCount()>0?'ring':''}">${ICON_BELL}<span id="notifBellBadge" style="position:absolute;top:0;right:-2px;background:#C62828;color:#fff;font-size:9px;font-weight:800;min-width:15px;height:15px;border-radius:8px;display:${bellCount()>0?'flex':'none'};align-items:center;justify-content:center;padding:0 3px">${bellCount()>99?'99+':bellCount()}</span></span>
-        <button onclick="switchTab('Profile')" title="My Profile" style="width:40px;height:40px;border-radius:50%;padding:0;border:2px solid var(--gold);background:var(--navy);color:var(--gold);font-weight:800;font-size:14px;cursor:pointer;overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.25)">${(state.profile&&state.profile.photoData)?`<img src="${state.profile.photoData}" alt="" style="width:100%;height:100%;object-fit:cover">`:escapeHtml(((state.profile&&(state.profile.name||state.profile.employeeName||state.profile.email))||"?").charAt(0).toUpperCase())}</button>
+        </button><span id="syncPill" class="sync-pill ok" onclick="paintSyncPill()"></span>${state.offlineSession?`<span class="sync-pill off" title="Opened from the session saved on this device. It will re-authenticate the moment you reconnect." style="margin-left:4px">📴 Local session</span>`:""}<span id="netDot" title="You are offline — changes will sync when back online" style="display:${(typeof navigator!=='undefined'&&navigator.onLine===false)?'inline-flex':'none'};align-items:center;gap:5px;background:#7A1F1F;color:#FFD9D9;font-size:10px;font-weight:700;padding:4px 9px;border-radius:12px;margin-right:4px">📴 OFFLINE</span><button id="themeBtn" onclick="toggleTheme()" title="Light / Dark mode" style="background:rgba(255,255,255,0.14);border:none;border-radius:8px;width:32px;height:32px;font-size:14px;cursor:pointer;margin-right:2px;line-height:1">${document.documentElement.getAttribute('data-theme')==='dark'?ICON_SUN:ICON_MOON}</button><span id="notifBell" onclick="openNotifPanel()" style="position:relative;cursor:pointer;font-size:18px;padding:4px 6px;margin-right:2px;user-select:none" class="bell-btn ${bellCount()>0?'ring':''}">${ICON_BELL}<span id="notifBellBadge" style="position:absolute;top:0;right:-2px;background:#C62828;color:#fff;font-size:9px;font-weight:700;min-width:15px;height:15px;border-radius:8px;display:${bellCount()>0?'flex':'none'};align-items:center;justify-content:center;padding:0 3px">${bellCount()>99?'99+':bellCount()}</span></span>
+        <button onclick="switchTab('Profile')" title="My Profile" style="width:40px;height:40px;border-radius:50%;padding:0;border:2px solid var(--gold);background:var(--navy);color:var(--gold);font-weight:700;font-size:14px;cursor:pointer;overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.25)">${(state.profile&&state.profile.photoData)?`<img src="${state.profile.photoData}" alt="" style="width:100%;height:100%;object-fit:cover">`:escapeHtml(((state.profile&&(state.profile.name||state.profile.employeeName||state.profile.email))||"?").charAt(0).toUpperCase())}</button>
       </div>
       ${(()=>{
         const groups = getVisibleGroups();
@@ -2777,7 +2777,7 @@ function renderApp(){
           // Client portal: keep the simple flat bar
           return `<nav class="tab-bar" id="tabBar">${tabs.map(t=>{
             const nReq = tabBadgeCount(t);
-            return `<button class="tab ${t===state.tab?"active":""}" data-tab="${t}" onclick="switchTab('${t}')" style="position:relative">${t}${nReq?`<span style="position:absolute;top:2px;right:2px;background:#C62828;color:white;font-size:9px;font-weight:800;min-width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 4px">${nReq}</span>`:""}</button>`;
+            return `<button class="tab ${t===state.tab?"active":""}" data-tab="${t}" onclick="switchTab('${t}')" style="position:relative">${t}${nReq?`<span style="position:absolute;top:2px;right:2px;background:#C62828;color:white;font-size:9px;font-weight:700;min-width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 4px">${nReq}</span>`:""}</button>`;
           }).join("")}<span class="tab-indicator" id="tabIndicator"></span></nav>`;
         }
         const activeGroup = groupOfTab(state.tab);
@@ -2789,11 +2789,11 @@ function renderApp(){
         <nav class="tab-bar group-bar" id="groupBar">${groups.map(g=>{
           const n = groupReqCount(g);
           const on = g.id===activeGroup;
-          return `<button class="tab gtab ${on?"active":""}" data-group="${g.id}" onclick="switchGroup('${g.id}')" style="position:relative">${NAV_ICONS[g.id]||g.icon}<span class="gtab-lb">${g.label}</span>${n?`<span style="position:absolute;top:2px;right:2px;background:#C62828;color:white;font-size:9px;font-weight:800;min-width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 4px">${n}</span>`:""}</button>`;
+          return `<button class="tab gtab ${on?"active":""}" data-group="${g.id}" onclick="switchGroup('${g.id}')" style="position:relative">${NAV_ICONS[g.id]||g.icon}<span class="gtab-lb">${g.label}</span>${n?`<span style="position:absolute;top:2px;right:2px;background:#C62828;color:white;font-size:9px;font-weight:700;min-width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 4px">${n}</span>`:""}</button>`;
         }).join("")}<span class="tab-indicator" id="groupIndicator"></span></nav>
         ${curGroup.children.length>1?`<nav class="tab-bar sub-bar" id="tabBar">${curGroup.children.map(t=>{
           const nReq = tabBadgeCount(t);
-          return `<button class="tab subtab ${t===state.tab?"active":""}" data-tab="${t}" onclick="switchTab('${t}')" style="position:relative">${t}${nReq?`<span style="position:absolute;top:2px;right:2px;background:#C62828;color:white;font-size:9px;font-weight:800;min-width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 4px">${nReq}</span>`:""}</button>`;
+          return `<button class="tab subtab ${t===state.tab?"active":""}" data-tab="${t}" onclick="switchTab('${t}')" style="position:relative">${t}${nReq?`<span style="position:absolute;top:2px;right:2px;background:#C62828;color:white;font-size:9px;font-weight:700;min-width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 4px">${nReq}</span>`:""}</button>`;
         }).join("")}<span class="tab-indicator" id="tabIndicator"></span></nav>`:`<span class="tab-indicator" id="tabIndicator" style="display:none"></span>`}`;
       })()}
     </header>
@@ -3175,7 +3175,7 @@ function statPills(cur, call, opts){
   opts = opts || ["Pass","Fail","N/A"];
   return `<span class="stat3" style="display:inline-flex;gap:4px">${opts.map(o=>{
     const on = (cur===o);
-    return `<button type="button" data-o="${o}" class="btn btn-sm${on?"":" btn-secondary"}" style="${on?`background:${STAT_COL[o]||"#5B6C86"};color:#fff;border:none;`:""}font-size:10px;font-weight:800" onclick="${String(call).replace(/__V__/g,o).replace(/__EL__/g,"this")}">${o}</button>`;
+    return `<button type="button" data-o="${o}" class="btn btn-sm${on?"":" btn-secondary"}" style="${on?`background:${STAT_COL[o]||"#5B6C86"};color:#fff;border:none;`:""}font-size:10px;font-weight:700" onclick="${String(call).replace(/__V__/g,o).replace(/__EL__/g,"this")}">${o}</button>`;
   }).join("")}</span>`;
 }
 // Repaint the group that owns `el` so the tapped option reads as selected.
@@ -3185,7 +3185,7 @@ window.statPaint = function(el, val){
   grp.querySelectorAll("button[data-o]").forEach(b=>{
     const o = b.getAttribute("data-o"), on = (o===val);
     b.className = "btn btn-sm" + (on?"":" btn-secondary");
-    b.setAttribute("style", (on?`background:${STAT_COL[o]||"#5B6C86"};color:#fff;border:none;`:"") + "font-size:10px;font-weight:800");
+    b.setAttribute("style", (on?`background:${STAT_COL[o]||"#5B6C86"};color:#fff;border:none;`:"") + "font-size:10px;font-weight:700");
   });
   return true;
 };
@@ -3410,7 +3410,7 @@ function openPeriodDialog(){
     <div id="periodDialog" style="position:fixed;inset:0;background:rgba(10,22,46,0.6);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px" onclick="if(event.target===this)this.remove()">
       <div style="background:var(--card);border-radius:16px;max-width:380px;width:100%;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,0.3)">
         <div style="background:linear-gradient(135deg,#03308B,#1a4db5);padding:18px 22px;color:white">
-          <div style="font-size:16px;font-weight:800">📅 Reporting Period</div>
+          <div style="font-size:16px;font-weight:700">📅 Reporting Period</div>
           <div style="font-size:11px;opacity:0.7;margin-top:2px">All tabs and reports will filter to this date range</div>
         </div>
         <div style="padding:20px 22px">
@@ -4000,7 +4000,7 @@ window.alertsHTML=function(){
   const sevc={high:"#C62828",med:"#E65100",low:"#2E5FA3"};
   if(!A.length) return "";
   return `<div style="background:#FFF8E1;border-bottom:2px solid #C9A84C">
-    <div style="padding:8px 12px;font-size:11px;font-weight:800;color:#7F6000;letter-spacing:.5px">⚠️ SMART ALERTS · ${A.length}</div>
+    <div style="padding:8px 12px;font-size:11px;font-weight:700;color:#7F6000;letter-spacing:.5px">⚠️ SMART ALERTS · ${A.length}</div>
     ${A.map((a,i)=>`<div style="display:flex;align-items:center;gap:9px;padding:9px 12px;border-top:1px solid #F0E2B8">
       <span onclick="_alertGo(${i})" style="display:flex;align-items:center;gap:9px;flex:1;min-width:0;cursor:pointer">
         <span style="width:7px;height:7px;border-radius:4px;background:${sevc[a.sev]};flex:0 0 auto"></span>
@@ -4010,7 +4010,7 @@ window.alertsHTML=function(){
           <span style="font-size:10px;color:#8A7530">${escapeHtml(a.meta||'')}</span>
         </span>
       </span>
-      <button onclick="event.stopPropagation();snoozeAlert(this.dataset.k)" data-k="${escapeHtml(a.key)}" title="Snooze 7 days" style="background:#F0E2B8;color:#7F6000;border:none;border-radius:8px;padding:4px 8px;font-size:10px;font-weight:800;cursor:pointer;flex:0 0 auto">${ICN.clock} 7d</button>
+      <button onclick="event.stopPropagation();snoozeAlert(this.dataset.k)" data-k="${escapeHtml(a.key)}" title="Snooze 7 days" style="background:#F0E2B8;color:#7F6000;border:none;border-radius:8px;padding:4px 8px;font-size:10px;font-weight:700;cursor:pointer;flex:0 0 auto">${ICN.clock} 7d</button>
     </div>`).join("")}
   </div>`;
 };

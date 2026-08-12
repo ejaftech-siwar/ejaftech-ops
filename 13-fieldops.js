@@ -365,7 +365,7 @@ function renderAnnoEditor(){
       <div style="display:flex;gap:7px;justify-content:center;margin-top:9px">
         ${ANNO_COLOURS.map(c=>`<button onclick="annoColour('${c}')" title="${c}" style="width:26px;height:26px;border-radius:50%;background:${c};border:${A.colour===c?"3px solid #C9A84C":"2px solid rgba(255,255,255,.4)"};cursor:pointer"></button>`).join("")}
       </div>
-      <button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:800;border:none;width:100%;margin-top:10px" onclick="annoSave()">\u2713 Apply to photo</button>
+      <button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:700;border:none;width:100%;margin-top:10px" onclick="annoSave()">\u2713 Apply to photo</button>
     </div>
   </div>`;
 }
@@ -494,11 +494,11 @@ function renderPartsLines(){
   return `<div class="card" style="border-left:4px solid #6D4C41">
     <div class="sec-hdr" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">\u{1F527} Spare parts used
       <span style="font-size:10px;color:var(--muted);font-weight:500">(${lines.length})</span>
-      <span style="margin-left:auto;font-size:12px;font-weight:800;color:#6D4C41">Material: <span id="puTotal">${fmtMoney(partsEntryCost(window.dailyForm||{}))}</span></span>
+      <span style="margin-left:auto;font-size:12px;font-weight:700;color:#6D4C41">Material: <span id="puTotal">${fmtMoney(partsEntryCost(window.dailyForm||{}))}</span></span>
     </div>
     ${!cat.length?`<div style="font-size:11px;color:var(--muted);line-height:1.6;padding:6px 0">No parts catalogue yet \u2014 add parts in <strong>Assets \u2192 Spare Parts</strong> first, or type a description directly on a line.</div>`:""}
     ${lines.map((L,i)=>`<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:8px;padding-bottom:8px;border-bottom:1px solid var(--line)">
-      <span style="font-size:10px;font-weight:800;color:var(--muted);min-width:20px">${String(i+1).padStart(2,"0")}</span>
+      <span style="font-size:10px;font-weight:700;color:var(--muted);min-width:20px">${String(i+1).padStart(2,"0")}</span>
       <select onchange="puPick(${i},this.value)" style="flex:1;min-width:130px">
         <option value="">\u2014 free text \u2014</option>
         ${cat.map(p=>`<option value="${escapeHtml(p.code||"")}" ${String(L.code||"")===String(p.code||"")?"selected":""}>${escapeHtml(p.code||"")} \u00b7 ${escapeHtml(p.name||"")}</option>`).join("")}
@@ -556,7 +556,7 @@ function renderSpareParts(){
       const low = p.stock!=null && p.stock!=="" && Number(p.stock)<=0;
       return `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:8px 0;border-bottom:1px solid var(--line)">
         <div style="flex:1;min-width:150px">
-          <div style="font-weight:800;font-size:12px">${escapeHtml(p.name||"")}</div>
+          <div style="font-weight:700;font-size:12px">${escapeHtml(p.name||"")}</div>
           <div style="font-size:10px;color:var(--muted)">${escapeHtml(p.code||"")} \u00b7 ${escapeHtml(p.unit||"")} \u00b7 ${fmtMoney(p.unitCost||0)}${p.stock!=null&&p.stock!==""?` \u00b7 stock ${escapeHtml(String(p.stock))}`:""}</div>
         </div>
         ${q?`<span style="background:#EFEBE9;color:#6D4C41;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700">used ${q}</span>`:""}
@@ -830,19 +830,19 @@ function renderCsvImport(){
       ${[["New",dry.ok.length,"#2E7D32"],["Updates",dry.updates.length,"#1565C0"],
          ["Errors",dry.bad.length,"#C62828"],["Duplicates",dry.dupes.length,"#E65100"]]
         .map(([l,n,c])=>`<div style="background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px;text-align:center">
-          <div style="font-size:19px;font-weight:800;color:${n?c:"var(--muted)"}">${n}</div>
+          <div style="font-size:19px;font-weight:700;color:${n?c:"var(--muted)"}">${n}</div>
           <div style="font-size:10px;color:var(--muted)">${l}</div></div>`).join("")}
     </div>
     ${dry.nokey.length?`<div style="background:#FFF3E0;border:1px solid #FFB74D;border-radius:8px;padding:9px 11px;margin-top:10px;font-size:11px;color:#E65100;line-height:1.6">\u26a0 ${dry.nokey.length} row(s) carry no ${escapeHtml((T.fields.find(f=>f.key)||{}).lb||"key")}. They will be created, but nothing can match them later \u2014 importing this file again would duplicate them.</div>`:""}
     ${dry.updates.length?`<div style="background:#E3F2FD;border:1px solid #90CAF9;border-radius:8px;padding:9px 11px;margin-top:10px;font-size:11px;color:#0D47A1;line-height:1.6">\u2139 ${dry.updates.length} row(s) match an existing record on its key and will be <strong>overwritten</strong>, not duplicated.</div>`:""}
     ${dry.bad.length?`<div style="margin-top:10px">
-      <div style="font-size:11px;font-weight:800;color:#C62828;margin-bottom:5px">Rows that will be skipped</div>
+      <div style="font-size:11px;font-weight:700;color:#C62828;margin-bottom:5px">Rows that will be skipped</div>
       ${dry.bad.slice(0,12).map(b=>`<div style="font-size:11px;padding:5px 8px;background:#FDECEA;border-radius:6px;margin-bottom:4px;line-height:1.5">
         <strong>Line ${b.line}</strong> \u2014 ${b.errs.map(e=>escapeHtml(e)).join("; ")}</div>`).join("")}
       ${dry.bad.length>12?`<div style="font-size:10px;color:var(--muted)">\u2026 and ${dry.bad.length-12} more</div>`:""}
     </div>`:""}
     ${dry.dupes.length?`<div style="margin-top:10px">
-      <div style="font-size:11px;font-weight:800;color:#E65100;margin-bottom:5px">Duplicates inside the file</div>
+      <div style="font-size:11px;font-weight:700;color:#E65100;margin-bottom:5px">Duplicates inside the file</div>
       ${dry.dupes.slice(0,8).map(b=>`<div style="font-size:11px;padding:5px 8px;background:#FFF3E0;border-radius:6px;margin-bottom:4px">
         <strong>Line ${b.line}</strong> \u2014 ${escapeHtml(b.why)}</div>`).join("")}
     </div>`:""}
@@ -1089,7 +1089,7 @@ function renderDispatch(){
       ${[["Employees",people.length],["Logged hours",fmtHM(weekHours)],
          ["Busiest",busiest&&busiest.h?busiest.p.split(" ")[0]:"\u2014"],["Idle all week",idle.length]]
         .map(([l,v])=>`<div style="background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px;text-align:center">
-          <div style="font-size:15px;font-weight:800;color:#03308B">${escapeHtml(String(v))}</div>
+          <div style="font-size:15px;font-weight:700;color:#03308B">${escapeHtml(String(v))}</div>
           <div style="font-size:10px;color:var(--muted)">${l}</div></div>`).join("")}
     </div>
     ${(pendingThisWeek||hiddenByPeriod)?`<div style="background:#F5F8FC;border:1px solid var(--line);border-radius:8px;padding:9px 11px;margin-top:10px;font-size:11px;color:var(--muted);line-height:1.7">
@@ -1139,7 +1139,7 @@ function renderDispatch(){
           return `<td onclick="dspCell(${jsArg(who)},'${d}')"
             style="border:1px solid var(--line);padding:4px;text-align:center;cursor:pointer;background:${bg};${openCell===k?"outline:2px solid #03308B;":""}">
             ${lv?`<div style="font-size:9px;color:#546E7A;font-weight:700">leave</div>`:""}
-            ${h?`<div style="font-size:11px;font-weight:800;color:#2E7D32">${fmtHM(h)}</div>`:""}
+            ${h?`<div style="font-size:11px;font-weight:700;color:#2E7D32">${fmtHM(h)}</div>`:""}
             ${t?`<div style="font-size:9px;color:#8F6E22;font-weight:700">${t} task${t>1?"s":""}</div>`:""}
             ${(!h&&!t&&!lv)?`<span style="color:var(--line)">\u00b7</span>`:""}
           </td>`;
@@ -1160,14 +1160,14 @@ function renderDispatch(){
       <div class="sec-hdr" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">${escapeHtml(who)} \u00b7 ${escapeHtml(fmtDate(d))}
         <button class="btn btn-sm btn-secondary" style="margin-left:auto" onclick="dspCell(${jsArg(who)},'${d}')">Close</button></div>
       ${c.leave.length?`<div style="font-size:11px;color:#546E7A;padding:6px 0"><strong>On leave</strong> \u2014 ${c.leave.map(l=>escapeHtml(l.type||"leave")).join(", ")}</div>`:""}
-      ${c.logged.length?`<div style="font-weight:800;font-size:11px;color:#2E7D32;margin-top:6px">Work logged</div>
+      ${c.logged.length?`<div style="font-weight:700;font-size:11px;color:#2E7D32;margin-top:6px">Work logged</div>
         ${c.logged.map(r=>`<div style="font-size:11px;padding:5px 0;border-bottom:1px solid var(--line);line-height:1.6">
           <strong>${fmtHM(Number(r.duration||0))}</strong> \u00b7 ${escapeHtml(r.project||"\u2014")}${r.site?" \u00b7 "+escapeHtml(r.site):""}
           ${r.taskCategory?`<br><span style="color:var(--muted)">${escapeHtml(r.taskCategory)}</span>`:""}
           ${(r.gpsLat!=null||r.gpsDenied)?`<br>${geoBadge(r)}`:""}
           ${(r.partsUsed&&r.partsUsed.length)?`<br><span style="font-size:10px;color:#6D4C41">\u{1F527} ${r.partsUsed.length} part(s) \u00b7 ${fmtMoney(partsEntryCost(r))}</span>`:""}
         </div>`).join("")}`:""}
-      ${c.tasks.length?`<div style="font-weight:800;font-size:11px;color:#8F6E22;margin-top:10px">Tasks due</div>
+      ${c.tasks.length?`<div style="font-weight:700;font-size:11px;color:#8F6E22;margin-top:10px">Tasks due</div>
         ${c.tasks.map(t=>`<div style="font-size:11px;padding:5px 0;border-bottom:1px solid var(--line)">
           ${escapeHtml(t.title||"\u2014")} <span style="color:var(--muted)">\u00b7 ${escapeHtml(t.status||"")}</span></div>`).join("")}`:""}
       ${(!c.logged.length&&!c.tasks.length&&!c.leave.length)?`<div class="empty">Nothing scheduled or logged.</div>`:""}

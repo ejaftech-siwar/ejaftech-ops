@@ -135,7 +135,7 @@ function renderFlexReports(){
 
   // ═══════ FILTER CONTROLS (Section 01) ═══════
   h+=`<div class="card">
-    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">01</span> Filter Period</div>
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:700">01</span> Filter Period</div>
     <div class="form-grid">
       <div class="field"><label>From Date</label>
         <input type="date" value="${f.from}" onchange="window.setReportFrom(this.value)"></div>
@@ -159,7 +159,7 @@ function renderFlexReports(){
 
   // ═══════ EXECUTIVE KPI SUMMARY (Section 02) ═══════
   h+=`<div class="card">
-    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">02</span> Executive Summary</div>
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:700">02</span> Executive Summary</div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-top:10px">
       <div style="border:1px solid var(--line);border-left:4px solid #2E5FA3;border-radius:8px;padding:12px;background:var(--card)">
         <div style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:1px">Total Hours</div>
@@ -191,7 +191,7 @@ function renderFlexReports(){
 
   // ═══════ DEPARTMENT PERFORMANCE (Section 03) ═══════
   h+=`<div class="card">
-    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">03</span> Department Performance</div>
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:700">03</span> Department Performance</div>
     ${deptStats.length===0?`<div class="empty">No departments defined yet</div>`:`
     <div style="display:grid;gap:10px;margin-top:10px">
       ${deptStats.map(d=>{
@@ -211,7 +211,7 @@ function renderFlexReports(){
   // ═══════ EMPLOYEE TABLE (Section 04) ═══════
   if(!isEmployee()){
     h+=`<div class="card">
-      <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">04</span> Employee Breakdown</div>
+      <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:700">04</span> Employee Breakdown</div>
       <div class="tbl-wrap"><table class="tbl">
         <thead><tr style="background:linear-gradient(135deg,#1B3A6B,#2E5FA3);color:white">
           <th style="color:white">Employee</th>
@@ -244,11 +244,11 @@ function renderFlexReports(){
       const rowsC=Object.entries(grpC).sort((x,y)=>y[1].m-x[1].m);
       const isPMc=c=>String(c||"").trim().toLowerCase()==="preventive maintenance";
       h+=`<div class="card">
-      <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">🔖</span> Project Code Breakdown</div>
+      <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:700">🔖</span> Project Code Breakdown</div>
       <div class="tbl-wrap"><table class="tbl">
         <thead><tr><th>Project</th><th>Code</th><th>Sessions</th><th>Hours</th></tr></thead><tbody>
         ${rowsC.map(([k,v])=>{const i3=k.indexOf("|||");const p=k.slice(0,i3),c=k.slice(i3+3);
-          return `<tr><td>${escapeHtml(p)}</td><td><span style="font-size:10px;background:${isPMc(c)?'#FFF3E0':'#F0F4FF'};color:${isPMc(c)?'#E65100':'#03308B'};padding:2px 8px;border-radius:8px;font-weight:800">${escapeHtml(c)}</span></td><td style="font-weight:800">${v.n}</td><td style="font-weight:800;color:#1B3A6B">${fmtHM(v.m)}</td></tr>`;}).join("")}
+          return `<tr><td>${escapeHtml(p)}</td><td><span style="font-size:10px;background:${isPMc(c)?'#FFF3E0':'#F0F4FF'};color:${isPMc(c)?'#E65100':'#03308B'};padding:2px 8px;border-radius:8px;font-weight:700">${escapeHtml(c)}</span></td><td style="font-weight:700">${v.n}</td><td style="font-weight:700;color:#1B3A6B">${fmtHM(v.m)}</td></tr>`;}).join("")}
         </tbody></table></div>
       <p style="font-size:10px;color:var(--muted);margin-top:6px">Sessions = number of work-log entries tagged with the code — e.g. how many visits a maintenance round took.</p>
       </div>`;
@@ -257,7 +257,7 @@ function renderFlexReports(){
 
   // ═══════ EXPORT BUTTONS (admin/HR, or granted canExport) ═══════
   if(isAdmin()||isHR()||hasCap("canExport")) h+=`<div class="card" style="background:linear-gradient(135deg,#1B3A6B 0%,#2E5FA3 100%);color:white;border:2px solid #C9A84C">
-    <div class="sec-hdr" style="color:#C9A84C;border:none;display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">📤</span> Export Options</div>
+    <div class="sec-hdr" style="color:#C9A84C;border:none;display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:700">📤</span> Export Options</div>
     <p style="font-size:12px;color:#B8CFE8;margin:0 0 12px">Export this filtered period in various formats — all with unified professional styling.</p>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:700" onclick="exportFilteredExcel()">📊 Export Excel</button>
@@ -1119,7 +1119,7 @@ async function exportDashboardPDF(){
       }).join('');
       return `<div style="border:1px solid #D6E4F0;border-radius:10px;overflow:hidden;margin-bottom:14px;page-break-inside:avoid">
         <div style="background:linear-gradient(135deg,${deptColor(d.name)},${deptColor(d.name)}DD);color:white;padding:10px 14px;display:flex;justify-content:space-between;align-items:center">
-          <h3 style="margin:0;font-size:13px;font-weight:800;text-transform:uppercase">${escapeHtml(d.name)}</h3>
+          <h3 style="margin:0;font-size:13px;font-weight:700;text-transform:uppercase">${escapeHtml(d.name)}</h3>
           <span style="font-family:Georgia,serif;font-size:18px;font-weight:700">${fmtHM(tot)}</span>
         </div>
         <div style="background:#FFFFFF">${rows}</div>
@@ -1394,7 +1394,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v234';"
+      var swCode = "const CACHE='ejaftech-v236';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
@@ -1436,7 +1436,7 @@ function _rptPhotoGrid(photos,label){
       ${photos.map((p,i)=>`<div style="page-break-inside:avoid"><img src="${p.data}" style="width:230px;max-height:190px;object-fit:cover;border:1px solid #ccc;border-radius:6px"><div style="font-size:9px;color:#888;text-align:center">Photo ${i+1}</div></div>`).join("")}
     </div>`;
 }
-const _rptBadge=(t,bg,fg)=>`<span style="background:${bg};color:${fg};padding:2px 10px;border-radius:8px;font-size:10px;font-weight:800">${escapeHtml(t||"—")}</span>`;
+const _rptBadge=(t,bg,fg)=>`<span style="background:${bg};color:${fg};padding:2px 10px;border-radius:8px;font-size:10px;font-weight:700">${escapeHtml(t||"—")}</span>`;
 
 // PM schedule → effective system: its own field, else its target device's.
 function _pmSysOf(s){
@@ -1594,7 +1594,7 @@ function renderPMReportTab(){
   ${_rptModeSeg("_pmRptMode",_mode)}
 
   <div class="card">
-    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">01</span> Scope</div>
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:700">01</span> Scope</div>
     <div class="form-grid" style="margin-top:10px">
       <div class="field"><label>📁 Project</label>
         <select onchange="window._pmRptProj=this.value;render()">
@@ -1617,21 +1617,21 @@ function renderPMReportTab(){
   </div>
 
   <div class="card">
-    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">02</span> Work Description</div>
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:700">02</span> Work Description</div>
     <textarea rows="4" oninput="window._pmRptDesc=this.value" placeholder="What was performed in this maintenance round — cleaning, tests, replaced parts, findings… (appears in the PDF)" style="width:100%;margin-top:8px">${escapeHtml(window._pmRptDesc)}</textarea>
   </div>
 
   <div class="card">
-    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">03</span> Photos <span style="font-size:10px;color:var(--muted);font-weight:500">(optional · max 12 · embedded in the PDF)</span></div>
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:700">03</span> Photos <span style="font-size:10px;color:var(--muted);font-weight:500">(optional · max 12 · embedded in the PDF)</span></div>
     <input type="file" accept="image/*" multiple onchange="pmRptAddPhotos(this)" style="margin-top:8px">
     ${photos.length?`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
-      ${photos.map((p,i)=>`<div style="position:relative"><img src="${p.data}" style="width:76px;height:76px;object-fit:cover;border-radius:8px;border:1px solid var(--line)"><button onclick="annoOpen('_pmRptPhotos',${i})" title="Annotate" style="position:absolute;bottom:-6px;right:-6px;background:#03308B;color:#fff;border:none;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:10px;line-height:1">✎</button><button onclick="pmRptDelPhoto(${i})" style="position:absolute;top:-6px;right:-6px;background:#C62828;color:#fff;border:none;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:11px;font-weight:800">×</button></div>`).join("")}
+      ${photos.map((p,i)=>`<div style="position:relative"><img src="${p.data}" style="width:76px;height:76px;object-fit:cover;border-radius:8px;border:1px solid var(--line)"><button onclick="annoOpen('_pmRptPhotos',${i})" title="Annotate" style="position:absolute;bottom:-6px;right:-6px;background:#03308B;color:#fff;border:none;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:10px;line-height:1">✎</button><button onclick="pmRptDelPhoto(${i})" style="position:absolute;top:-6px;right:-6px;background:#C62828;color:#fff;border:none;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:11px;font-weight:700">×</button></div>`).join("")}
     </div>`:""}
   </div>
 
   <div class="card" style="background:linear-gradient(135deg,#1B3A6B 0%,#2E5FA3 100%);border:2px solid #C9A84C">
     ${typeof refOverrideField==="function"?refOverrideField():""}${typeof brandLink==="function"?brandLink():""}${rptFormatToggle()}
-    <button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:800;border:none;width:100%" onclick="generatePMReport()">${window._rptFormat==="word"?"📝":"📄"} Generate PM Report (${window._rptFormat==="word"?"Word":"PDF"})</button>
+    <button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:700;border:none;width:100%" onclick="generatePMReport()">${window._rptFormat==="word"?"📝":"📄"} Generate PM Report (${window._rptFormat==="word"?"Word":"PDF"})</button>
   </div>`;
 }
 
@@ -1655,7 +1655,7 @@ function renderIncidentReportTab(){
 
   ${(state.incidents||[]).length===0?`<div class="card"><div class="empty empty2"><span class="e-ic">🚨</span><div class="e-t">No incidents logged yet</div><div class="e-m">Log them in <strong>Database → Incidents</strong> first</div></div></div>`:`
   <div class="card">
-    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">01</span> Pick Incident</div>
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:700">01</span> Pick Incident</div>
     <div class="form-grid" style="margin-top:10px">
       <div class="field"><label>📁 Project</label>
         <select onchange="window._incRptProj=this.value;render()">
@@ -1674,11 +1674,11 @@ function renderIncidentReportTab(){
         </select></div>
     </div>
     ${sel?`<div style="margin-top:12px;border:1.5px solid #C9A84C;border-radius:12px;padding:12px;background:var(--card,#fff)">
-      <div style="font-weight:800;font-size:14px;color:#1B3A6B">${escapeHtml(sel.title)}</div>
+      <div style="font-weight:700;font-size:14px;color:#1B3A6B">${escapeHtml(sel.title)}</div>
       <div style="margin:6px 0">
-        <span style="background:${(sev[sel.severity]||["#EEE","#555"])[0]};color:${(sev[sel.severity]||["#EEE","#555"])[1]};padding:2px 10px;border-radius:8px;font-size:10px;font-weight:800">${escapeHtml(sel.severity||"—")}</span>
-        <span style="background:${(st[sel.status]||["#EEE","#555"])[0]};color:${(st[sel.status]||["#EEE","#555"])[1]};padding:2px 10px;border-radius:8px;font-size:10px;font-weight:800">${escapeHtml(sel.status||"Open")}</span>
-        ${sel.system?`<span style="background:#E0F2F1;color:#00695C;padding:2px 10px;border-radius:8px;font-size:10px;font-weight:800">${escapeHtml(sel.system)}</span>`:""}
+        <span style="background:${(sev[sel.severity]||["#EEE","#555"])[0]};color:${(sev[sel.severity]||["#EEE","#555"])[1]};padding:2px 10px;border-radius:8px;font-size:10px;font-weight:700">${escapeHtml(sel.severity||"—")}</span>
+        <span style="background:${(st[sel.status]||["#EEE","#555"])[0]};color:${(st[sel.status]||["#EEE","#555"])[1]};padding:2px 10px;border-radius:8px;font-size:10px;font-weight:700">${escapeHtml(sel.status||"Open")}</span>
+        ${sel.system?`<span style="background:#E0F2F1;color:#00695C;padding:2px 10px;border-radius:8px;font-size:10px;font-weight:700">${escapeHtml(sel.system)}</span>`:""}
       </div>
       <div style="font-size:11px;color:var(--muted)">${fmtDate(sel.date)}${sel.time?" · "+sel.time:""} · ${escapeHtml(sel.project||"")}${sel.area?" › "+escapeHtml(sel.area):""}${sel.site?" › "+escapeHtml(sel.site):""}${sel.deviceSerial?" · 📟 "+escapeHtml(sel.deviceSerial):""} · 📷 ${(sel.photos||[]).length}</div>
     </div>`:""}
@@ -1686,7 +1686,7 @@ function renderIncidentReportTab(){
 
   <div class="card" style="background:linear-gradient(135deg,#1B3A6B 0%,#2E5FA3 100%);border:2px solid #C9A84C">
     ${typeof refOverrideField==="function"?refOverrideField():""}${typeof brandLink==="function"?brandLink():""}${rptFormatToggle()}
-    <button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:800;border:none;width:100%" onclick="generateIncidentReport()">${window._rptFormat==="word"?"📝":"📄"} Generate Incident Report (${window._rptFormat==="word"?"Word":"PDF"})</button>
+    <button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:700;border:none;width:100%" onclick="generateIncidentReport()">${window._rptFormat==="word"?"📝":"📄"} Generate Incident Report (${window._rptFormat==="word"?"Word":"PDF"})</button>
   </div>`}`;
 }
 Object.assign(window,{renderPMReportTab,renderIncidentReportTab});
@@ -1741,7 +1741,7 @@ function _pmManualLayout(){
   const m=window._pmMan, items=window._pmManItems, photos=window._pmRptPhotos||[];
   return `
   <div class="card">
-    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">01</span> Details</div>
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:700">01</span> Details</div>
     <div class="form-grid" style="margin-top:10px">
       ${_syncSel("📁 Project",_projNames(),"window._pmMan.project","window._pmMan.projectOther",m.project,m.projectOther,"e.g. Asiacell SLA")}
       ${_syncSel("🧩 System",_sysNames(),"window._pmMan.system","window._pmMan.systemOther",m.system,m.systemOther,"e.g. CCTV")}
@@ -1750,7 +1750,7 @@ function _pmManualLayout(){
     </div>
   </div>
   <div class="card">
-    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">02</span> Maintenance Works <span style="font-size:10px;color:var(--muted);font-weight:500">(${items.length})</span></div>
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:700">02</span> Maintenance Works <span style="font-size:10px;color:var(--muted);font-weight:500">(${items.length})</span></div>
     ${items.map((it,i)=>`<div style="display:flex;gap:6px;margin-top:8px;align-items:center;flex-wrap:wrap">
       <input type="date" value="${it.date||""}" onchange="window._pmManItems[${i}].date=this.value" style="width:135px">
       <input value="${escapeHtml(it.text||"")}" oninput="window._pmManItems[${i}].text=this.value" placeholder="Work performed…" style="flex:2;min-width:150px">
@@ -1760,19 +1760,19 @@ function _pmManualLayout(){
     <button class="btn btn-sm btn-secondary" style="margin-top:10px" onclick="pmManAddItem()">+ Add work item</button>
   </div>
   <div class="card">
-    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">03</span> Description</div>
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:700">03</span> Description</div>
     <textarea rows="4" oninput="window._pmMan.desc=this.value" placeholder="Overall summary — findings, recommendations… (appears in the PDF)" style="width:100%;margin-top:8px">${escapeHtml(m.desc||"")}</textarea>
   </div>
   <div class="card">
-    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">04</span> Photos <span style="font-size:10px;color:var(--muted);font-weight:500">(max 12)</span></div>
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:700">04</span> Photos <span style="font-size:10px;color:var(--muted);font-weight:500">(max 12)</span></div>
     <input type="file" accept="image/*" multiple onchange="pmRptAddPhotos(this)" style="margin-top:8px">
     ${photos.length?`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
-      ${photos.map((p,i)=>`<div style="position:relative"><img src="${p.data}" style="width:76px;height:76px;object-fit:cover;border-radius:8px;border:1px solid var(--line)"><button onclick="annoOpen('_pmRptPhotos',${i})" title="Annotate" style="position:absolute;bottom:-6px;right:-6px;background:#03308B;color:#fff;border:none;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:10px;line-height:1">✎</button><button onclick="pmRptDelPhoto(${i})" style="position:absolute;top:-6px;right:-6px;background:#C62828;color:#fff;border:none;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:11px;font-weight:800">×</button></div>`).join("")}
+      ${photos.map((p,i)=>`<div style="position:relative"><img src="${p.data}" style="width:76px;height:76px;object-fit:cover;border-radius:8px;border:1px solid var(--line)"><button onclick="annoOpen('_pmRptPhotos',${i})" title="Annotate" style="position:absolute;bottom:-6px;right:-6px;background:#03308B;color:#fff;border:none;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:10px;line-height:1">✎</button><button onclick="pmRptDelPhoto(${i})" style="position:absolute;top:-6px;right:-6px;background:#C62828;color:#fff;border:none;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:11px;font-weight:700">×</button></div>`).join("")}
     </div>`:""}
   </div>
   <div class="card" style="background:linear-gradient(135deg,#1B3A6B 0%,#2E5FA3 100%);border:2px solid #C9A84C">
     ${typeof refOverrideField==="function"?refOverrideField():""}${typeof brandLink==="function"?brandLink():""}${rptFormatToggle()}
-    <button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:800;border:none;width:100%" onclick="generatePMReport()">${window._rptFormat==="word"?"📝":"📄"} Generate PM Report (${window._rptFormat==="word"?"Word":"PDF"})</button>
+    <button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:700;border:none;width:100%" onclick="generatePMReport()">${window._rptFormat==="word"?"📝":"📄"} Generate PM Report (${window._rptFormat==="word"?"Word":"PDF"})</button>
   </div>`;
 }
 
@@ -1808,7 +1808,7 @@ function _incManualLayout(){
   const sevs=["Low","Medium","High","Critical"], sts=["Open","Investigating","Resolved","Closed"];
   return `
   <div class="card">
-    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">01</span> Incident Details</div>
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:700">01</span> Incident Details</div>
     <div class="form-grid" style="margin-top:10px">
       <div class="field" style="grid-column:1/-1"><label>Title <span class="req">*</span></label>
         <input value="${escapeHtml(m.title||"")}" oninput="window._incMan.title=this.value" placeholder="e.g. CCTV camera 12 offline"></div>
@@ -1850,14 +1850,14 @@ function _incManualLayout(){
       <div class="field" style="grid-column:1/-1"><label>📷 Photos <span style="font-size:10px;color:var(--muted)">(max 6)</span></label>
         <input type="file" accept="image/*" multiple onchange="incManAddPhotos(this)">
         ${photos.length?`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
-          ${photos.map((p,i)=>`<div style="position:relative"><img src="${p.data}" style="width:76px;height:76px;object-fit:cover;border-radius:8px;border:1px solid var(--line)"><button onclick="annoOpen('_incManPhotos',${i})" title="Annotate" style="position:absolute;bottom:-6px;right:-6px;background:#03308B;color:#fff;border:none;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:10px;line-height:1">✎</button><button onclick="incManDelPhoto(${i})" style="position:absolute;top:-6px;right:-6px;background:#C62828;color:#fff;border:none;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:11px;font-weight:800">×</button></div>`).join("")}
+          ${photos.map((p,i)=>`<div style="position:relative"><img src="${p.data}" style="width:76px;height:76px;object-fit:cover;border-radius:8px;border:1px solid var(--line)"><button onclick="annoOpen('_incManPhotos',${i})" title="Annotate" style="position:absolute;bottom:-6px;right:-6px;background:#03308B;color:#fff;border:none;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:10px;line-height:1">✎</button><button onclick="incManDelPhoto(${i})" style="position:absolute;top:-6px;right:-6px;background:#C62828;color:#fff;border:none;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:11px;font-weight:700">×</button></div>`).join("")}
         </div>`:""}
       </div>
     </div>
   </div>
   <div class="card" style="background:linear-gradient(135deg,#1B3A6B 0%,#2E5FA3 100%);border:2px solid #C9A84C">
     ${typeof refOverrideField==="function"?refOverrideField():""}${typeof brandLink==="function"?brandLink():""}${rptFormatToggle()}
-    <button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:800;border:none;width:100%" onclick="generateIncidentReport()">${window._rptFormat==="word"?"📝":"📄"} Generate Incident Report (${window._rptFormat==="word"?"Word":"PDF"})</button>
+    <button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:700;border:none;width:100%" onclick="generateIncidentReport()">${window._rptFormat==="word"?"📝":"📄"} Generate Incident Report (${window._rptFormat==="word"?"Word":"PDF"})</button>
   </div>`;
 }
 
@@ -1952,10 +1952,10 @@ const _fmDens=c=>{const n=parseFloat(_fmNet(c)),v=parseFloat(c.capL);return (isF
 function _fmCylsEditor(){
   const cyls=window._fmCyls;
   return `<div class="card">
-    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">02</span> Cylinders <span style="font-size:10px;color:var(--muted);font-weight:500">(${cyls.length}) · net agent & fill density auto-computed</span></div>
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:700">02</span> Cylinders <span style="font-size:10px;color:var(--muted);font-weight:500">(${cyls.length}) · net agent & fill density auto-computed</span></div>
     ${cyls.map((c,i)=>`<div style="border:1px solid var(--line);border-radius:12px;padding:10px;margin-top:10px;background:var(--card,#fff)">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-        <span id="fm_cyl_${i}" style="font-size:11px;font-weight:800;color:#B71C1C">🧯 CYLINDER ${i+1}${_fmNet(c)!==""?` · net ${_fmNet(c)} kg${_fmDens(c)!==""?` · ${_fmDens(c)} kg/L`:""}`:""}</span>
+        <span id="fm_cyl_${i}" style="font-size:11px;font-weight:700;color:#B71C1C">🧯 CYLINDER ${i+1}${_fmNet(c)!==""?` · net ${_fmNet(c)} kg${_fmDens(c)!==""?` · ${_fmDens(c)} kg/L`:""}`:""}</span>
         <button class="btn btn-sm" style="background:#FDECEA;color:#C62828;border:none" onclick="fmDelCyl(${i})">×</button>
       </div>
       <div class="form-grid">
@@ -1988,7 +1988,7 @@ function renderFM200Section(){
   </div></div>
 
   <div class="card">
-    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">01</span> General Information</div>
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:700">01</span> General Information</div>
     <div class="form-grid" style="margin-top:10px">
       <div class="field"><label>👤 Client</label>
         ${m.clientOther
@@ -2022,7 +2022,7 @@ function renderFM200Section(){
   ${_fmCylsEditor()}
 
   ${fv==="test"?`<div class="card">
-    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">03</span> System Information</div>
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:700">03</span> System Information</div>
     <div class="form-grid" style="margin-top:10px">
       <div class="field"><label>Panel Manufacturer</label><input value="${escapeHtml(m.panelMfr||"")}" oninput="window._fm.panelMfr=this.value" placeholder="e.g. UK"></div>
       <div class="field"><label>Model</label><input value="${escapeHtml(m.panelModel||"")}" oninput="window._fm.panelModel=this.value" placeholder="e.g. Zeta premier EX Pro"></div>
@@ -2035,22 +2035,22 @@ function renderFM200Section(){
     </div>
   </div>
   <div class="card">
-    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">04</span> Check List Report</div>
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:700">04</span> Check List Report</div>
     ${FM_CHK_ITEMS.map(([k,label],i)=>`<div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap">
-      <div style="width:26px;font-size:11px;font-weight:800;color:var(--muted)">${String(i+1).padStart(2,"0")}</div>
+      <div style="width:26px;font-size:11px;font-weight:700;color:var(--muted)">${String(i+1).padStart(2,"0")}</div>
       <div style="flex:2;min-width:180px;font-size:12px">${label}</div>
       <div style="display:flex;gap:4px">
-        <button class="btn btn-sm ${window._fmChk[k].s==="Pass"?"":"btn-secondary"}" style="${window._fmChk[k].s==="Pass"?"background:#2E7D32;color:#fff;border:none;":""}font-weight:800" onclick="window._fmChk['${k}'].s='Pass';render()">PASS</button>
-        <button class="btn btn-sm ${window._fmChk[k].s==="Fail"?"":"btn-secondary"}" style="${window._fmChk[k].s==="Fail"?"background:#C62828;color:#fff;border:none;":""}font-weight:800" onclick="window._fmChk['${k}'].s='Fail';render()">FAIL</button>
+        <button class="btn btn-sm ${window._fmChk[k].s==="Pass"?"":"btn-secondary"}" style="${window._fmChk[k].s==="Pass"?"background:#2E7D32;color:#fff;border:none;":""}font-weight:700" onclick="window._fmChk['${k}'].s='Pass';render()">PASS</button>
+        <button class="btn btn-sm ${window._fmChk[k].s==="Fail"?"":"btn-secondary"}" style="${window._fmChk[k].s==="Fail"?"background:#C62828;color:#fff;border:none;":""}font-weight:700" onclick="window._fmChk['${k}'].s='Fail';render()">FAIL</button>
       </div>
     </div>`).join("")}
   </div>
   <div class="card">
-    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">05</span> Result of Test</div>
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:700">05</span> Result of Test</div>
     <textarea rows="4" oninput="window._fm.resultText=this.value" placeholder="e.g. System health for the FM200 infrastructure is verified as optimal. No trouble states, discharge events, or system degradation have been logged…" style="width:100%;margin-top:8px">${escapeHtml(m.resultText||"")}</textarea>
   </div>
   <div class="card">
-    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">06</span> Report Approval</div>
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:700">06</span> Report Approval</div>
     <div class="form-grid" style="margin-top:10px">
       <div class="field"><label>EJAF Engineer name</label><input value="${escapeHtml(m.engName||"")}" oninput="window._fm.engName=this.value" placeholder="Eng. …"></div>
       <div class="field"><label>Client approver name</label><input value="${escapeHtml(m.repName||"")}" oninput="window._fm.repName=this.value" placeholder="Mr. …"></div>
@@ -2061,21 +2061,21 @@ function renderFM200Section(){
   </div>`:""}
 
   <div class="card">
-    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">${fv==="test"?"07":"03"}</span> Notes / Recommendations</div>
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:700">${fv==="test"?"07":"03"}</span> Notes / Recommendations</div>
     <textarea rows="3" oninput="window._fm.notes=this.value" placeholder="Observations, recommendations… (appears in the PDF)" style="width:100%;margin-top:8px">${escapeHtml(m.notes||"")}</textarea>
   </div>
 
   <div class="card">
-    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">${fv==="test"?"08":"04"}</span> Photos <span style="font-size:10px;color:var(--muted);font-weight:500">(max 12)</span></div>
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:700">${fv==="test"?"08":"04"}</span> Photos <span style="font-size:10px;color:var(--muted);font-weight:500">(max 12)</span></div>
     <input type="file" accept="image/*" multiple onchange="fmAddPhotos(this)" style="margin-top:8px">
     ${photos.length?`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
-      ${photos.map((p,i)=>`<div style="position:relative"><img src="${p.data}" style="width:76px;height:76px;object-fit:cover;border-radius:8px;border:1px solid var(--line)"><button onclick="annoOpen('_fmPhotos',${i})" title="Annotate" style="position:absolute;bottom:-6px;right:-6px;background:#03308B;color:#fff;border:none;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:10px;line-height:1">✎</button><button onclick="fmDelPhoto(${i})" style="position:absolute;top:-6px;right:-6px;background:#C62828;color:#fff;border:none;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:11px;font-weight:800">×</button></div>`).join("")}
+      ${photos.map((p,i)=>`<div style="position:relative"><img src="${p.data}" style="width:76px;height:76px;object-fit:cover;border-radius:8px;border:1px solid var(--line)"><button onclick="annoOpen('_fmPhotos',${i})" title="Annotate" style="position:absolute;bottom:-6px;right:-6px;background:#03308B;color:#fff;border:none;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:10px;line-height:1">✎</button><button onclick="fmDelPhoto(${i})" style="position:absolute;top:-6px;right:-6px;background:#C62828;color:#fff;border:none;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:11px;font-weight:700">×</button></div>`).join("")}
     </div>`:""}
   </div>
 
   <div class="card" style="background:linear-gradient(135deg,#1B3A6B 0%,#2E5FA3 100%);border:2px solid #C9A84C">
     ${typeof refOverrideField==="function"?refOverrideField():""}${typeof brandLink==="function"?brandLink():""}${rptFormatToggle()}
-    <button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:800;border:none;width:100%" onclick="${fv==="test"?"generateFM200Test()":"generateFM200Refill()"}">${window._rptFormat==="word"?"📝":"📄"} Generate ${fv==="test"?"Test":"Refilling"} Report (${window._rptFormat==="word"?"Word":"PDF"})</button>
+    <button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:700;border:none;width:100%" onclick="${fv==="test"?"generateFM200Test()":"generateFM200Refill()"}">${window._rptFormat==="word"?"📝":"📄"} Generate ${fv==="test"?"Test":"Refilling"} Report (${window._rptFormat==="word"?"Word":"PDF"})</button>
   </div>`;
 }
 
@@ -2136,17 +2136,17 @@ window.generateFM200Test=async function(){
     </tr>`;
   }).join("");
   const fails=FM_CHK_ITEMS.filter(([k])=>window._fmChk[k].s==="Fail").length;
-  const infoRow=(l,v)=>`<tr><td style="border:1px solid #ccc;background:#F0F4FA;padding:6px 10px;font-weight:800;font-size:11px;width:42%">${l}</td><td style="border:1px solid #ccc;padding:6px 10px;font-size:12px">${v||"&nbsp;"}</td></tr>`;
+  const infoRow=(l,v)=>`<tr><td style="border:1px solid #ccc;background:#F0F4FA;padding:6px 10px;font-weight:700;font-size:11px;width:42%">${l}</td><td style="border:1px solid #ccc;padding:6px 10px;font-size:12px">${v||"&nbsp;"}</td></tr>`;
   const bodyHTML=`${_fmPrintBar}
     <div style="border:1.5px solid #1B3A6B;border-radius:8px;padding:10px 14px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
       <div>
         <div style="font-family:'DM Serif Display',serif;font-size:18px;color:#03308B">TEST REPORT</div>
-        <div style="font-size:12px;font-weight:800;color:#B71C1C">FM200 FIRE SUPPRESSION SYSTEM</div>
+        <div style="font-size:12px;font-weight:700;color:#B71C1C">FM200 FIRE SUPPRESSION SYSTEM</div>
       </div>
       <table style="border-collapse:collapse;font-size:11px">
-        ${m.reference?`<tr><td style="padding:2px 8px;font-weight:800;color:#555">Reference</td><td style="padding:2px 8px">${escapeHtml(m.reference)}</td></tr>`:""}
-        <tr><td style="padding:2px 8px;font-weight:800;color:#555">Date of Report</td><td style="padding:2px 8px">${m.date?fmtDate(m.date):"—"}</td></tr>
-        <tr><td style="padding:2px 8px;font-weight:800;color:#555">Test Time</td><td style="padding:2px 8px">${m.time||"—"}</td></tr>
+        ${m.reference?`<tr><td style="padding:2px 8px;font-weight:700;color:#555">Reference</td><td style="padding:2px 8px">${escapeHtml(m.reference)}</td></tr>`:""}
+        <tr><td style="padding:2px 8px;font-weight:700;color:#555">Date of Report</td><td style="padding:2px 8px">${m.date?fmtDate(m.date):"—"}</td></tr>
+        <tr><td style="padding:2px 8px;font-weight:700;color:#555">Test Time</td><td style="padding:2px 8px">${m.time||"—"}</td></tr>
       </table>
     </div>
     <div class="ksec"><span class="kbad">01</span><h3>Client Information</h3></div>
@@ -2359,7 +2359,7 @@ function renderSystemReports(){
   </div>
 
   <div class="card">
-    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">${N()}</span> General Information</div>
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:700">${N()}</span> General Information</div>
     <div class="form-grid" style="margin-top:10px">
       ${_syncSel("👤 Client",clientOpts,"window._sr.client","window._sr.clientOther",m.client,m.clientOther,"Client name")}
       ${mode==="manual"
@@ -2378,7 +2378,7 @@ function renderSystemReports(){
   </div>
 
   ${tpl.multi?`<div class="card" style="border:2px solid ${tpl.color}">
-    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">${N()}</span> Sub-systems in Scope <span style="font-size:10px;color:var(--muted);font-weight:500">(${window._srSubs.length} selected)</span></div>
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:700">${N()}</span> Sub-systems in Scope <span style="font-size:10px;color:var(--muted);font-weight:500">(${window._srSubs.length} selected)</span></div>
     <p style="font-size:11px;color:var(--muted);margin:8px 0 10px;line-height:1.6">Everything you tick is inspected and printed as its own section. Anything left unticked is <strong>outside the scope</strong> of this report.</p>
     <div style="display:flex;gap:6px;flex-wrap:wrap">
       ${ELV_SUBS.map(s=>{const on=window._srSubs.includes(s.id);
@@ -2393,7 +2393,7 @@ function renderSystemReports(){
   </div>`:""}
 
   <div class="card">
-    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">${N()}</span> ${tpl.multi?"Integration Platform":"System Information"}</div>
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:700">${N()}</span> ${tpl.multi?"Integration Platform":"System Information"}</div>
     <div class="form-grid" style="margin-top:10px">
       ${tpl.fields.map(f=>`<div class="field"><label>${escapeHtml(f.l)}</label>
         <input value="${escapeHtml((m.fields||{})[f.k]||"")}" oninput="window._sr.fields['${f.k}']=this.value"></div>`).join("")}
@@ -2401,7 +2401,7 @@ function renderSystemReports(){
   </div>
 
   <div class="card">
-    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">${N()}</span> Device Inventory & Results <span style="font-size:10px;color:var(--muted);font-weight:500">(${window._srDevs.length})</span></div>
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:700">${N()}</span> Device Inventory & Results <span style="font-size:10px;color:var(--muted);font-weight:500">(${window._srDevs.length})</span></div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin:10px 0">
       ${mode!=="manual"?`<button class="btn btn-sm" style="background:${tpl.color};color:#fff;border:none;font-weight:700" onclick="srLoadDevices()">⬇ Load from Assets</button>`:""}
       <button class="btn btn-sm btn-secondary" onclick="srAddDev()">+ Add device</button>
@@ -2409,7 +2409,7 @@ function renderSystemReports(){
     </div>
     ${window._srDevs.map((d,i)=>`<div style="border:1px solid var(--line);border-radius:8px;padding:9px;margin-bottom:8px;background:var(--card,#fff)">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-        <span id="sr_dev_${i}" style="font-size:10px;font-weight:800;color:${(tpl.multi&&elvSub(d.sub))?elvSub(d.sub).color:tpl.color}">${(tpl.multi&&elvSub(d.sub))?elvSub(d.sub).icon:tpl.icon} DEVICE ${i+1}${(tpl.multi&&elvSub(d.sub))?` · ${escapeHtml(elvSub(d.sub).name.split(" / ")[0])}`:""}</span>
+        <span id="sr_dev_${i}" style="font-size:10px;font-weight:700;color:${(tpl.multi&&elvSub(d.sub))?elvSub(d.sub).color:tpl.color}">${(tpl.multi&&elvSub(d.sub))?elvSub(d.sub).icon:tpl.icon} DEVICE ${i+1}${(tpl.multi&&elvSub(d.sub))?` · ${escapeHtml(elvSub(d.sub).name.split(" / ")[0])}`:""}</span>
         <div style="display:flex;gap:4px;align-items:center">
           ${statPills(d.result,`srSetDev(${i},'__V__',__EL__)`)}
           <button class="btn btn-sm" style="background:#FDECEA;color:#C62828;border:none" onclick="srDelDev(${i})">×</button>
@@ -2431,10 +2431,10 @@ function renderSystemReports(){
 
   ${blocks.map(bk=>{const bf=bk.items.filter((_,i)=>_srChkState(bk.key,i).s==="Fail").length;
     return `<div class="card"${tpl.multi?` style="border-left:4px solid ${bk.color}"`:""}>
-    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">${N()}</span> ${tpl.multi?`${bk.icon} ${escapeHtml(bk.name)}`:"Inspection Check List"} <span id="sr_cnt_${bk.key}" style="font-size:10px;color:var(--muted);font-weight:500">(${bk.items.length}${bf?` · ${bf} failed`:""})</span></div>
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:700">${N()}</span> ${tpl.multi?`${bk.icon} ${escapeHtml(bk.name)}`:"Inspection Check List"} <span id="sr_cnt_${bk.key}" style="font-size:10px;color:var(--muted);font-weight:500">(${bk.items.length}${bf?` · ${bf} failed`:""})</span></div>
     ${bk.items.map((it,i)=>{const st=_srChkState(bk.key,i);
       return `<div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap;padding-bottom:8px;border-bottom:1px solid var(--line)">
-        <span style="font-size:10px;font-weight:800;color:var(--muted);min-width:22px">${String(i+1).padStart(2,"0")}</span>
+        <span style="font-size:10px;font-weight:700;color:var(--muted);min-width:22px">${String(i+1).padStart(2,"0")}</span>
         <span style="flex:2;min-width:170px;font-size:12px">${escapeHtml(it)}</span>
         ${statPills(st.s,`srSetChk('${bk.key}',${i},'__V__',__EL__)`)}
         <input value="${escapeHtml(st.r||"")}" oninput="srSetChkRemark('${bk.key}',${i},this.value)" placeholder="Remarks" style="flex:1;min-width:120px">
@@ -2443,18 +2443,18 @@ function renderSystemReports(){
   </div>`;}).join("")}
 
   ${tpl.multi?`<div class="card" style="border-left:4px solid ${tpl.color}">
-    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">${N()}</span> 🔗 Integration Verification Matrix <span style="font-size:10px;color:var(--muted);font-weight:500">(${ifaces.length+window._srIntX.length})</span></div>
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:700">${N()}</span> 🔗 Integration Verification Matrix <span style="font-size:10px;color:var(--muted);font-weight:500">(${ifaces.length+window._srIntX.length})</span></div>
     <p style="font-size:11px;color:var(--muted);margin:8px 0 4px;line-height:1.6">Interfaces appear automatically when <strong>both</strong> sides are in scope — this is the cause &amp; effect verification an auditor looks for.</p>
     ${(ifaces.length||window._srIntX.length)?"":`<div style="background:#F5F8FC;border:1px dashed var(--line);border-radius:8px;padding:11px;margin-top:8px;font-size:11px;color:var(--muted);line-height:1.6">Select two or more related sub-systems above and their interfaces will be listed here.</div>`}
     ${ifaces.map(x=>{const k=x.a+">"+x.b, st=_srIntState(k), Ax=elvSub(x.a), Bx=elvSub(x.b);
       return `<div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap;padding-bottom:8px;border-bottom:1px solid var(--line)">
-        <span style="font-size:12px;min-width:52px;font-weight:800">${Ax.icon}→${Bx.icon}</span>
+        <span style="font-size:12px;min-width:52px;font-weight:700">${Ax.icon}→${Bx.icon}</span>
         <span style="flex:2;min-width:170px;font-size:12px">${escapeHtml(x.d)}</span>
         ${statPills(st.s,`srSetInt('${k}','__V__',__EL__)`)}
         <input value="${escapeHtml(st.r||"")}" oninput="srSetIntRemark('${k}',this.value)" placeholder="Remarks" style="flex:1;min-width:120px">
       </div>`;}).join("")}
     ${window._srIntX.map((x,i)=>`<div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap;padding-bottom:8px;border-bottom:1px solid var(--line)">
-        <span style="font-size:10px;font-weight:800;color:var(--muted);min-width:52px">CUSTOM</span>
+        <span style="font-size:10px;font-weight:700;color:var(--muted);min-width:52px">CUSTOM</span>
         <input value="${escapeHtml(x.d||"")}" oninput="window._srIntX[${i}].d=this.value" placeholder="Describe the interface…" style="flex:2;min-width:170px">
         <div style="display:flex;gap:4px">
           ${statPills(x.s,`srSetIntX(${i},'__V__',__EL__)`)}
@@ -2466,20 +2466,20 @@ function renderSystemReports(){
   </div>`:""}
 
   <div class="card">
-    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">${N()}</span> Result of Test</div>
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:700">${N()}</span> Result of Test</div>
     <textarea rows="4" oninput="window._sr.resultText=this.value" placeholder="Overall condition, findings and recommendations…" style="width:100%;margin-top:8px">${escapeHtml(m.resultText||"")}</textarea>
   </div>
 
   <div class="card">
-    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">${N()}</span> Photos <span style="font-size:10px;color:var(--muted);font-weight:500">(max 12)</span></div>
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:700">${N()}</span> Photos <span style="font-size:10px;color:var(--muted);font-weight:500">(max 12)</span></div>
     <input type="file" accept="image/*" multiple onchange="srAddPhotos(this)" style="margin-top:8px">
     ${window._srPhotos.length?`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
-      ${window._srPhotos.map((p,i)=>`<div style="position:relative"><img src="${p.data}" style="width:76px;height:76px;object-fit:cover;border-radius:8px;border:1px solid var(--line)"><button onclick="annoOpen('_srPhotos',${i})" title="Annotate" style="position:absolute;bottom:-6px;right:-6px;background:#03308B;color:#fff;border:none;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:10px;line-height:1">✎</button><button onclick="srDelPhoto(${i})" style="position:absolute;top:-6px;right:-6px;background:#C62828;color:#fff;border:none;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:11px;font-weight:800">×</button></div>`).join("")}
+      ${window._srPhotos.map((p,i)=>`<div style="position:relative"><img src="${p.data}" style="width:76px;height:76px;object-fit:cover;border-radius:8px;border:1px solid var(--line)"><button onclick="annoOpen('_srPhotos',${i})" title="Annotate" style="position:absolute;bottom:-6px;right:-6px;background:#03308B;color:#fff;border:none;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:10px;line-height:1">✎</button><button onclick="srDelPhoto(${i})" style="position:absolute;top:-6px;right:-6px;background:#C62828;color:#fff;border:none;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:11px;font-weight:700">×</button></div>`).join("")}
     </div>`:""}
   </div>
 
   <div class="card">
-    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">${N()}</span> Report Approval</div>
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:700">${N()}</span> Report Approval</div>
     <div class="form-grid" style="margin-top:10px">
       <div class="field"><label>EJAF Engineer</label><input value="${escapeHtml(m.engName||"")}" oninput="window._sr.engName=this.value" placeholder="Eng. …"></div>
       <div class="field"><label>Client approver</label><input value="${escapeHtml(m.repName||"")}" oninput="window._sr.repName=this.value" placeholder="Mr. …"></div>
@@ -2491,7 +2491,7 @@ function renderSystemReports(){
 
   <div class="card" style="background:linear-gradient(135deg,#1B3A6B 0%,#2E5FA3 100%);border:2px solid #C9A84C">
     ${typeof refOverrideField==="function"?refOverrideField():""}${typeof brandLink==="function"?brandLink():""}${rptFormatToggle()}
-    <button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:800;border:none;width:100%" onclick="generateSystemReport()">${window._rptFormat==="word"?"📝":"📄"} Generate ${escapeHtml(tpl.multi?"ELV Integrated":tpl.name.split(" ")[0])} Report (${window._rptFormat==="word"?"Word":"PDF"})</button>
+    <button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:700;border:none;width:100%" onclick="generateSystemReport()">${window._rptFormat==="word"?"📝":"📄"} Generate ${escapeHtml(tpl.multi?"ELV Integrated":tpl.name.split(" ")[0])} Report (${window._rptFormat==="word"?"Word":"PDF"})</button>
   </div>`;
 }
 
@@ -2517,18 +2517,18 @@ window.generateSystemReport=async function(){
   const intFail=intRows.filter(r=>r.s==="Fail").length;
   // Section numbers are counted so the integrated report can add sections
   const K=(()=>{let n=0;return()=>String(++n).padStart(2,"0");})();
-  const infoRow=(l,v)=>`<tr><td style="border:1px solid #ccc;background:#F0F4FA;padding:6px 10px;font-weight:800;font-size:11px;width:42%">${l}</td><td style="border:1px solid #ccc;padding:6px 10px;font-size:12px">${v||"&nbsp;"}</td></tr>`;
+  const infoRow=(l,v)=>`<tr><td style="border:1px solid #ccc;background:#F0F4FA;padding:6px 10px;font-weight:700;font-size:11px;width:42%">${l}</td><td style="border:1px solid #ccc;padding:6px 10px;font-size:12px">${v||"&nbsp;"}</td></tr>`;
 
   const bodyHTML=`${_fmPrintBar}
     <div style="border:1.5px solid #1B3A6B;border-radius:8px;padding:10px 14px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
       <div>
         <div style="font-family:'DM Serif Display',serif;font-size:18px;color:#03308B">INSPECTION &amp; TEST REPORT</div>
-        <div style="font-size:12px;font-weight:800;color:${tpl.color}">${tpl.icon} ${escapeHtml(tpl.name.toUpperCase())}</div>
+        <div style="font-size:12px;font-weight:700;color:${tpl.color}">${tpl.icon} ${escapeHtml(tpl.name.toUpperCase())}</div>
       </div>
       <table style="border-collapse:collapse;font-size:11px">
-        ${m.reference?`<tr><td style="padding:2px 8px;font-weight:800;color:#555">Reference</td><td style="padding:2px 8px">${escapeHtml(m.reference)}</td></tr>`:""}
-        <tr><td style="padding:2px 8px;font-weight:800;color:#555">Date of Report</td><td style="padding:2px 8px">${m.date?fmtDate(m.date):"—"}</td></tr>
-        <tr><td style="padding:2px 8px;font-weight:800;color:#555">Test Time</td><td style="padding:2px 8px">${m.time||"—"}</td></tr>
+        ${m.reference?`<tr><td style="padding:2px 8px;font-weight:700;color:#555">Reference</td><td style="padding:2px 8px">${escapeHtml(m.reference)}</td></tr>`:""}
+        <tr><td style="padding:2px 8px;font-weight:700;color:#555">Date of Report</td><td style="padding:2px 8px">${m.date?fmtDate(m.date):"—"}</td></tr>
+        <tr><td style="padding:2px 8px;font-weight:700;color:#555">Test Time</td><td style="padding:2px 8px">${m.time||"—"}</td></tr>
       </table>
     </div>
     <div class="ksec"><span class="kbad">${K()}</span><h3>Client Information</h3></div>
@@ -2587,11 +2587,11 @@ window.generateSystemReport=async function(){
     <table style="border-collapse:collapse;width:100%">
       ${infoRow("Sub-systems inspected",String(subsAll.length))}
       ${infoRow("Check items assessed",String(chkTotal))}
-      ${infoRow("Items failed",`<span style="font-weight:800;color:${chkFail?"#C62828":"#2E7D32"}">${chkFail}</span>`)}
+      ${infoRow("Items failed",`<span style="font-weight:700;color:${chkFail?"#C62828":"#2E7D32"}">${chkFail}</span>`)}
       ${infoRow("Devices assessed",String(devs.length))}
-      ${infoRow("Devices failed",`<span style="font-weight:800;color:${devFail?"#C62828":"#2E7D32"}">${devFail}</span>`)}
+      ${infoRow("Devices failed",`<span style="font-weight:700;color:${devFail?"#C62828":"#2E7D32"}">${devFail}</span>`)}
       ${infoRow("Interfaces verified",String(intRows.length))}
-      ${infoRow("Interfaces failed",`<span style="font-weight:800;color:${intFail?"#C62828":"#2E7D32"}">${intFail}</span>`)}
+      ${infoRow("Interfaces failed",`<span style="font-weight:700;color:${intFail?"#C62828":"#2E7D32"}">${intFail}</span>`)}
     </table>`:""}
     <div class="ksec"><span class="kbad">${K()}</span><h3>Result of Test</h3></div>
     <div style="border:1px solid #ccc;border-radius:8px;padding:12px;font-size:12px;line-height:1.8;min-height:60px;white-space:pre-wrap">${escapeHtml((m.resultText||"").trim())||"&nbsp;"}</div>
@@ -2768,8 +2768,8 @@ function buildHandoverBody(){
 
   // ── Cover ──
   body += `<div style="border:2px solid #03308B;border-radius:10px;padding:22px;margin-bottom:16px;text-align:center">
-    <div style="font-size:11px;letter-spacing:3px;color:#6B7B8F;font-weight:800">PROJECT HANDOVER DOSSIER</div>
-    <div style="font-size:22px;font-weight:800;color:#03308B;margin:10px 0 4px">${_hdDash(D.pname)}</div>
+    <div style="font-size:11px;letter-spacing:3px;color:#6B7B8F;font-weight:700">PROJECT HANDOVER DOSSIER</div>
+    <div style="font-size:22px;font-weight:700;color:#03308B;margin:10px 0 4px">${_hdDash(D.pname)}</div>
     <div style="font-size:13px;color:#1B2A44">${_hdDash(D.proj&&D.proj.client)}</div>
     <div style="margin-top:14px;font-size:11px;color:#6B7B8F;line-height:1.9">
       Period covered: <strong style="color:#1B2A44">${escapeHtml(period)}</strong><br>
@@ -2782,9 +2782,9 @@ function buildHandoverBody(){
   body += `<div class="ksec"><span class="kbad">\u2630</span><h3>Contents</h3></div>
   <table style="border-collapse:collapse;width:100%">
     ${secs.map(s=>`<tr>
-      <td style="padding:5px 10px;border:1px solid #D6E4F0;width:44px;text-align:center;font-weight:800;color:#03308B">${s.no}</td>
+      <td style="padding:5px 10px;border:1px solid #D6E4F0;width:44px;text-align:center;font-weight:700;color:#03308B">${s.no}</td>
       <td style="padding:5px 10px;border:1px solid #D6E4F0">${escapeHtml(s.title)}</td></tr>`).join("")}
-    <tr><td style="padding:5px 10px;border:1px solid #D6E4F0;text-align:center;font-weight:800;color:#03308B">\u270e</td>
+    <tr><td style="padding:5px 10px;border:1px solid #D6E4F0;text-align:center;font-weight:700;color:#03308B">\u270e</td>
         <td style="padding:5px 10px;border:1px solid #D6E4F0">Declaration &amp; Acceptance</td></tr>
   </table>`;
 
@@ -2843,7 +2843,7 @@ function buildHandoverBody(){
           const sub=elvSubForName(d.system);
           return (sub?sub.id:("other:"+String(d.system||"Unclassified").trim()))===grp.key;
         });
-        body += `<div style="font-weight:800;color:#03308B;font-size:12px;margin:12px 0 5px">${escapeHtml(grp.label)} <span style="font-weight:400;color:#6B7B8F">(${rows.length})</span></div>
+        body += `<div style="font-weight:700;color:#03308B;font-size:12px;margin:12px 0 5px">${escapeHtml(grp.label)} <span style="font-weight:400;color:#6B7B8F">(${rows.length})</span></div>
         <table style="border-collapse:collapse;width:100%">
           <thead><tr>
             <th style="padding:6px 9px;border:1px solid #D6E4F0;background:#03308B;color:#fff;text-align:left">#</th><th style="padding:6px 9px;border:1px solid #D6E4F0;background:#03308B;color:#fff;text-align:left">Device</th><th style="padding:6px 9px;border:1px solid #D6E4F0;background:#03308B;color:#fff;text-align:left">Model</th>
@@ -2927,14 +2927,14 @@ function buildHandoverBody(){
         ${_hdRow("Day equivalent",    fmtDays(D.hours/9)+" days at 9 man-hours")}
         ${_hdRow("Engineers involved",String(emps.length))}
       </table>
-      <div style="font-weight:800;color:#03308B;font-size:12px;margin:10px 0 5px">By work category</div>
+      <div style="font-weight:700;color:#03308B;font-size:12px;margin:10px 0 5px">By work category</div>
       <table style="border-collapse:collapse;width:100%">
         <thead><tr><th style="padding:6px 9px;border:1px solid #D6E4F0;background:#03308B;color:#fff;text-align:left">Category</th><th style="padding:6px 9px;border:1px solid #D6E4F0;background:#03308B;color:#fff;text-align:left">Man-hours</th><th style="padding:6px 9px;border:1px solid #D6E4F0;background:#03308B;color:#fff;text-align:left">Share</th></tr></thead>
         <tbody>${cats.map(([k,v])=>`<tr>
           <td style="padding:6px 9px;border:1px solid #D6E4F0">${escapeHtml(k)}</td>
           <td style="padding:6px 9px;border:1px solid #D6E4F0">${fmtHM(v)}</td>
           <td style="padding:6px 9px;border:1px solid #D6E4F0">${D.hours?Math.round(v/D.hours*100):0}%</td></tr>`).join("")}</tbody></table>
-      <div style="font-weight:800;color:#03308B;font-size:12px;margin:12px 0 5px">By engineer</div>
+      <div style="font-weight:700;color:#03308B;font-size:12px;margin:12px 0 5px">By engineer</div>
       <table style="border-collapse:collapse;width:100%">
         <thead><tr><th style="padding:6px 9px;border:1px solid #D6E4F0;background:#03308B;color:#fff;text-align:left">Engineer</th><th style="padding:6px 9px;border:1px solid #D6E4F0;background:#03308B;color:#fff;text-align:left">Man-hours</th></tr></thead>
         <tbody>${emps.map(([k,v])=>`<tr>
@@ -3013,7 +3013,7 @@ function buildHandoverBody(){
         </tr></thead>
         <tbody>${D.docs.map((r,i)=>`<tr>
           <td style="${TD9};text-align:center">${String(i+1).padStart(2,"0")}</td>
-          <td style="${TD9};font-weight:800;color:#03308B">${_hdDash(r.refNo)}</td>
+          <td style="${TD9};font-weight:700;color:#03308B">${_hdDash(r.refNo)}</td>
           <td style="${TD9}">${escapeHtml((window.REF_TYPE_LABEL&&window.REF_TYPE_LABEL[r.prefix])||r.reportType||"\u2014")}</td>
           <td style="${TD9};font-size:10px">${_hdDash(r.period)}</td>
           <td style="${TD9}">${r.at?escapeHtml(fmtDate(String(r.at).slice(0,10))):"\u2014"}</td>
@@ -3076,7 +3076,7 @@ function renderHandoverDossier(){
   ${_rptHero("\u{1F4E6}","Handover Dossier","One indexed document for the acceptance committee","linear-gradient(135deg,#0F2347 0%,#03308B 60%,#2E5FA3 100%)")}
 
   <div class="card">
-    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">01</span> Project &amp; Period</div>
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:700">01</span> Project &amp; Period</div>
     <div class="form-grid">
       <div class="field" style="grid-column:1/-1"><label>Project <span class="req">*</span></label>
         <select onchange="hdPickProject(this.value)">
@@ -3094,7 +3094,7 @@ function renderHandoverDossier(){
   </div>
 
   ${D?`<div class="card">
-    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">02</span> Sections <span style="font-size:10px;color:var(--muted);font-weight:500">(${secs.length} included)</span></div>
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:700">02</span> Sections <span style="font-size:10px;color:var(--muted);font-weight:500">(${secs.length} included)</span></div>
     <p style="font-size:11px;color:var(--muted);margin:6px 0 10px;line-height:1.6">Everything is drawn from live data \u2014 nothing is typed twice. Untick anything the committee does not need.</p>
     <div style="display:flex;gap:6px;flex-wrap:wrap">
       ${HD_SECTIONS.map(s=>{const on=!!window._hdSec[s.k];
@@ -3105,7 +3105,7 @@ function renderHandoverDossier(){
          ["Incidents",D.incidents.length],["Work entries",D.entries.length],["Requests",D.requests.length],
          ["Documents",window._hdDocsBusy?"\u2026":D.docs.length]]
         .map(([l,n])=>`<div style="background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px;text-align:center">
-          <div style="font-size:18px;font-weight:800;color:${n?"#03308B":"var(--muted)"}">${n}</div>
+          <div style="font-size:18px;font-weight:700;color:${n?"#03308B":"var(--muted)"}">${n}</div>
           <div style="font-size:10px;color:var(--muted)">${l}</div></div>`).join("")}
     </div>
     ${window._hdSec.docs && D.docsLoaded && !D.docs.length && !D.docsError
@@ -3116,7 +3116,7 @@ function renderHandoverDossier(){
   </div>
 
   <div class="card">
-    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">03</span> Declaration</div>
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:700">03</span> Declaration</div>
     <div class="form-grid">
       <div class="field"><label>EJAF signatory</label><input value="${escapeHtml(m.engName||"")}" oninput="hdSet('engName',this.value)" placeholder="Name"></div>
       <div class="field"><label>Title</label><input value="${escapeHtml(m.engTitle||"")}" oninput="hdSet('engTitle',this.value)" placeholder="e.g. Project Engineer"></div>
@@ -3129,7 +3129,7 @@ function renderHandoverDossier(){
 
   <div class="card" style="background:linear-gradient(135deg,#1B3A6B 0%,#2E5FA3 100%);border:2px solid #C9A84C">
     ${typeof refOverrideField==="function"?refOverrideField():""}${typeof brandLink==="function"?brandLink():""}${rptFormatToggle()}
-    <button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:800;border:none;width:100%" onclick="generateHandoverDossier()">\u{1F4E6} Generate Handover Dossier</button>
+    <button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:700;border:none;width:100%" onclick="generateHandoverDossier()">\u{1F4E6} Generate Handover Dossier</button>
   </div>`:""}`;
 }
 
@@ -3257,7 +3257,7 @@ function renderProgressReport(kind){
   }):[];
   const totH=window._prTasks.reduce((s,t)=>s+Number(t.hours||0),0);
   const accent=daily?"#2E5FA3":"#00695C";
-  const S=(n,t)=>`<div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:800">${n}</span> ${t}</div>`;
+  const S=(n,t)=>`<div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:700">${n}</span> ${t}</div>`;
 
   return `
   ${_rptHero(daily?"📅":"📆", daily?"Daily Progress Report":"Weekly Progress Report",
@@ -3297,7 +3297,7 @@ function renderProgressReport(kind){
   ${daily?"":`<div class="card">
     ${S("03","Status & Progress")}
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin:10px 0">
-      ${Object.keys(PR_RAG).map(k=>`<button class="btn btn-sm ${m.rag===k?"":"btn-secondary"}" style="${m.rag===k?`background:${PR_RAG[k][1]};color:#fff;border:none;`:""}font-weight:800" onclick="window._pr.rag='${k}';render()">${k} — ${PR_RAG[k][2]}</button>`).join("")}
+      ${Object.keys(PR_RAG).map(k=>`<button class="btn btn-sm ${m.rag===k?"":"btn-secondary"}" style="${m.rag===k?`background:${PR_RAG[k][1]};color:#fff;border:none;`:""}font-weight:700" onclick="window._pr.rag='${k}';render()">${k} — ${PR_RAG[k][2]}</button>`).join("")}
     </div>
     <div class="form-grid">
       <div class="field"><label>Planned progress %</label><input type="number" min="0" max="100" value="${m.plannedPct||""}" oninput="window._pr.plannedPct=this.value;prVarCalc()"></div>
@@ -3314,11 +3314,11 @@ function renderProgressReport(kind){
       <button class="btn btn-sm" style="background:${accent};color:#fff;border:none;font-weight:700" onclick="prLoadFromRecords('${kind}')">⬇ Load from Daily Log</button>
       <button class="btn btn-sm btn-secondary" onclick="prAddTask()">+ Add task</button>
       ${window._prTasks.length?`<button class="btn btn-sm btn-secondary" onclick="window._prTasks=[];render()">Clear</button>
-      <span id="pr_tot" style="margin-left:auto;font-size:11px;font-weight:800;color:${accent};align-self:center">${window._prTasks.length} task(s) · ${fmtHM(totH)}</span>`:""}
+      <span id="pr_tot" style="margin-left:auto;font-size:11px;font-weight:700;color:${accent};align-self:center">${window._prTasks.length} task(s) · ${fmtHM(totH)}</span>`:""}
     </div>
     ${window._prTasks.map((t,i)=>`<div style="border:1px solid var(--line);border-radius:8px;padding:9px;margin-bottom:8px;background:var(--card,#fff)">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-        <span style="font-size:10px;font-weight:800;color:${accent}">TASK ${i+1}</span>
+        <span style="font-size:10px;font-weight:700;color:${accent}">TASK ${i+1}</span>
         <button class="btn btn-sm" style="background:#FDECEA;color:#C62828;border:none" onclick="prDelTask(${i})">×</button>
       </div>
       <div class="form-grid">
@@ -3365,7 +3365,7 @@ function renderProgressReport(kind){
     ${S(daily?"08":"09","Photos")} 
     <input type="file" accept="image/*" multiple onchange="prAddPhotos(this)" style="margin-top:8px">
     ${window._prPhotos.length?`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
-      ${window._prPhotos.map((p,i)=>`<div style="position:relative"><img src="${p.data}" style="width:76px;height:76px;object-fit:cover;border-radius:8px;border:1px solid var(--line)"><button onclick="annoOpen('_prPhotos',${i})" title="Annotate" style="position:absolute;bottom:-6px;right:-6px;background:#03308B;color:#fff;border:none;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:10px;line-height:1">✎</button><button onclick="prDelPhoto(${i})" style="position:absolute;top:-6px;right:-6px;background:#C62828;color:#fff;border:none;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:11px;font-weight:800">×</button></div>`).join("")}
+      ${window._prPhotos.map((p,i)=>`<div style="position:relative"><img src="${p.data}" style="width:76px;height:76px;object-fit:cover;border-radius:8px;border:1px solid var(--line)"><button onclick="annoOpen('_prPhotos',${i})" title="Annotate" style="position:absolute;bottom:-6px;right:-6px;background:#03308B;color:#fff;border:none;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:10px;line-height:1">✎</button><button onclick="prDelPhoto(${i})" style="position:absolute;top:-6px;right:-6px;background:#C62828;color:#fff;border:none;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:11px;font-weight:700">×</button></div>`).join("")}
     </div>`:""}
   </div>
 
@@ -3382,7 +3382,7 @@ function renderProgressReport(kind){
 
   <div class="card" style="background:linear-gradient(135deg,#1B3A6B 0%,#2E5FA3 100%);border:2px solid #C9A84C">
     ${typeof refOverrideField==="function"?refOverrideField():""}${typeof brandLink==="function"?brandLink():""}${rptFormatToggle()}
-    <button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:800;border:none;width:100%" onclick="generateProgressReport('${kind}')">${window._rptFormat==="word"?"📝":"📄"} Generate ${daily?"Daily":"Weekly"} Report (${window._rptFormat==="word"?"Word":"PDF"})</button>
+    <button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:700;border:none;width:100%" onclick="generateProgressReport('${kind}')">${window._rptFormat==="word"?"📝":"📄"} Generate ${daily?"Daily":"Weekly"} Report (${window._rptFormat==="word"?"Word":"PDF"})</button>
   </div>`;
 }
 
@@ -3399,7 +3399,7 @@ window.generateProgressReport = async function(kind){
   const manH=people.reduce((s,p)=>s+Number(p.hours||0),0);
   const rag=PR_RAG[m.rag]||PR_RAG.Green;
   const period = daily ? fmtDate(m.date) : `${fmtDate(m.from)} → ${fmtDate(m.to)}`;
-  const infoRow=(l,v)=>`<tr><td style="border:1px solid #ccc;background:#F0F4FA;padding:6px 10px;font-weight:800;font-size:11px;width:42%">${l}</td><td style="border:1px solid #ccc;padding:6px 10px;font-size:12px">${v||"&nbsp;"}</td></tr>`;
+  const infoRow=(l,v)=>`<tr><td style="border:1px solid #ccc;background:#F0F4FA;padding:6px 10px;font-weight:700;font-size:11px;width:42%">${l}</td><td style="border:1px solid #ccc;padding:6px 10px;font-size:12px">${v||"&nbsp;"}</td></tr>`;
   const block=(t)=>`<div style="border:1px solid #ccc;border-radius:8px;padding:11px;font-size:12px;line-height:1.8;white-space:pre-wrap;min-height:44px">${escapeHtml((t||"").trim())||"&nbsp;"}</div>`;
   let n=0; const K=()=>String(++n).padStart(2,"0");
 
@@ -3407,12 +3407,12 @@ window.generateProgressReport = async function(kind){
     <div style="border:1.5px solid #1B3A6B;border-radius:8px;padding:10px 14px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
       <div>
         <div style="font-family:'DM Serif Display',serif;font-size:18px;color:#03308B">${daily?"DAILY":"WEEKLY"} PROGRESS REPORT</div>
-        <div style="font-size:12px;font-weight:800;color:${daily?"#2E5FA3":"#00695C"}">${escapeHtml(m.project)}</div>
+        <div style="font-size:12px;font-weight:700;color:${daily?"#2E5FA3":"#00695C"}">${escapeHtml(m.project)}</div>
       </div>
       <table style="border-collapse:collapse;font-size:11px">
-        ${m.reference?`<tr><td style="padding:2px 8px;font-weight:800;color:#555">Reference</td><td style="padding:2px 8px">${escapeHtml(m.reference)}</td></tr>`:""}
-        <tr><td style="padding:2px 8px;font-weight:800;color:#555">${daily?"Date":"Period"}</td><td style="padding:2px 8px">${period}</td></tr>
-        ${!daily&&m.weekNo?`<tr><td style="padding:2px 8px;font-weight:800;color:#555">Week</td><td style="padding:2px 8px">${escapeHtml(m.weekNo)}</td></tr>`:""}
+        ${m.reference?`<tr><td style="padding:2px 8px;font-weight:700;color:#555">Reference</td><td style="padding:2px 8px">${escapeHtml(m.reference)}</td></tr>`:""}
+        <tr><td style="padding:2px 8px;font-weight:700;color:#555">${daily?"Date":"Period"}</td><td style="padding:2px 8px">${period}</td></tr>
+        ${!daily&&m.weekNo?`<tr><td style="padding:2px 8px;font-weight:700;color:#555">Week</td><td style="padding:2px 8px">${escapeHtml(m.weekNo)}</td></tr>`:""}
       </table>
     </div>
 
@@ -3433,17 +3433,17 @@ window.generateProgressReport = async function(kind){
     ${!daily?`<div class="ksec"><span class="kbad">${K()}</span><h3>Status &amp; Progress</h3></div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:stretch;margin-bottom:10px">
       <div style="flex:1;min-width:120px;border:1px solid #ccc;border-left:5px solid ${rag[1]};border-radius:8px;padding:10px;background:${rag[0]}">
-        <div style="font-size:9px;font-weight:800;color:#666;text-transform:uppercase;letter-spacing:.6px">Overall status</div>
+        <div style="font-size:9px;font-weight:700;color:#666;text-transform:uppercase;letter-spacing:.6px">Overall status</div>
         <div style="font-family:'DM Serif Display',serif;font-size:18px;color:${rag[1]}">${escapeHtml(m.rag)}</div>
         <div style="font-size:10px;color:#666">${rag[2]}</div>
       </div>
       ${(m.plannedPct!==""||m.actualPct!=="")?`
       <div style="flex:2;min-width:200px;border:1px solid #ccc;border-radius:8px;padding:10px">
-        <div style="display:flex;justify-content:space-between;font-size:10px;font-weight:800;color:#666"><span>PLANNED</span><span>${m.plannedPct||0}%</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:10px;font-weight:700;color:#666"><span>PLANNED</span><span>${m.plannedPct||0}%</span></div>
         <div style="height:8px;background:#E8EDF5;border-radius:4px;margin:3px 0 8px"><div style="height:100%;width:${Math.min(100,Number(m.plannedPct)||0)}%;background:#8FA8CC;border-radius:4px"></div></div>
-        <div style="display:flex;justify-content:space-between;font-size:10px;font-weight:800;color:#666"><span>ACTUAL</span><span>${m.actualPct||0}%</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:10px;font-weight:700;color:#666"><span>ACTUAL</span><span>${m.actualPct||0}%</span></div>
         <div style="height:8px;background:#E8EDF5;border-radius:4px;margin:3px 0 6px"><div style="height:100%;width:${Math.min(100,Number(m.actualPct)||0)}%;background:linear-gradient(90deg,#C9A84C,#E9CC7A);border-radius:4px"></div></div>
-        <div style="font-size:10px;font-weight:800;color:${(Number(m.actualPct)-Number(m.plannedPct))>=0?"#2E7D32":"#C62828"}">Variance: ${(Number(m.actualPct)-Number(m.plannedPct))>=0?"+":""}${(Number(m.actualPct)||0)-(Number(m.plannedPct)||0)}%</div>
+        <div style="font-size:10px;font-weight:700;color:${(Number(m.actualPct)-Number(m.plannedPct))>=0?"#2E7D32":"#C62828"}">Variance: ${(Number(m.actualPct)-Number(m.plannedPct))>=0?"+":""}${(Number(m.actualPct)||0)-(Number(m.plannedPct)||0)}%</div>
       </div>`:""}
     </div>
     ${(m.summary||"").trim()?block(m.summary):""}`:""}
@@ -3458,13 +3458,13 @@ window.generateProgressReport = async function(kind){
       <td style="font-size:10px">${escapeHtml(t.by||"—")}</td>
       <td style="font-size:10px">${escapeHtml(t.status||"—")}</td>
       <td style="text-align:right">${t.hours?fmtHM(Number(t.hours)):"—"}</td></tr>`).join("")}
-      <tr><td colspan="${daily?5:6}" style="text-align:right;font-weight:800">Total</td><td style="text-align:right;font-weight:800">${fmtHM(totH)}</td></tr>
+      <tr><td colspan="${daily?5:6}" style="text-align:right;font-weight:700">Total</td><td style="text-align:right;font-weight:700">${fmtHM(totH)}</td></tr>
     </tbody></table>`:`<div style="color:#888;font-size:12px">No tasks recorded for this period.</div>`}
 
     ${people.length?`<div class="ksec"><span class="kbad">${K()}</span><h3>Manpower (${people.length})</h3></div>
     <table><thead><tr><th style="width:34px">No.</th><th>Name</th><th>Role / trade</th><th style="width:70px">Hours</th></tr></thead>
     <tbody>${people.map((p,i)=>`<tr><td style="text-align:center">${String(i+1).padStart(2,"0")}</td><td><strong>${escapeHtml(p.name)}</strong></td><td style="font-size:11px">${escapeHtml(p.role||"—")}</td><td style="text-align:right">${p.hours?fmtHM(Number(p.hours)):"—"}</td></tr>`).join("")}
-      <tr><td colspan="3" style="text-align:right;font-weight:800">Total man-hours</td><td style="text-align:right;font-weight:800">${fmtHM(manH)}</td></tr>
+      <tr><td colspan="3" style="text-align:right;font-weight:700">Total man-hours</td><td style="text-align:right;font-weight:700">${fmtHM(manH)}</td></tr>
     </tbody></table>`:""}
 
     <div class="ksec"><span class="kbad">${K()}</span><h3>Issues, Delays &amp; Risks</h3></div>
@@ -3529,6 +3529,6 @@ window.forceUpdate = async function(){
 // The build actually running, so nobody has to infer it from behaviour.
 // A single named constant, updated with every release, so the screen can state
 // the build without inferring it from a variable that lives inside a function.
-const APP_BUILD = "v234";
+const APP_BUILD = "v236";
 window.APP_BUILD = APP_BUILD;
 window.runningVersion = function(){ return APP_BUILD; };

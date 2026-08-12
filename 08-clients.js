@@ -60,7 +60,7 @@ function renderClients(){
           return `<div style="border:1px solid var(--line);border-left:4px solid #C9A84C;border-radius:12px;padding:14px">
             <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">
               <div style="flex:1;min-width:200px">
-                <div style="font-weight:800;font-size:14px;color:#03308B">🏢 ${escapeHtml(c.name)}</div>
+                <div style="font-weight:700;font-size:14px;color:#03308B">🏢 ${escapeHtml(c.name)}</div>
                 <div style="font-size:11px;color:var(--muted);margin-top:2px">
                   ${linkedClientLabel(c)?`👤 ${escapeHtml(linkedClientLabel(c))}`:'<span style="color:#C62828">No login linked</span>'}
                   ${c.notes?` · ${escapeHtml(c.notes)}`:''}
@@ -71,7 +71,7 @@ function renderClients(){
               </div>
               <div style="text-align:right;min-width:120px">
                 <div style="font-size:11px;color:var(--muted)">Total Hours</div>
-                <div style="font-size:18px;font-weight:800;color:#03308B">${fmtHM(totalHrs)}</div>
+                <div style="font-size:18px;font-weight:700;color:#03308B">${fmtHM(totalHrs)}</div>
                 ${pct!==null?`<div style="margin-top:6px">
                   <div style="font-size:10px;color:var(--muted)">Progress: <strong style="color:${pct>=100?'#2E7D32':'#C9A84C'}">${pct}%</strong></div>
                   <div style="height:6px;background:#E2E8F0;border-radius:4px;margin-top:3px;overflow:hidden">
@@ -83,7 +83,7 @@ function renderClients(){
             ${(()=>{const sl=(state.publicSharesMeta||[]).find(s=>s.clientId===c.id&&!s.revoked);
               return sl?`<div style="margin-top:10px;background:#F0FAF4;border:1px solid #C8E6C9;border-radius:8px;padding:9px 10px">
                 <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-                  <span style="font-size:11px;font-weight:800;color:#2E7D32">🔗 Live share link active</span>
+                  <span style="font-size:11px;font-weight:700;color:#2E7D32">🔗 Live share link active</span>
                   ${sl.expires?`<span style="font-size:10px;color:#888">expires ${sl.expires}</span>`:""}
                   <span style="flex:1"></span>
                   <button class="btn btn-sm btn-secondary" onclick="copyShareLink('${sl.id}')">📋 Copy</button>
@@ -211,16 +211,16 @@ function renderClientPortal(){
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
       <div>
         <div style="font-size:11px;opacity:0.6;text-transform:uppercase;letter-spacing:1px">Client Portal</div>
-        <div style="font-size:18px;font-weight:800;color:#C9A84C;margin-top:2px">🏢 ${escapeHtml(c.name)}</div>
+        <div style="font-size:18px;font-weight:700;color:#C9A84C;margin-top:2px">🏢 ${escapeHtml(c.name)}</div>
         <div style="font-size:12px;opacity:0.7;margin-top:2px">${myProjects.length} project(s) · ${myDaily.length} work entries</div>
         ${perms.reportsExport?`<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
-          <button onclick="exportClientPDF()" style="background:#C9A84C;color:#03308B;border:none;padding:7px 14px;border-radius:8px;font-size:12px;font-weight:800;cursor:pointer">📄 PDF Report</button>
+          <button onclick="exportClientPDF()" style="background:#C9A84C;color:#03308B;border:none;padding:7px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">📄 PDF Report</button>
           <button onclick="exportClientExcel()" style="background:rgba(255,255,255,0.15);color:white;border:1px solid rgba(201,168,76,0.6);padding:7px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">📊 Excel Report</button>
         </div>`:""}
       </div>
       <div style="text-align:right">
         <div style="font-size:11px;opacity:0.6">Total Hours Delivered</div>
-        <div style="font-size:28px;font-weight:900;color:#C9A84C">${fmtHM(totalHrs)}</div>
+        <div style="font-size:28px;font-weight:700;color:#C9A84C">${fmtHM(totalHrs)}</div>
         ${pct!==null?`<div style="font-size:13px;font-weight:700;margin-top:2px">${pct}% Complete</div>`:""}
       </div>
     </div>
@@ -233,7 +233,7 @@ function renderClientPortal(){
     <div class="card-title">📊 Project Progress</div>
     <div style="display:flex;flex-direction:column;gap:10px">
       ${perProject.map(p=>`<div style="border:1px solid var(--line);border-radius:8px;padding:12px">
-        ${p.status?`<span style="float:right;background:#F0F4FF;color:#03308B;border:1px solid #C9A84C;padding:2px 10px;border-radius:12px;font-size:10px;font-weight:800">${escapeHtml(p.status)}</span>`:""}
+        ${p.status?`<span style="float:right;background:#F0F4FF;color:#03308B;border:1px solid #C9A84C;padding:2px 10px;border-radius:12px;font-size:10px;font-weight:700">${escapeHtml(p.status)}</span>`:""}
         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
           <div style="font-weight:700;color:#03308B;font-size:14px">${escapeHtml(p.name)}</div>
           <div style="font-size:12px;color:var(--muted)">${fmtHM(p.hrs)}${p.est?` / ${p.est}h est.`:""} · ${p.count} entries</div>

@@ -219,11 +219,11 @@ function dashFieldToday(){
           <span style="font-weight:700;font-size:13px;color:var(--text)">${escapeHtml(a.emp)}</span>
           <span style="display:block;font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(a.places.join(" · ")||a.projects.join(" · ")||"—")}</span>
         </span>
-        <span style="font-weight:800;font-size:12px;color:#2E7D32">${fmtHM(a.hrs)}</span>
+        <span style="font-weight:700;font-size:12px;color:#2E7D32">${fmtHM(a.hrs)}</span>
       </button>`).join("")}
     </div>`:""}
     ${silent.length?`<div style="margin-top:10px;display:flex;gap:5px;flex-wrap:wrap;align-items:center">
-      <span style="font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">Not logged yet</span>
+      <span style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">Not logged yet</span>
       ${silent.slice(0,10).map(e=>`<span style="font-size:11px;background:#FFF3E0;color:#E65100;padding:3px 9px;border-radius:12px;font-weight:700">${escapeHtml(e)}</span>`).join("")}
       ${silent.length>10?`<span style="font-size:11px;color:var(--muted)">+${silent.length-10}</span>`:""}
     </div>`:""}
@@ -284,8 +284,8 @@ function dashProjectHealth(){
     <div style="display:grid;gap:8px;margin-top:8px">
       ${shown.map(c=>`<button class="dsh-proj" style="border-left-color:${RC[c.rag]}" onclick="dashOpenProject('${escapeHtml(c.nm).replace(/'/g,"\\'")}')">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
-          <span style="font-weight:800;font-size:13px;color:var(--text)">${escapeHtml(c.nm)}</span>
-          <span style="font-size:12px;font-weight:800;color:${RC[c.rag]}">${fmtHM(c.hrs)}</span>
+          <span style="font-weight:700;font-size:13px;color:var(--text)">${escapeHtml(c.nm)}</span>
+          <span style="font-size:12px;font-weight:700;color:${RC[c.rag]}">${fmtHM(c.hrs)}</span>
         </div>
         ${c.pct!==null?`<div style="margin-top:6px">
           <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted);font-weight:700"><span>BUDGET</span><span>${fmtHM(c.totalHrs)} / ${c.est}h · ${c.pct}%</span></div>
@@ -328,7 +328,7 @@ function dashProblemDevices(){
             <span style="font-weight:700;font-size:13px;color:var(--text)">${escapeHtml(dev?(dev.deviceName||dev.model||d.sn):d.sn)}</span>
             <span style="display:block;font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml([d.project,dev&&dev.site,"last "+fmtDate(d.last)].filter(Boolean).join(" · "))}</span>
           </span>
-          <span style="font-weight:800;font-size:13px;color:#C62828">${d.n}×</span>
+          <span style="font-weight:700;font-size:13px;color:#C62828">${d.n}×</span>
         </button>`;}).join("")}
     </div>
     <p style="font-size:10px;color:var(--muted);margin:9px 0 0">Repeated failures on the same unit usually cost more than replacing it.</p>
@@ -443,7 +443,7 @@ function dashStalledPanel(){
           <span style="display:block;font-size:var(--f-sm);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(w.scopeLabel||"—")} · ${escapeHtml(w.status)}</span>
           <span style="display:block;font-size:var(--f-2xs);color:var(--muted);margin-top:2px">${w.visits} entr${w.visits===1?"y":"ies"} · idle ${days(w.lastDate)}d · last ${fmtDate(w.lastDate)}</span>
         </span>
-        <button class="btn btn-sm" style="background:var(--ok);color:#fff;border:none;font-weight:800;white-space:nowrap;flex:0 0 auto" onclick="closeWorkItem('${escapeHtml(w.key).replace(/'/g,"\\'")}')">✓ Close job</button>
+        <button class="btn btn-sm" style="background:var(--ok);color:#fff;border:none;font-weight:700;white-space:nowrap;flex:0 0 auto" onclick="closeWorkItem('${escapeHtml(w.key).replace(/'/g,"\\'")}')">✓ Close job</button>
       </div>`).join("")}
     </div>${list.length>25?`<div style="font-size:11px;color:var(--muted);margin-top:7px">Showing the 25 longest-idle of ${list.length}.</div>`:""}`
     :`<div class="empty empty2" style="margin-top:8px"><span class="e-ic">✅</span><div class="e-t">Nothing stalled</div><div class="e-m">Every open job has been visited recently</div></div>`}
@@ -663,7 +663,7 @@ function renderDailyLog(){
   const _mo=(typeof _dtDoc==="function")&&_dtDoc().mode==="manual"
     ? `<div class="card" style="background:#FFF3E0;border:1.5px solid #E65100;padding:11px 13px">
         <div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap">
-          <span style="font-size:12px;font-weight:800;color:#BF360C">🕐 MANUAL DATE &amp; TIME IS ON</span>
+          <span style="font-size:12px;font-weight:700;color:#BF360C">🕐 MANUAL DATE &amp; TIME IS ON</span>
           <span style="flex:1;min-width:150px;font-size:11px;color:#7A4A10">The app is using <strong>${today()}</strong>, not the real clock.</span>
           <button class="btn btn-sm" style="background:#E65100;color:#fff;border:none;font-weight:700" onclick="clearManualDT()">⚡ Back to automatic</button>
         </div>
@@ -833,7 +833,7 @@ function renderDailyLog(){
         </select></div>
       ${selDev ? `
       <div class="field full" style="background:#F0F7FF;border:1px solid #B3D4FF;border-radius:12px;padding:12px;margin-top:2px">
-        <div style="font-size:12px;font-weight:800;color:#03308B;margin-bottom:8px">🔧 Update device: ${escapeHtml(selDev.deviceName||selDev.serialNumber)}
+        <div style="font-size:12px;font-weight:700;color:#03308B;margin-bottom:8px">🔧 Update device: ${escapeHtml(selDev.deviceName||selDev.serialNumber)}
           <span style="font-size:10px;font-weight:600;color:#1565C0;background:#E3F2FD;padding:1px 7px;border-radius:8px;margin-left:4px">syncs centrally</span>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
@@ -893,7 +893,7 @@ function renderDailyLog(){
       <div class="field full" style="margin-top:6px">
         <div style="background:linear-gradient(135deg,#FFF8E1 0%,#FFFEF7 100%);border:2px solid #C9A84C;border-radius:12px;padding:14px">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding-bottom:8px;border-bottom:1px dashed #C9A84C">
-            <span style="background:#C9A84C;color:#1B3A6B;padding:3px 10px;border-radius:8px;font-size:11px;font-weight:800;letter-spacing:0.5px">RESOLUTION</span>
+            <span style="background:#C9A84C;color:#1B3A6B;padding:3px 10px;border-radius:8px;font-size:11px;font-weight:700;letter-spacing:0.5px">RESOLUTION</span>
             <span style="font-size:12px;color:#7F6000;font-weight:600">📋 Required — Document work performed</span>
           </div>
 
@@ -903,7 +903,7 @@ function renderDailyLog(){
             const linked=dailyForm.threadId?open.find(w=>w.key===dailyForm.threadId||w.entries.some(e=>e.threadId===dailyForm.threadId)):null;
             if(!open.length && !dailyForm.threadId) return "";
             return `<div style="background:#EEF4FF;border:1.5px solid #2E5FA3;border-radius:8px;padding:10px;margin-bottom:12px">
-              <div style="font-size:11px;font-weight:800;color:#1B3A6B;margin-bottom:7px">🧵 WORK ITEM ${linked?`— continuing`:`— ${open.length} open here`}</div>
+              <div style="font-size:11px;font-weight:700;color:#1B3A6B;margin-bottom:7px">🧵 WORK ITEM ${linked?`— continuing`:`— ${open.length} open here`}</div>
               ${linked?`<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
                   <span style="flex:1;font-size:12px;color:#03308B;font-weight:700">${escapeHtml(linked.title)} · visit #${linked.visits+1} · since ${fmtDate(linked.firstDate)}</span>
                   <button type="button" class="btn btn-sm btn-secondary" onclick="dailyUnlinkThread()">✕ New instead</button>
@@ -1050,7 +1050,7 @@ function renderDailyLog(){
               ? `<div style="font-size:var(--f-2xs);color:var(--danger);margin-top:3px;line-height:1.45;max-width:150px;white-space:normal">↩ ${escapeHtml(r.approvalNote)}</div>` : "";
             return `<div style="margin-top:4px">${b}${note}</div>`; })()}</td>
           ${!isEmployee()?`<td>${employeeBadge(r.employee)}${(r.gpsLat!=null||r.gpsDenied)&&typeof geoBadge==="function"?`<br>${geoBadge(r)}`:""}</td>`:""}
-          <td>${escapeHtml(r.project||"")}${r.projectCode?` <span style="font-size:9px;background:#FFF3E0;color:#E65100;border:1px solid #EAD3AE;padding:1px 6px;border-radius:8px;font-weight:800">${escapeHtml(r.projectCode)}</span>`:""}${(r.area||r.site)?`<div style="font-size:10px;color:#1565C0;margin-top:2px">${r.area?`🗺️ ${escapeHtml(r.area)}`:''}${r.site?` · 📍 ${escapeHtml(r.site)}`:''}</div>`:''}</td>
+          <td>${escapeHtml(r.project||"")}${r.projectCode?` <span style="font-size:9px;background:#FFF3E0;color:#E65100;border:1px solid #EAD3AE;padding:1px 6px;border-radius:8px;font-weight:700">${escapeHtml(r.projectCode)}</span>`:""}${(r.area||r.site)?`<div style="font-size:10px;color:#1565C0;margin-top:2px">${r.area?`🗺️ ${escapeHtml(r.area)}`:''}${r.site?` · 📍 ${escapeHtml(r.site)}`:''}</div>`:''}</td>
           <td>${deptBadge(r.dept)}</td>
           <td>${r.location?`<span style="background:#E3F2FD;color:#1565C0;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600">📍 ${escapeHtml(r.location)}</span>`:'<span style="color:#bbb;font-style:italic;font-size:11px">—</span>'} ${gpsBadgeHTML(r)}</td>
           <td><strong style="color:#2E7D32">${fmtHM(r.duration)}</strong></td>
@@ -1429,8 +1429,8 @@ function viewResolution(recordId){
             const idx=w.entries.findIndex(e=>e.id===r.id)+1;
             return `<div style="margin:0 0 14px;background:#F7F9FF;border:1px solid #DCE6F7;border-radius:8px;padding:10px 12px">
               <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">
-                <span style="font-size:10px;font-weight:800;color:#1B3A6B;letter-spacing:.4px">🧵 WORK ITEM · VISIT ${idx}/${w.visits}</span>
-                <span style="font-size:10px;background:${w.closed?'#E8F5E9':'#FFF3E0'};color:${w.closed?'#2E7D32':'#E65100'};padding:2px 9px;border-radius:8px;font-weight:800">${escapeHtml(w.status)}</span>
+                <span style="font-size:10px;font-weight:700;color:#1B3A6B;letter-spacing:.4px">🧵 WORK ITEM · VISIT ${idx}/${w.visits}</span>
+                <span style="font-size:10px;background:${w.closed?'#E8F5E9':'#FFF3E0'};color:${w.closed?'#2E7D32':'#E65100'};padding:2px 9px;border-radius:8px;font-weight:700">${escapeHtml(w.status)}</span>
                 <span style="font-size:10px;color:#7A8AA0">${fmtHM(w.hours)} total</span>
               </div>
               <div style="display:flex;align-items:center;gap:0;flex-wrap:wrap">
@@ -1552,7 +1552,7 @@ function renderOvertime(){
         <input type="time" value="${otForm.start||''}" onchange="window.otForm.start=this.value;window.updateOTDuration();render()"></div>
       <div class="field"><label>End Time <span class="req">*</span></label>
         <input type="time" value="${otForm.end||''}" onchange="window.otForm.end=this.value;window.updateOTDuration();render()"></div>
-      <div class="field"><label>OT Duration (auto)</label><div class="auto orange ${otForm.hours&&Number(otForm.hours)>0?"":"empty"}" style="font-weight:800;font-size:16px;color:#E65100">${otForm.hours&&Number(otForm.hours)>0?fmtHM(Number(otForm.hours)):"—"}</div></div>
+      <div class="field"><label>OT Duration (auto)</label><div class="auto orange ${otForm.hours&&Number(otForm.hours)>0?"":"empty"}" style="font-weight:700;font-size:16px;color:#E65100">${otForm.hours&&Number(otForm.hours)>0?fmtHM(Number(otForm.hours)):"—"}</div></div>
       <div class="field"><label>Day (auto)</label><div class="auto green ${day?"":"empty"}">${day||"—"}</div></div>
       <div class="field full"><label>Project</label><select onchange="window.otForm.project=this.value;render()"><option value="">— Select —</option>${state.projects.map(p=>{const n=(p.name||"").trim();return `<option value="${escapeHtml(n)}" ${n===(otForm.project||"").trim()?"selected":""}>${escapeHtml(n)}</option>`}).join("")}</select></div>
       <div class="field"><label>Dept (auto)</label><div class="auto purple ${dept?"":"empty"}">${dept||"—"}</div></div>
@@ -2283,7 +2283,7 @@ function apprNotice(){
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         <span style="font-size:var(--f-2xl)">⏳</span>
         <div style="flex:1;min-width:180px">
-          <div style="font-size:var(--f-lg);font-weight:800;color:var(--warn-ink)">${bits.join(" · ")}</div>
+          <div style="font-size:var(--f-lg);font-weight:700;color:var(--warn-ink)">${bits.join(" · ")}</div>
           <div style="font-size:var(--f-sm);color:var(--warn-ink);opacity:.85;margin-top:2px;line-height:1.5">${on
             ? "These entries are EXCLUDED from the figures below until approved."
             : "These entries ARE included in the figures below — they have not been reviewed yet."}</div>
@@ -2328,8 +2328,8 @@ function renderApprovals(){
       <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center">
         <button class="btn btn-sm btn-secondary" onclick="editDaily('${r.id}')" title="Open the full entry">${ICN.edit}</button>
         ${mine?`<span style="font-size:var(--f-2xs);color:var(--muted);max-width:96px;line-height:1.4">your own entry</span>`
-        :`<button class="btn btn-sm" style="background:var(--ok);color:#fff;border:none;font-weight:800" onclick="approveEntry('${r.id}')">✓ Approve</button>
-          <button class="btn btn-sm" style="background:var(--danger-bg);color:var(--danger);border:none;font-weight:800" onclick="rejectEntry('${r.id}')">↩ Return</button>`}
+        :`<button class="btn btn-sm" style="background:var(--ok);color:#fff;border:none;font-weight:700" onclick="approveEntry('${r.id}')">✓ Approve</button>
+          <button class="btn btn-sm" style="background:var(--danger-bg);color:var(--danger);border:none;font-weight:700" onclick="rejectEntry('${r.id}')">↩ Return</button>`}
       </div>
     </div>`;
   };
@@ -2351,12 +2351,12 @@ function renderApprovals(){
   ${isAdmin()?`<div class="card" style="border-left:4px solid ${enforce?'var(--ok)':'var(--warn)'}">
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
       <div style="flex:1;min-width:190px">
-        <div style="font-size:var(--f-lg);font-weight:800;color:var(--text)">${enforce?"🔒":"🔓"} Reports count ${enforce?"approved entries only":"all entries"}</div>
+        <div style="font-size:var(--f-lg);font-weight:700;color:var(--text)">${enforce?"🔒":"🔓"} Reports count ${enforce?"approved entries only":"all entries"}</div>
         <div style="font-size:var(--f-sm);color:var(--muted);margin-top:3px;line-height:1.55">${enforce
           ? "Pending and returned entries are excluded from HR and Daily Log reports until approved."
           : "Nothing is excluded yet — reports show every entry and simply state how many are still pending. Turn this on once the team is used to submitting."}</div>
       </div>
-      <button class="btn btn-sm ${enforce?"btn-secondary":""}" style="${enforce?"":"background:var(--ok);color:#fff;border:none;"}font-weight:800" onclick="toggleApprEnforce(${enforce?"false":"true"})">${enforce?"Turn off":"Turn on"}</button>
+      <button class="btn btn-sm ${enforce?"btn-secondary":""}" style="${enforce?"":"background:var(--ok);color:#fff;border:none;"}font-weight:700" onclick="toggleApprEnforce(${enforce?"false":"true"})">${enforce?"Turn off":"Turn on"}</button>
     </div>
   </div>`:""}
 
@@ -2382,12 +2382,12 @@ function renderApprovals(){
         return `<div class="card" style="border-left:4px solid var(--ok)">
           <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
             <div style="flex:1;min-width:150px">
-              <div style="font-weight:800;font-size:var(--f-md)">${pend.length} entr${pend.length===1?"y":"ies"} waiting across ${people.length} people</div>
+              <div style="font-weight:700;font-size:var(--f-md)">${pend.length} entr${pend.length===1?"y":"ies"} waiting across ${people.length} people</div>
               <div style="font-size:var(--f-xs);color:var(--muted);line-height:1.6;margin-top:2px">
                 Approve the lot in one pass. The confirmation shows the people and the dates covered.
               </div>
             </div>
-            <button class="btn btn-sm" style="background:var(--ok);color:#fff;border:none;font-weight:800"
+            <button class="btn btn-sm" style="background:var(--ok);color:#fff;border:none;font-weight:700"
                     onclick="approveAllPending()"${window._apprBusy?" disabled":""}>
               ${window._apprBusy?"Approving\u2026":"\u2713 Approve all "+pend.length}</button>
           </div>
@@ -2399,7 +2399,7 @@ function renderApprovals(){
             <div style="font-size:var(--f-sm);color:var(--muted)">${g.list.length} entr${g.list.length===1?"y":"ies"} · ${fmtHM(g.hours)}</div>
           </div>
           ${view!=="returned" && g.list.some(r=>canApprove(r))
-            ? `<button class="btn btn-sm" style="background:var(--ok);color:#fff;border:none;font-weight:800" onclick="approveAllFor(${jsArg(g.emp)})">✓ Approve all</button>`:""}
+            ? `<button class="btn btn-sm" style="background:var(--ok);color:#fff;border:none;font-weight:700" onclick="approveAllFor(${jsArg(g.emp)})">✓ Approve all</button>`:""}
         </div>
         ${g.list.map(row).join("")}
       </div>`).join("")}`;
