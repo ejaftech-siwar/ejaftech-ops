@@ -329,14 +329,18 @@ window.gotoBranding = function(){
 // (Excel cannot hold the drawn logo: the sheet writer in use has no image
 // support, so the name is set in the brand colours instead.)
 function xlBrandName(){
-  const b=(typeof brandCfg==="function")?brandCfg():null;
+  // Guarded: an export must never fail because the branding settings have not
+  // loaded yet. The company name is presentation, not data.
+  let b=null;
+  try{ b=(typeof brandCfg==="function")?brandCfg():null; }catch(e){}
   const left=b?String(b.footerLeft||"").trim():"";
   // "EJAF Technology \u00b7 Gir\u00eak" \u2192 "EJAF Technology"
   const name=left.split("\u00b7")[0].trim();
   return (name || "EJAF Technology").toUpperCase();
 }
 function xlBrandSubtitle(){
-  const b=(typeof brandCfg==="function")?brandCfg():null;
+  let b=null;
+  try{ b=(typeof brandCfg==="function")?brandCfg():null; }catch(e){}
   return (b && b.showSubtitle && String(b.subtitle||"").trim()) || "";
 }
 Object.assign(window,{xlBrandName, xlBrandSubtitle});
@@ -383,13 +387,105 @@ async function openReportPDF(reportType, periodLabel, bodyHTML, meta){
     refNo = await generateRefNo(reportType, meta);
   }
   const html=buildReportHTML(refNo,reportType,periodLabel,bodyHTML);
-  if(window._rptFormat==="word") return downloadReportWord(refNo,reportType,html,periodLabel);
+  if(window._rptFormat==="word")  return downloadReportWord(refNo,reportType,html,periodLabel);
+  if(window._rptFormat==="excel") return downloadReportExcel(refNo,reportType,bodyHTML,periodLabel);
   const win=window.open("","_blank");
   if(!win){alert("Please allow pop-ups to export PDF");return;}
   win.document.write(html);
   win.document.close();
   win.onload=()=>setTimeout(()=>win.print(),300);
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+//  EXCEL EXPORT (v238)
+// ═══════════════════════════════════════════════════════════════════════
+//  A report body is HTML, and a spreadsheet is rows of cells, so the two do
+//  not map perfectly. What DOES map is the part a client actually wants in
+//  Excel: the tables — checklists, readings, itemised findings — which they
+//  filter, sort and re-total themselves. Everything else (headings, prose,
+//  signature blocks) is carried across as labelled rows so the document still
+//  reads as one piece rather than a pile of loose tables.
+//
+//  Signatures are deliberately NOT drawn: an image pasted into a spreadsheet
+//  is not evidence of anything, and this library cannot embed one. The names
+//  and roles are written instead, with a blank line to sign by hand.
+function _xlText(html){
+  return String(html||"")
+    .replace(/<br\s*\/?>/gi, " ")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/gi, " ").replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<").replace(/&gt;/gi, ">").replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'").replace(/\s+/g, " ").trim();
+}
+
+// Pull every <table> out of a report body, as arrays of rows of plain text.
+function _xlTablesFrom(html){
+  const out=[];
+  const tables=String(html||"").match(/<table[\s\S]*?<\/table>/gi)||[];
+  tables.forEach(tb=>{
+    const rows=[];
+    (tb.match(/<tr[\s\S]*?<\/tr>/gi)||[]).forEach(tr=>{
+      const cells=[];
+      (tr.match(/<t[hd][\s\S]*?<\/t[hd]>/gi)||[]).forEach(td=>{
+        const span=/colspan\s*=\s*["']?(\d+)/i.exec(td);
+        cells.push(_xlText(td));
+        // A merged cell occupies several columns; pad so the ones after it
+        // still line up with the header above them.
+        for(let k=1;k<(span?+span[1]:1);k++) cells.push("");
+      });
+      // A header row is one whose cells are <th>.
+      if(cells.some(x=>x!=="")) rows.push({cells, head:/<th[\s>]/i.test(tr)});
+    });
+    if(rows.length) out.push(rows);
+  });
+  return out;
+}
+
+async function downloadReportExcel(refNo, reportType, bodyHTML, periodLabel){
+  if(typeof XLSX==="undefined") return toast("Spreadsheet engine not loaded \u2014 reconnect and try again");
+  try{
+    const A=[], rowMap={}, cellMap={};
+    const title=(typeof REF_TYPE_LABEL!=="undefined" && REF_TYPE_LABEL[String(refNo).split("-")[0]])||String(reportType||"Report").replace(/_/g," ");
+    A.push([(typeof xlBrandName==="function")?xlBrandName():"EJAF TECHNOLOGY"]); rowMap[0]="title";
+    A.push([title]);                                   rowMap[1]="subtitle";
+    A.push([`${refNo||""}${periodLabel?"  \u00b7  "+periodLabel:""}`]); rowMap[2]="subtitle";
+    A.push([]);
+
+    // Section headings carry the same numbered badges as the printed document,
+    // so a reader can match a sheet row to a page.
+    const secs=[...String(bodyHTML||"").matchAll(/<div class="ksec"[\s\S]*?<h3>([\s\S]*?)<\/h3>/gi)]
+      .map(m=>_xlText(m[1]));   // matchAll yields arrays, not match objects
+    const tables=_xlTablesFrom(bodyHTML);
+
+    tables.forEach((rows,ti)=>{
+      if(secs[ti]){ rowMap[A.length]="section"; A.push([secs[ti]]); }
+      rows.forEach(r=>{
+        if(r.head) rowMap[A.length]="header";
+        A.push(r.cells);
+      });
+      A.push([]);
+    });
+
+    if(!tables.length){
+      A.push(["This report has no tabular section \u2014 the PDF carries its full layout."]);
+      rowMap[A.length-1]="note";
+    }
+
+    const widest=A.reduce((m,r)=>Math.max(m,r.length),1);
+    const ws=XLSX.utils.aoa_to_sheet(A);
+    ws["!cols"]=Array.from({length:widest},(_,i)=>({wch:i===0?34:16}));
+    ws["!merges"]=[0,1,2].map(r=>({s:{r,c:0},e:{r,c:Math.max(widest-1,1)}}));
+    if(typeof xlDress==="function") xlDress(ws,{rows:rowMap, cells:cellMap,
+      rowsHt:[{hpt:26},{hpt:18},{hpt:16}]});
+
+    const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Report");
+    const safe=(s)=>String(s||"").replace(/[^A-Za-z0-9._-]+/g,"_").slice(0,40);
+    XLSX.writeFile(wb, `${safe(refNo||reportType)}.xlsx`);
+    toast("Excel exported \u2713");
+  }catch(e){ console.error(e); toast("Excel export failed: "+e.message); }
+}
+Object.assign(window,{downloadReportExcel, _xlTablesFrom, _xlText});
 
 // ═══════════════════════════════════════════════════════════════════════
 //  WORD EXPORT — a document built FOR Word, not a print page shoved into it.
@@ -542,6 +638,14 @@ function rptFormatToggle(withExcel){
   </div>`;
 }
 window.rptFormatToggle=rptFormatToggle;
+
+// Label and icon for whichever format is selected, so a button never says
+// "PDF" while Excel is the active choice.
+function _fmtName(){ const f=window._rptFormat||"pdf";
+  return f==="excel"?"Excel":f==="word"?"Word":"PDF"; }
+function _fmtIcon(){ const f=window._rptFormat||"pdf";
+  return f==="excel"?"\u{1F4CA}":f==="word"?"\u{1F4DD}":"\u{1F4C4}"; }
+Object.assign(window,{_fmtName,_fmtIcon});
 
 // ═══════════════════════════════════════════════════════════════════════
 //  EXPORTS (Excel CSV + PDF)

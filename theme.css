@@ -71,27 +71,39 @@
 
 /* ═══ Girêk Dark Mode — token overrides (activated by data-theme="dark") ═══ */
 [data-theme="dark"]{
-  --bg:#0C1524; --card:#152238; --line:#2A3D5C;
-  --text:#E7EDF6; --muted:#96A7C0;
-  /* Brand fills are dimmed so they read as surfaces rather than glowing
-     patches; brand ink is lifted so headings stay legible on a dark card. */
-  --navy:#22375C; --navy-2:#2D4A79;
-  --ink-brand:#9DC0F0;
-  --on-brand:#F2F6FC;
-  --green:#7CDA8C; --green-bg:#1D3326;
-  --orange:#FFA366; --orange-bg:#3A2C1C;
-  --purple:#CE93E8; --purple-bg:#2E2140;
-  --yellow:#3A3220; --yellow-text:#E5CE8F;
-  --red:#FF8F8F;
+  /* The first dark palette put near-white ink on a near-black page: about
+     13.5:1 on a card and 15.5:1 on the page, when the strictest accessibility
+     grade asks for 7. Contrast that far past the target does not read as
+     "crisp", it reads as glare, and it is what makes a screen tiring at night.
+     The surfaces are lifted off black and the ink pulled back from white, so
+     everything now lands between 5.7 and 12.4 — comfortably legible without
+     the two extremes fighting each other. */
+  --bg:#141C2B; --card:#1E293D; --line:#33425E;
+  --text:#D3DCEA; --muted:#93A3BC;
+  /* Brand fills sit close to the card so they read as surfaces rather than
+     glowing patches; brand ink is lifted so headings stay legible on a card. */
+  --navy:#2A3F63; --navy-2:#35507E;
+  --ink-brand:#93BAEA;
+  --on-brand:#EDF2FA;
+  /* Semantic colours are desaturated a step: full-strength hues on a dark
+     ground fluoresce, which is the other half of the eye strain. */
+  --green:#6FCB80; --green-bg:#20362A;
+  --orange:#F0955E; --orange-bg:#3C3020;
+  --purple:#BE87D6; --purple-bg:#312544;
+  --yellow:#3D3524; --yellow-text:#D8C48A;
+  --red:#F08585;
   --shadow:0 2px 12px rgba(0,0,0,0.45); --shadow-lg:0 8px 28px rgba(0,0,0,0.6);
   --shadow-sm:0 1px 4px rgba(0,0,0,0.4);
-  /* semantic colours, retuned for contrast on dark surfaces */
-  --ok:#7CDA8C;      --ok-bg:#1D3326;      --ok-ink:#A5E8B0;
-  --warn:#FFA366;    --warn-bg:#3A2C1C;    --warn-ink:#FFC49B;
-  --danger:#FF8F8F;  --danger-bg:#3A1F1F;  --danger-ink:#FFB3B3;
-  --info:#7FB0FF;    --info-bg:#16273F;    --info-ink:#A9CBFF;
-  --accent:#CE93E8;  --accent-bg:#2E2140;
-  --teal:#5FD3C4;    --teal-bg:#12312D;
-  --surface-2:#101B2E;
+  /* Semantic colours, pulled back a step. At full saturation these hues
+     fluoresce against a dark ground \u2014 a bright red warning on near-black is
+     the single most tiring thing on a night screen. Each still clears the
+     4.5:1 legibility floor; none of them glows. */
+  --ok:#6FCB80;      --ok-bg:#20362A;      --ok-ink:#96DCA2;
+  --warn:#F0955E;    --warn-bg:#3C3020;    --warn-ink:#F5B98E;
+  --danger:#F08585;  --danger-bg:#3C2323;  --danger-ink:#F2A6A6;
+  --info:#78A6EE;    --info-bg:#1B2C45;    --info-ink:#9DC0F0;
+  --accent:#BE87D6;  --accent-bg:#312544;
+  --teal:#5AC4B7;    --teal-bg:#173430;
+  --surface-2:#182135;
 }
 html{transition:background-color .25s ease}

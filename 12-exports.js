@@ -1394,7 +1394,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v237';"
+      var swCode = "const CACHE='ejaftech-v238';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
@@ -2074,8 +2074,8 @@ function renderFM200Section(){
   </div>
 
   <div class="card" style="background:linear-gradient(135deg,#1B3A6B 0%,#2E5FA3 100%);border:2px solid #C9A84C">
-    ${typeof refOverrideField==="function"?refOverrideField():""}${typeof brandLink==="function"?brandLink():""}${rptFormatToggle()}
-    <button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:700;border:none;width:100%" onclick="${fv==="test"?"generateFM200Test()":"generateFM200Refill()"}">${window._rptFormat==="word"?"📝":"📄"} Generate ${fv==="test"?"Test":"Refilling"} Report (${window._rptFormat==="word"?"Word":"PDF"})</button>
+    ${typeof refOverrideField==="function"?refOverrideField():""}${typeof brandLink==="function"?brandLink():""}${rptFormatToggle(true)}
+    <button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:700;border:none;width:100%" onclick="${fv==="test"?"generateFM200Test()":"generateFM200Refill()"}">${_fmtIcon()} Generate ${fv==="test"?"Test":"Refilling"} Report (${_fmtName()})</button>
   </div>`;
 }
 
@@ -2490,8 +2490,8 @@ function renderSystemReports(){
   </div>
 
   <div class="card" style="background:linear-gradient(135deg,#1B3A6B 0%,#2E5FA3 100%);border:2px solid #C9A84C">
-    ${typeof refOverrideField==="function"?refOverrideField():""}${typeof brandLink==="function"?brandLink():""}${rptFormatToggle()}
-    <button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:700;border:none;width:100%" onclick="generateSystemReport()">${window._rptFormat==="word"?"📝":"📄"} Generate ${escapeHtml(tpl.multi?"ELV Integrated":tpl.name.split(" ")[0])} Report (${window._rptFormat==="word"?"Word":"PDF"})</button>
+    ${typeof refOverrideField==="function"?refOverrideField():""}${typeof brandLink==="function"?brandLink():""}${rptFormatToggle(true)}
+    <button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:700;border:none;width:100%" onclick="generateSystemReport()">${_fmtIcon()} Generate ${escapeHtml(tpl.multi?"ELV Integrated":tpl.name.split(" ")[0])} Report (${_fmtName()})</button>
   </div>`;
 }
 
@@ -3529,6 +3529,6 @@ window.forceUpdate = async function(){
 // The build actually running, so nobody has to infer it from behaviour.
 // A single named constant, updated with every release, so the screen can state
 // the build without inferring it from a variable that lives inside a function.
-const APP_BUILD = "v237";
+const APP_BUILD = "v238";
 window.APP_BUILD = APP_BUILD;
 window.runningVersion = function(){ return APP_BUILD; };

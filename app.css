@@ -1268,7 +1268,7 @@ code, pre, .mono,
 /* The greeting hero: same gradient direction, half the brightness, so the gold
    border still reads as the accent rather than competing with the fill. */
 [data-theme="dark"] .day-hero{
-  background:linear-gradient(135deg,#16233C,#22375C);
+  background:linear-gradient(135deg,#1F2C45,#2A3F63);
   border-color:var(--gold-2);
 }
 [data-theme="dark"] .dh-act{
@@ -1278,29 +1278,29 @@ code, pre, .mono,
 
 /* Header bars and panel headings */
 [data-theme="dark"] .app-header{
-  background:linear-gradient(135deg,#101B2E,#1B2C4A);
+  background:linear-gradient(135deg,#18223A,#243758);
 }
 [data-theme="dark"] .skel-header{
-  background:linear-gradient(135deg,#101B2E,#1B2C4A);
+  background:linear-gradient(135deg,#18223A,#243758);
 }
 [data-theme="dark"] .pf-hd,
 [data-theme="dark"] .xl-hd{
-  background:linear-gradient(135deg,#16233C,#22375C);
+  background:linear-gradient(135deg,#1F2C45,#2A3F63);
 }
 
 /* Pale chips and warning fills: the same meaning, restated for a dark surface.
    The ink is lifted rather than the fill brightened, which keeps them quiet. */
-[data-theme="dark"] .hl-flag.warn{ background:#332C18; color:#E5CE8F }
-[data-theme="dark"] .hc-note.warn{ background:#332C18; color:#E5CE8F; border-color:#4A3F22 }
-[data-theme="dark"] .tbl-warn{ background:#332C18; color:#E5CE8F; border-color:#4A3F22 }
-[data-theme="dark"] .brand-save.dirty{ background:#332C18; border-color:#4A3F22 }
-[data-theme="dark"] .ex-code{ background:#3A2C1C; color:#FFC49B; border-color:#5A4326 }
+[data-theme="dark"] .hl-flag.warn{ background:var(--yellow); color:var(--yellow-text) }
+[data-theme="dark"] .hc-note.warn{ background:var(--yellow); color:var(--yellow-text); border-color:#4E4429 }
+[data-theme="dark"] .tbl-warn{ background:var(--yellow); color:var(--yellow-text); border-color:#4E4429 }
+[data-theme="dark"] .brand-save.dirty{ background:var(--yellow); border-color:#4E4429 }
+[data-theme="dark"] .ex-code{ background:var(--warn-bg); color:var(--warn-ink); border-color:#5C4A32 }
 [data-theme="dark"] .fsh-t{ color:var(--text) }
 [data-theme="dark"] .dsh-row,
 [data-theme="dark"] .dsh-proj,
 [data-theme="dark"] .dsh-mini{ background:var(--card); border-color:var(--line) }
 [data-theme="dark"] .dtl-it.fut .dtl-dot{ background:var(--line) }
-[data-theme="dark"] .toast[data-type="info"]{ background:#1B2C45; color:#A9CBFF }
+[data-theme="dark"] .toast[data-type="info"]{ background:var(--info-bg); color:var(--info-ink) }
 [data-theme="dark"] .pf-count{ background:var(--navy-2); color:var(--on-brand) }
 
 /* Numbers on the dashboard were mixed at full saturation, which on a dark
@@ -1336,7 +1336,7 @@ code, pre, .mono,
 [data-theme="dark"] [style*="color:#1565C0" i],
 [data-theme="dark"] [style*="color:#3949AB" i],
 [data-theme="dark"] [style*="color:#0F2347" i],
-[data-theme="dark"] [style*="color:#1B2A44" i]{ color:#9DC0F0 !important }
+[data-theme="dark"] [style*="color:#1B2A44" i]{ color:var(--ink-brand) !important }
 
 /* Near-black and slate inks → the ordinary body colour */
 [data-theme="dark"] [style*="color:#1A1A2E" i],

@@ -4057,13 +4057,31 @@ function refreshAlertBadge(){ try{ window._alertsCache=computeAlerts(); }catch(e
 // ═══════════════════════════════════════════════════════════════════════
 window._sigStore = window._sigStore || {};          // { key: dataURL }
 
+window._sigOpen = window._sigOpen || {};
+window.sigToggle = function(key){
+  window._sigOpen[key] = !window._sigOpen[key];
+  render();
+};
+
 function signaturePad(key, label, hint){
   const has = !!window._sigStore[key];
+  // Collapsed until asked for, unless something has already been signed.
+  if(!has && !window._sigOpen[key]){
+    return `<div class="sig-wrap" data-sig="${key}" style="padding:9px 11px">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <span class="sig-label">\u270D\uFE0F ${escapeHtml(label||"Signature")}</span>
+        <span style="font-size:10px;color:var(--muted)">optional</span>
+        <button type="button" class="btn btn-sm btn-secondary" style="margin-left:auto"
+                onclick="sigToggle('${key}')">+ Add signature</button>
+      </div>
+    </div>`;
+  }
   return `<div class="sig-wrap" data-sig="${key}">
     <div class="sig-head">
       <span class="sig-label">✍️ ${escapeHtml(label||"Signature")}</span>
       ${has?`<span class="sig-done">✓ Signed</span>`:""}
       <button type="button" class="btn btn-sm btn-secondary" style="margin-left:auto" onclick="sigClear('${key}')">Clear</button>
+      <button type="button" class="btn btn-sm btn-secondary" onclick="sigToggle('${key}')" title="Close without signing">\u00d7</button>
     </div>
     ${has
       ? `<img src="${window._sigStore[key]}" class="sig-preview" alt="signature">`
