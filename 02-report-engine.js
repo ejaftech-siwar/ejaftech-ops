@@ -1366,22 +1366,48 @@ function _docxRunsToText(frag){
 function _docxParaText(p){
   let txt = _docxRunsToText(p).replace(/\u0001/g, "\n");
   if(!txt.trim()) return "";
+
   // A list item is marked by numbering properties rather than by a character,
   // so the bullet has to be restored or the list arrives as loose lines.
-  if(/<w:numPr[\s>]/.test(p)) txt = "- " + txt.trim();
+  // Indent level is kept, so a sub-point still reads as a sub-point.
+  if(/<w:numPr[\s>]/.test(p)){
+    const lvl = /<w:ilvl[^>]*w:val="(\d+)"/.exec(p);
+    txt = "  ".repeat(Math.min(+((lvl&&lvl[1])||0), 4)) + "- " + txt.trim();
+    return txt;
+  }
+
+  // Word marks a heading with a style, not with formatting we could carry into
+  // a text field. Keeping it on its own with a blank line before it preserves
+  // the shape of the document \u2014 the reader still sees where a section starts.
+  const st = /<w:pStyle[^>]*w:val="([^"]+)"/.exec(p);
+  if(st && /^heading/i.test(st[1])) return "\u0002" + txt.trim();
   return txt;
 }
 
 function _docxTableText(tbl){
   const rows = [];
   (tbl.match(/<w:tr[\s\S]*?<\/w:tr>/g) || []).forEach(tr => {
-    const cells = (tr.match(/<w:tc[\s\S]*?<\/w:tc>/g) || [])
-      // A cell may hold several paragraphs; they are joined with a space so the
-      // cell stays one cell and the columns after it do not shift.
-      .map(tc => _docxRunsToText(tc).replace(/\u0001/g, " ").replace(/\s+/g, " ").trim());
-    if(cells.some(Boolean)) rows.push(cells.join("\t"));
+    const cells = [];
+    (tr.match(/<w:tc[\s\S]*?<\/w:tc>/g) || []).forEach(tc => {
+      // A cell may hold several paragraphs; they join with a space so the cell
+      // stays one cell and the columns after it do not shift.
+      const txt = _docxRunsToText(tc).replace(/\u0001/g, " ").replace(/\s+/g, " ").trim();
+      cells.push(txt);
+      // A cell spanning N columns must occupy N of them, or everything to its
+      // right slides one column left and lands under the wrong heading.
+      const gs = /<w:gridSpan[^>]*w:val="(\d+)"/.exec(tc);
+      for(let k = 1; k < (gs ? +gs[1] : 1); k++) cells.push("");
+    });
+    if(cells.some(Boolean)) rows.push(cells);
   });
-  return rows;
+  // Square the grid: a short row would otherwise leave the columns ragged when
+  // the report engine rebuilds the table.
+  const width = rows.reduce((m, r) => Math.max(m, r.length), 0);
+  return rows.map(r => {
+    const padded = r.slice();
+    while(padded.length < width) padded.push("");
+    return padded.join("\t");
+  });
 }
 
 async function _docxToText(file){
@@ -1406,8 +1432,16 @@ async function _docxToText(file){
       const rows = _docxTableText(frag);
       if(rows.length){ if(out.length) out.push(""); out.push(...rows); out.push(""); }
     }else{
-      const t = _docxParaText(frag);
-      if(t) out.push(t);
+      let t = _docxParaText(frag);
+      if(t){
+        // A heading is separated from what came before it, so sections do not
+        // run together once the marker is removed.
+        if(t.charCodeAt(0) === 2){
+          t = t.slice(1);
+          if(out.length && out[out.length-1] !== "") out.push("");
+        }
+        out.push(t);
+      }
     }
   }
 
@@ -1416,9 +1450,11 @@ async function _docxToText(file){
     .replace(/&quot;/g,'"').replace(/&#39;/g,"'").replace(/&#(\d+);/g,(s,n)=>String.fromCharCode(+n))
     // Collapse runs of blank lines left by empty paragraphs, but keep one so
     // the sections of the document still read apart from each other.
-    .replace(/\u0001/g,"\n")
+    .replace(/\u0001/g,"\n").replace(/\u0002/g,"")
     .replace(/\n{3,}/g,"\n\n")
-    .replace(/[ \t]+\n/g,"\n")
+    // Trailing SPACES are tidied, but never tabs: a tab at the end of a line is
+    // an empty final column, and removing it silently narrows the table.
+    .replace(/ +\n/g,"\n")
     .trim();
 }
 Object.assign(window,{_docxToText});
