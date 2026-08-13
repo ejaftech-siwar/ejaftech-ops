@@ -46,12 +46,30 @@ const ADV_STATUS = {
 // ╔═══════════════════════════════════════════════════════════════════════╗
 // ║  A.  ADVANCES                                                        ║
 // ╚═══════════════════════════════════════════════════════════════════════╝
+// Every issuer name already recorded, most recent first, for the suggestion
+// list. Reading them from the advances themselves means a name becomes a
+// suggestion the moment it is used once \u2014 no separate list to maintain.
+function advIssuers(){
+  const seen=new Map();
+  (state.advances||[]).slice()
+    .sort((a,b)=>String((b&&b.date)||"").localeCompare(String((a&&a.date)||"")))
+    .forEach(a=>{
+      const n=String((a&&a.issuedBy)||"").trim();
+      if(n && !seen.has(n.toLowerCase())) seen.set(n.toLowerCase(), n);
+    });
+  return Array.from(seen.values());
+}
+Object.assign(window,{advIssuers});
+
 function advBlank(){
   // `projects` is the real field. `project` is kept in step with it as a joined
   // string purely so that older records, the global search index and every
   // screen that already prints a.project keep working untouched.
   return {employee:"", project:"", projects:[], date:(typeof todayStr==="function"?todayStr():""),
-          usd:"", iqd:"", purpose:"", ref:"", method:"", notes:""};
+          usd:"", iqd:"", purpose:"", ref:"", method:"", notes:"",
+          // Who released the cash. Often a cashier from another department
+          // rather than anyone on the employee list, so it is free text.
+          issuedBy:""};
 }
 // Older advances stored a single name. Read them as a one-item list so nothing
 // recorded before this version loses its project.
@@ -256,6 +274,7 @@ window.advSave  = async function(){
     date:a.date||"", usd, iqd,
     purpose:String(a.purpose).trim(), ref:String(a.ref||"").trim(),
     method:String(a.method||"").trim(), notes:String(a.notes||""),
+    issuedBy:String(a.issuedBy||"").trim(),
     updatedAt:new Date().toISOString(),
     ...(window._advId?{}:{createdAt:new Date().toISOString(),
       createdBy:(state.profile&&(state.profile.name||state.profile.email))||""}),
@@ -713,9 +732,10 @@ function renderAdvances(){
         <div class="field"><label>Paid by <span style="font-weight:500;color:var(--muted);font-size:10px">\u2014 method</span></label>
           <input value="${escapeHtml(a.method||"")}" oninput="advSet('method',this.value)" placeholder="Cash / transfer"></div>
         <div class="field"><label>Issued by <span style="font-weight:500;color:var(--muted);font-size:10px">\u2014 accountant / cashier</span></label>
-          <input list="advIssuers" value="${escapeHtml(a.issuedBy||"")}" oninput="advSet('issuedBy',this.value)" placeholder="Who released the cash">
-          <datalist id="advIssuers">${people.map(p=>`<option>${escapeHtml(p)}</option>`).join("")}</datalist>
-          <div style="font-size:10px;color:var(--muted);margin-top:4px;line-height:1.6">Names the person who authorised the payment, so the register can show who released each amount \u2014 not only who received it.</div></div>
+          <input list="advIssuerList" value="${escapeHtml(a.issuedBy||"")}"
+                 oninput="advSet('issuedBy',this.value)" placeholder="Type any name \u2014 e.g. Ayat">
+          <datalist id="advIssuerList">${advIssuers().map(p=>`<option>${escapeHtml(p)}</option>`).join("")}</datalist>
+          <div style="font-size:10px;color:var(--muted);margin-top:4px;line-height:1.6">Any name may be typed \u2014 the cashier is often not on the employee list. Names used before are offered as suggestions.</div></div>
         <div class="field" style="grid-column:1/-1"><label>Notes</label>
           <textarea rows="2" oninput="advSet('notes',this.value)">${escapeHtml(a.notes||"")}</textarea></div>
       </div>
