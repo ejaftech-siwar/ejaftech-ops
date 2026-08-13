@@ -1144,10 +1144,12 @@ function _rtBrokenRows(rows){
   if(rows.length<3) return 0;
   const sepOf=(l)=> l.indexOf("\t")>=0 ? "\t" : "|";
   const cellsOf=(l)=> l.split(sepOf(l));
-  const numbered=rows.slice(1).filter(l=>/^\s*\d{1,4}\s*$/.test(cellsOf(l)[0]||"")).length;
+  // A separator line is punctuation, not a row, and must never be judged.
+  const body=rows.slice(1).filter(l=>!_rtIsSep(l));
+  const numbered=body.filter(l=>/^\s*\d{1,4}\s*$/.test(cellsOf(l)[0]||"")).length;
   if(numbered<2) return 0;               // not a numbered list: nothing to judge
   // Among a numbered list, a line NOT starting with a number is a torn row.
-  return rows.slice(1).filter(l=>{
+  return body.filter(l=>{
     const a=String(cellsOf(l)[0]||"").trim();
     return a!=="" && !/^\d{1,4}$/.test(a);
   }).length;

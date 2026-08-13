@@ -1394,7 +1394,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v245';"
+      var swCode = "const CACHE='ejaftech-v247';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
@@ -1494,7 +1494,7 @@ window.generatePMReport=async function(){
     <table><thead><tr><th>Date</th><th>Schedule</th><th>Target</th><th>Completed by</th><th>Sessions</th></tr></thead>
     <tbody>${roundRows||'<tr><td colspan="5" style="text-align:center;color:#888">No completed rounds in this period</td></tr>'}</tbody></table>
     ${(window._pmRptDesc||"").trim()?`<div class="ksec"><span class="kbad">04</span><h3>Work Performed — Description</h3></div>
-    <div style="font-size:12px;line-height:1.7;white-space:pre-wrap">${escapeHtml(window._pmRptDesc.trim())}</div>`:""}
+    <div style="font-size:12px;line-height:1.7">${typeof textWithTablesHTML==="function"?textWithTablesHTML(window._pmRptDesc,{dash:false}):`<div style="white-space:pre-wrap">${escapeHtml(window._pmRptDesc.trim())}</div>`}</div>`:""}
     ${_rptPhotoGrid(window._pmRptPhotos,"Maintenance Photos")}
     <script>setTimeout(()=>window.print(),500)<\/script>`;
 
@@ -1618,7 +1618,7 @@ function renderPMReportTab(){
 
   <div class="card">
     <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:700">02</span> Work Description</div>
-    ${typeof tableToolbar==="function"?tableToolbar("_pmRptDesc"):""}
+    ${typeof tableToolbar==="function"?tableToolbar("_pmRptDesc"):""}${typeof tablePreviewHTML==="function"?tablePreviewHTML(window._pmRptDesc):""}
     <textarea rows="4" oninput="window._pmRptDesc=this.value" placeholder="What was performed in this maintenance round — cleaning, tests, replaced parts, findings… (appears in the PDF)" style="width:100%;margin-top:8px">${escapeHtml(window._pmRptDesc)}</textarea>
   </div>
 
@@ -1762,7 +1762,7 @@ function _pmManualLayout(){
   </div>
   <div class="card">
     <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:700">03</span> Description</div>
-    <textarea rows="4" oninput="window._pmMan.desc=this.value" placeholder="Overall summary — findings, recommendations… (appears in the PDF)" style="width:100%;margin-top:8px">${escapeHtml(m.desc||"")}</textarea>
+    <textarea rows="4" oninput="window._pmMan.desc=this.value" placeholder="Overall summary — findings, recommendations… (appears in the PDF)" style="width:100%;margin-top:8px">${escapeHtml(m.desc||"")}</textarea>${typeof tableToolbar==="function"?tableToolbar("_pmMan.desc"):""}${typeof tablePreviewHTML==="function"?tablePreviewHTML(window._pmMan.desc):""}
   </div>
   <div class="card">
     <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:700">04</span> Photos <span style="font-size:10px;color:var(--muted);font-weight:500">(max 12)</span></div>
@@ -1796,7 +1796,7 @@ async function _generatePMManual(){
     <table><thead><tr><th>Date</th><th>Work performed</th><th>By</th></tr></thead>
     <tbody>${items.map(it=>`<tr><td style="white-space:nowrap">${it.date?fmtDate(it.date):"—"}</td><td>${escapeHtml(it.text)}</td><td>${escapeHtml(it.by||"—")}</td></tr>`).join("")}</tbody></table>`:""}
     ${(m.desc||"").trim()?`<div class="ksec"><span class="kbad">03</span><h3>Description</h3></div>
-    <div style="font-size:12px;line-height:1.7;white-space:pre-wrap">${escapeHtml(m.desc.trim())}</div>`:""}
+    <div style="font-size:12px;line-height:1.7">${typeof textWithTablesHTML==="function"?textWithTablesHTML(m.desc,{dash:false}):`<div style="white-space:pre-wrap">${escapeHtml(m.desc.trim())}</div>`}</div>`:""}
     ${_rptPhotoGrid(window._pmRptPhotos,"Maintenance Photos")}
     <script>setTimeout(()=>window.print(),500)<\/script>`;
   const period=(m.from||m.to)?`${m.from||"start"} → ${m.to||"today"}`:"Manual";
@@ -2048,7 +2048,7 @@ function renderFM200Section(){
   </div>
   <div class="card">
     <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:700">05</span> Result of Test</div>
-    ${typeof tableToolbar==="function"?tableToolbar("_fm.resultText"):""}
+    ${typeof tableToolbar==="function"?tableToolbar("_fm.resultText"):""}${typeof tablePreviewHTML==="function"?tablePreviewHTML(window._fm.resultText):""}
     <textarea rows="4" oninput="window._fm.resultText=this.value" placeholder="e.g. System health for the FM200 infrastructure is verified as optimal. No trouble states, discharge events, or system degradation have been logged…" style="width:100%;margin-top:8px">${escapeHtml(m.resultText||"")}</textarea>
   </div>
   <div class="card">
@@ -2064,7 +2064,7 @@ function renderFM200Section(){
 
   <div class="card">
     <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:700">${fv==="test"?"07":"03"}</span> Notes / Recommendations</div>
-    ${typeof tableToolbar==="function"?tableToolbar("_fm.notes"):""}
+    ${typeof tableToolbar==="function"?tableToolbar("_fm.notes"):""}${typeof tablePreviewHTML==="function"?tablePreviewHTML(window._fm.notes):""}
     <textarea rows="3" oninput="window._fm.notes=this.value" placeholder="Observations, recommendations… (appears in the PDF)" style="width:100%;margin-top:8px">${escapeHtml(m.notes||"")}</textarea>
   </div>
 
@@ -2114,7 +2114,7 @@ window.generateFM200Refill=async function(){
     <div class="ksec"><span class="kbad">02</span><h3>Cylinder Refilling Data (${cyls.length})</h3></div>
     ${_fmCylsTable()||'<div style="color:#888;font-size:12px">No cylinder data entered.</div>'}
     ${(m.notes||"").trim()?`<div class="ksec"><span class="kbad">03</span><h3>Notes / Recommendations</h3></div>
-    <div style="font-size:12px;line-height:1.7;white-space:pre-wrap">${escapeHtml(m.notes.trim())}</div>`:""}
+    <div style="font-size:12px;line-height:1.7">${typeof textWithTablesHTML==="function"?textWithTablesHTML(m.notes,{dash:false}):`<div style="white-space:pre-wrap">${escapeHtml(m.notes.trim())}</div>`}</div>`:""}
     ${_rptPhotoGrid(window._fmPhotos,"Photos")}
     <div style="margin-top:26px;display:flex;gap:40px">
       <div style="flex:1;border-top:1.5px solid #333;padding-top:5px;font-size:10px;color:#555">Technician: <strong>${escapeHtml(m.technician||"")}</strong><br>Signature &amp; date</div>
@@ -2171,7 +2171,7 @@ window.generateFM200Test=async function(){
     <tbody>${chkRows}</tbody></table>
     <div style="margin-top:6px;font-size:11px;font-weight:700;color:${fails?'#C62828':'#2E7D32'}">${fails?fails+" item(s) FAILED — corrective action required":"All 12 items PASSED \u2713"}</div>
     <div class="ksec"><span class="kbad">04</span><h3>Result of Test</h3></div>
-    <div style="border:1px solid #ccc;border-radius:8px;padding:12px;font-size:12px;line-height:1.8;min-height:64px;white-space:pre-wrap">${escapeHtml((m.resultText||"").trim())||"&nbsp;"}</div>
+    <div style="border:1px solid #ccc;border-radius:8px;padding:12px;font-size:12px;line-height:1.8;min-height:64px">${(m.resultText||"").trim() ? (typeof textWithTablesHTML==="function"?textWithTablesHTML(m.resultText,{dash:false}):`<div style="white-space:pre-wrap">${escapeHtml(m.resultText.trim())}</div>`) : "&nbsp;"}</div>
     ${cylsBlock()}
     ${_rptPhotoGrid(window._fmPhotos,"Photos")}
     <div class="ksec"><span class="kbad">05</span><h3>Report Approval</h3></div>
@@ -2470,7 +2470,7 @@ function renderSystemReports(){
 
   <div class="card">
     <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:700">${N()}</span> Result of Test</div>
-    ${typeof tableToolbar==="function"?tableToolbar("_sr.resultText"):""}
+    ${typeof tableToolbar==="function"?tableToolbar("_sr.resultText"):""}${typeof tablePreviewHTML==="function"?tablePreviewHTML(window._sr.resultText):""}
     <textarea rows="4" oninput="window._sr.resultText=this.value" placeholder="Overall condition, findings and recommendations…" style="width:100%;margin-top:8px">${escapeHtml(m.resultText||"")}</textarea>
   </div>
 
@@ -2598,7 +2598,7 @@ window.generateSystemReport=async function(){
       ${infoRow("Interfaces failed",`<span style="font-weight:700;color:${intFail?"#C62828":"#2E7D32"}">${intFail}</span>`)}
     </table>`:""}
     <div class="ksec"><span class="kbad">${K()}</span><h3>Result of Test</h3></div>
-    <div style="border:1px solid #ccc;border-radius:8px;padding:12px;font-size:12px;line-height:1.8;min-height:60px;white-space:pre-wrap">${escapeHtml((m.resultText||"").trim())||"&nbsp;"}</div>
+    <div style="border:1px solid #ccc;border-radius:8px;padding:12px;font-size:12px;line-height:1.8;min-height:60px">${(m.resultText||"").trim() ? (typeof textWithTablesHTML==="function"?textWithTablesHTML(m.resultText,{dash:false}):`<div style="white-space:pre-wrap">${escapeHtml(m.resultText.trim())}</div>`) : "&nbsp;"}</div>
     ${_rptPhotoGrid(window._srPhotos,"Photos")}
     <div class="ksec"><span class="kbad">${K()}</span><h3>Report Approval</h3></div>
     <table style="border-collapse:collapse;width:100%"><tr>
@@ -2811,7 +2811,7 @@ function buildHandoverBody(){
       ${_hdRow("Work entries",     String(D.entries.length))}
       ${_hdRow("Devices on register", String(D.devices.length))}
     </table>
-    ${m.notes?`<div style="margin-top:10px;padding:10px 12px;border-left:3px solid #C9A84C;background:#FFFDF5;font-size:11px;line-height:1.7">${_hdEsc(m.notes)}</div>`:""}`;
+    ${m.notes?`<div style="margin-top:10px;padding:10px 12px;border-left:3px solid #C9A84C;background:#FFFDF5;font-size:11px;line-height:1.7">${typeof textWithTablesHTML==="function"?textWithTablesHTML(m.notes,{dash:false}):_hdEsc(m.notes)}</div>`:""}`;
   }
 
   // ── 2. Conformity — the centrepiece ──
@@ -3092,7 +3092,7 @@ function renderHandoverDossier(){
       <div class="field" style="grid-column:1/-1"><label>Contract / PO reference</label>
         <input value="${escapeHtml(m.contractRef||"")}" oninput="hdSet('contractRef',this.value)" placeholder="e.g. PO-2026-1187"></div>
       <div class="field" style="grid-column:1/-1"><label>Closing note <span style="font-weight:500;color:var(--muted);font-size:10px">\u2014 optional, printed under Particulars</span></label>
-        <textarea rows="2" oninput="hdSet('notes',this.value)" placeholder="Anything the committee should read first\u2026">${escapeHtml(m.notes||"")}</textarea></div>
+        <textarea rows="2" oninput="hdSet('notes',this.value)" placeholder="Anything the committee should read first\u2026">${escapeHtml(m.notes||"")}</textarea>${typeof tableToolbar==="function"?tableToolbar("_hd.notes"):""}${typeof tablePreviewHTML==="function"?tablePreviewHTML((window._hd||{}).notes):""}</div>
     </div>
     ${!m.project?`<div style="background:#FFF3E0;border:1px solid #FFB74D;border-radius:8px;padding:9px 11px;margin-top:10px;font-size:11px;color:#E65100;line-height:1.6">Pick a project to see exactly what the dossier will contain.</div>`:""}
   </div>
@@ -3251,6 +3251,7 @@ window.prLoadFromRecords = function(kind){
 
 function renderProgressReport(kind){
   if(!(isAdmin()||isHR()||hasCap("canExport"))) return `<div class="card"><div class="empty">No access.</div></div>`;
+  kind = (kind==="daily") ? "daily" : "weekly";
   const m=window._pr, daily=(kind==="daily");
   const clientOpts=(state.clients||[]).map(c=>c.name).filter(Boolean).sort();
   const projOpts=(state.projects||[]).map(p=>(p.name||"").trim()).filter(Boolean).sort();
@@ -3299,7 +3300,7 @@ function renderProgressReport(kind){
     ${S(N(),"Scope of Work")}
     <p style="font-size:11px;color:var(--muted);margin:6px 0 0">Opens the report — the engineer's overview of what this project covers.</p>
     <textarea rows="5" oninput="window._pr.scope=this.value" placeholder="Describe the project scope: systems covered, contracted works, sites, objectives…" style="width:100%;margin-top:8px">${escapeHtml(m.scope||"")}</textarea>
-    ${typeof tableToolbar==="function"?tableToolbar("_pr.scope"):""}
+    ${typeof tableToolbar==="function"?tableToolbar("_pr.scope"):""}${typeof tablePreviewHTML==="function"?tablePreviewHTML(window._pr.scope):""}
   </div>
 
   ${daily?"":`<div class="card">
@@ -3318,7 +3319,7 @@ function renderProgressReport(kind){
     ${S(N(),"Executive Summary")}
     <p style="font-size:11px;color:var(--muted);margin:6px 0 0">${daily?"The day in a few lines — what a manager reads if they read nothing else.":"The week in a few lines — what a manager reads if they read nothing else."}</p>
     <textarea rows="3" oninput="window._pr.summary=this.value" placeholder="${daily?"Overall position of the project today…":"Overall position of the project this week…"}" style="width:100%;margin-top:8px">${escapeHtml(m.summary||"")}</textarea>
-    ${typeof tableToolbar==="function"?tableToolbar("_pr.summary"):""}
+    ${typeof tableToolbar==="function"?tableToolbar("_pr.summary"):""}${typeof tablePreviewHTML==="function"?tablePreviewHTML(window._pr.summary):""}
   </div>
 
   <div class="card">
@@ -3362,19 +3363,19 @@ function renderProgressReport(kind){
   <div class="card">
     ${S(N(),"Issues, Delays & Risks")}
     <textarea rows="3" oninput="window._pr.issues=this.value" placeholder="${daily?"Obstructions, delays, missing materials, access problems…":"Open risks, delays and mitigation actions…"}" style="width:100%;margin-top:8px">${escapeHtml(m.issues||"")}</textarea>
-    ${typeof tableToolbar==="function"?tableToolbar("_pr.issues"):""}
+    ${typeof tableToolbar==="function"?tableToolbar("_pr.issues"):""}${typeof tablePreviewHTML==="function"?tablePreviewHTML(window._pr.issues):""}
   </div>
 
   <div class="card">
     ${S(N(), daily?"Plan for Tomorrow":"Plan for Next Week")}
     <textarea rows="3" oninput="window._pr.nextPlan=this.value" placeholder="Look-ahead activities…" style="width:100%;margin-top:8px">${escapeHtml(m.nextPlan||"")}</textarea>
-    ${typeof tableToolbar==="function"?tableToolbar("_pr.nextPlan"):""}
+    ${typeof tableToolbar==="function"?tableToolbar("_pr.nextPlan"):""}${typeof tablePreviewHTML==="function"?tablePreviewHTML(window._pr.nextPlan):""}
   </div>
 
   <div class="card">
     ${S(N(),"HSE / Safety Notes")}
     <textarea rows="2" oninput="window._pr.hse=this.value" placeholder="Safety observations, incidents, toolbox talks…" style="width:100%;margin-top:8px">${escapeHtml(m.hse||"")}</textarea>
-    ${typeof tableToolbar==="function"?tableToolbar("_pr.hse"):""}
+    ${typeof tableToolbar==="function"?tableToolbar("_pr.hse"):""}${typeof tablePreviewHTML==="function"?tablePreviewHTML(window._pr.hse):""}
   </div>
 
   <div class="card">
@@ -3416,7 +3417,7 @@ window.generateProgressReport = async function(kind){
   const rag=PR_RAG[m.rag]||PR_RAG.Green;
   const period = daily ? fmtDate(m.date) : `${fmtDate(m.from)} → ${fmtDate(m.to)}`;
   const infoRow=(l,v)=>`<tr><td style="border:1px solid #ccc;background:#F0F4FA;padding:6px 10px;font-weight:700;font-size:11px;width:42%">${l}</td><td style="border:1px solid #ccc;padding:6px 10px;font-size:12px">${v||"&nbsp;"}</td></tr>`;
-  const block=(t)=>`<div style="border:1px solid #ccc;border-radius:8px;padding:11px;font-size:12px;line-height:1.8;white-space:pre-wrap;min-height:44px">${escapeHtml((t||"").trim())||"&nbsp;"}</div>`;
+  const block=(t)=>`<div style="border:1px solid #ccc;border-radius:8px;padding:11px;font-size:12px;line-height:1.8;min-height:44px">${(t||"").trim() ? (typeof textWithTablesHTML==="function"?textWithTablesHTML(t,{dash:false}):`<div style="white-space:pre-wrap">${escapeHtml(String(t).trim())}</div>`) : "&nbsp;"}</div>`;
   let n=0; const K=()=>String(++n).padStart(2,"0");
 
   const bodyHTML=`${_fmPrintBar}
@@ -3546,6 +3547,6 @@ window.forceUpdate = async function(){
 // The build actually running, so nobody has to infer it from behaviour.
 // A single named constant, updated with every release, so the screen can state
 // the build without inferring it from a variable that lives inside a function.
-const APP_BUILD = "v245";
+const APP_BUILD = "v247";
 window.APP_BUILD = APP_BUILD;
 window.runningVersion = function(){ return APP_BUILD; };
