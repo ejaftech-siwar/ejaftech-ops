@@ -1394,7 +1394,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v244';"
+      var swCode = "const CACHE='ejaftech-v245';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
@@ -3261,6 +3261,9 @@ function renderProgressReport(kind){
   }):[];
   const totH=window._prTasks.reduce((s,t)=>s+Number(t.hours||0),0);
   const accent=daily?"#2E5FA3":"#00695C";
+  // Sections number themselves. A gated section simply does not draw, and the
+// ones after it close the gap on their own.
+  let _n=0; const N=()=>String(++_n).padStart(2,"0");
   const S=(n,t)=>`<div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:700">${n}</span> ${t}</div>`;
 
   return `
@@ -3268,7 +3271,7 @@ function renderProgressReport(kind){
      "Project monitoring — ISO 21502 §7.15", `linear-gradient(135deg,${accent} 0%,#1B2A33 100%)`)}
 
   <div class="card">
-    ${S("01","Project Information")}
+    ${S(N(),"Project Information")}
     <div class="form-grid" style="margin-top:10px">
       ${_syncSel("👤 Client",clientOpts,"window._pr.client","window._pr.clientOther",m.client,m.clientOther,"Client name")}
       ${_syncSel("📁 Project",projOpts,"window._pr.project","window._pr.projectOther",m.project,m.projectOther,"Project name","window._pr.site='';")}
@@ -3293,13 +3296,14 @@ function renderProgressReport(kind){
   </div>
 
   <div class="card" style="border-left:4px solid ${accent}">
-    ${S("02","Scope of Work")}
+    ${S(N(),"Scope of Work")}
     <p style="font-size:11px;color:var(--muted);margin:6px 0 0">Opens the report — the engineer's overview of what this project covers.</p>
     <textarea rows="5" oninput="window._pr.scope=this.value" placeholder="Describe the project scope: systems covered, contracted works, sites, objectives…" style="width:100%;margin-top:8px">${escapeHtml(m.scope||"")}</textarea>
+    ${typeof tableToolbar==="function"?tableToolbar("_pr.scope"):""}
   </div>
 
   ${daily?"":`<div class="card">
-    ${S("03","Status & Progress")}
+    ${S(N(),"Status & Progress")}
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin:10px 0">
       ${Object.keys(PR_RAG).map(k=>`<button class="btn btn-sm ${m.rag===k?"":"btn-secondary"}" style="${m.rag===k?`background:${PR_RAG[k][1]};color:#fff;border:none;`:""}font-weight:700" onclick="window._pr.rag='${k}';render()">${k} — ${PR_RAG[k][2]}</button>`).join("")}
     </div>
@@ -3308,12 +3312,17 @@ function renderProgressReport(kind){
       <div class="field"><label>Actual progress %</label><input type="number" min="0" max="100" value="${m.actualPct||""}" oninput="window._pr.actualPct=this.value;prVarCalc()"></div>
       <div class="field"><label>Variance (auto)</label><div id="pr_var" class="auto ${(m.plannedPct!==""&&m.actualPct!=="")?(Number(m.actualPct)>=Number(m.plannedPct)?"green":"yellow"):"empty"}">${(m.plannedPct!==""&&m.actualPct!=="")?((Number(m.actualPct)-Number(m.plannedPct))>=0?"+":"")+(Number(m.actualPct)-Number(m.plannedPct))+"%":"—"}</div></div>
     </div>
-    <div class="field" style="margin-top:8px"><label>Executive summary</label>
-      <textarea rows="3" oninput="window._pr.summary=this.value" placeholder="Overall position of the project this week…" style="width:100%">${escapeHtml(m.summary||"")}</textarea></div>
   </div>`}
 
   <div class="card">
-    ${S(daily?"03":"04", daily?"Work Performed Today":"Work Completed This Week")}
+    ${S(N(),"Executive Summary")}
+    <p style="font-size:11px;color:var(--muted);margin:6px 0 0">${daily?"The day in a few lines — what a manager reads if they read nothing else.":"The week in a few lines — what a manager reads if they read nothing else."}</p>
+    <textarea rows="3" oninput="window._pr.summary=this.value" placeholder="${daily?"Overall position of the project today…":"Overall position of the project this week…"}" style="width:100%;margin-top:8px">${escapeHtml(m.summary||"")}</textarea>
+    ${typeof tableToolbar==="function"?tableToolbar("_pr.summary"):""}
+  </div>
+
+  <div class="card">
+    ${S(N(), daily?"Work Performed Today":"Work Completed This Week")}
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin:10px 0">
       <button class="btn btn-sm" style="background:${accent};color:#fff;border:none;font-weight:700" onclick="prLoadFromRecords('${kind}')">⬇ Load from Daily Log</button>
       <button class="btn btn-sm btn-secondary" onclick="prAddTask()">+ Add task</button>
@@ -3337,7 +3346,7 @@ function renderProgressReport(kind){
   </div>
 
   <div class="card">
-    ${S(daily?"04":"05","Manpower")}
+    ${S(N(),"Manpower")}
     <div style="display:flex;gap:6px;margin:10px 0">
       <button class="btn btn-sm btn-secondary" onclick="prAddPerson()">+ Add person</button>
       ${window._prPeople.length?`<button class="btn btn-sm btn-secondary" onclick="window._prPeople=[];render()">Clear</button>`:""}
@@ -3351,22 +3360,25 @@ function renderProgressReport(kind){
   </div>
 
   <div class="card">
-    ${S(daily?"05":"06","Issues, Delays & Risks")}
+    ${S(N(),"Issues, Delays & Risks")}
     <textarea rows="3" oninput="window._pr.issues=this.value" placeholder="${daily?"Obstructions, delays, missing materials, access problems…":"Open risks, delays and mitigation actions…"}" style="width:100%;margin-top:8px">${escapeHtml(m.issues||"")}</textarea>
+    ${typeof tableToolbar==="function"?tableToolbar("_pr.issues"):""}
   </div>
 
   <div class="card">
-    ${S(daily?"06":"07", daily?"Plan for Tomorrow":"Plan for Next Week")}
+    ${S(N(), daily?"Plan for Tomorrow":"Plan for Next Week")}
     <textarea rows="3" oninput="window._pr.nextPlan=this.value" placeholder="Look-ahead activities…" style="width:100%;margin-top:8px">${escapeHtml(m.nextPlan||"")}</textarea>
+    ${typeof tableToolbar==="function"?tableToolbar("_pr.nextPlan"):""}
   </div>
 
   <div class="card">
-    ${S(daily?"07":"08","HSE / Safety Notes")}
+    ${S(N(),"HSE / Safety Notes")}
     <textarea rows="2" oninput="window._pr.hse=this.value" placeholder="Safety observations, incidents, toolbox talks…" style="width:100%;margin-top:8px">${escapeHtml(m.hse||"")}</textarea>
+    ${typeof tableToolbar==="function"?tableToolbar("_pr.hse"):""}
   </div>
 
   <div class="card">
-    ${S(daily?"08":"09","Photos")} 
+    ${S(N(),"Photos")} 
     <input type="file" accept="image/*" multiple onchange="prAddPhotos(this)" style="margin-top:8px">
     ${window._prPhotos.length?`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
       ${window._prPhotos.map((p,i)=>`<div style="position:relative"><img src="${p.data}" style="width:76px;height:76px;object-fit:cover;border-radius:8px;border:1px solid var(--line)"><button onclick="annoOpen('_prPhotos',${i})" title="Annotate" style="position:absolute;bottom:-6px;right:-6px;background:#03308B;color:#fff;border:none;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:10px;line-height:1">✎</button><button onclick="prDelPhoto(${i})" style="position:absolute;top:-6px;right:-6px;background:#C62828;color:#fff;border:none;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:11px;font-weight:700">×</button></div>`).join("")}
@@ -3374,7 +3386,7 @@ function renderProgressReport(kind){
   </div>
 
   <div class="card">
-    ${S(daily?"09":"10","Approval")}
+    ${S(N(),"Approval")}
     <div class="form-grid" style="margin-top:10px">
       <div class="field"><label>EJAF Engineer</label><input value="${escapeHtml(m.engName||"")}" oninput="window._pr.engName=this.value" placeholder="Eng. …"></div>
       <div class="field"><label>Client approver</label><input value="${escapeHtml(m.repName||"")}" oninput="window._pr.repName=this.value" placeholder="Mr. …"></div>
@@ -3449,8 +3461,9 @@ window.generateProgressReport = async function(kind){
         <div style="height:8px;background:#E8EDF5;border-radius:4px;margin:3px 0 6px"><div style="height:100%;width:${Math.min(100,Number(m.actualPct)||0)}%;background:linear-gradient(90deg,#C9A84C,#E9CC7A);border-radius:4px"></div></div>
         <div style="font-size:10px;font-weight:700;color:${(Number(m.actualPct)-Number(m.plannedPct))>=0?"#2E7D32":"#C62828"}">Variance: ${(Number(m.actualPct)-Number(m.plannedPct))>=0?"+":""}${(Number(m.actualPct)||0)-(Number(m.plannedPct)||0)}%</div>
       </div>`:""}
-    </div>
-    ${(m.summary||"").trim()?block(m.summary):""}`:""}
+    </div>`:""}
+    ${(m.summary||"").trim()?`<div class="ksec"><span class="kbad">${K()}</span><h3>Executive Summary</h3></div>
+    ${block(m.summary)}`:""}
 
     <div class="ksec"><span class="kbad">${K()}</span><h3>${daily?"Work Performed":"Work Completed"} (${tasks.length})</h3></div>
     ${tasks.length?`<table><thead><tr><th style="width:34px">No.</th>${daily?"":"<th>Date</th>"}<th>Description</th><th>Location</th><th>By</th><th>Status</th><th style="width:52px">Hours</th></tr></thead>
@@ -3533,6 +3546,6 @@ window.forceUpdate = async function(){
 // The build actually running, so nobody has to infer it from behaviour.
 // A single named constant, updated with every release, so the screen can state
 // the build without inferring it from a variable that lives inside a function.
-const APP_BUILD = "v244";
+const APP_BUILD = "v245";
 window.APP_BUILD = APP_BUILD;
 window.runningVersion = function(){ return APP_BUILD; };
