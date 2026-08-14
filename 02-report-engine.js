@@ -439,6 +439,7 @@ function _xlTablesFrom(html){
 }
 
 async function downloadReportExcel(refNo, reportType, bodyHTML, periodLabel){
+  if(!await needLib("XLSX","Excel export")) return;
   if(typeof XLSX==="undefined") return toast("Spreadsheet engine not loaded \u2014 reconnect and try again");
   try{
     const A=[], rowMap={}, cellMap={};
@@ -764,6 +765,7 @@ async function exportDailyPDF(){
 window.exportDailyPDF = exportDailyPDF;
 
 async function exportDailyExcel(){
+  if(!await needLib("XLSX","Excel export")) return;
   if(!canSeeReports()) return toast("Access denied");
   if(typeof XLSX === 'undefined') return toast('Excel library not loaded');
   try{
@@ -1410,6 +1412,7 @@ function _docxTableText(tbl){
 }
 
 async function _docxToText(file){
+  if(!await needLib("XLSX","the spreadsheet reader")) return;
   const buf = await file.arrayBuffer();
   const cfb = XLSX.CFB.read(new Uint8Array(buf), {type:"array"});
   let entry = null;
@@ -1459,6 +1462,7 @@ async function _docxToText(file){
 Object.assign(window,{_docxToText});
 
 window.xlImportOpen = async function(input, targetPath){
+  if(!await needLib("XLSX","the spreadsheet reader")) return;
   const f = input && input.files && input.files[0];
   if(!f) return;
   if(typeof XLSX==="undefined"){ toast("Excel library not loaded"); return; }

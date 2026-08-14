@@ -133,7 +133,8 @@ async function _sendTaskEmail(toEmail, subject, message){
   try{
     const s=emailGetSettings();
     if(!s.serviceId||!s.templateId||!s.publicKey) return false;
-    if(typeof emailjs==="undefined" || !toEmail) return false;
+    if(!toEmail) return false;
+    try{ if(typeof emailjs==="undefined") await loadLib("emailjs"); }catch(e){ return false; }
     emailjs.init({publicKey:s.publicKey});
     await emailjs.send(s.serviceId, s.templateId, { subject, message, to_email: toEmail });
     return true;
@@ -675,6 +676,7 @@ async function autoSendRequestEmail(req){
     `Description: ${req.description||"—"}\n` +
     `Submitted: ${fmtDate((req.createdAt||"").slice(0,10))}`;
   try{
+    if(typeof emailjs==="undefined") await loadLib("emailjs");
     emailjs.init({publicKey:s.publicKey});
     let sent = 0;
     for(const r of recipients){

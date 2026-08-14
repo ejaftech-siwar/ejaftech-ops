@@ -438,6 +438,7 @@ Object.assign(window,{SYS_TEMPLATES,ELV_SUBS,ELV_INTEG,sysTemplate,elvSub,chkGro
 //      signature starts a NEW work item — so a fault that recurs months
 //      later is correctly a second job, not a resurrected one.
 // ═══════════════════════════════════════════════════════════════════════
+let _wiCache = null;   // single-entry memo for buildWorkItems (see below)
 const CLOSED_STATUS_RE = /(closed|resolved|done|complete|finished|cancel)/i;
 function isClosedStatus(s){ return CLOSED_STATUS_RE.test(String(s||"")); }
 
@@ -449,7 +450,20 @@ function wiSignature(r){
 function _wiOrd(r){ return `${r.date||""}|${String(r.entryNo||0).padStart(6,"0")}|${r.id||""}`; }
 
 // Build work items from a set of daily rows.
+// ── memoised on the exact row set ──
+// The dashboard alone calls this three or four times per paint (stalled panel,
+// status counts, the work-item list), and the Technical Report calls it again;
+// every call re-sorts and re-threads the WHOLE work log. The result is a pure
+// function of `rows`, so a one-entry cache keyed on that array's identity and
+// length removes the repeats within a paint while a genuinely different set
+// still recomputes. Identity alone is not enough — callers pass freshly
+// filtered arrays — so the key also carries the first and last row ids.
 function buildWorkItems(rows){
+  const _src = rows || [];
+  const _key = _src.length ? (_src.length+"|"+(_src[0]&&_src[0].id)+"|"+
+               (_src[_src.length-1]&&_src[_src.length-1].id)+"|"+
+               (_src[0]&&_src[0].taskStatus)+"|"+(_src[_src.length-1]&&_src[_src.length-1].taskStatus)) : "0";
+  if(_wiCache && _wiCache.arr === _src && _wiCache.key === _key) return _wiCache.out;
   const sorted=(rows||[]).slice().sort((a,b)=>_wiOrd(a).localeCompare(_wiOrd(b)));
   const items=[]; const openBySig={}; const byThread={};
   for(const r of sorted){
@@ -465,7 +479,9 @@ function buildWorkItems(rows){
     _wiPush(it,r);
     if(!r.threadId && isClosedStatus(r.taskStatus)) delete openBySig[wiSignature(r)];  // thread ends here
   }
-  return items.map(_wiFinish).sort((a,b)=>String(b.lastDate).localeCompare(String(a.lastDate)));
+  const out = items.map(_wiFinish).sort((a,b)=>String(b.lastDate).localeCompare(String(a.lastDate)));
+  _wiCache = {arr:_src, key:_key, out};
+  return out;
 }
 function _wiNew(r,key){
   return { key, project:r.project||"", area:r.area||"", site:r.site||"", deviceSerial:r.deviceSerial||"",
@@ -1195,6 +1211,68 @@ const escapeHtml=(s)=>String(s||"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt
 const jsArg=(v)=>escapeHtml(JSON.stringify(v===undefined?null:v));
 window.jsArg = jsArg;
 
+// ══════════════════════════════════════════════════════════════════════
+//  LAZY LIBRARY LOADER (v249)
+//  Excel, QR, e-mail and barcode scanning are OCCASIONAL actions, but their
+//  libraries were loaded as blocking <script> tags in the document head: about
+//  430 KB parsed and executed on EVERY launch, before a single pixel is drawn,
+//  on a phone that may only ever open the Daily Log.
+//
+//  They now load on FIRST USE instead. The service worker still precaches the
+//  same version-pinned URLs, so a field device that has run once online keeps
+//  every export working with no signal — the bytes come from the cache, they
+//  are just no longer paid for at boot.
+//
+//  A library that genuinely cannot be fetched says so plainly rather than
+//  failing with "XLSX is not defined" somewhere deep inside an export.
+// ══════════════════════════════════════════════════════════════════════
+const LAZY_LIBS = {
+  XLSX:    "https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js",
+  QRCode:  "https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js",
+  emailjs: "https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js",
+  ZXing:   "https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js",
+};
+const _libLoading = {};
+function loadLib(name){
+  if(window[name]) return Promise.resolve(window[name]);
+  if(_libLoading[name]) return _libLoading[name];          // one request, however many callers
+  const url = LAZY_LIBS[name];
+  if(!url) return Promise.reject(new Error("Unknown library: "+name));
+  _libLoading[name] = new Promise((resolve, reject)=>{
+    const s = document.createElement("script");
+    s.src = url; s.async = true;
+    s.onload = ()=>{
+      // Loading is not the same as registering: a truncated cache entry can
+      // fire onload having defined nothing at all.
+      if(window[name]) resolve(window[name]);
+      else { delete _libLoading[name]; reject(new Error(name+" loaded but did not register")); }
+    };
+    s.onerror = ()=>{ delete _libLoading[name]; reject(new Error(name+" could not be loaded")); };
+    document.head.appendChild(s);
+  });
+  return _libLoading[name];
+}
+// Guard for an entry point: returns TRUE when the library is ready to use.
+// Never throws — the caller simply stops, having told the user why.
+async function needLib(name, what){
+  if(window[name]) return true;
+  const label = what || name;
+  let slow = null;
+  try{
+    // Only mention the wait if there actually is one; from cache this resolves
+    // in a few milliseconds and a toast would just be noise.
+    slow = setTimeout(()=>{ try{ toast("Preparing "+label+"\u2026"); }catch(e){} }, 250);
+    await loadLib(name);
+    clearTimeout(slow);
+    return true;
+  }catch(e){
+    clearTimeout(slow);
+    try{ toast("\u26a0 "+label+" is not available on this device yet \u2014 connect once and it is saved for good"); }catch(_){}
+    return false;
+  }
+}
+Object.assign(window,{LAZY_LIBS, loadLib, needLib});
+
 // ═══════════════════════════════════════════════════════════════════════
 //  IMAGE COMPRESSION HELPER
 //  Compresses an image File to a base64 string for Firestore storage.
@@ -1499,7 +1577,18 @@ function visibleRows(rows){
 // Get list of employees (from users + defaults)
 // Only includes users explicitly marked as tracked employees (isTrackedEmployee=true)
 // or users whose role is "employee" (default behavior for backward compatibility)
+// ── memoised: rebuilt only when the arrays it reads are REPLACED ──
+// This runs from visibleEmployees(), enterableEmployees() and the filter bar,
+// several times per paint, and each run is two filters, two maps and a Set
+// merge over every user and nametag. The inputs only ever change when a
+// Firestore snapshot assigns a new array, so identity is a complete and
+// self-maintaining invalidation test.
+let _empCache = null, _empCacheU = null, _empCacheN = null;
 function allEmployees(){
+  if(_empCache && _empCacheU === state.users && _empCacheN === state.nametagEmployees){
+    return _empCache;
+  }
+  const _u = state.users, _n = state.nametagEmployees;
   const fromUsers = state.users
     .filter(u => {
       if(!u.employeeName) return false;
@@ -1529,6 +1618,7 @@ function allEmployees(){
     .map(n => (n.name || "").trim()).filter(Boolean);
   let merged = Array.from(new Set([...EMPLOYEES_DEFAULT, ...fromUsers, ...fromNametags]));
 
+  _empCache = merged; _empCacheU = _u; _empCacheN = _n;
   return merged;
 }
 
@@ -1772,15 +1862,22 @@ function renderEmployeeFilterUI(label){
 }
 
 // Project / Location global filter setters
-window.setGlobalProjectFilter = function(v){ state.globalProjectFilter = v||""; renderApp(); };
-window.setGlobalLocationFilter = function(v){ state.globalLocationFilter = v||""; renderApp(); };
-window.setGlobalBranchFilter = function(v){ state.globalBranchFilter = v||""; renderApp(); };
-window.setGlobalEmpDeptFilter = function(v){ state.globalEmpDeptFilter = v||""; renderApp(); };
-window.setGlobalTaskDeptFilter = function(v){ state.globalTaskDeptFilter = v||""; renderApp(); };
-window.setGlobalWorkTypeFilter = function(v){ state.globalWorkTypeFilter = v||""; renderApp(); };
-window.setGlobalTaskStatusFilter = function(v){ state.globalTaskStatusFilter = v||""; renderApp(); };
-window.setGlobalCategoryFilter = function(v){ state.globalCategoryFilter = v||""; state.globalSubcategoryFilter = ""; renderApp(); };  // reset subcat when category changes
-window.setGlobalSubcategoryFilter = function(v){ state.globalSubcategoryFilter = v||""; renderApp(); };
+// A report filter changes WHAT THE SCREEN COUNTS, never what the header shows:
+// the period pill reads the date range, and the tab badges count pending
+// requests — neither looks at any of these. renderApp() rebuilt the entire
+// header anyway (logo, both nav bars, the bottom bar and the FAB) and then
+// re-measured and re-animated the sliding indicators, on every single change
+// of a dropdown. render() repaints the content alone, which is the only part
+// that actually differs.
+window.setGlobalProjectFilter = function(v){ state.globalProjectFilter = v||""; render(); };
+window.setGlobalLocationFilter = function(v){ state.globalLocationFilter = v||""; render(); };
+window.setGlobalBranchFilter = function(v){ state.globalBranchFilter = v||""; render(); };
+window.setGlobalEmpDeptFilter = function(v){ state.globalEmpDeptFilter = v||""; render(); };
+window.setGlobalTaskDeptFilter = function(v){ state.globalTaskDeptFilter = v||""; render(); };
+window.setGlobalWorkTypeFilter = function(v){ state.globalWorkTypeFilter = v||""; render(); };
+window.setGlobalTaskStatusFilter = function(v){ state.globalTaskStatusFilter = v||""; render(); };
+window.setGlobalCategoryFilter = function(v){ state.globalCategoryFilter = v||""; state.globalSubcategoryFilter = ""; render(); };  // reset subcat when category changes
+window.setGlobalSubcategoryFilter = function(v){ state.globalSubcategoryFilter = v||""; render(); };
 window.clearAllReportFilters = function(){
   state.globalEmployeeFilter = [];
   state.globalProjectFilter = "";
@@ -1792,7 +1889,7 @@ window.clearAllReportFilters = function(){
   state.globalTaskStatusFilter = "";
   state.globalCategoryFilter = "";
   state.globalSubcategoryFilter = "";
-  renderApp();
+  render();
   toast("All report filters cleared");
 };
 
@@ -2486,6 +2583,11 @@ async function subscribeData(){
     state.unsubs.push(unsub);
   });
 
+  // The four single-doc settings listeners below repainted IMMEDIATELY and
+  // independently. Saving one settings screen can touch several of them, so a
+  // single action produced up to four full content rebuilds in a row. They now
+  // go through scheduleRender(), the same coalescer the ~40 collection
+  // listeners use, and a burst collapses into one paint.
   // WhatsApp settings (single doc)
   const waUnsub = onSnapshot(doc(db,"settings","whatsapp"),(snap)=>{
     state.waSettings = snap.exists() ? snap.data() : {
@@ -2494,7 +2596,7 @@ async function subscribeData(){
       triggers: ["daily","clientRequests"],
       messageHeader: "🔔 New Task — EJAF Operations",
     };
-    if(state.initialized) renderTab();
+    if(state.initialized) scheduleRender();
   });
   state.unsubs.push(waUnsub);
 
@@ -2509,7 +2611,7 @@ async function subscribeData(){
       subject: "New Task — EJAF Operations",
       autoSend: true, includeEmployees: false, includeClients: false, requestRecipients: [],
     };
-    if(state.initialized) renderTab();
+    if(state.initialized) scheduleRender();
   });
   state.unsubs.push(emailUnsub);
 
@@ -2526,14 +2628,14 @@ async function subscribeData(){
       reports: ["daily","hr","dashboard"],
       lastSent: "",
     };
-    if(state.initialized) renderTab();
+    if(state.initialized) scheduleRender();
   });
   state.unsubs.push(schedUnsub);
 
   // Technical Report column selection (admin-controlled, shared)
   const techRepUnsub = onSnapshot(doc(db,"settings","techReport"),(snap)=>{
     state.techReportCols = snap.exists() ? (snap.data().columns || null) : null;
-    if(state.initialized) renderTab();
+    if(state.initialized) scheduleRender();
   });
   state.unsubs.push(techRepUnsub);
 }

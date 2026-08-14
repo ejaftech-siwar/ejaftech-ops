@@ -442,7 +442,8 @@ window.importProjectsForDept = function(deptName){
 };
 
 // Download a sample template so the admin knows the exact columns
-window.downloadImportTemplate = function(){
+window.downloadImportTemplate = async function(){
+  if(!await needLib("XLSX","Excel export")) return;
   if(typeof XLSX==="undefined") return toast("Spreadsheet engine not loaded \u2014 reconnect and try again");
   const sample = [
     ["Project","Area Name","Site Name","Status"],

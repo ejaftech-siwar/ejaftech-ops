@@ -14,17 +14,16 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.0/dist/jspdf.plugin.autotable.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+<!-- Excel, QR, e-mail and barcode scanning now load on FIRST USE (see loadLib
+     in 01-core.js). They stay precached by the service worker, so they still
+     work with no signal — they are simply no longer paid for at launch.
+     jsPDF and jspdf-autotable were removed outright: ~400 KB fetched and
+     executed on every launch for a global nothing in this app ever called. -->
 
 <script>try{if(localStorage.getItem('girek-theme')==='dark')document.documentElement.setAttribute('data-theme','dark')}catch(e){};try{var _p=localStorage.getItem('girek-palette');if(_p&&_p!=='light')document.documentElement.setAttribute('data-palette',_p)}catch(e){}</script>
 <link rel="stylesheet" href="theme.css">
 <link rel="stylesheet" href="app.css">
-<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <script src="pwa-manifest.js"></script>
-<script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"></script>
 </head>
 <body>
 

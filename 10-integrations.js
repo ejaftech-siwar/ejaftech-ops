@@ -720,6 +720,7 @@ window.sendScheduledReportsNow = async function(){
 
   toast(`Sending ${groups.length} group email(s) for ${period.from} → ${period.to}...`);
   try{
+    if(typeof emailjs==="undefined") await loadLib("emailjs");
     emailjs.init({publicKey:es.publicKey});
     let sent = 0;
     for(const g of groups){
@@ -1086,6 +1087,7 @@ window.sendTestEmail = async function(){
   if(typeof emailjs==="undefined") return toast("EmailJS not loaded — check connection");
   toast("Sending test...");
   try{
+    if(typeof emailjs==="undefined") await loadLib("emailjs");
     emailjs.init({publicKey:s.publicKey});
     await emailjs.send(s.serviceId, s.templateId, {
       subject: (s.subject||"Test") + " (TEST)",
@@ -1147,6 +1149,7 @@ async function doSendEmail(recipients){
   const body = window.__emailBody || "";
   toast(`Sending to ${recipients.length}...`);
   try{
+    if(typeof emailjs==="undefined") await loadLib("emailjs");
     emailjs.init({publicKey:s.publicKey});
     let sent=0;
     for(const r of recipients){
@@ -1180,6 +1183,7 @@ async function autoSendTaskEmail(record){
   if(recipients.length === 0) return;                       // no one to send to
   const body = buildEmailBodyAuto(record);
   try{
+    if(typeof emailjs==="undefined") await loadLib("emailjs");
     emailjs.init({publicKey:s.publicKey});
     let sent = 0;
     for(const r of recipients){

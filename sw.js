@@ -3,7 +3,7 @@
 // This file MUST sit next to index.html on the server (same folder),
 // alongside: theme.css, app.css, pwa-manifest.js, firebase-init.js, app.js
 
-const CACHE = 'ejaftech-v248';
+const CACHE = 'ejaftech-v249';
 
 // Everything needed to cold-start with no network. The Firebase SDK files are
 // immutable, version-pinned URLs — caching them is what makes offline launch
@@ -19,12 +19,13 @@ const SHELL = [
   'https://www.gstatic.com/firebasejs/10.13.1/firebase-app.js',
   'https://www.gstatic.com/firebasejs/10.13.1/firebase-auth.js',
   'https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js',
-  // Export libraries. Not needed to LAUNCH, but without them Excel, PDF and QR
-  // quietly stop working the moment there is no signal — precaching them keeps
-  // the whole app usable in the field, not just the parts that read data.
+  // On-demand libraries (loadLib in 01-core.js). They are no longer <script>
+  // tags in the head, so PRECACHING THEM HERE IS WHAT KEEPS THEM OFFLINE: the
+  // page asks for them the first time someone exports, scans or shares, and
+  // the answer must already be on the device. Removing any line below silently
+  // breaks that feature in the field.
+  // jsPDF and jspdf-autotable are gone: nothing in the app ever called them.
   'https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js',
-  'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js',
-  'https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.0/dist/jspdf.plugin.autotable.min.js',
   'https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js',
   'https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js',
   'https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js',

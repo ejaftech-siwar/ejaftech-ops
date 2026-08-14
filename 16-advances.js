@@ -1083,7 +1083,8 @@ window.advRegisterPDF = async function(){
 };
 
 // ── Advances register \u2192 Excel, with live formulas so finance can re-check.
-window.advRegisterExcel = function(){
+window.advRegisterExcel = async function(){
+  if(!await needLib("XLSX","Excel export")) return;
   const rows=advRegRows(), T=advRegTotals(rows), f=window._advRep;
   if(!rows.length) return toast("Nothing to export \u2014 no advances match the filters");
   if(typeof XLSX==="undefined") return toast("Excel engine not loaded");
@@ -1577,7 +1578,8 @@ Object.assign(window,{expenseClaimDoc});
 // SUM formulas rather than pasted numbers, exactly as the company's own
 // template does — with the difference that each currency is summed from its
 // own columns, so the dollar figures can never fall into the dinar total.
-window.expenseClaimExcel = function(id){
+window.expenseClaimExcel = async function(id){
+  if(!await needLib("XLSX","Excel export")) return;
   if(typeof XLSX==="undefined") return toast("Excel library not loaded");
   const r=(state.expenseReports||[]).find(x=>x.id===id);
   if(!r) return toast("Claim not found");

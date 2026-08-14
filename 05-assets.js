@@ -1,4 +1,5 @@
 async function parseImportFile(file, deptName){
+  if(!await needLib("XLSX","the spreadsheet reader")) return;
   toast("Reading file...");
   try{
     const data = await file.arrayBuffer();
@@ -474,7 +475,8 @@ window.importAssets = function(){
 };
 
 // Download a template with all 15 columns
-window.downloadAssetTemplate = function(){
+window.downloadAssetTemplate = async function(){
+  if(!await needLib("XLSX","Excel export")) return;
   const sample = [
     ["Project","Project Code","Area Name","Site Status","Site Name","Device","Device Code","Serial Number","IP Address","Vendor Name","Model","Installation Date","Warranty Expiration Date","Stack","Device Status"],
     ["Asia Cell","AC-001","Erbil Area","Active","Tower-A","Core Switch","DEV-001","FOC1234X5YZ","192.168.1.1","Cisco","Catalyst 9300","2025-01-15","2028-01-15","Stack-1","Active"],
@@ -490,6 +492,7 @@ window.downloadAssetTemplate = function(){
 };
 
 async function parseAssetFile(file){
+  if(!await needLib("XLSX","the spreadsheet reader")) return;
   toast("Reading file...");
   try{
     const data = await file.arrayBuffer();
@@ -797,6 +800,7 @@ window.exportAssetPDF = async function(){
 };
 
 window.exportAssetExcel = async function(){
+  if(!await needLib("XLSX","Excel export")) return;
   if(!isHR()) return toast("HR/Admin only");
   try{
     const devices = _filteredDevices();
@@ -1315,7 +1319,11 @@ async function startScan(){
   const hint=document.getElementById('scanHint');
   const say=(m,c)=>{ if(hint){ hint.textContent=m; hint.style.color=c||""; } };
   if(typeof ZXing==="undefined"){
-    say("Scanner library not loaded \u2014 use \u{1F5BC}\uFE0F From photo, or type the code below.", "#C62828");
+    say("Preparing the scanner\u2026");
+    try{ await loadLib("ZXing"); }catch(e){}
+  }
+  if(typeof ZXing==="undefined"){
+    say("Scanner library not on this device yet \u2014 connect once, or use \u{1F5BC}\uFE0F From photo / type the code below.", "#C62828");
     return;
   }
   try{
@@ -1612,7 +1620,8 @@ window.scanFromImage=async function(input){
   if(!f) return;
   const hint=document.getElementById('scanHint');
   const say=(m,c)=>{ if(hint){ hint.textContent=m; hint.style.color=c||""; } };
-  if(typeof ZXing==="undefined") return say("Scanner library not loaded.", "#C62828");
+  if(typeof ZXing==="undefined"){ say("Preparing the scanner\u2026"); try{ await loadLib("ZXing"); }catch(e){} }
+  if(typeof ZXing==="undefined") return say("Scanner library not on this device yet \u2014 connect once and it is saved for good.", "#C62828");
   say("Reading the photo\u2026");
   let url;
   try{

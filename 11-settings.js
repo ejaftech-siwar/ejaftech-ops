@@ -617,8 +617,15 @@ function renderShare(){
   const url = window.location.origin + window.location.pathname;
 
   // Schedule QR generation after render
-  setTimeout(()=>{
+  setTimeout(async ()=>{
+    // The QR library now loads on demand. Fetching it BEFORE looking the
+    // element up matters: an await can span a re-render, and a node captured
+    // beforehand would be the detached one from the previous paint.
+    if(typeof QRCode === 'undefined'){ try{ await loadLib("QRCode"); }catch(e){} }
     const qrDiv = document.getElementById('qrcode-display');
+    if(qrDiv && typeof QRCode === 'undefined'){
+      qrDiv.innerHTML = '<div style="color:var(--muted);text-align:center;padding:20px">The QR generator is not on this device yet \u2014 connect once and it is saved for good. The link below works either way.</div>';
+    }
     if(qrDiv && typeof QRCode !== 'undefined'){
       qrDiv.innerHTML = '';
       try{

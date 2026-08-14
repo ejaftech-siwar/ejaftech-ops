@@ -287,6 +287,7 @@ window.applyPreset = (i)=>{
 };
 
 async function exportFilteredExcel(){
+  if(!await needLib("XLSX","Excel export")) return;
   if(typeof XLSX === 'undefined') return toast('Excel library not loaded');
   try{
     const refNo = await generateRefNo('EXCEL_PERIOD');
@@ -751,6 +752,7 @@ window.exportFilteredPDF = exportFilteredPDF;
 //  EXPORT: Real .xlsx (SheetJS) — in addition to existing CSV/PDF
 // ═══════════════════════════════════════════════════════════════════════
 async function exportExcel(){
+  if(!await needLib("XLSX","Excel export")) return;
   if(typeof XLSX === 'undefined'){return toast('Excel library not loaded');}
   try{
     const period = (typeof getPeriod==='function' ? getPeriod() : 'Report');
@@ -1394,7 +1396,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v248';"
+      var swCode = "const CACHE='ejaftech-v249';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
@@ -3538,6 +3540,6 @@ window.forceUpdate = async function(){
 // The build actually running, so nobody has to infer it from behaviour.
 // A single named constant, updated with every release, so the screen can state
 // the build without inferring it from a variable that lives inside a function.
-const APP_BUILD = "v248";
+const APP_BUILD = "v249";
 window.APP_BUILD = APP_BUILD;
 window.runningVersion = function(){ return APP_BUILD; };

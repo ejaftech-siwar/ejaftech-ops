@@ -1307,6 +1307,7 @@ async function flushTaskEmailBuffer(){
   const body = buildEmailBodyAuto(combined);
 
   try{
+    if(typeof emailjs==="undefined") await loadLib("emailjs");
     emailjs.init({publicKey:s.publicKey});
     let sent = 0;
     for(const r of recipients){
@@ -2159,6 +2160,7 @@ window.exportTechPDF = async function(){
 };
 
 window.exportTechExcel = async function(){
+  if(!await needLib("XLSX","Excel export")) return;
   if(!canSeeReports()) return toast("Access denied");
   try{
     const rows = apprFilter(applyReportFilters(visibleRows(state.daily))).sort((a,b)=>{
