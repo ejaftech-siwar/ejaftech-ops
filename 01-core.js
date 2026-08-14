@@ -4181,7 +4181,18 @@ function sigBlockHTML(key, name, title, org){
           : `<div style="height:46px"></div><div style="border-top:1px solid #999;padding-top:3px;color:#888;font-size:10.5px">Date &amp; Signature</div>`}
   </td>`;
 }
-Object.assign(window,{signaturePad,sigBlockHTML});
+function sigAny(keys){
+  return (keys||[]).some(k=>!!window._sigStore[k]);
+}
+// blocks: [key, name, title, org][] — only the signed ones are drawn.
+function sigRow(blocks){
+  const signed=(blocks||[]).filter(b=>!!window._sigStore[b[0]]);
+  if(!signed.length) return "";
+  const w=Math.floor(100/signed.length);
+  const cells=signed.map(b=>sigBlockHTML(b[0],b[1],b[2],b[3]).replace('width:50%','width:'+w+'%')).join("");
+  return `<table style="border-collapse:collapse;width:100%"><tr>${cells}</tr></table>`;
+}
+Object.assign(window,{signaturePad,sigBlockHTML,sigAny,sigRow});
 
 // ═══════════════════════════════════════════════════════════════════════
 //  SLA CLOCK & CONTRACT PROFITABILITY (v161)

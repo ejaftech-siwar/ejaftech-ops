@@ -1394,7 +1394,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v247';"
+      var swCode = "const CACHE='ejaftech-v248';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
@@ -2116,10 +2116,9 @@ window.generateFM200Refill=async function(){
     ${(m.notes||"").trim()?`<div class="ksec"><span class="kbad">03</span><h3>Notes / Recommendations</h3></div>
     <div style="font-size:12px;line-height:1.7">${typeof textWithTablesHTML==="function"?textWithTablesHTML(m.notes,{dash:false}):`<div style="white-space:pre-wrap">${escapeHtml(m.notes.trim())}</div>`}</div>`:""}
     ${_rptPhotoGrid(window._fmPhotos,"Photos")}
-    <div style="margin-top:26px;display:flex;gap:40px">
-      <div style="flex:1;border-top:1.5px solid #333;padding-top:5px;font-size:10px;color:#555">Technician: <strong>${escapeHtml(m.technician||"")}</strong><br>Signature &amp; date</div>
-      <div style="flex:1;border-top:1.5px solid #333;padding-top:5px;font-size:10px;color:#555">Client representative<br>Signature &amp; date</div>
-    </div>
+    ${sigAny(["fm_eng","fm_rep"])?`<div style="margin-top:26px">${sigRow([
+        ["fm_eng", m.technician||m.engName||"Eng.", "Technician", "EJAF Technology"],
+        ["fm_rep", m.repName||"Mr.", m.repTitle||"Client representative", m.client||""]])}</div>`:""}
     <script>setTimeout(()=>window.print(),500)<\/script>`;
   await openReportPDF("FM200_REFILLING",[m.date?fmtDate(m.date):"",m.client,m.project].filter(Boolean).join(" · ")||"Manual",bodyHTML,{project:m.project||"",client:m.client||""});
   toast("FM-200 Refilling Report ready!");
@@ -2174,11 +2173,9 @@ window.generateFM200Test=async function(){
     <div style="border:1px solid #ccc;border-radius:8px;padding:12px;font-size:12px;line-height:1.8;min-height:64px">${(m.resultText||"").trim() ? (typeof textWithTablesHTML==="function"?textWithTablesHTML(m.resultText,{dash:false}):`<div style="white-space:pre-wrap">${escapeHtml(m.resultText.trim())}</div>`) : "&nbsp;"}</div>
     ${cylsBlock()}
     ${_rptPhotoGrid(window._fmPhotos,"Photos")}
-    <div class="ksec"><span class="kbad">05</span><h3>Report Approval</h3></div>
-    <table style="border-collapse:collapse;width:100%"><tr>
-      ${sigBlockHTML("fm_eng", m.engName||"Eng.", "Technical Engineer", "EJAF Technology")}
-      ${sigBlockHTML("fm_rep", m.repName||"Mr.", m.repTitle||"", m.client||"")}
-    </tr></table>
+    ${sigAny(["fm_eng","fm_rep"])?`<div class="ksec"><span class="kbad">05</span><h3>Report Approval</h3></div>
+    ${sigRow([["fm_eng", m.engName||"Eng.", "Technical Engineer", "EJAF Technology"],
+              ["fm_rep", m.repName||"Mr.", m.repTitle||"", m.client||""]])}`:""}
     <div style="margin-top:14px;border:1px solid #ddd;border-radius:8px;padding:10px 12px;display:flex;gap:14px;align-items:center">
       <div style="flex:1;font-size:10px;font-style:italic;color:#555;line-height:1.7">The test and check report have been conducted by EJAF's competent engineers on the dates mentioned above. This report is made for the purpose of protecting the tangible and intangible components of the FM200 cylinders in compliance with the applicable standards ISO 14520 and NFPA 2001.</div>
       <div style="font-size:10px;font-style:italic;font-weight:700;color:#333;white-space:nowrap">Reference Standards<br>ISO 14520 · NFPA 2001</div>
@@ -2600,11 +2597,9 @@ window.generateSystemReport=async function(){
     <div class="ksec"><span class="kbad">${K()}</span><h3>Result of Test</h3></div>
     <div style="border:1px solid #ccc;border-radius:8px;padding:12px;font-size:12px;line-height:1.8;min-height:60px">${(m.resultText||"").trim() ? (typeof textWithTablesHTML==="function"?textWithTablesHTML(m.resultText,{dash:false}):`<div style="white-space:pre-wrap">${escapeHtml(m.resultText.trim())}</div>`) : "&nbsp;"}</div>
     ${_rptPhotoGrid(window._srPhotos,"Photos")}
-    <div class="ksec"><span class="kbad">${K()}</span><h3>Report Approval</h3></div>
-    <table style="border-collapse:collapse;width:100%"><tr>
-      ${sigBlockHTML("sr_eng", m.engName||m.technician||"Eng.", "Technical Engineer", "EJAF Technology")}
-      ${sigBlockHTML("sr_rep", m.repName||m.representative||"Mr.", m.repTitle||"", m.client||"")}
-    </tr></table>
+    ${sigAny(["sr_eng","sr_rep"])?`<div class="ksec"><span class="kbad">${K()}</span><h3>Report Approval</h3></div>
+    ${sigRow([["sr_eng", m.engName||m.technician||"Eng.", "Technical Engineer", "EJAF Technology"],
+              ["sr_rep", m.repName||m.representative||"Mr.", m.repTitle||"", m.client||""]])}`:""}
     <div style="margin-top:14px;border:1px solid #ddd;border-radius:8px;padding:10px 12px;display:flex;gap:14px;align-items:center">
       <div style="flex:1;font-size:10px;font-style:italic;color:#555;line-height:1.7">This inspection and test report has been carried out by EJAF's competent engineers on the date stated above, in accordance with the applicable international standards for ${tpl.multi?`the ${subsAll.length} sub-system(s) recorded in the Scope of Report`:"this system"}.</div>
       <div style="font-size:9px;font-style:italic;font-weight:700;color:#333;max-width:200px;line-height:1.6">Reference Standards<br><span style="font-weight:500">${escapeHtml(tpl.standards)}${tpl.multi?`<br><br>Each sub-system was assessed against its own governing standards, stated in the Scope of Report table and above every check list.`:""}</span></div>
@@ -3033,10 +3028,8 @@ function buildHandoverBody(){
     sub-system was assessed against the standards stated in the conformity section.
     This dossier was compiled from the live operational record on the date of issue shown in the document header.
   </p>
-  <table style="border-collapse:collapse;width:100%"><tr>
-    ${sigBlockHTML("hd_eng", m.engName, m.engTitle, "EJAF Technology")}
-    ${sigBlockHTML("hd_rep", m.repName, m.repTitle, m.repOrg || (D.proj&&D.proj.client) || "")}
-  </tr></table>`;
+  ${sigRow([["hd_eng", m.engName, m.engTitle, "EJAF Technology"],
+            ["hd_rep", m.repName, m.repTitle, m.repOrg || (D.proj&&D.proj.client) || ""]])}`;
 
   return {D, secs, body};
 }
@@ -3494,11 +3487,9 @@ window.generateProgressReport = async function(kind){
     ${(m.hse||"").trim()?`<div class="ksec"><span class="kbad">${K()}</span><h3>HSE / Safety</h3></div>${block(m.hse)}`:""}
     ${_rptPhotoGrid(window._prPhotos,"Site Photos")}
 
-    <div class="ksec"><span class="kbad">${K()}</span><h3>Approval</h3></div>
-    <table style="border-collapse:collapse;width:100%"><tr>
-      ${sigBlockHTML("pr_eng", m.engName||m.preparedBy||"Eng.", "Project / Technical Engineer", "EJAF Technology")}
-      ${sigBlockHTML("pr_rep", m.repName||m.representative||"Mr.", m.repTitle||"", m.client||"")}
-    </tr></table>
+    ${sigAny(["pr_eng","pr_rep"])?`<div class="ksec"><span class="kbad">${K()}</span><h3>Approval</h3></div>
+    ${sigRow([["pr_eng", m.engName||m.preparedBy||"Eng.", "Project / Technical Engineer", "EJAF Technology"],
+              ["pr_rep", m.repName||m.representative||"Mr.", m.repTitle||"", m.client||""]])}`:""}
     <div style="margin-top:14px;border:1px solid #ddd;border-radius:8px;padding:10px 12px;display:flex;gap:14px;align-items:center">
       <div style="flex:1;font-size:10px;font-style:italic;color:#555;line-height:1.7">This progress report has been prepared by EJAF Technology for the period stated above as part of the project monitoring and control process.</div>
       <div style="font-size:9px;font-style:italic;font-weight:700;color:#333;white-space:nowrap;line-height:1.6">Reference Standards<br><span style="font-weight:500">ISO 21502:2020 §7.15 · PMBOK® Guide</span></div>
@@ -3547,6 +3538,6 @@ window.forceUpdate = async function(){
 // The build actually running, so nobody has to infer it from behaviour.
 // A single named constant, updated with every release, so the screen can state
 // the build without inferring it from a variable that lives inside a function.
-const APP_BUILD = "v247";
+const APP_BUILD = "v248";
 window.APP_BUILD = APP_BUILD;
 window.runningVersion = function(){ return APP_BUILD; };
