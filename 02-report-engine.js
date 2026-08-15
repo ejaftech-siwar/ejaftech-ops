@@ -1065,6 +1065,11 @@ function _rtRows(txt){
     cur+=ch;
   }
   rows.push(cur);
+  // An UNTERMINATED quote means this text was not written by the escaper \u2014
+  // most often a stray inch mark (3.5" drive) or a typed quotation. Honouring
+  // it would join every line up to the next quote into one impossible row, so
+  // the quote is treated as ordinary punctuation and the text is split plainly.
+  if(q) return s.split(/\r\n|\r|\n/);
   return rows;
 }
 // Strip the wrapping quotes Excel adds, and turn the doubled quotes back.
@@ -1556,7 +1561,17 @@ function _docxTableText(tbl){
   return rows.map(r => {
     const padded = r.slice();
     while(padded.length < width) padded.push("");
-    return padded.join("\t");
+    // Escape exactly as an imported SHEET is escaped. A camera description
+    // reads 1/3" Progressive Scan CMOS \u2014 that inch mark is an unbalanced
+    // quote, and the row reader treats a quote as the start of a quoted cell.
+    // One inch mark in row 1 and the next in row 3 therefore swallowed the
+    // rows between them, and three catalogue lines arrived as a single
+    // ten-column row. Escaping here keeps the round trip lossless and the
+    // table exactly as wide as Word drew it.
+    return padded.map(v => {
+      const s = String(v == null ? "" : v);
+      return /[\t\n"]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    }).join("\t");
   });
 }
 
