@@ -1396,7 +1396,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v250';"
+      var swCode = "const CACHE='ejaftech-v251';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
@@ -1571,6 +1571,201 @@ function _rptModeSeg(varName,mode){
     <button class="btn ${mode==="manual"?"btn-primary":"btn-secondary"}" style="flex:1" onclick="window.${varName}='manual';render()">✍️ Manual entry</button>
   </div></div>`;
 }
+// ═══ SAVED REPORTS (v250) ════════════════════════════════════════════════
+// The four generators held everything in memory: fill in an inspection, export
+// it, and the moment the tab changed the work was gone. There was no way to
+// correct a typo the next morning, no record of what was issued, and a
+// half-finished report could not survive a phone call.
+//
+// One collection serves all four. Each document names its KIND and carries the
+// generator's own state verbatim, so a report opens back into the form that
+// produced it and nothing needs to be translated on the way in or out.
+//
+// PHOTOS: a Firestore document is capped at 1 MB. Report photos are already
+// compressed on capture, but a dozen of them still blow past that, and a save
+// that fails at the last cylinder is worse than one that never promised. So
+// photos are re-compressed HARD for storage and dropped entirely once the
+// budget is spent — the report is what matters, and the export the person
+// already produced keeps the full-resolution originals.
+const SR_DOC_BUDGET = 700 * 1024;   // stay well under the 1 MB document ceiling
+const SR_KINDS = {
+  pm:    {label:"PM Report",        state:["_pmMan","_pmManItems"],            photos:"_pmRptPhotos"},
+  fm200: {label:"FM-200 Test",      state:["_fm","_fmCyls","_fmChk"],          photos:"_fmPhotos"},
+  tech:  {label:"Technical Report", state:["_sr","_srDevs","_srChk","_srSubs","_srInt"], photos:"_srPhotos"},
+  prog:  {label:"Progress Report",  state:["_pr","_prTasks","_prPeople"],      photos:"_prPhotos"},
+};
+
+// Re-encode a stored photo small enough that a whole report fits in one
+// document. Returns null when it cannot be shrunk, so the caller drops it
+// rather than saving something that will be refused.
+function _srShrink(dataUrl, maxW, quality){
+  return new Promise((resolve)=>{
+    try{
+      const img = new Image();
+      img.onload = ()=>{
+        try{
+          let w = img.width, h = img.height;
+          if(w > maxW){ h = Math.round(h * (maxW / w)); w = maxW; }
+          const cv = document.createElement("canvas");
+          cv.width = w; cv.height = h;
+          cv.getContext("2d").drawImage(img, 0, 0, w, h);
+          resolve(cv.toDataURL("image/jpeg", quality));
+        }catch(e){ resolve(null); }
+      };
+      img.onerror = ()=>resolve(null);
+      img.src = dataUrl;
+    }catch(e){ resolve(null); }
+  });
+}
+
+// Fit as many photos as the budget allows, shrinking each one first.
+async function _srPackPhotos(list, budget){
+  const out = [];
+  let used = 0, dropped = 0;
+  for(const p of (list||[])){
+    const src = p && p.data;
+    if(!src){ continue; }
+    let small = await _srShrink(src, 640, 0.45);
+    if(small && small.length > 120*1024) small = await _srShrink(src, 480, 0.35);
+    if(!small){ dropped++; continue; }
+    if(used + small.length > budget){ dropped++; continue; }
+    used += small.length;
+    out.push({data:small, note:(p.note||"")});
+  }
+  return {photos:out, dropped, used};
+}
+
+function _srSnapshot(kind){
+  const k = SR_KINDS[kind]; if(!k) return null;
+  const st = {};
+  k.state.forEach(name=>{ try{ st[name] = JSON.parse(JSON.stringify(window[name] ?? null)); }catch(e){ st[name] = null; } });
+  return st;
+}
+
+function _srTitleOf(kind){
+  const s = window[SR_KINDS[kind].state[0]] || {};
+  const bits = [s.project || s.client || "", s.site || s.system || "", s.date || s.from || ""].filter(Boolean);
+  return bits.join(" \u2014 ") || SR_KINDS[kind].label;
+}
+
+window.srSaveReport = async function(kind, withPhotos){
+  const k = SR_KINDS[kind];
+  if(!k){ toast("Unknown report type"); return; }
+  const state0 = _srSnapshot(kind);
+  if(!state0){ toast("Nothing to save"); return; }
+  toast("Saving\u2026");
+  let photos = [], dropped = 0;
+  if(withPhotos !== false){
+    const packed = await _srPackPhotos(window[k.photos], SR_DOC_BUDGET);
+    photos = packed.photos; dropped = packed.dropped;
+  }else{
+    dropped = (window[k.photos]||[]).length;
+  }
+  const rec = {
+    id: window._srEditId || undefined,
+    kind, kindLabel: k.label,
+    title: _srTitleOf(kind),
+    state: state0,
+    photos,
+    photosDropped: dropped,
+    savedBy: (state.profile && (state.profile.employeeName || state.profile.email)) || "",
+    savedAt: new Date().toISOString(),
+    date: (window[k.state[0]]||{}).date || todayStr(),
+  };
+  try{
+    await fbSave("savedReports", rec);
+  }catch(e){ toast("Save failed \u2014 nothing was changed"); return; }
+  window._srEditId = null;
+  srNewReport(kind);
+  toast(dropped ? `Report saved \u2713 \u2014 ${dropped} photo${dropped>1?"s":""} not stored`
+                : "Report saved \u2713");
+};
+
+// Clear the form and go back to the top, ready for the next one.
+window.srNewReport = function(kind){
+  const k = SR_KINDS[kind]; if(!k) return;
+  k.state.forEach(name=>{
+    const cur = window[name];
+    if(Array.isArray(cur)) window[name] = [];
+    else if(cur && typeof cur === "object"){
+      // Keep the shape, empty the values \u2014 a field the form expects to exist
+      // must not vanish, or the next render reads undefined.
+      const blank = {};
+      Object.keys(cur).forEach(key=>{
+        const v = cur[key];
+        blank[key] = Array.isArray(v) ? [] : (v && typeof v === "object") ? {} : (typeof v === "boolean") ? false : "";
+      });
+      window[name] = blank;
+    }
+  });
+  window[k.photos] = [];
+  window._srEditId = null;
+  render();
+  try{ window.scrollTo({top:0, behavior:"smooth"}); }catch(e){ try{ window.scrollTo(0,0); }catch(_){} }
+};
+
+window.srOpenReport = function(id){
+  const r = (state.savedReports||[]).find(x=>x.id===id);
+  if(!r){ toast("That report is no longer there"); return; }
+  const k = SR_KINDS[r.kind];
+  if(!k){ toast("Unknown report type"); return; }
+  k.state.forEach(name=>{
+    const v = r.state && r.state[name];
+    if(v !== undefined && v !== null){ try{ window[name] = JSON.parse(JSON.stringify(v)); }catch(e){} }
+  });
+  window[k.photos] = (r.photos||[]).map(p=>({data:p.data, note:p.note||""}));
+  window._srEditId = r.id;
+  render();
+  try{ window.scrollTo({top:0, behavior:"smooth"}); }catch(e){}
+  toast("Report opened \u2014 saving will update it");
+};
+
+window.srDeleteReport = async function(id){
+  const r = (state.savedReports||[]).find(x=>x.id===id);
+  if(!r) return;
+  if(!confirm(`Delete "${r.title||r.kindLabel}"? This cannot be undone.`)) return;
+  try{ await fbDelete("savedReports", id); if(window._srEditId===id) window._srEditId=null; render(); toast("Report deleted"); }
+  catch(e){ toast("Could not delete that report"); }
+};
+
+// The list that sits under each generator.
+function srSavedList(kind){
+  const rows = (state.savedReports||[]).filter(r=>r.kind===kind)
+    .slice().sort((a,b)=>String(b.savedAt||"").localeCompare(String(a.savedAt||"")));
+  const editing = window._srEditId;
+  return `<div class="card">
+    <div class="card-title">\u{1F4BE} Saved ${escapeHtml(SR_KINDS[kind].label)}s ${rows.length?`<span style="font-weight:400;color:var(--muted)">(${rows.length})</span>`:""}</div>
+    ${rows.length ? `<div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">${rows.slice(0,40).map(r=>`
+      <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid ${editing===r.id?"#C9A84C":"var(--line)"};border-radius:10px;background:${editing===r.id?"rgba(201,168,76,.10)":"transparent"}">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(r.title||SR_KINDS[kind].label)}</div>
+          <div style="font-size:11px;color:var(--muted)">${escapeHtml(String(r.savedAt||"").slice(0,16).replace("T"," "))}${r.savedBy?" \u00b7 "+escapeHtml(r.savedBy):""}${(r.photos&&r.photos.length)?" \u00b7 \u{1F4F7} "+r.photos.length:""}${r.photosDropped?` \u00b7 <span style="color:#E65100">${r.photosDropped} not stored</span>`:""}</div>
+        </div>
+        <button class="btn btn-sm btn-secondary" onclick="srOpenReport(${jsArg(r.id)})">Open</button>
+        <button class="btn btn-sm" style="background:#FDECEA;color:#C62828;border:none" onclick="srDeleteReport(${jsArg(r.id)})">\u00d7</button>
+      </div>`).join("")}</div>`
+    : `<div style="color:var(--muted);font-size:13px;margin-top:6px">Nothing saved yet. Fill the form above and press Save.</div>`}
+  </div>`;
+}
+
+// The Save bar that goes at the bottom of each generator.
+function srSaveBar(kind){
+  const editing = window._srEditId;
+  const n = (window[SR_KINDS[kind].photos]||[]).length;
+  return `<div class="card">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <button class="btn" style="background:#2E7D32;color:#fff;border:none;font-weight:700" onclick="srSaveReport(${jsArg(kind)},true)">\u{1F4BE} ${editing?"Update":"Save"} report${n?` (with ${n} photo${n>1?"s":""})`:""}</button>
+      ${n?`<button class="btn btn-secondary" onclick="srSaveReport(${jsArg(kind)},false)" title="Store the report only \u2014 much smaller">\u{1F4BE} Save without photos</button>`:""}
+      ${editing?`<button class="btn btn-secondary" onclick="srNewReport(${jsArg(kind)})">\u2795 Start a new one</button>`:""}
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin-top:8px">
+      ${editing?"You are editing a saved report \u2014 saving updates it in place.":"Saving stores this report and clears the form for the next one."}
+      Photos are compressed hard for storage; the export you generate keeps the originals.
+    </div>
+  </div>`;
+}
+Object.assign(window,{SR_KINDS, srSavedList, srSaveBar, _srPackPhotos, _srSnapshot});
+
 function renderPMReportTab(){
   if(!(isAdmin()||isHR()||hasCap("canExport"))) return `<div class="card"><div class="empty">No access.</div></div>`;
   const _mode=window._pmRptMode||"records";
@@ -1776,7 +1971,9 @@ function _pmManualLayout(){
   <div class="card" style="background:linear-gradient(135deg,#1B3A6B 0%,#2E5FA3 100%);border:2px solid #C9A84C">
     ${typeof refOverrideField==="function"?refOverrideField():""}${typeof brandLink==="function"?brandLink():""}${rptFormatToggle(true)}
     <button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:700;border:none;width:100%" onclick="generatePMReport()">${_fmtIcon()} Generate PM Report (${_fmtName()})</button>
-  </div>`;
+  </div>
+  ${typeof srSaveBar==="function"?srSaveBar("pm"):""}
+  ${typeof srSavedList==="function"?srSavedList("pm"):""}`;
 }
 
 async function _generatePMManual(){
@@ -2081,7 +2278,9 @@ function renderFM200Section(){
   <div class="card" style="background:linear-gradient(135deg,#1B3A6B 0%,#2E5FA3 100%);border:2px solid #C9A84C">
     ${typeof refOverrideField==="function"?refOverrideField():""}${typeof brandLink==="function"?brandLink():""}${rptFormatToggle(true)}
     <button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:700;border:none;width:100%" onclick="${fv==="test"?"generateFM200Test()":"generateFM200Refill()"}">${_fmtIcon()} Generate ${fv==="test"?"Test":"Refilling"} Report (${_fmtName()})</button>
-  </div>`;
+  </div>
+  ${typeof srSaveBar==="function"?srSaveBar("fm200"):""}
+  ${typeof srSavedList==="function"?srSavedList("fm200"):""}`;
 }
 
 function _fmInfoGrid(m){
@@ -2495,7 +2694,9 @@ function renderSystemReports(){
   <div class="card" style="background:linear-gradient(135deg,#1B3A6B 0%,#2E5FA3 100%);border:2px solid #C9A84C">
     ${typeof refOverrideField==="function"?refOverrideField():""}${typeof brandLink==="function"?brandLink():""}${rptFormatToggle(true)}
     <button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:700;border:none;width:100%" onclick="generateSystemReport()">${_fmtIcon()} Generate ${escapeHtml(tpl.multi?"ELV Integrated":tpl.name.split(" ")[0])} Report (${_fmtName()})</button>
-  </div>`;
+  </div>
+  ${typeof srSaveBar==="function"?srSaveBar("tech"):""}
+  ${typeof srSavedList==="function"?srSavedList("tech"):""}`;
 }
 
 window.generateSystemReport=async function(){
@@ -3395,7 +3596,9 @@ function renderProgressReport(kind){
   <div class="card" style="background:linear-gradient(135deg,#1B3A6B 0%,#2E5FA3 100%);border:2px solid #C9A84C">
     ${typeof refOverrideField==="function"?refOverrideField():""}${typeof brandLink==="function"?brandLink():""}${rptFormatToggle(true)}
     <button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:700;border:none;width:100%" onclick="generateProgressReport('${kind}')">${_fmtIcon()} Generate ${daily?"Daily":"Weekly"} Report (${_fmtName()})</button>
-  </div>`;
+  </div>
+  ${typeof srSaveBar==="function"?srSaveBar("prog"):""}
+  ${typeof srSavedList==="function"?srSavedList("prog"):""}`;
 }
 
 window.generateProgressReport = async function(kind){
@@ -3540,6 +3743,6 @@ window.forceUpdate = async function(){
 // The build actually running, so nobody has to infer it from behaviour.
 // A single named constant, updated with every release, so the screen can state
 // the build without inferring it from a variable that lives inside a function.
-const APP_BUILD = "v250";
+const APP_BUILD = "v251";
 window.APP_BUILD = APP_BUILD;
 window.runningVersion = function(){ return APP_BUILD; };

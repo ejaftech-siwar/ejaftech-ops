@@ -2475,6 +2475,7 @@ const SYNC_SUBS = [
     ["systemTypes","systemTypes"],
     ["systemChecks","systemChecks"],
     ["incidents","incidents"],
+    ["savedReports","savedReports"],
     ["publicShares","publicSharesMeta"],
     ["trash","trash"],
   ];;
