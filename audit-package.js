@@ -199,6 +199,12 @@ let ctx = null;
     innerHTML:"", textContent:"", value:"", checked:false, offsetLeft:0, offsetWidth:0,
     offsetHeight:0, scrollTop:0, scrollHeight:0, dataset:{}, files:[],
     getBoundingClientRect:()=>({left:0,right:0,top:0,bottom:0,width:0,height:0}) });
+  // renderTab() WRITES its markup into #content and returns nothing. A stub
+  // that swallows innerHTML makes every check on the produced markup pass
+  // against an empty string — which is worse than no check at all.
+  const NODES = {};
+  const node = (id) => NODES[id] || (NODES[id] = el());
+
   ctx = { console:{log(){},warn(){},error(){},info(){}}, setTimeout, clearTimeout, setInterval,
     clearInterval, Promise, Date, Math, JSON, Intl, isNaN, isFinite, parseInt, parseFloat,
     encodeURIComponent, decodeURIComponent, escape, unescape,
@@ -223,7 +229,7 @@ let ctx = null;
       write(){},writeFile(){},read:()=>({SheetNames:["S"],Sheets:{S:{}}}),
       CFB:{read:()=>({FileIndex:[]}),find:()=>null}} };
   ctx.document = { documentElement:el(), body:el(), head:{appendChild(){}},
-    getElementById:()=>el(), querySelector:()=>el(), querySelectorAll:()=>[],
+    getElementById:(id)=>node(id), querySelector:()=>el(), querySelectorAll:()=>[],
     createElement:()=>Object.assign(el(),{ getContext:()=>({drawImage(){},fillRect(){},fillStyle:"",
       measureText:()=>({width:10}),getImageData:()=>({data:[]})}),
       toDataURL:()=>"data:image/png;base64,AAA" }),
@@ -254,7 +260,7 @@ let ctx = null;
       "clientPermissions","deviceEditSuggestions","waContacts","emailContacts","settingsDocs",
       "publicSharesMeta"];
     const ROLES = ["admin","hr","manager","employee","technician","client","viewer"];
-    let renders = 0, crashes = [], dirty = [];
+    let renders = 0, crashes = [], dirty = [], empty = [];
 
     const runAll = (label) => {
       for(const role of ROLES){
@@ -267,8 +273,12 @@ let ctx = null;
         for(const tab of tabs){
           S.tab = tab; S.activeTab = tab;
           try {
-            const h = String(vm.runInContext("renderTab()", ctx) || "");
+            vm.runInContext('document.getElementById("content").innerHTML=""', ctx);
+            vm.runInContext("renderTab()", ctx);
+            const h = String(vm.runInContext(
+              'document.getElementById("content").innerHTML', ctx) || "");
             renders++;
+            if(!h.length) empty.push(`${label}/${role}/${tab}`);
             if(/>undefined</.test(h) || /\[object Object\]/.test(h) || />NaN</.test(h))
               dirty.push(`${label}/${role}/${tab}`);
           } catch(e){ crashes.push(`${label}/${role}/${tab}: ${e.message}`); }
@@ -303,6 +313,8 @@ let ctx = null;
 
     check(!crashes.length, `${renders} tab renders across ${ROLES.length} roles, empty and populated`,
           `${crashes.length} TAB(S) CRASH`, crashes.slice(0,8).join("\n      "));
+    check(!empty.length, "every tab produced markup — none rendered blank",
+          `${empty.length} tab(s) rendered NOTHING`, empty.slice(0,8).join(", "));
     if(dirty.length) warn(`${dirty.length} tab(s) show undefined / NaN / [object Object]`,
           dirty.slice(0,6).join(", "));
     else ok("no undefined, NaN or [object Object] leaked into any screen");
@@ -330,7 +342,13 @@ if(ctx){
   for(const tab of tabs){
     S.tab = tab; S.activeTab = tab;
     let h = "";
-    try { h = String(vm.runInContext("renderTab()", ctx) || ""); scanned++; } catch(e){ continue; }
+    try {
+      vm.runInContext('document.getElementById("content").innerHTML=""', ctx);
+      vm.runInContext("renderTab()", ctx);
+      h = String(vm.runInContext('document.getElementById("content").innerHTML', ctx) || "");
+      if(!h.length) continue;          // nothing rendered is nothing tested
+      scanned++;
+    } catch(e){ continue; }
     if(/<script>alert/.test(h)) live.push(`${tab}: live <script>`);
     if(/<img[^>]*onerror\s*=/.test(h)) live.push(`${tab}: live onerror attribute`);
   }
@@ -394,6 +412,9 @@ head("11. FEATURE PRESERVATION");
     ["import undo","importUndo"], ["saved reports","srSaveReport"],
     ["saved reports list","srSavedList"], ["report photo compression","_srPackPhotos"],
     ["PDF site plans","planImportOpen"], ["plan print sheets","_rptPlanSheets"],
+    ["Project Report","generateProjectReport"], ["PMBOK section model","PRJ_SECTIONS"],
+    ["earned value (SPI/CPI)","_prjEV"], ["project RAG status","PRJ_RAG"],
+    ["project doc series","PROJECT_REPORT"],
     ["lazy library loader","function loadLib"], ["needLib guard","function needLib"],
     ["recycle bin","Recycle Bin"], ["approval workflow","apprRequired"],
     ["work item threading","buildWorkItems"], ["offline session snapshot","readLocalSession"],

@@ -1398,7 +1398,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v253';"
+      var swCode = "const CACHE='ejaftech-v254';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
@@ -1574,6 +1574,427 @@ function _rptModeSeg(varName,mode){
     <button class="btn ${mode==="manual"?"btn-primary":"btn-secondary"}" style="flex:1" onclick="window.${varName}='manual';render()">✍️ Manual entry</button>
   </div></div>`;
 }
+// ═══ PROJECT REPORT (v254) ══════════════════════════════════════════════
+// A status report for a whole project rather than one system — the document a
+// client or a steering committee reads.
+//
+// The section order follows PMBOK 7 and the Practice Standard for Project
+// Status Reporting: what was agreed, what has happened against it, what it has
+// cost, what is threatening it, and what is being asked for. That order is not
+// decoration. Scope before progress, progress before cost, cost before risk,
+// and decisions LAST, because a decision presented before its evidence is an
+// opinion.
+//
+// Earned value is reported with the standard measures (PV, EV, AC \u2192 SPI,
+// CPI) because "we are 60% done" means nothing on its own, and because a
+// contractor who reports SPI and CPI is speaking the language the client's own
+// PMO already uses.
+const PRJ_SECTIONS = [
+  {k:"summary",   n:"Executive Summary",        h:"The whole report in a paragraph \u2014 status, the one thing that matters most, and what is being asked for."},
+  {k:"scope",     n:"Scope & Objectives",       h:"What this project is contracted to deliver. State it as agreed, not as remembered."},
+  {k:"progress",  n:"Progress This Period",     h:"What was completed, by whom, and against which milestone."},
+  {k:"milestones",n:"Milestones & Schedule",    h:"Planned versus actual dates. A slipped date is stated, never quietly rebased."},
+  {k:"cost",      n:"Cost & Earned Value",      h:"Budget, committed, spent. SPI and CPI are calculated for you below."},
+  {k:"quality",   n:"Quality & Compliance",     h:"Inspections, test results, snags raised and closed, standards applied."},
+  {k:"hse",       n:"Health, Safety & Environment", h:"Incidents, near misses, toolbox talks, man-hours worked without a lost-time injury."},
+  {k:"risks",     n:"Risks & Issues",           h:"A risk may happen; an issue already has. Give each an owner and a response."},
+  {k:"changes",   n:"Change & Variations",      h:"Variation orders raised, approved, or pending \u2014 with their effect on time and cost."},
+  {k:"resources", n:"Resources & Procurement",  h:"Manpower, subcontractors, long-lead items and their delivery status."},
+  {k:"nextPlan",  n:"Plan for Next Period",     h:"What will be done before the next report, and what it depends on."},
+  {k:"decisions", n:"Decisions & Actions Required", h:"What you need FROM the client, by when, and what happens if it does not arrive."},
+];
+
+// RAG status is the one thing a busy reader looks at first, so it is stated
+// plainly rather than implied by a colour alone.
+const PRJ_RAG = [
+  {k:"green",  n:"On track",         c:"#2E7D32", d:"Delivering to plan; no intervention needed."},
+  {k:"amber",  n:"At risk",          c:"#E65100", d:"Recoverable, but something must change."},
+  {k:"red",    n:"Off track",        c:"#C62828", d:"Will not meet plan without a decision from the client."},
+  {k:"hold",   n:"On hold",          c:"#5E5E5E", d:"Suspended \u2014 the reason and the restart condition are stated."},
+  {k:"done",   n:"Complete",         c:"#1565C0", d:"Delivered and accepted."},
+];
+
+window._prj = window._prj || {
+  client:"", clientOther:false, project:"", projectOther:false, site:"", siteOther:false,
+  reportNo:"", from:"", to:"", date:"", preparedBy:"", approvedBy:"", clientRep:"",
+  phase:"", contractRef:"", rag:"green", ragNote:"",
+  pctPlanned:"", pctActual:"", budget:"", spent:"", committed:"", currency:"USD",
+  plannedValue:"", earnedValue:"", actualCost:"",
+  sections:{},          // {sectionKey: text}  — each one takes a Word/Excel import
+};
+window._prjMilestones = window._prjMilestones || [];  // [{name,planned,actual,status,note}]
+window._prjRisks      = window._prjRisks      || [];  // [{title,type,impact,likelihood,owner,response}]
+window._prjPhotos     = window._prjPhotos     || [];
+window._prjPlans      = window._prjPlans      || [];
+
+// ── Earned value ──
+// Reported only when the inputs are actually there. A CPI of 1.00 shown because
+// two blank fields divided into each other is worse than no CPI at all: it
+// reads as "on budget" to someone who will act on it.
+function _prjEV(){
+  const n = v => { const x = Number(String(v==null?"":v).replace(/[^0-9.\-]/g,"")); return isFinite(x)?x:0; };
+  const pv = n(window._prj.plannedValue), ev = n(window._prj.earnedValue), ac = n(window._prj.actualCost);
+  const out = {pv, ev, ac, spi:null, cpi:null, sv:null, cv:null};
+  if(pv > 0 && ev > 0){ out.spi = ev/pv; out.sv = ev-pv; }
+  if(ac > 0 && ev > 0){ out.cpi = ev/ac; out.cv = ev-ac; }
+  return out;
+}
+function _prjIndexLabel(v){
+  if(v == null) return {t:"\u2014", c:"var(--muted)", note:"not enough data"};
+  if(v >= 1.0)  return {t:v.toFixed(2), c:"#2E7D32", note:"ahead of / on plan"};
+  if(v >= 0.95) return {t:v.toFixed(2), c:"#E65100", note:"slightly behind"};
+  return {t:v.toFixed(2), c:"#C62828", note:"behind plan"};
+}
+Object.assign(window,{PRJ_SECTIONS, PRJ_RAG, _prjEV, _prjIndexLabel});
+
+// ── milestone and risk rows ──
+window.prjAddMilestone = function(){ window._prjMilestones.push({name:"",planned:"",actual:"",status:"On track",note:""}); render(); };
+window.prjDelMilestone = function(i){ window._prjMilestones.splice(i,1); render(); };
+window.prjSetMilestone = function(i,k,v){ if(window._prjMilestones[i]) window._prjMilestones[i][k]=v; };
+window.prjAddRisk = function(){ window._prjRisks.push({title:"",type:"Risk",impact:"Medium",likelihood:"Medium",owner:"",response:""}); render(); };
+window.prjDelRisk = function(i){ window._prjRisks.splice(i,1); render(); };
+window.prjSetRisk = function(i,k,v){ if(window._prjRisks[i]) window._prjRisks[i][k]=v; };
+window.prjAddPhotos = async function(input){
+  const files = Array.from((input && input.files) || []);
+  for(const f of files){
+    if(window._prjPhotos.length >= 12){ toast("Max 12 photos"); break; }
+    try{ window._prjPhotos.push({data: await compressImage(f), note:""}); }catch(e){}
+  }
+  input.value=""; render();
+};
+window.prjDelPhoto = function(i){ window._prjPhotos.splice(i,1); render(); };
+window.prjSetRag   = function(v){ window._prj.rag=v; render(); };
+
+// Each PMBOK section is a full import target in its own right \u2014 the same
+// Word / Excel / CSV route the other generators use, replace-not-append and
+// undoable, so a scope statement can come straight out of the contract.
+function prjSectionCard(s, i){
+  const path = `_prj.sections.${s.k}`;
+  const val  = (window._prj.sections && window._prj.sections[s.k]) || "";
+  return `<div class="card">
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px">
+      <span style="background:#C9A84C;color:#1B3A6B;font-weight:800;border-radius:8px;padding:2px 8px;font-size:12px">${String(i+1).padStart(2,"0")}</span>
+      <b>${escapeHtml(s.n)}</b>
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin:6px 0 8px">${escapeHtml(s.h)}</div>
+    ${typeof tableToolbar==="function"?tableToolbar(path):""}
+    ${typeof tablePreviewHTML==="function"?tablePreviewHTML(val, "prj_"+s.k):""}
+    <textarea rows="4" oninput="_prj.sections.${s.k}=this.value" placeholder="${escapeHtml(s.h)}">${escapeHtml(val)}</textarea>
+  </div>`;
+}
+
+function prjEVCard(){
+  const ev = _prjEV();
+  const spi = _prjIndexLabel(ev.spi), cpi = _prjIndexLabel(ev.cpi);
+  const cur = escapeHtml(window._prj.currency||"USD");
+  const money = v => v==null ? "\u2014" : (v<0?"-":"") + cur + " " + Math.abs(Math.round(v)).toLocaleString();
+  return `<div class="card">
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px">
+      <span style="background:#C9A84C;color:#1B3A6B;font-weight:800;border-radius:8px;padding:2px 8px;font-size:12px">EV</span>
+      <b>Earned Value</b>
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin:6px 0 8px">
+      Enter the three standard inputs. SPI and CPI are calculated \u2014 and left blank rather than guessed when a figure is missing.
+    </div>
+    <div class="grid2">
+      <div class="field"><label>Planned Value (PV) \u2014 budgeted cost of work SCHEDULED</label>
+        <input class="input" inputmode="decimal" value="${escapeHtml(window._prj.plannedValue)}" oninput="_prj.plannedValue=this.value" onchange="render()"></div>
+      <div class="field"><label>Earned Value (EV) \u2014 budgeted cost of work PERFORMED</label>
+        <input class="input" inputmode="decimal" value="${escapeHtml(window._prj.earnedValue)}" oninput="_prj.earnedValue=this.value" onchange="render()"></div>
+      <div class="field"><label>Actual Cost (AC) \u2014 what has actually been spent</label>
+        <input class="input" inputmode="decimal" value="${escapeHtml(window._prj.actualCost)}" oninput="_prj.actualCost=this.value" onchange="render()"></div>
+      <div class="field"><label>Currency</label>
+        <select class="input" onchange="_prj.currency=this.value;render()">
+          ${["USD","IQD"].map(c=>`<option ${window._prj.currency===c?"selected":""}>${c}</option>`).join("")}
+        </select></div>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px">
+      <div style="flex:1;min-width:130px;border:1px solid var(--line);border-radius:10px;padding:10px;text-align:center">
+        <div style="font-size:11px;color:var(--muted)">SPI \u2014 schedule</div>
+        <div style="font-size:22px;font-weight:800;color:${spi.c}">${spi.t}</div>
+        <div style="font-size:10px;color:var(--muted)">${spi.note}</div>
+        <div style="font-size:10px;color:var(--muted)">SV ${money(ev.sv)}</div>
+      </div>
+      <div style="flex:1;min-width:130px;border:1px solid var(--line);border-radius:10px;padding:10px;text-align:center">
+        <div style="font-size:11px;color:var(--muted)">CPI \u2014 cost</div>
+        <div style="font-size:22px;font-weight:800;color:${cpi.c}">${cpi.t}</div>
+        <div style="font-size:10px;color:var(--muted)">${cpi.note}</div>
+        <div style="font-size:10px;color:var(--muted)">CV ${money(ev.cv)}</div>
+      </div>
+    </div>
+  </div>`;
+}
+Object.assign(window,{prjSectionCard, prjEVCard});
+
+window.generateProjectReport = async function(){
+  const m = window._prj;
+  if(!(m.client || m.project)) return toast("\u26a0 Enter at least the client or project");
+  const rag = PRJ_RAG.find(r=>r.k===m.rag) || PRJ_RAG[0];
+  const ev  = _prjEV();
+  const esc = v => escapeHtml(String(v==null?"":v));
+  const dash = v => (v==null || v==="") ? "\u2014" : esc(v);
+  // Section numbers are COUNTED, never written by hand: inserting a section
+  // must never leave the document numbered 1,2,2,4.
+  const K = (()=>{ let n=0; return ()=>String(++n).padStart(2,"0"); })();
+  const row = (l,v) => `<tr><td style="border:1px solid #ccc;padding:5px 8px;background:#F7F7F7;font-weight:600;width:34%">${esc(l)}</td><td style="border:1px solid #ccc;padding:5px 8px">${v}</td></tr>`;
+  const head = (no,t) => `<div style="margin:16px 0 6px;padding:5px 9px;background:#1B3A6B;color:#fff;font-weight:700;font-size:12px;border-radius:3px">${no}. ${esc(t)}</div>`;
+  const period = [m.from?fmtDate(m.from):"", m.to?fmtDate(m.to):""].filter(Boolean).join(" \u2014 ") || "\u2014";
+  const cur = esc(m.currency||"USD");
+  const money = v => v==null ? "\u2014" : (v<0?"-":"") + cur + " " + Math.abs(Math.round(v)).toLocaleString();
+  const ix = (v,label) => { const L=_prjIndexLabel(v);
+    return `<strong style="color:${L.c}">${L.t}</strong> <span style="color:#777;font-size:10px">(${esc(L.note)})</span>`; };
+
+  let body = "";
+
+  // 1. Identification
+  body += head(K(),"Project Identification") + `<table style="border-collapse:collapse;width:100%;font-size:11px">
+    ${row("Client", dash(m.client))}
+    ${row("Project", dash(m.project))}
+    ${row("Site", dash(m.site))}
+    ${m.contractRef?row("Contract reference", esc(m.contractRef)):""}
+    ${m.phase?row("Project phase", esc(m.phase)):""}
+    ${row("Reporting period", esc(period))}
+    ${m.reportNo?row("Report number", esc(m.reportNo)):""}
+    ${row("Prepared by", dash(m.preparedBy))}
+    ${row("Approved by", dash(m.approvedBy))}
+    ${m.clientRep?row("Client representative", esc(m.clientRep)):""}
+  </table>`;
+
+  // 2. Status \u2014 the thing the reader looks at first
+  body += head(K(),"Overall Status") + `
+    <div style="display:flex;gap:10px;align-items:stretch;margin-bottom:8px">
+      <div style="background:${rag.c};color:#fff;padding:12px 18px;border-radius:6px;font-weight:800;font-size:15px;display:flex;align-items:center">${esc(rag.n)}</div>
+      <div style="flex:1;border:1px solid #ccc;border-radius:6px;padding:8px 12px;font-size:11px;line-height:1.6">
+        ${esc(rag.d)}${m.ragNote?`<br><strong>${esc(m.ragNote)}</strong>`:""}
+      </div>
+    </div>
+    <table style="border-collapse:collapse;width:100%;font-size:11px">
+      ${row("Planned complete", m.pctPlanned!==""?esc(m.pctPlanned)+"%":"\u2014")}
+      ${row("Actual complete",  m.pctActual!==""?esc(m.pctActual)+"%":"\u2014")}
+    </table>`;
+
+  // 3. Earned value \u2014 printed only when the inputs exist
+  if(ev.pv || ev.ev || ev.ac){
+    body += head(K(),"Cost & Schedule Performance (Earned Value)") + `
+      <table style="border-collapse:collapse;width:100%;font-size:11px">
+        ${row("Planned Value (PV)", money(ev.pv))}
+        ${row("Earned Value (EV)",  money(ev.ev))}
+        ${row("Actual Cost (AC)",   money(ev.ac))}
+        ${row("Schedule Performance Index (SPI)", ix(ev.spi))}
+        ${row("Cost Performance Index (CPI)",     ix(ev.cpi))}
+        ${row("Schedule Variance (SV = EV \u2212 PV)", ev.sv==null?"\u2014":money(ev.sv))}
+        ${row("Cost Variance (CV = EV \u2212 AC)",     ev.cv==null?"\u2014":money(ev.cv))}
+      </table>
+      <div style="font-size:9.5px;color:#777;margin-top:4px">Indices are reported to PMBOK convention: 1.00 is on plan, below 1.00 is behind. An index is left blank rather than estimated when an input is missing.</div>`;
+  }
+
+  // 4. Milestones
+  const ms = window._prjMilestones.filter(x=>(x.name||"").trim());
+  if(ms.length){
+    body += head(K(),"Milestones & Schedule") + `<table style="border-collapse:collapse;width:100%;font-size:11px">
+      <thead><tr>${["Milestone","Planned","Actual / forecast","Status"].map(h=>`<th style="border:1px solid #ccc;padding:5px 8px;background:#1B3A6B;color:#fff;text-align:start">${h}</th>`).join("")}</tr></thead>
+      <tbody>${ms.map(x=>{
+        const late = /late|risk/i.test(x.status||"");
+        return `<tr>
+          <td style="border:1px solid #ccc;padding:5px 8px">${esc(x.name)}</td>
+          <td style="border:1px solid #ccc;padding:5px 8px">${x.planned?fmtDate(x.planned):"\u2014"}</td>
+          <td style="border:1px solid #ccc;padding:5px 8px">${x.actual?fmtDate(x.actual):"\u2014"}</td>
+          <td style="border:1px solid #ccc;padding:5px 8px;color:${late?"#C62828":"#2E7D32"};font-weight:600">${dash(x.status)}</td>
+        </tr>`;}).join("")}</tbody></table>`;
+  }
+
+  // 5. Risks and issues
+  const rk = window._prjRisks.filter(x=>(x.title||"").trim());
+  if(rk.length){
+    body += head(K(),"Risk & Issue Register") + `<table style="border-collapse:collapse;width:100%;font-size:11px">
+      <thead><tr>${["Title","Type","Impact","Likelihood","Owner","Response"].map(h=>`<th style="border:1px solid #ccc;padding:5px 8px;background:#1B3A6B;color:#fff;text-align:start">${h}</th>`).join("")}</tr></thead>
+      <tbody>${rk.map(x=>`<tr>
+        <td style="border:1px solid #ccc;padding:5px 8px">${esc(x.title)}</td>
+        <td style="border:1px solid #ccc;padding:5px 8px">${dash(x.type)}</td>
+        <td style="border:1px solid #ccc;padding:5px 8px;color:${/high/i.test(x.impact||"")?"#C62828":"#333"}">${dash(x.impact)}</td>
+        <td style="border:1px solid #ccc;padding:5px 8px">${dash(x.likelihood)}</td>
+        <td style="border:1px solid #ccc;padding:5px 8px">${dash(x.owner)}</td>
+        <td style="border:1px solid #ccc;padding:5px 8px">${dash(x.response)}</td>
+      </tr>`).join("")}</tbody></table>`;
+  }
+
+  // 6+. The narrative sections, in PMBOK order, each printed only if written.
+  // Imported tables print AS TABLES \u2014 the same renderer the other reports use.
+  PRJ_SECTIONS.forEach(s=>{
+    const txt = (m.sections && m.sections[s.k]) || "";
+    if(!String(txt).trim()) return;
+    body += head(K(), s.n) + `<div style="font-size:11px;line-height:1.75">
+      ${typeof textWithTablesHTML==="function" ? textWithTablesHTML(txt,{dash:false}) : esc(txt)}
+    </div>`;
+  });
+
+  // Drawings before photographs: a plan is evidence of scope, a photograph is
+  // evidence of work, and they are read in that order.
+  if(window._prjPlans.length) body += (typeof _rptPlanSheets==="function" ? _rptPlanSheets(window._prjPlans,"Site Plans & Drawings") : "");
+  if(window._prjPhotos.length) body += (typeof _rptPhotoGrid==="function" ? _rptPhotoGrid(window._prjPhotos,"Site Photographs") : "");
+
+  // Signatures \u2014 the same pads and the same printer every other report uses,
+  // so an unsigned report simply omits the block rather than printing empty rules.
+  if(typeof sigAny==="function" && sigAny(["prj_prep","prj_appr","prj_client"])){
+    body += head(K(),"Approval") + (typeof sigRow==="function" ? sigRow([
+      ["prj_prep",   m.preparedBy || "Prepared by",          "Project Engineer",       "EJAF Technology"],
+      ["prj_appr",   m.approvedBy || "Approved by",          "Projects Manager",       "EJAF Technology"],
+      ["prj_client", m.clientRep  || "Client representative", "",                      m.client || ""],
+    ]) : "");
+  }
+
+  // The standards note belongs in the document, not only in the code: a client
+  // reading this should be able to see what it was written against.
+  body += `<div style="margin-top:14px;font-size:9.5px;color:#777;line-height:1.6">
+    Prepared to the structure of the PMBOK\u00ae Guide (7th edition) and the Practice Standard for Project Status Reporting: scope, progress, cost, quality, risk, and the decisions required. Figures are as recorded on the date of issue.
+  </div>`;
+
+  await openReportPDF("PROJECT_REPORT",
+    [m.date?fmtDate(m.date):"", m.client, m.project].filter(Boolean).join(" \u00b7 ") || period,
+    body, {project:m.project||"", client:m.client||""});
+  toast("Project report ready!");
+};
+
+function renderProjectReport(){
+  const P = window._prj;
+  const rag = PRJ_RAG.find(r=>r.k===P.rag) || PRJ_RAG[0];
+  const opts = (list, cur) => (list||[]).map(v=>`<option ${cur===v?"selected":""}>${escapeHtml(v)}</option>`).join("");
+  const projects = (state.projects||[]).map(p=>p.name).filter(Boolean);
+  const clients  = (state.clients ||[]).map(c=>c.name).filter(Boolean);
+  const sites    = (state.locations||[]).map(l=>l.name).filter(Boolean);
+  const people   = (typeof allEmployees==="function"?allEmployees():[]);
+
+  return `${_rptHero("\u{1F4CB}","Project Report","Status report to PMBOK 7 \u2014 scope, progress, cost, risk, decisions")}
+
+  <div class="card">
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px">
+      <span style="background:#C9A84C;color:#1B3A6B;font-weight:800;border-radius:8px;padding:2px 8px;font-size:12px">01</span>
+      <b>Project & Period</b>
+    </div>
+    <div class="grid2">
+      <div class="field"><label>Project</label><select class="input" onchange="_prj.project=this.value">
+        <option value="">\u2014 choose \u2014</option>${opts(projects, P.project)}</select></div>
+      <div class="field"><label>Client</label><select class="input" onchange="_prj.client=this.value">
+        <option value="">\u2014 choose \u2014</option>${opts(clients, P.client)}</select></div>
+      <div class="field"><label>Site</label><select class="input" onchange="_prj.site=this.value">
+        <option value="">\u2014 choose \u2014</option>${opts(sites, P.site)}</select></div>
+      <div class="field"><label>Contract reference</label>
+        <input class="input" value="${escapeHtml(P.contractRef)}" oninput="_prj.contractRef=this.value"></div>
+      <div class="field"><label>Phase</label>
+        <select class="input" onchange="_prj.phase=this.value">
+          ${opts(["","Initiation","Planning","Execution","Monitoring & Control","Closing"], P.phase)}</select></div>
+      <div class="field"><label>Report number (optional)</label>
+        <input class="input" value="${escapeHtml(P.reportNo)}" oninput="_prj.reportNo=this.value" placeholder="e.g. 04"></div>
+      <div class="field"><label>Period from</label>
+        <input class="input" type="date" value="${escapeHtml(P.from)}" oninput="_prj.from=this.value"></div>
+      <div class="field"><label>Period to</label>
+        <input class="input" type="date" value="${escapeHtml(P.to)}" oninput="_prj.to=this.value"></div>
+      <div class="field"><label>Prepared by</label><select class="input" onchange="_prj.preparedBy=this.value">
+        <option value="">\u2014</option>${opts(people, P.preparedBy)}</select></div>
+      <div class="field"><label>Approved by</label><select class="input" onchange="_prj.approvedBy=this.value">
+        <option value="">\u2014</option>${opts(people, P.approvedBy)}</select></div>
+      <div class="field full"><label>Client representative</label>
+        <input class="input" value="${escapeHtml(P.clientRep)}" oninput="_prj.clientRep=this.value"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px">
+      <span style="background:#C9A84C;color:#1B3A6B;font-weight:800;border-radius:8px;padding:2px 8px;font-size:12px">02</span>
+      <b>Overall Status</b>
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin:8px 0">
+      ${PRJ_RAG.map(r=>`<button type="button" class="btn btn-sm" onclick="prjSetRag('${r.k}')"
+        style="background:${P.rag===r.k?r.c:"var(--card)"};color:${P.rag===r.k?"#fff":"var(--fg)"};border:1px solid ${P.rag===r.k?r.c:"var(--line)"};font-weight:700">${escapeHtml(r.n)}</button>`).join("")}
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:8px">${escapeHtml(rag.d)}</div>
+    <div class="grid2">
+      <div class="field"><label>Planned complete (%)</label>
+        <input class="input" inputmode="decimal" value="${escapeHtml(P.pctPlanned)}" oninput="_prj.pctPlanned=this.value"></div>
+      <div class="field"><label>Actual complete (%)</label>
+        <input class="input" inputmode="decimal" value="${escapeHtml(P.pctActual)}" oninput="_prj.pctActual=this.value"></div>
+      <div class="field full"><label>Why this status</label>
+        <input class="input" value="${escapeHtml(P.ragNote)}" oninput="_prj.ragNote=this.value"
+               placeholder="A status without a reason cannot be acted on"></div>
+    </div>
+  </div>
+
+  ${prjEVCard()}
+
+  <div class="card">
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px">
+      <span style="background:#C9A84C;color:#1B3A6B;font-weight:800;border-radius:8px;padding:2px 8px;font-size:12px">MS</span>
+      <b>Milestones</b>
+      <button class="btn btn-sm btn-secondary" style="margin-inline-start:auto" onclick="prjAddMilestone()">+ Add</button>
+    </div>
+    ${window._prjMilestones.length?`<div style="overflow-x:auto"><table class="tbl" style="min-width:560px">
+      <thead><tr><th>Milestone</th><th>Planned</th><th>Actual / forecast</th><th>Status</th><th></th></tr></thead>
+      <tbody>${window._prjMilestones.map((m,i)=>`<tr>
+        <td><input class="input" value="${escapeHtml(m.name)}" onchange="prjSetMilestone(${i},'name',this.value)"></td>
+        <td><input class="input" type="date" value="${escapeHtml(m.planned)}" onchange="prjSetMilestone(${i},'planned',this.value)"></td>
+        <td><input class="input" type="date" value="${escapeHtml(m.actual)}" onchange="prjSetMilestone(${i},'actual',this.value)"></td>
+        <td><select class="input" onchange="prjSetMilestone(${i},'status',this.value)">
+          ${opts(["On track","Achieved","Late","At risk","Not started"], m.status)}</select></td>
+        <td><button class="btn btn-sm" style="background:#FDECEA;color:#C62828;border:none" onclick="prjDelMilestone(${i})">\u00d7</button></td>
+      </tr>`).join("")}</tbody></table></div>`
+      :`<div style="color:var(--muted);font-size:13px">No milestones yet.</div>`}
+  </div>
+
+  <div class="card">
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px">
+      <span style="background:#C9A84C;color:#1B3A6B;font-weight:800;border-radius:8px;padding:2px 8px;font-size:12px">RI</span>
+      <b>Risk & Issue Register</b>
+      <button class="btn btn-sm btn-secondary" style="margin-inline-start:auto" onclick="prjAddRisk()">+ Add</button>
+    </div>
+    ${window._prjRisks.length?`<div style="overflow-x:auto"><table class="tbl" style="min-width:640px">
+      <thead><tr><th>Title</th><th>Type</th><th>Impact</th><th>Likelihood</th><th>Owner</th><th>Response</th><th></th></tr></thead>
+      <tbody>${window._prjRisks.map((r,i)=>`<tr>
+        <td><input class="input" value="${escapeHtml(r.title)}" onchange="prjSetRisk(${i},'title',this.value)"></td>
+        <td><select class="input" onchange="prjSetRisk(${i},'type',this.value)">${opts(["Risk","Issue"], r.type)}</select></td>
+        <td><select class="input" onchange="prjSetRisk(${i},'impact',this.value)">${opts(["Low","Medium","High"], r.impact)}</select></td>
+        <td><select class="input" onchange="prjSetRisk(${i},'likelihood',this.value)">${opts(["Low","Medium","High"], r.likelihood)}</select></td>
+        <td><input class="input" value="${escapeHtml(r.owner)}" onchange="prjSetRisk(${i},'owner',this.value)"></td>
+        <td><input class="input" value="${escapeHtml(r.response)}" onchange="prjSetRisk(${i},'response',this.value)"></td>
+        <td><button class="btn btn-sm" style="background:#FDECEA;color:#C62828;border:none" onclick="prjDelRisk(${i})">\u00d7</button></td>
+      </tr>`).join("")}</tbody></table></div>`
+      :`<div style="color:var(--muted);font-size:13px">No risks or issues recorded.</div>`}
+  </div>
+
+  ${PRJ_SECTIONS.map((s,i)=>prjSectionCard(s,i)).join("")}
+
+  <div class="card">
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px">
+      <span style="background:#C9A84C;color:#1B3A6B;font-weight:800;border-radius:8px;padding:2px 8px;font-size:12px">\u{1F4F7}</span>
+      <b>Photos & Drawings</b>
+    </div>
+    <input type="file" accept="image/*" multiple onchange="prjAddPhotos(this)" style="margin-top:8px">
+    ${typeof planBlockHTML==="function"?planBlockHTML("_prjPlans"):""}
+    ${window._prjPhotos.length?`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+      ${window._prjPhotos.map((p,i)=>`<div style="position:relative"><img src="${p.data}" style="width:88px;height:66px;object-fit:cover;border-radius:8px;border:1px solid var(--line)">
+        <button class="btn btn-sm" style="position:absolute;top:-6px;inset-inline-end:-6px;background:#C62828;color:#fff;border:none;border-radius:50%;width:22px;height:22px;padding:0" onclick="prjDelPhoto(${i})">\u00d7</button></div>`).join("")}
+    </div>`:""}
+  </div>
+
+  <div class="card">
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px">
+      <span style="background:#C9A84C;color:#1B3A6B;font-weight:800;border-radius:8px;padding:2px 8px;font-size:12px">\u270D\uFE0F</span>
+      <b>Approval</b>
+    </div>
+    ${typeof signaturePad==="function"?signaturePad("prj_prep","Prepared by \u2014 signature","The author signs here"):""}
+    ${typeof signaturePad==="function"?signaturePad("prj_appr","Approved by \u2014 signature","EJAF approval"):""}
+    ${typeof signaturePad==="function"?signaturePad("prj_client","Client representative \u2014 signature","Hand the device to the client"):""}
+  </div>
+
+  <div class="card" style="background:linear-gradient(135deg,#1B3A6B 0%,#2E5FA3 100%);border:2px solid #C9A84C">
+    ${typeof refOverrideField==="function"?refOverrideField():""}${typeof brandLink==="function"?brandLink():""}${typeof rptFormatToggle==="function"?rptFormatToggle(true):""}
+    <button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:700;border:none;width:100%"
+      onclick="generateProjectReport()">${_fmtIcon()} Generate Project Report (${_fmtName()})</button>
+  </div>
+  ${typeof srSaveBar==="function"?srSaveBar("project"):""}
+  ${typeof srSavedList==="function"?srSavedList("project"):""}`;
+}
+Object.assign(window,{renderProjectReport});
+
 // ═══ SITE PLANS FROM PDF (v253) ═══════════════════════════════════════
 // A drawing is not text, so it cannot travel the Word route into a text field.
 // It is rendered to an image instead and printed alongside the report.
@@ -1775,6 +2196,7 @@ const SR_KINDS = {
   fm200: {label:"FM-200 Test",      state:["_fm","_fmCyls","_fmChk"],          photos:"_fmPhotos",    plans:"_fmPlans"},
   tech:  {label:"Technical Report", state:["_sr","_srDevs","_srChk","_srSubs","_srInt"], photos:"_srPhotos", plans:"_srPlans"},
   prog:  {label:"Progress Report",  state:["_pr","_prTasks","_prPeople"],      photos:"_prPhotos", plans:"_prPlans"},
+  project:{label:"Project Report", state:["_prj","_prjMilestones","_prjRisks"], photos:"_prjPhotos", plans:"_prjPlans"},
 };
 
 // Re-encode a stored photo small enough that a whole report fits in one
@@ -2739,13 +3161,19 @@ window.srLoadDevices=function(){
 
 function _srPillList(){
   return SYS_TEMPLATES.map(t=>({id:t.id,ic:t.icon,lb:t.short}))
-    .concat([{id:"daily",ic:"📅",lb:"Daily"},{id:"weekly",ic:"📆",lb:"Weekly"}]);
+    .concat([{id:"daily",ic:"📅",lb:"Daily"},{id:"weekly",ic:"📆",lb:"Weekly"},
+             {id:"project",ic:"📋",lb:"Project"}]);
 }
 function renderSystemReports(){
   if(!(isAdmin()||isHR()||hasCap("canExport"))) return `<div class="card"><div class="empty">No access.</div></div>`;
   // Project progress reports live in the same pill row but render their own layout
   if(window._srTpl==="daily"||window._srTpl==="weekly"){
     return _pills('_srTpl',_srPillList()) + renderProgressReport(window._srTpl);
+  }
+  // The project status report shares the pill row but is a different document:
+  // it reports on a PROJECT, not on a system, so it has its own layout.
+  if(window._srTpl==="project"){
+    return _pills('_srTpl',_srPillList()) + renderProjectReport();
   }
   const tpl=sysTemplate(window._srTpl), m=window._sr, mode=window._srMode;
   const clientOpts=(state.clients||[]).map(c=>c.name).filter(Boolean).sort();
@@ -3959,6 +4387,6 @@ window.forceUpdate = async function(){
 // The build actually running, so nobody has to infer it from behaviour.
 // A single named constant, updated with every release, so the screen can state
 // the build without inferring it from a variable that lives inside a function.
-const APP_BUILD = "v253";
+const APP_BUILD = "v254";
 window.APP_BUILD = APP_BUILD;
 window.runningVersion = function(){ return APP_BUILD; };
