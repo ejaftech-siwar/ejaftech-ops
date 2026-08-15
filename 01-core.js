@@ -1231,6 +1231,10 @@ const LAZY_LIBS = {
   QRCode:  "https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js",
   emailjs: "https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js",
   ZXing:   "https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js",
+  // Site plans from AutoCAD and Revit. Vector PDF, so it redraws crisply at
+  // whatever resolution we ask for \u2014 the legacy build is used because it
+  // runs without a module loader, exactly like every other library here.
+  pdfjsLib:"https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/legacy/build/pdf.min.js",
 };
 const _libLoading = {};
 function loadLib(name){

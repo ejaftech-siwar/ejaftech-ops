@@ -1,3 +1,5 @@
+window._prPlans=window._prPlans||[];
+window._pmRptPlans=window._pmRptPlans||[];
 // ── Shared identity/row filters so Reports matches the rest of the app ──
 // (parity with applyReportFilters: staff-dept + branch act on WHO the employee
 //  is; task-dept + location act on the record itself, guarded by field presence)
@@ -1396,7 +1398,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v252';"
+      var swCode = "const CACHE='ejaftech-v253';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
@@ -1498,6 +1500,7 @@ window.generatePMReport=async function(){
     ${(window._pmRptDesc||"").trim()?`<div class="ksec"><span class="kbad">04</span><h3>Work Performed — Description</h3></div>
     <div style="font-size:12px;line-height:1.7">${typeof textWithTablesHTML==="function"?textWithTablesHTML(window._pmRptDesc,{dash:false}):`<div style="white-space:pre-wrap">${escapeHtml(window._pmRptDesc.trim())}</div>`}</div>`:""}
     ${_rptPhotoGrid(window._pmRptPhotos,"Maintenance Photos")}
+    ${typeof _rptPlanSheets==="function"?_rptPlanSheets(window._pmRptPlans,"Site Plans"):""}
     <script>setTimeout(()=>window.print(),500)<\/script>`;
 
   const period=(from||to)?`${from||"start"} → ${to||"today"}`:"All time";
@@ -1571,6 +1574,183 @@ function _rptModeSeg(varName,mode){
     <button class="btn ${mode==="manual"?"btn-primary":"btn-secondary"}" style="flex:1" onclick="window.${varName}='manual';render()">✍️ Manual entry</button>
   </div></div>`;
 }
+// ═══ SITE PLANS FROM PDF (v253) ═══════════════════════════════════════
+// A drawing is not text, so it cannot travel the Word route into a text field.
+// It is rendered to an image instead and printed alongside the report.
+//
+// Plans are kept in their OWN array, separate from site photographs, for one
+// reason: resolution. A photograph of a rack survives being reduced to 1024px;
+// a floor plan does not — at that size the dimension strings and room names
+// stop being readable, which is the only reason the drawing is in the report.
+// AutoCAD and Revit produce vector PDF, so the page can be redrawn at any
+// resolution we ask for, and 2048px is asked for.
+//
+// The 12-photo ceiling is not shared either. A five-page drawing set would
+// otherwise consume most of the allowance for site photographs.
+const PLAN_MAX      = 8;
+const PLAN_WIDTH    = 2048;   // readable dimension strings
+const PLAN_QUALITY  = 0.82;   // line art suffers badly below this
+const PLAN_THUMB_W  = 900;    // the reference copy that is stored
+const PLAN_THUMB_Q  = 0.55;
+
+// PDF.js ships its parser and its worker separately; the worker has to be
+// pointed at explicitly or it silently falls back to blocking the main thread.
+async function _planLib(){
+  if(!await needLib("pdfjsLib","the drawing reader")) return null;
+  try{
+    const lib = window.pdfjsLib;
+    if(lib && lib.GlobalWorkerOptions && !lib.GlobalWorkerOptions.workerSrc){
+      lib.GlobalWorkerOptions.workerSrc =
+        "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/legacy/build/pdf.worker.min.js";
+    }
+    return lib;
+  }catch(e){ return null; }
+}
+
+// Draw one page at a width that keeps the lettering legible.
+async function _planRenderPage(pdf, pageNo, targetW){
+  const page = await pdf.getPage(pageNo);
+  const base = page.getViewport({scale:1});
+  const scale = Math.max(0.2, Math.min(6, targetW / base.width));
+  const vp = page.getViewport({scale});
+  const cv = document.createElement("canvas");
+  cv.width = Math.round(vp.width); cv.height = Math.round(vp.height);
+  const cx = cv.getContext("2d");
+  // A drawing exported from CAD usually has no background of its own; without
+  // this it renders as black lines on transparent, which becomes black on
+  // black once the PDF viewer composites it.
+  cx.fillStyle = "#FFFFFF"; cx.fillRect(0,0,cv.width,cv.height);
+  await page.render({canvasContext:cx, viewport:vp}).promise;
+  return {data:cv.toDataURL("image/jpeg", PLAN_QUALITY), w:cv.width, h:cv.height};
+}
+
+window._planPick = window._planPick || null;   // {pages, name, target, doc}
+
+// Step 1: open the file and find out how many pages it has.
+window.planImportOpen = async function(input, targetArr){
+  const f = input && input.files && input.files[0];
+  if(!f){ return; }
+  input.value = "";
+  if(!/\.pdf$/i.test(f.name)){ toast("Choose a PDF drawing"); return; }
+  const lib = await _planLib();
+  if(!lib) return;
+  toast("Opening the drawing\u2026");
+  try{
+    const buf = await f.arrayBuffer();
+    const pdf = await lib.getDocument({data:new Uint8Array(buf)}).promise;
+    if(pdf.numPages === 1){
+      await _planAdd(pdf, 1, targetArr, f.name);
+      return;
+    }
+    window._planPick = {doc:pdf, pages:pdf.numPages, name:f.name, target:targetArr, chosen:{1:true}};
+    render();
+  }catch(e){
+    toast("That PDF could not be read \u2014 it may be password protected");
+  }
+};
+
+window.planTogglePage = function(n){
+  const P = window._planPick; if(!P) return;
+  if(P.chosen[n]) delete P.chosen[n]; else P.chosen[n] = true;
+  render();
+};
+window.planPickCancel = function(){ window._planPick = null; render(); };
+
+window.planPickConfirm = async function(){
+  const P = window._planPick; if(!P) return;
+  const pages = Object.keys(P.chosen).map(Number).sort((a,b)=>a-b);
+  if(!pages.length){ toast("Choose at least one page"); return; }
+  window._planPick = null;
+  render();
+  for(const n of pages){ if(!await _planAdd(P.doc, n, P.target, P.name)) break; }
+};
+
+async function _planAdd(pdf, pageNo, targetArr, fileName){
+  const arr = window[targetArr] = (window[targetArr] || []);
+  if(arr.length >= PLAN_MAX){ toast(`Up to ${PLAN_MAX} drawings per report`); return false; }
+  toast(`Rendering page ${pageNo}\u2026`);
+  try{
+    const full = await _planRenderPage(pdf, pageNo, PLAN_WIDTH);
+    arr.push({data:full.data, w:full.w, h:full.h, page:pageNo,
+              name:(fileName||"Drawing").replace(/\.pdf$/i,""), caption:""});
+    render();
+    toast("Drawing added \u2713");
+    return true;
+  }catch(e){ toast(`Page ${pageNo} could not be rendered`); return false; }
+}
+
+window.planDelete = function(targetArr, i){
+  const arr = window[targetArr]; if(!arr) return;
+  arr.splice(i,1); render();
+};
+window.planCaption = function(targetArr, i, v){
+  const arr = window[targetArr]; if(!arr || !arr[i]) return;
+  arr[i].caption = v;   // no render(): retyping the field mid-edit loses the caret
+};
+
+// The picker shown when a drawing set has more than one page.
+function planPickerHTML(){
+  const P = window._planPick;
+  if(!P) return "";
+  const btns = [];
+  for(let n=1;n<=P.pages;n++){
+    const on = !!P.chosen[n];
+    btns.push(`<button type="button" class="btn btn-sm" onclick="planTogglePage(${n})"
+      style="background:${on?"#03308B":"var(--card)"};color:${on?"#fff":"var(--fg)"};border:1px solid ${on?"#03308B":"var(--line)"};min-width:44px">${n}</button>`);
+  }
+  return `<div class="card" style="border:2px solid #C9A84C">
+    <div class="card-title">\u{1F4D0} ${escapeHtml(P.name)} \u2014 ${P.pages} pages</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Choose the pages to bring in.</div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">${btns.join("")}</div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:700" onclick="planPickConfirm()">Add selected</button>
+      <button class="btn btn-secondary" onclick="planPickCancel()">Cancel</button>
+    </div>
+  </div>`;
+}
+
+// The editing block that sits inside each generator.
+function planBlockHTML(targetArr){
+  const arr = window[targetArr] || [];
+  return `${planPickerHTML()}
+  <div style="margin-top:10px">
+    <label class="btn btn-sm btn-secondary" style="cursor:pointer">\u{1F4D0} Import site plan (PDF)
+      <input type="file" accept="application/pdf,.pdf" style="display:none"
+             onchange="planImportOpen(this,${jsArg(targetArr)})">
+    </label>
+    <span style="font-size:11px;color:var(--muted);margin-inline-start:8px">
+      AutoCAD and Revit drawings redraw sharply. Up to ${PLAN_MAX}, kept at full size for printing \u2014 separate from the photo allowance.
+    </span>
+    ${arr.length?`<div style="display:flex;flex-direction:column;gap:8px;margin-top:10px">
+      ${arr.map((p,i)=>`<div style="display:flex;gap:8px;align-items:flex-start;border:1px solid var(--line);border-radius:10px;padding:8px">
+        <img src="${p.data}" style="width:92px;height:70px;object-fit:contain;background:#fff;border:1px solid var(--line);border-radius:6px">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(p.name)} \u00b7 p.${p.page}</div>
+          <div style="font-size:10px;color:var(--muted);margin-bottom:4px">${p.reference
+            ? `<span style="color:#E65100">Reference copy \u2014 re-import the PDF before printing</span>`
+            : `${p.w}\u00d7${p.h}px \u00b7 print quality`}</div>
+          <input class="input" style="font-size:12px;padding:4px 8px" placeholder="Caption (optional)"
+                 value="${escapeHtml(p.caption||"")}" onchange="planCaption(${jsArg(targetArr)},${i},this.value)">
+        </div>
+        <button class="btn btn-sm" style="background:#FDECEA;color:#C62828;border:none" onclick="planDelete(${jsArg(targetArr)},${i})">\u00d7</button>
+      </div>`).join("")}
+    </div>`:""}
+  </div>`;
+}
+
+// Printed full width, one per page: a plan squeezed into a photo tile is not a
+// plan any more.
+function _rptPlanSheets(plans, label){
+  if(!plans || !plans.length) return "";
+  return `<div class="ksec"><span class="kbad">\u{1F4D0}</span><h3>${label} (${plans.length})</h3></div>
+    ${plans.map((p,i)=>`<div style="page-break-inside:avoid;margin-bottom:14px;text-align:center">
+      <img src="${p.data}" style="max-width:100%;height:auto;border:1px solid #ccc;border-radius:4px">
+      <div style="font-size:10px;color:#666;margin-top:3px">${escapeHtml(p.caption||p.name||"Drawing")} \u2014 page ${p.page}${p.reference?" (reference copy)":""}</div>
+    </div>`).join("")}`;
+}
+Object.assign(window,{PLAN_MAX, PLAN_WIDTH, PLAN_THUMB_W, planBlockHTML, planPickerHTML,
+  _rptPlanSheets, _planRenderPage, _planAdd});
+
 // ═══ SAVED REPORTS (v250) ════════════════════════════════════════════════
 // The four generators held everything in memory: fill in an inspection, export
 // it, and the moment the tab changed the work was gone. There was no way to
@@ -1588,11 +1768,13 @@ function _rptModeSeg(varName,mode){
 // budget is spent — the report is what matters, and the export the person
 // already produced keeps the full-resolution originals.
 const SR_DOC_BUDGET = 700 * 1024;   // stay well under the 1 MB document ceiling
+const SR_PLAN_REF_W = 900;          // a drawing kept only as a reference
+const SR_PLAN_REF_Q = 0.55;
 const SR_KINDS = {
-  pm:    {label:"PM Report",        state:["_pmMan","_pmManItems"],            photos:"_pmRptPhotos"},
-  fm200: {label:"FM-200 Test",      state:["_fm","_fmCyls","_fmChk"],          photos:"_fmPhotos"},
-  tech:  {label:"Technical Report", state:["_sr","_srDevs","_srChk","_srSubs","_srInt"], photos:"_srPhotos"},
-  prog:  {label:"Progress Report",  state:["_pr","_prTasks","_prPeople"],      photos:"_prPhotos"},
+  pm:    {label:"PM Report",        state:["_pmMan","_pmManItems"],            photos:"_pmRptPhotos", plans:"_pmRptPlans"},
+  fm200: {label:"FM-200 Test",      state:["_fm","_fmCyls","_fmChk"],          photos:"_fmPhotos",    plans:"_fmPlans"},
+  tech:  {label:"Technical Report", state:["_sr","_srDevs","_srChk","_srSubs","_srInt"], photos:"_srPhotos", plans:"_srPlans"},
+  prog:  {label:"Progress Report",  state:["_pr","_prTasks","_prPeople"],      photos:"_prPhotos", plans:"_prPlans"},
 };
 
 // Re-encode a stored photo small enough that a whole report fits in one
@@ -1654,15 +1836,31 @@ window.srSaveReport = async function(kind, withPhotos){
   const state0 = _srSnapshot(kind);
   if(!state0){ toast("Nothing to save"); return; }
   toast("Saving\u2026");
+  // Site plans are stored as a REDUCED REFERENCE copy, never at print
+  // resolution: one 2048px drawing can exceed a whole Firestore document on
+  // its own. The saved copy is there to say WHICH drawing this report used and
+  // to let someone recognise it; the print-quality original lives in the file
+  // that was exported.
+  let plans = [];
+  const planSrc = (window[k.plans] || []);
+  for(const pl of planSrc){
+    let ref = await _srShrink(pl.data, SR_PLAN_REF_W, SR_PLAN_REF_Q);
+    if(ref && ref.length > 160*1024) ref = await _srShrink(pl.data, 640, 0.4);
+    if(!ref) continue;
+    plans.push({data:ref, page:pl.page, name:pl.name||"", caption:pl.caption||"", reference:true,
+                fullW:pl.w||0, fullH:pl.h||0});
+  }
   let photos = [], dropped = 0;
   if(withPhotos !== false){
-    const packed = await _srPackPhotos(window[k.photos], SR_DOC_BUDGET);
+    const planBytes = plans.reduce((s,p)=>s+(p.data?p.data.length:0), 0);
+    const packed = await _srPackPhotos(window[k.photos], Math.max(80*1024, SR_DOC_BUDGET - planBytes));
     photos = packed.photos; dropped = packed.dropped;
   }else{
     dropped = (window[k.photos]||[]).length;
   }
   const rec = {
     id: window._srEditId || undefined,
+    plans, plansAreReference: plans.length > 0,
     kind, kindLabel: k.label,
     title: _srTitleOf(kind),
     state: state0,
@@ -1699,6 +1897,7 @@ window.srNewReport = function(kind){
     }
   });
   window[k.photos] = [];
+  if(k.plans) window[k.plans] = [];
   window._srEditId = null;
   render();
   try{ window.scrollTo({top:0, behavior:"smooth"}); }catch(e){ try{ window.scrollTo(0,0); }catch(_){} }
@@ -1714,6 +1913,11 @@ window.srOpenReport = function(id){
     if(v !== undefined && v !== null){ try{ window[name] = JSON.parse(JSON.stringify(v)); }catch(e){} }
   });
   window[k.photos] = (r.photos||[]).map(p=>({data:p.data, note:p.note||""}));
+  // The stored drawings are reference copies. They reopen so the report is
+  // complete and recognisable, flagged so nobody mistakes them for the
+  // print-resolution originals.
+  if(k.plans) window[k.plans] = (r.plans||[]).map(p=>({data:p.data, page:p.page||1,
+      name:p.name||"", caption:p.caption||"", reference:true, w:p.fullW||0, h:p.fullH||0}));
   window._srEditId = r.id;
   render();
   try{ window.scrollTo({top:0, behavior:"smooth"}); }catch(e){}
@@ -1760,7 +1964,7 @@ function srSaveBar(kind){
     </div>
     <div style="font-size:11px;color:var(--muted);margin-top:8px">
       ${editing?"You are editing a saved report \u2014 saving updates it in place.":"Saving stores this report and clears the form for the next one."}
-      Photos are compressed hard for storage; the export you generate keeps the originals.
+      Photos are compressed hard for storage, and site plans are kept only as small reference copies \u2014 the export you generate keeps the originals at full print quality.
     </div>
   </div>`;
 }
@@ -1822,6 +2026,7 @@ function renderPMReportTab(){
   <div class="card">
     <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:700">03</span> Photos <span style="font-size:10px;color:var(--muted);font-weight:500">(optional · max 12 · embedded in the PDF)</span></div>
     <input type="file" accept="image/*" multiple onchange="pmRptAddPhotos(this)" style="margin-top:8px">
+    ${typeof planBlockHTML==="function"?planBlockHTML("_pmRptPlans"):""}
     ${photos.length?`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
       ${photos.map((p,i)=>`<div style="position:relative"><img src="${p.data}" style="width:76px;height:76px;object-fit:cover;border-radius:8px;border:1px solid var(--line)"><button onclick="annoOpen('_pmRptPhotos',${i})" title="Annotate" style="position:absolute;bottom:-6px;right:-6px;background:#03308B;color:#fff;border:none;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:10px;line-height:1">✎</button><button onclick="pmRptDelPhoto(${i})" style="position:absolute;top:-6px;right:-6px;background:#C62828;color:#fff;border:none;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:11px;font-weight:700">×</button></div>`).join("")}
     </div>`:""}
@@ -1964,6 +2169,7 @@ function _pmManualLayout(){
   <div class="card">
     <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:700">04</span> Photos <span style="font-size:10px;color:var(--muted);font-weight:500">(max 12)</span></div>
     <input type="file" accept="image/*" multiple onchange="pmRptAddPhotos(this)" style="margin-top:8px">
+    ${typeof planBlockHTML==="function"?planBlockHTML("_pmRptPlans"):""}
     ${photos.length?`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
       ${photos.map((p,i)=>`<div style="position:relative"><img src="${p.data}" style="width:76px;height:76px;object-fit:cover;border-radius:8px;border:1px solid var(--line)"><button onclick="annoOpen('_pmRptPhotos',${i})" title="Annotate" style="position:absolute;bottom:-6px;right:-6px;background:#03308B;color:#fff;border:none;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:10px;line-height:1">✎</button><button onclick="pmRptDelPhoto(${i})" style="position:absolute;top:-6px;right:-6px;background:#C62828;color:#fff;border:none;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:11px;font-weight:700">×</button></div>`).join("")}
     </div>`:""}
@@ -1997,6 +2203,7 @@ async function _generatePMManual(){
     ${(m.desc||"").trim()?`<div class="ksec"><span class="kbad">03</span><h3>Description</h3></div>
     <div style="font-size:12px;line-height:1.7">${typeof textWithTablesHTML==="function"?textWithTablesHTML(m.desc,{dash:false}):`<div style="white-space:pre-wrap">${escapeHtml(m.desc.trim())}</div>`}</div>`:""}
     ${_rptPhotoGrid(window._pmRptPhotos,"Maintenance Photos")}
+    ${typeof _rptPlanSheets==="function"?_rptPlanSheets(window._pmRptPlans,"Site Plans"):""}
     <script>setTimeout(()=>window.print(),500)<\/script>`;
   const period=(m.from||m.to)?`${m.from||"start"} → ${m.to||"today"}`:"Manual";
   await openReportPDF("PREVENTIVE_MAINTENANCE",[period,m.project,m.system].filter(Boolean).join(" · "),bodyHTML,{project:m.project||""});
@@ -2105,6 +2312,7 @@ window._fm=window._fm||{client:"",clientOther:false,project:"",site:"",date:"",s
   resultText:"",engName:"",repName:"",repTitle:"IT Manager"};
 window._fmCyls=window._fmCyls||[];
 window._fmPhotos=window._fmPhotos||[];
+window._fmPlans=window._fmPlans||[];
 // Checklist items — verbatim from EJAF's delivered FM200 Test Report format
 const FM_CHK_ITEMS=[
   ["c01","Cylinder tight mounted to the wall"],
@@ -2270,6 +2478,7 @@ function renderFM200Section(){
   <div class="card">
     <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:700">${fv==="test"?"08":"04"}</span> Photos <span style="font-size:10px;color:var(--muted);font-weight:500">(max 12)</span></div>
     <input type="file" accept="image/*" multiple onchange="fmAddPhotos(this)" style="margin-top:8px">
+    ${typeof planBlockHTML==="function"?planBlockHTML("_fmPlans"):""}
     ${photos.length?`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
       ${photos.map((p,i)=>`<div style="position:relative"><img src="${p.data}" style="width:76px;height:76px;object-fit:cover;border-radius:8px;border:1px solid var(--line)"><button onclick="annoOpen('_fmPhotos',${i})" title="Annotate" style="position:absolute;bottom:-6px;right:-6px;background:#03308B;color:#fff;border:none;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:10px;line-height:1">✎</button><button onclick="fmDelPhoto(${i})" style="position:absolute;top:-6px;right:-6px;background:#C62828;color:#fff;border:none;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:11px;font-weight:700">×</button></div>`).join("")}
     </div>`:""}
@@ -2317,6 +2526,7 @@ window.generateFM200Refill=async function(){
     ${(m.notes||"").trim()?`<div class="ksec"><span class="kbad">03</span><h3>Notes / Recommendations</h3></div>
     <div style="font-size:12px;line-height:1.7">${typeof textWithTablesHTML==="function"?textWithTablesHTML(m.notes,{dash:false}):`<div style="white-space:pre-wrap">${escapeHtml(m.notes.trim())}</div>`}</div>`:""}
     ${_rptPhotoGrid(window._fmPhotos,"Photos")}
+    ${typeof _rptPlanSheets==="function"?_rptPlanSheets(window._fmPlans,"Site Plans"):""}
     ${sigAny(["fm_eng","fm_rep"])?`<div style="margin-top:26px">${sigRow([
         ["fm_eng", m.technician||m.engName||"Eng.", "Technician", "EJAF Technology"],
         ["fm_rep", m.repName||"Mr.", m.repTitle||"Client representative", m.client||""]])}</div>`:""}
@@ -2374,6 +2584,7 @@ window.generateFM200Test=async function(){
     <div style="border:1px solid #ccc;border-radius:8px;padding:12px;font-size:12px;line-height:1.8;min-height:64px">${(m.resultText||"").trim() ? (typeof textWithTablesHTML==="function"?textWithTablesHTML(m.resultText,{dash:false}):`<div style="white-space:pre-wrap">${escapeHtml(m.resultText.trim())}</div>`) : "&nbsp;"}</div>
     ${cylsBlock()}
     ${_rptPhotoGrid(window._fmPhotos,"Photos")}
+    ${typeof _rptPlanSheets==="function"?_rptPlanSheets(window._fmPlans,"Site Plans"):""}
     ${sigAny(["fm_eng","fm_rep"])?`<div class="ksec"><span class="kbad">05</span><h3>Report Approval</h3></div>
     ${sigRow([["fm_eng", m.engName||"Eng.", "Technical Engineer", "EJAF Technology"],
               ["fm_rep", m.repName||"Mr.", m.repTitle||"", m.client||""]])}`:""}
@@ -2405,6 +2616,7 @@ window._sr=window._sr||{client:"",clientOther:false,project:"",projectOther:fals
 window._srDevs=window._srDevs||[];   // [{name,model,serial,location,result,remark}]
 window._srChk=window._srChk||{};     // {tplId: {idx: {s,r}}}
 window._srPhotos=window._srPhotos||[];
+window._srPlans=window._srPlans||[];
 window._srSubs=window._srSubs||[];    // selected ELV sub-system ids (integrated report)
 window._srInt=window._srInt||{};      // {"a>b": {s,r}} interface verification results
 window._srIntX=window._srIntX||[];    // custom interfaces [{d,s,r}]
@@ -2675,6 +2887,7 @@ function renderSystemReports(){
   <div class="card">
     <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:700">${N()}</span> Photos <span style="font-size:10px;color:var(--muted);font-weight:500">(max 12)</span></div>
     <input type="file" accept="image/*" multiple onchange="srAddPhotos(this)" style="margin-top:8px">
+    ${typeof planBlockHTML==="function"?planBlockHTML("_srPlans"):""}
     ${window._srPhotos.length?`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
       ${window._srPhotos.map((p,i)=>`<div style="position:relative"><img src="${p.data}" style="width:76px;height:76px;object-fit:cover;border-radius:8px;border:1px solid var(--line)"><button onclick="annoOpen('_srPhotos',${i})" title="Annotate" style="position:absolute;bottom:-6px;right:-6px;background:#03308B;color:#fff;border:none;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:10px;line-height:1">✎</button><button onclick="srDelPhoto(${i})" style="position:absolute;top:-6px;right:-6px;background:#C62828;color:#fff;border:none;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:11px;font-weight:700">×</button></div>`).join("")}
     </div>`:""}
@@ -2800,6 +3013,7 @@ window.generateSystemReport=async function(){
     <div class="ksec"><span class="kbad">${K()}</span><h3>Result of Test</h3></div>
     <div style="border:1px solid #ccc;border-radius:8px;padding:12px;font-size:12px;line-height:1.8;min-height:60px">${(m.resultText||"").trim() ? (typeof textWithTablesHTML==="function"?textWithTablesHTML(m.resultText,{dash:false}):`<div style="white-space:pre-wrap">${escapeHtml(m.resultText.trim())}</div>`) : "&nbsp;"}</div>
     ${_rptPhotoGrid(window._srPhotos,"Photos")}
+    ${typeof _rptPlanSheets==="function"?_rptPlanSheets(window._srPlans,"Site Plans"):""}
     ${sigAny(["sr_eng","sr_rep"])?`<div class="ksec"><span class="kbad">${K()}</span><h3>Report Approval</h3></div>
     ${sigRow([["sr_eng", m.engName||m.technician||"Eng.", "Technical Engineer", "EJAF Technology"],
               ["sr_rep", m.repName||m.representative||"Mr.", m.repTitle||"", m.client||""]])}`:""}
@@ -3577,6 +3791,7 @@ function renderProgressReport(kind){
   <div class="card">
     ${S(N(),"Photos")} 
     <input type="file" accept="image/*" multiple onchange="prAddPhotos(this)" style="margin-top:8px">
+    ${typeof planBlockHTML==="function"?planBlockHTML("_prPlans"):""}
     ${window._prPhotos.length?`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
       ${window._prPhotos.map((p,i)=>`<div style="position:relative"><img src="${p.data}" style="width:76px;height:76px;object-fit:cover;border-radius:8px;border:1px solid var(--line)"><button onclick="annoOpen('_prPhotos',${i})" title="Annotate" style="position:absolute;bottom:-6px;right:-6px;background:#03308B;color:#fff;border:none;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:10px;line-height:1">✎</button><button onclick="prDelPhoto(${i})" style="position:absolute;top:-6px;right:-6px;background:#C62828;color:#fff;border:none;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:11px;font-weight:700">×</button></div>`).join("")}
     </div>`:""}
@@ -3691,6 +3906,7 @@ window.generateProgressReport = async function(kind){
 
     ${(m.hse||"").trim()?`<div class="ksec"><span class="kbad">${K()}</span><h3>HSE / Safety</h3></div>${block(m.hse)}`:""}
     ${_rptPhotoGrid(window._prPhotos,"Site Photos")}
+    ${typeof _rptPlanSheets==="function"?_rptPlanSheets(window._prPlans,"Site Plans"):""}
 
     ${sigAny(["pr_eng","pr_rep"])?`<div class="ksec"><span class="kbad">${K()}</span><h3>Approval</h3></div>
     ${sigRow([["pr_eng", m.engName||m.preparedBy||"Eng.", "Project / Technical Engineer", "EJAF Technology"],
@@ -3743,6 +3959,6 @@ window.forceUpdate = async function(){
 // The build actually running, so nobody has to infer it from behaviour.
 // A single named constant, updated with every release, so the screen can state
 // the build without inferring it from a variable that lives inside a function.
-const APP_BUILD = "v252";
+const APP_BUILD = "v253";
 window.APP_BUILD = APP_BUILD;
 window.runningVersion = function(){ return APP_BUILD; };
