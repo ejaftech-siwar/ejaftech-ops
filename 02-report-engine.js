@@ -1274,8 +1274,12 @@ function tableToolbar(setterPath){
              onchange="xlImportOpen(this,${jsArg(setterPath)})">
     </label>
     <button type="button" class="btn btn-sm btn-secondary" onclick="tblInsert(${jsArg(setterPath)},3,3)">\u{1F4CA} Blank table</button>
+    ${(typeof importCanUndo==="function" && importCanUndo(setterPath))
+      ? `<button type="button" class="btn btn-sm btn-secondary" onclick="importUndo(${jsArg(setterPath)})" title="Put back what was in this field before the last import">\u21A9\uFE0F Undo import</button>`
+      : ""}
     <span class="tbl-hint">Excel and CSV keep every cell exactly where it is \u2014 safer than pasting, which can split a wrapped cell across two rows.
-      Word (.docx) brings across the wording, its line breaks, lists and tables; colours and fonts do not transfer, because this is a text field. A table imported here is still printed as a table in the finished report.</span>
+      Word (.docx) brings across the wording, its line breaks, lists and tables; colours and fonts do not transfer, because this is a text field. A table imported here is still printed as a table in the finished report.
+      <b>Importing replaces the previous import</b> \u2014 bringing the same file in twice will not leave two copies.</span>
   </div>`;
 }
 Object.assign(window,{tablePreviewHTML, tableToolbar});
@@ -1290,6 +1294,64 @@ Object.assign(window,{tablePreviewHTML, tableToolbar});
 // Merged cells are honoured too: a title merged across eight columns arrives
 // as a title, not as a value in column A with seven blanks after it.
 window._xlPick = window._xlPick || null;   // {rows, name, sheets, sheet, target}
+
+// ═══ WHERE AN IMPORT LANDS (v250) ════════════════════════════════════
+// Importing used to APPEND. Import the same sheet twice — which is what anyone
+// does after fixing a typo in the source file — and the report ended up with
+// both copies, one under the other, with nothing to say which was current.
+//
+// An import now REPLACES what the previous import put there. Where the earlier
+// block is still present untouched it is swapped in place, so a paragraph the
+// person typed above or below it survives; where it has been edited beyond
+// recognition the field is replaced outright, because a second copy of the
+// same table is never the intent. The previous contents are kept for one
+// undo, which the toolbar offers until the next import.
+const _lastImport = Object.create(null);   // target path -> what the importer wrote
+const _importUndo = Object.create(null);   // target path -> what was there before
+
+// Dotted path -> {obj,key}. Resolved, never eval'd, so a field name can never
+// become executable.
+function _resolveField(targetPath){
+  const parts = String(targetPath||"").split(".");
+  if(!parts.length || !parts[0]) return null;
+  let obj = window;
+  for(let i=0;i<parts.length-1;i++){ obj = obj && obj[parts[i]]; }
+  const key = parts[parts.length-1];
+  return (obj && key) ? {obj, key} : null;
+}
+
+function _importInto(targetPath, text){
+  const f = _resolveField(targetPath);
+  if(!f) return false;
+  const cur  = String(f.obj[f.key] || "");
+  const prev = _lastImport[targetPath];
+  let next;
+  const at = prev ? cur.indexOf(prev) : -1;
+  if(prev && at >= 0){
+    next = cur.slice(0, at) + text + cur.slice(at + prev.length);
+  }else{
+    next = text;
+  }
+  _importUndo[targetPath] = cur;
+  _lastImport[targetPath] = text;
+  f.obj[f.key] = next;
+  return true;
+}
+
+window.importCanUndo = function(targetPath){
+  return Object.prototype.hasOwnProperty.call(_importUndo, String(targetPath||""));
+};
+window.importUndo = function(targetPath){
+  const key = String(targetPath||"");
+  const f = _resolveField(key);
+  if(!f || !Object.prototype.hasOwnProperty.call(_importUndo, key)) return;
+  f.obj[f.key] = _importUndo[key];
+  delete _importUndo[key];
+  delete _lastImport[key];
+  render();
+  toast("Import undone \u2713");
+};
+Object.assign(window,{_resolveField, _importInto});
 
 // Convert a worksheet into a rectangular array, expanding merges so the shape
 // on screen matches the shape in Excel.
@@ -1356,7 +1418,7 @@ function _docxRunsToText(frag){
   const re = /<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>|<w:tab\b[^>]*\/?>|<w:br\b[^>]*\/?>|<w:cr\b[^>]*\/?>|<\/w:p>/g;
   let m;
   while((m = re.exec(frag))){
-    if(m[1] !== undefined)          out += m[1].replace(/<[^>]+>/g, "");
+    if(m[1] !== undefined)          out += m[1].replace(/<[^>]+>/g, "").replace(/[\uF000-\uF0FF]/g, "\u2022");
     else if(/^<w:tab/.test(m[0]))   out += "\t";
     else if(/^<\/w:p>/.test(m[0]))  out += "\u0001";  // paragraph boundary marker
     else                            out += "\n";      // <w:br> and <w:cr>
@@ -1364,24 +1426,108 @@ function _docxRunsToText(frag){
   return out;
 }
 
-function _docxParaText(p){
+// ═══ WORD NUMBERING (v250) ══════════════════════════════════════════
+// Word does not store "1." in the paragraph — it stores a pointer into
+// numbering.xml, and the reader computes the number. Ignoring that file meant
+// EVERY numbered item arrived as a dash, so "1. Systems Overview / 1.1 Access
+// control" collapsed into an undifferentiated bullet list and the section
+// numbering the report refers to simply vanished.
+//
+// This reads the definitions, then walks the document keeping a counter per
+// level, exactly as Word does, so 1, 1.1, 1.1.1 come out as themselves and a
+// genuine bullet list still comes out as bullets.
+function _docxNumbering(xml){
+  const num2abs = {}, abs = {};
+  if(!xml) return {fmt:()=>null};
+  let m;
+  const numRe = /<w:num\s+w:numId="(\d+)"[^>]*>([\s\S]*?)<\/w:num>/g;
+  while((m = numRe.exec(xml))){
+    const a = /<w:abstractNumId\s+w:val="(\d+)"/.exec(m[2]);
+    if(a) num2abs[m[1]] = a[1];
+  }
+  const absRe = /<w:abstractNum\s+w:abstractNumId="(\d+)"[\s\S]*?<\/w:abstractNum>/g;
+  while((m = absRe.exec(xml))){
+    const id = m[1], lv = {};
+    const lvRe = /<w:lvl\s+w:ilvl="(\d+)"[\s\S]*?<\/w:lvl>/g;
+    let l;
+    while((l = lvRe.exec(m[0]))){
+      const f = /<w:numFmt\s+w:val="([^"]+)"/.exec(l[0]);
+      const t = /<w:lvlText\s+w:val="([^"]*)"/.exec(l[0]);
+      const s = /<w:start\s+w:val="(-?\d+)"/.exec(l[0]);
+      lv[+l[1]] = { fmt:(f?f[1]:"bullet"), text:(t?t[1]:"\u2022"), start:(s?+s[1]:1) };
+    }
+    abs[id] = lv;
+  }
+  const counters = {};   // abstractId -> array of counts per level
+  return {
+    // Returns the marker for this list paragraph, advancing the counters.
+    fmt(numId, ilvl){
+      const a = num2abs[String(numId)];
+      const lv = a!=null ? abs[a] : null;
+      const def = lv && lv[ilvl];
+      if(!def) return null;
+      if(/bullet/i.test(def.fmt)){
+        // Word stores a Wingdings bullet as a PRIVATE-USE codepoint (U+F0B7
+        // and friends). Copied across literally it is not a bullet anywhere
+        // outside Word \u2014 it is an empty box on the phone and in the PDF.
+        // Mapped to the real characters they stand for.
+        const WING = {"\uF0B7":"\u2022","\uF0A7":"\u25AA","\uF0FC":"\u2713","\uF0D8":"\u203A",
+                      "\uF06C":"\u2022","\uF075":"\u25C6","\uF0A8":"\u25AB","\uF02D":"-"};
+        let t = String(def.text||"").trim();
+        t = t.replace(/[\uF000-\uF0FF]/g, c => WING[c] || "\u2022");
+        return (t && t.length<=2 ? t : "\u2022");
+      }
+      const c = counters[a] || (counters[a] = []);
+      while(c.length <= ilvl) c.push(null);
+      c[ilvl] = (c[ilvl]==null ? (def.start||1) : c[ilvl]+1);
+      // A new item at this level restarts everything nested under it.
+      for(let i=ilvl+1;i<c.length;i++) c[i]=null;
+      // %1..%9 stand for the counters at levels 0..8, so "%1.%2" is 1.1.
+      let out = String(def.text||"");
+      for(let i=0;i<9;i++){
+        const lvDef = lv[i];
+        const v = (c[i]==null ? (lvDef?(lvDef.start||1):1) : c[i]);
+        out = out.split("%"+(i+1)).join(String(v));
+      }
+      out = out.trim();
+      return out || "\u2022";
+    }
+  };
+}
+
+function _docxParaText(p, num){
   let txt = _docxRunsToText(p).replace(/\u0001/g, "\n");
   if(!txt.trim()) return "";
 
-  // A list item is marked by numbering properties rather than by a character,
-  // so the bullet has to be restored or the list arrives as loose lines.
-  // Indent level is kept, so a sub-point still reads as a sub-point.
+  const st = /<w:pStyle[^>]*w:val="([^"]+)"/.exec(p);
+  const style = st ? st[1] : "";
+
+  // The table of contents is a NAVIGATION AID, not content: each line is
+  // "heading .... tab .... page number". Carried across it becomes a run of
+  // two-column tab lines, which the table detector reads as a table \u2014 that
+  // is the block of garbled rows at the top of every imported document. The
+  // page numbers are meaningless in a field anyway, so the whole thing goes.
+  if(/^TOC\d*$/i.test(style) || /^(TOCHeading|Contents)$/i.test(style)) return "";
+
+  // Numbering properties: ask numbering.xml what this level actually looks
+  // like. A heading is numbered but is still a heading \u2014 tested FIRST,
+  // because the old order turned every numbered heading into a dash and lost
+  // the section numbers the report body refers back to.
+  let marker = null, lvl = 0;
   if(/<w:numPr[\s>]/.test(p)){
-    const lvl = /<w:ilvl[^>]*w:val="(\d+)"/.exec(p);
-    txt = "  ".repeat(Math.min(+((lvl&&lvl[1])||0), 4)) + "- " + txt.trim();
-    return txt;
+    const il = /<w:ilvl[^>]*w:val="(\d+)"/.exec(p);
+    const ni = /<w:numId[^>]*w:val="(\d+)"/.exec(p);
+    lvl = Math.min(+((il&&il[1])||0), 8);
+    if(num && ni) marker = num.fmt(ni[1], lvl);
+    if(!marker) marker = "\u2022";
   }
 
-  // Word marks a heading with a style, not with formatting we could carry into
-  // a text field. Keeping it on its own with a blank line before it preserves
-  // the shape of the document \u2014 the reader still sees where a section starts.
-  const st = /<w:pStyle[^>]*w:val="([^"]+)"/.exec(p);
-  if(st && /^heading/i.test(st[1])) return "\u0002" + txt.trim();
+  if(/^heading/i.test(style)){
+    return "\u0002" + (marker ? marker+" " : "") + txt.trim();
+  }
+  if(marker){
+    return "  ".repeat(Math.min(lvl,4)) + marker + " " + txt.trim();
+  }
   return txt;
 }
 
@@ -1392,7 +1538,10 @@ function _docxTableText(tbl){
     (tr.match(/<w:tc[\s\S]*?<\/w:tc>/g) || []).forEach(tc => {
       // A cell may hold several paragraphs; they join with a space so the cell
       // stays one cell and the columns after it do not shift.
-      const txt = _docxRunsToText(tc).replace(/\u0001/g, " ").replace(/\s+/g, " ").trim();
+      // Tabs are the column separator downstream, so a tab STOP inside a cell
+      // (Word uses them for alignment) would split that cell into two columns
+      // and push every value after it under the wrong heading.
+      const txt = _docxRunsToText(tc).replace(/\u0001/g, " ").replace(/[\t\u000B\f]/g, " ").replace(/\s+/g, " ").trim();
       cells.push(txt);
       // A cell spanning N columns must occupy N of them, or everything to its
       // right slides one column left and lands under the wrong heading.
@@ -1421,6 +1570,18 @@ async function _docxToText(file){
   if(!entry || !entry.content) throw new Error("no document body");
   const xml = new TextDecoder("utf-8").decode(new Uint8Array(entry.content));
 
+  // numbering.xml holds what "1." actually is. Its absence is not an error \u2014
+  // a document with no lists simply has no such part \u2014 so a failure here
+  // degrades to plain bullets rather than losing the whole import.
+  let numXml = "";
+  try{
+    let ne = null;
+    try{ ne = XLSX.CFB.find(cfb, "/word/numbering.xml"); }catch(e){}
+    if(!ne) ne = (cfb.FileIndex||[]).find(e => /word\/numbering\.xml$/i.test(e.name||""));
+    if(ne && ne.content) numXml = new TextDecoder("utf-8").decode(new Uint8Array(ne.content));
+  }catch(e){}
+  const num = _docxNumbering(numXml);
+
   // Walk paragraphs and tables in the order they appear. Reading all the
   // tables first and the paragraphs afterwards — which is what this used to do
   // — silently reordered the document: every table jumped above the text that
@@ -1434,7 +1595,7 @@ async function _docxToText(file){
       const rows = _docxTableText(frag);
       if(rows.length){ if(out.length) out.push(""); out.push(...rows); out.push(""); }
     }else{
-      let t = _docxParaText(frag);
+      let t = _docxParaText(frag, num);
       if(t){
         // A heading is separated from what came before it, so sections do not
         // run together once the marker is removed.
@@ -1477,16 +1638,10 @@ window.xlImportOpen = async function(input, targetPath){
     try{
       const text=await _docxToText(f);
       if(!text){ toast("That document appears to be empty"); input.value=""; return; }
-      const parts=String(targetPath||"").split(".");
-      let obj=window;
-      for(let i=0;i<parts.length-1;i++) obj=obj[parts[i]];
-      const key=parts[parts.length-1];
-      if(!obj){ toast("Could not reach that field"); input.value=""; return; }
-      const cur=String(obj[key]||"");
-      obj[key] = cur ? (cur.replace(/\s*$/,"") + "\n" + text) : text;
+      if(!_importInto(targetPath, text)){ toast("Could not reach that field"); input.value=""; return; }
       input.value="";
       render();
-      toast("Document imported \u2713");
+      toast("Document imported \u2713 \u2014 it replaced the previous import");
     }catch(e){
       console.error(e);
       toast("Could not read that Word file \u2014 try saving it as .xlsx or .csv");
@@ -1574,13 +1729,7 @@ window.xlApply  = function(){
   const slice=[P.rows[hr-1]||[], ...data];
   const text=_xlToText(slice);
   try{
-    const parts=P.target.split(".");
-    let obj=window;
-    for(let i=0;i<parts.length-1;i++) obj=obj[parts[i]];
-    const key=parts[parts.length-1];
-    if(!obj) return;
-    const cur=String(obj[key]||"");
-    obj[key] = cur ? (cur.replace(/\s*$/,"") + "\n\n" + text) : text;
+    if(!_importInto(P.target, text)){ toast("Could not reach that field"); return; }
     window._xlPick=null;
     render();
     toast(`Imported ${slice.length} row${slice.length>1?"s":""} \u00d7 ${slice[0].length} column${slice[0].length>1?"s":""}`);
