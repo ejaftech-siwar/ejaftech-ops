@@ -1398,7 +1398,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v254';"
+      var swCode = "const CACHE='ejaftech-v256';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
@@ -1616,7 +1616,14 @@ const PRJ_RAG = [
 
 window._prj = window._prj || {
   client:"", clientOther:false, project:"", projectOther:false, site:"", siteOther:false,
-  reportNo:"", from:"", to:"", date:"", preparedBy:"", approvedBy:"", clientRep:"",
+  reportNo:"", from:"", to:"", date:"",
+  // A report is often prepared or approved by someone who is not on the staff
+  // list \u2014 a consultant, a client-side engineer, a new hire not yet added.
+  // Forcing a dropdown there means the report is issued with the WRONG name on
+  // it, or not issued at all. Each of these can be typed instead.
+  preparedBy:"", preparedByOther:false,
+  approvedBy:"", approvedByOther:false,
+  clientRep:"",
   phase:"", contractRef:"", rag:"green", ragNote:"",
   pctPlanned:"", pctActual:"", budget:"", spent:"", committed:"", currency:"USD",
   plannedValue:"", earnedValue:"", actualCost:"",
@@ -1683,6 +1690,60 @@ function prjSectionCard(s, i){
   </div>`;
 }
 
+// ═══ WHAT WILL ACTUALLY PRINT ═════════════════════════════════════════
+// Because empty items are dropped from the finished document, the person needs
+// to see BEFORE generating which parts are in and which are out — otherwise
+// "hidden because empty" is indistinguishable from "lost". This is the same
+// test the printer uses, so the list can never disagree with the document.
+function _prjFilled(v){
+  if(v == null) return false;
+  const s = String(v).trim();
+  return s !== "" && s !== "\u2014" && s !== "-";
+}
+function prjWillPrint(){
+  const m = window._prj, ev = _prjEV(), out = [];
+  const idFields = [m.client,m.project,m.site,m.contractRef,m.phase,m.from,m.to,
+                    m.reportNo,m.preparedBy,m.approvedBy,m.clientRep];
+  out.push({n:"Project Identification", on:idFields.some(_prjFilled),
+            why:"needs at least one project detail"});
+  out.push({n:"Overall Status", on:true, why:"always included \u2014 a status report states a status"});
+  out.push({n:"Cost & Schedule Performance", on:!!(ev.pv||ev.ev||ev.ac),
+            why:"needs PV, EV or AC"});
+  out.push({n:"Milestones & Schedule",
+            on:(window._prjMilestones||[]).some(x=>_prjFilled(x.name)), why:"needs a named milestone"});
+  out.push({n:"Risk & Issue Register",
+            on:(window._prjRisks||[]).some(x=>_prjFilled(x.title)), why:"needs a titled risk or issue"});
+  PRJ_SECTIONS.forEach(s => out.push({n:s.n, on:_prjFilled((m.sections||{})[s.k]), why:"section is empty"}));
+  out.push({n:"Site Plans & Drawings", on:(window._prjPlans||[]).length>0, why:"no drawing imported"});
+  out.push({n:"Site Photographs",      on:(window._prjPhotos||[]).length>0, why:"no photo added"});
+  out.push({n:"Approval", on:(typeof sigAny==="function" && sigAny(["prj_prep","prj_appr","prj_client"])),
+            why:"nobody has signed"});
+  return out;
+}
+function prjPreviewCard(){
+  const rows = prjWillPrint();
+  const inc = rows.filter(r=>r.on).length;
+  const out = rows.length - inc;
+  return `<div class="card" style="border:2px solid #C9A84C">
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px">
+      <span style="background:#C9A84C;color:#1B3A6B;font-weight:800;border-radius:8px;padding:2px 8px;font-size:12px">\u{1F441}\uFE0F</span>
+      <b>What the report will contain</b>
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin:6px 0 10px">
+      Anything left blank is left OUT of the finished document \u2014 in PDF, Word and Excel alike \u2014
+      so the client never receives a page of dashes. <b>${inc} in, ${out} left out.</b>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:3px">
+      ${rows.map(r=>`<div style="display:flex;align-items:center;gap:8px;font-size:12px;padding:3px 6px;border-radius:6px;background:${r.on?"rgba(46,125,50,.08)":"transparent"}">
+        <span style="width:16px;text-align:center;color:${r.on?"#2E7D32":"var(--muted)"};font-weight:800">${r.on?"\u2713":"\u00b7"}</span>
+        <span style="flex:1;color:${r.on?"var(--fg)":"var(--muted)"};${r.on?"":"text-decoration:line-through;opacity:.65"}">${escapeHtml(r.n)}</span>
+        ${r.on?"":`<span style="font-size:10px;color:var(--muted)">${escapeHtml(r.why)}</span>`}
+      </div>`).join("")}
+    </div>
+  </div>`;
+}
+Object.assign(window,{prjWillPrint, prjPreviewCard, _prjFilled});
+
 function prjEVCard(){
   const ev = _prjEV();
   const spi = _prjIndexLabel(ev.spi), cpi = _prjIndexLabel(ev.cpi);
@@ -1732,11 +1793,47 @@ window.generateProjectReport = async function(){
   const rag = PRJ_RAG.find(r=>r.k===m.rag) || PRJ_RAG[0];
   const ev  = _prjEV();
   const esc = v => escapeHtml(String(v==null?"":v));
-  const dash = v => (v==null || v==="") ? "\u2014" : esc(v);
+
+  // \u2550\u2550\u2550 NOTHING EMPTY IS PRINTED (v255) \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+  // A project status report is read by a client, and a page of dashes reads as
+  // work not done rather than as a field left blank. Every row, every table and
+  // every heading is now printed ONLY when it carries a value: an unused
+  // section leaves no trace at all, and a table whose column is empty for every
+  // row drops that column rather than ruling an empty strip down the page.
+  //
+  // The rule is applied at the point of PRINTING, so it holds for PDF, Word and
+  // Excel alike \u2014 all three are produced from this same body.
+  const filled = v => {
+    if(v == null) return false;
+    const s = String(v).trim();
+    return s !== "" && s !== "\u2014" && s !== "-";
+  };
+  const dash = v => filled(v) ? esc(v) : "\u2014";
   // Section numbers are COUNTED, never written by hand: inserting a section
   // must never leave the document numbered 1,2,2,4.
   const K = (()=>{ let n=0; return ()=>String(++n).padStart(2,"0"); })();
-  const row = (l,v) => `<tr><td style="border:1px solid #ccc;padding:5px 8px;background:#F7F7F7;font-weight:600;width:34%">${esc(l)}</td><td style="border:1px solid #ccc;padding:5px 8px">${v}</td></tr>`;
+  // A row is emitted only when it has something to say. `rawRow` exists for the
+  // few values that are already HTML (a coloured index), and it applies the
+  // same test to the underlying value rather than to the markup.
+  const row = (l,v) => filled(v) ? `<tr><td style="border:1px solid #ccc;padding:5px 8px;background:#F7F7F7;font-weight:600;width:34%">${esc(l)}</td><td style="border:1px solid #ccc;padding:5px 8px">${esc(v)}</td></tr>` : "";
+  const rawRow = (l,test,html) => filled(test) ? `<tr><td style="border:1px solid #ccc;padding:5px 8px;background:#F7F7F7;font-weight:600;width:34%">${esc(l)}</td><td style="border:1px solid #ccc;padding:5px 8px">${html}</td></tr>` : "";
+  // A heading with an empty table under it is worse than no heading.
+  const sect = (title, inner) => String(inner).trim() ? head(K(), title) + inner : "";
+  const table = rows => String(rows).trim() ? `<table style="border-collapse:collapse;width:100%;font-size:11px">${rows}</table>` : "";
+  // Build a grid, dropping any column that is empty in EVERY row. A register
+  // where nobody filled in "Likelihood" should not carry an empty Likelihood
+  // strip down the whole page \u2014 and dropping it in the printer, not in the
+  // form, means the person can still fill it in later without losing anything.
+  const grid = (headers, rows) => {
+    if(!rows.length) return "";
+    const keep = headers.map((_,c) => rows.some(r => filled(r[c])));
+    if(!keep.some(Boolean)) return "";
+    const th = headers.filter((_,c)=>keep[c])
+      .map(h=>`<th style="border:1px solid #ccc;padding:5px 8px;background:#1B3A6B;color:#fff;text-align:start">${esc(h)}</th>`).join("");
+    const tb = rows.map(r=>`<tr>${r.filter((_,c)=>keep[c])
+      .map(cell=>`<td style="border:1px solid #ccc;padding:5px 8px">${cell && cell.html ? cell.html : (filled(cell)?esc(cell):"")}</td>`).join("")}</tr>`).join("");
+    return `<table style="border-collapse:collapse;width:100%;font-size:11px"><thead><tr>${th}</tr></thead><tbody>${tb}</tbody></table>`;
+  };
   const head = (no,t) => `<div style="margin:16px 0 6px;padding:5px 9px;background:#1B3A6B;color:#fff;font-weight:700;font-size:12px;border-radius:3px">${no}. ${esc(t)}</div>`;
   const period = [m.from?fmtDate(m.from):"", m.to?fmtDate(m.to):""].filter(Boolean).join(" \u2014 ") || "\u2014";
   const cur = esc(m.currency||"USD");
@@ -1747,82 +1844,71 @@ window.generateProjectReport = async function(){
   let body = "";
 
   // 1. Identification
-  body += head(K(),"Project Identification") + `<table style="border-collapse:collapse;width:100%;font-size:11px">
-    ${row("Client", dash(m.client))}
-    ${row("Project", dash(m.project))}
-    ${row("Site", dash(m.site))}
-    ${m.contractRef?row("Contract reference", esc(m.contractRef)):""}
-    ${m.phase?row("Project phase", esc(m.phase)):""}
-    ${row("Reporting period", esc(period))}
-    ${m.reportNo?row("Report number", esc(m.reportNo)):""}
-    ${row("Prepared by", dash(m.preparedBy))}
-    ${row("Approved by", dash(m.approvedBy))}
-    ${m.clientRep?row("Client representative", esc(m.clientRep)):""}
-  </table>`;
+  body += sect("Project Identification", table(`
+    ${row("Client", m.client)}
+    ${row("Project", m.project)}
+    ${row("Site", m.site)}
+    ${row("Contract reference", m.contractRef)}
+    ${row("Project phase", m.phase)}
+    ${row("Reporting period", period)}
+    ${row("Report number", m.reportNo)}
+    ${row("Prepared by", m.preparedBy)}
+    ${row("Approved by", m.approvedBy)}
+    ${row("Client representative", m.clientRep)}`));
 
   // 2. Status \u2014 the thing the reader looks at first
+  // The status badge always prints: a status report without a status is not a
+  // status report, and "on track" is a real answer rather than an empty field.
   body += head(K(),"Overall Status") + `
     <div style="display:flex;gap:10px;align-items:stretch;margin-bottom:8px">
       <div style="background:${rag.c};color:#fff;padding:12px 18px;border-radius:6px;font-weight:800;font-size:15px;display:flex;align-items:center">${esc(rag.n)}</div>
       <div style="flex:1;border:1px solid #ccc;border-radius:6px;padding:8px 12px;font-size:11px;line-height:1.6">
-        ${esc(rag.d)}${m.ragNote?`<br><strong>${esc(m.ragNote)}</strong>`:""}
+        ${esc(rag.d)}${filled(m.ragNote)?`<br><strong>${esc(m.ragNote)}</strong>`:""}
       </div>
     </div>
-    <table style="border-collapse:collapse;width:100%;font-size:11px">
-      ${row("Planned complete", m.pctPlanned!==""?esc(m.pctPlanned)+"%":"\u2014")}
-      ${row("Actual complete",  m.pctActual!==""?esc(m.pctActual)+"%":"\u2014")}
-    </table>`;
+    ${table(`
+      ${row("Planned complete", filled(m.pctPlanned) ? m.pctPlanned+"%" : "")}
+      ${row("Actual complete",  filled(m.pctActual)  ? m.pctActual+"%"  : "")}`)}`;
 
   // 3. Earned value \u2014 printed only when the inputs exist
   if(ev.pv || ev.ev || ev.ac){
-    body += head(K(),"Cost & Schedule Performance (Earned Value)") + `
-      <table style="border-collapse:collapse;width:100%;font-size:11px">
-        ${row("Planned Value (PV)", money(ev.pv))}
-        ${row("Earned Value (EV)",  money(ev.ev))}
-        ${row("Actual Cost (AC)",   money(ev.ac))}
-        ${row("Schedule Performance Index (SPI)", ix(ev.spi))}
-        ${row("Cost Performance Index (CPI)",     ix(ev.cpi))}
-        ${row("Schedule Variance (SV = EV \u2212 PV)", ev.sv==null?"\u2014":money(ev.sv))}
-        ${row("Cost Variance (CV = EV \u2212 AC)",     ev.cv==null?"\u2014":money(ev.cv))}
-      </table>
-      <div style="font-size:9.5px;color:#777;margin-top:4px">Indices are reported to PMBOK convention: 1.00 is on plan, below 1.00 is behind. An index is left blank rather than estimated when an input is missing.</div>`;
+    const evTable = table(`
+      ${row("Planned Value (PV)", ev.pv ? money(ev.pv) : "")}
+      ${row("Earned Value (EV)",  ev.ev ? money(ev.ev) : "")}
+      ${row("Actual Cost (AC)",   ev.ac ? money(ev.ac) : "")}
+      ${rawRow("Schedule Performance Index (SPI)", ev.spi, ix(ev.spi))}
+      ${rawRow("Cost Performance Index (CPI)",     ev.cpi, ix(ev.cpi))}
+      ${row("Schedule Variance (SV = EV \u2212 PV)", ev.sv==null ? "" : money(ev.sv))}
+      ${row("Cost Variance (CV = EV \u2212 AC)",     ev.cv==null ? "" : money(ev.cv))}`);
+    body += sect("Cost & Schedule Performance (Earned Value)", evTable && (evTable +
+      `<div style="font-size:9.5px;color:#777;margin-top:4px">Indices are reported to PMBOK convention: 1.00 is on plan, below 1.00 is behind. An index is omitted rather than estimated when an input is missing.</div>`));
   }
 
   // 4. Milestones
-  const ms = window._prjMilestones.filter(x=>(x.name||"").trim());
-  if(ms.length){
-    body += head(K(),"Milestones & Schedule") + `<table style="border-collapse:collapse;width:100%;font-size:11px">
-      <thead><tr>${["Milestone","Planned","Actual / forecast","Status"].map(h=>`<th style="border:1px solid #ccc;padding:5px 8px;background:#1B3A6B;color:#fff;text-align:start">${h}</th>`).join("")}</tr></thead>
-      <tbody>${ms.map(x=>{
-        const late = /late|risk/i.test(x.status||"");
-        return `<tr>
-          <td style="border:1px solid #ccc;padding:5px 8px">${esc(x.name)}</td>
-          <td style="border:1px solid #ccc;padding:5px 8px">${x.planned?fmtDate(x.planned):"\u2014"}</td>
-          <td style="border:1px solid #ccc;padding:5px 8px">${x.actual?fmtDate(x.actual):"\u2014"}</td>
-          <td style="border:1px solid #ccc;padding:5px 8px;color:${late?"#C62828":"#2E7D32"};font-weight:600">${dash(x.status)}</td>
-        </tr>`;}).join("")}</tbody></table>`;
-  }
+  const ms = window._prjMilestones.filter(x=>filled(x.name));
+  body += sect("Milestones & Schedule", grid(
+    ["Milestone","Planned","Actual / forecast","Status"],
+    ms.map(x=>{
+      const late = /late|risk/i.test(x.status||"");
+      return [ x.name,
+               x.planned ? fmtDate(x.planned) : "",
+               x.actual  ? fmtDate(x.actual)  : "",
+               filled(x.status) ? {html:`<span style="color:${late?"#C62828":"#2E7D32"};font-weight:600">${esc(x.status)}</span>`, toString:()=>x.status} : "" ];
+    })));
 
   // 5. Risks and issues
-  const rk = window._prjRisks.filter(x=>(x.title||"").trim());
-  if(rk.length){
-    body += head(K(),"Risk & Issue Register") + `<table style="border-collapse:collapse;width:100%;font-size:11px">
-      <thead><tr>${["Title","Type","Impact","Likelihood","Owner","Response"].map(h=>`<th style="border:1px solid #ccc;padding:5px 8px;background:#1B3A6B;color:#fff;text-align:start">${h}</th>`).join("")}</tr></thead>
-      <tbody>${rk.map(x=>`<tr>
-        <td style="border:1px solid #ccc;padding:5px 8px">${esc(x.title)}</td>
-        <td style="border:1px solid #ccc;padding:5px 8px">${dash(x.type)}</td>
-        <td style="border:1px solid #ccc;padding:5px 8px;color:${/high/i.test(x.impact||"")?"#C62828":"#333"}">${dash(x.impact)}</td>
-        <td style="border:1px solid #ccc;padding:5px 8px">${dash(x.likelihood)}</td>
-        <td style="border:1px solid #ccc;padding:5px 8px">${dash(x.owner)}</td>
-        <td style="border:1px solid #ccc;padding:5px 8px">${dash(x.response)}</td>
-      </tr>`).join("")}</tbody></table>`;
-  }
+  const rk = window._prjRisks.filter(x=>filled(x.title));
+  body += sect("Risk & Issue Register", grid(
+    ["Title","Type","Impact","Likelihood","Owner","Response"],
+    rk.map(x=>[ x.title, x.type,
+      filled(x.impact) ? {html:`<span style="color:${/high/i.test(x.impact)?"#C62828":"#333"}">${esc(x.impact)}</span>`, toString:()=>x.impact} : "",
+      x.likelihood, x.owner, x.response ])));
 
   // 6+. The narrative sections, in PMBOK order, each printed only if written.
   // Imported tables print AS TABLES \u2014 the same renderer the other reports use.
   PRJ_SECTIONS.forEach(s=>{
     const txt = (m.sections && m.sections[s.k]) || "";
-    if(!String(txt).trim()) return;
+    if(!filled(txt)) return;
     body += head(K(), s.n) + `<div style="font-size:11px;line-height:1.75">
       ${typeof textWithTablesHTML==="function" ? textWithTablesHTML(txt,{dash:false}) : esc(txt)}
     </div>`;
@@ -1845,9 +1931,13 @@ window.generateProjectReport = async function(){
 
   // The standards note belongs in the document, not only in the code: a client
   // reading this should be able to see what it was written against.
-  body += `<div style="margin-top:14px;font-size:9.5px;color:#777;line-height:1.6">
-    Prepared to the structure of the PMBOK\u00ae Guide (7th edition) and the Practice Standard for Project Status Reporting: scope, progress, cost, quality, risk, and the decisions required. Figures are as recorded on the date of issue.
-  </div>`;
+  // The standards note is a claim about the document. It is only made when the
+  // document actually has narrative sections to make it about.
+  if(PRJ_SECTIONS.some(s => filled((m.sections||{})[s.k]))){
+    body += `<div style="margin-top:14px;font-size:9.5px;color:#777;line-height:1.6">
+      Prepared to the structure of the PMBOK\u00ae Guide (7th edition) and the Practice Standard for Project Status Reporting: scope, progress, cost, quality, risk, and the decisions required. Figures are as recorded on the date of issue.
+    </div>`;
+  }
 
   await openReportPDF("PROJECT_REPORT",
     [m.date?fmtDate(m.date):"", m.client, m.project].filter(Boolean).join(" \u00b7 ") || period,
@@ -1862,7 +1952,15 @@ function renderProjectReport(){
   const projects = (state.projects||[]).map(p=>p.name).filter(Boolean);
   const clients  = (state.clients ||[]).map(c=>c.name).filter(Boolean);
   const sites    = (state.locations||[]).map(l=>l.name).filter(Boolean);
+  // allEmployees() deliberately returns FIELD staff \u2014 it feeds the daily log,
+  // where a manager is not someone you book hours against. An approver is
+  // usually a manager, so the approval lists are built from everyone on the
+  // system instead, with the field staff merged in.
   const people   = (typeof allEmployees==="function"?allEmployees():[]);
+  const everyone = Array.from(new Set(
+    (state.users||[]).map(u=>(u.employeeName||u.name||"").trim()).filter(Boolean)
+      .concat(people)
+  )).sort();
 
   return `${_rptHero("\u{1F4CB}","Project Report","Status report to PMBOK 7 \u2014 scope, progress, cost, risk, decisions")}
 
@@ -1872,12 +1970,9 @@ function renderProjectReport(){
       <b>Project & Period</b>
     </div>
     <div class="grid2">
-      <div class="field"><label>Project</label><select class="input" onchange="_prj.project=this.value">
-        <option value="">\u2014 choose \u2014</option>${opts(projects, P.project)}</select></div>
-      <div class="field"><label>Client</label><select class="input" onchange="_prj.client=this.value">
-        <option value="">\u2014 choose \u2014</option>${opts(clients, P.client)}</select></div>
-      <div class="field"><label>Site</label><select class="input" onchange="_prj.site=this.value">
-        <option value="">\u2014 choose \u2014</option>${opts(sites, P.site)}</select></div>
+      ${_syncSel("\u{1F4C1} Project", projects, "window._prj.project", "window._prj.projectOther", P.project, P.projectOther, "Project name")}
+      ${_syncSel("\u{1F464} Client",  clients,  "window._prj.client",  "window._prj.clientOther",  P.client,  P.clientOther,  "Client name")}
+      ${_syncSel("\u{1F4CD} Site",    sites,    "window._prj.site",    "window._prj.siteOther",    P.site,    P.siteOther,    "Site or facility")}
       <div class="field"><label>Contract reference</label>
         <input class="input" value="${escapeHtml(P.contractRef)}" oninput="_prj.contractRef=this.value"></div>
       <div class="field"><label>Phase</label>
@@ -1889,12 +1984,11 @@ function renderProjectReport(){
         <input class="input" type="date" value="${escapeHtml(P.from)}" oninput="_prj.from=this.value"></div>
       <div class="field"><label>Period to</label>
         <input class="input" type="date" value="${escapeHtml(P.to)}" oninput="_prj.to=this.value"></div>
-      <div class="field"><label>Prepared by</label><select class="input" onchange="_prj.preparedBy=this.value">
-        <option value="">\u2014</option>${opts(people, P.preparedBy)}</select></div>
-      <div class="field"><label>Approved by</label><select class="input" onchange="_prj.approvedBy=this.value">
-        <option value="">\u2014</option>${opts(people, P.approvedBy)}</select></div>
-      <div class="field full"><label>Client representative</label>
-        <input class="input" value="${escapeHtml(P.clientRep)}" oninput="_prj.clientRep=this.value"></div>
+      ${_syncSel("\u270D\uFE0F Prepared by", everyone, "window._prj.preparedBy", "window._prj.preparedByOther", P.preparedBy, P.preparedByOther, "Name and title")}
+      ${_syncSel("\u2705 Approved by",  everyone, "window._prj.approvedBy", "window._prj.approvedByOther", P.approvedBy, P.approvedByOther, "Name and title")}
+      <div class="field full"><label>\u{1F91D} Client representative</label>
+        <input class="input" value="${escapeHtml(P.clientRep)}" oninput="window._prj.clientRep=this.value"
+               placeholder="Name and title \u2014 typed, since the client's people are not on our staff list"></div>
     </div>
   </div>
 
@@ -1984,6 +2078,8 @@ function renderProjectReport(){
     ${typeof signaturePad==="function"?signaturePad("prj_appr","Approved by \u2014 signature","EJAF approval"):""}
     ${typeof signaturePad==="function"?signaturePad("prj_client","Client representative \u2014 signature","Hand the device to the client"):""}
   </div>
+
+  ${prjPreviewCard()}
 
   <div class="card" style="background:linear-gradient(135deg,#1B3A6B 0%,#2E5FA3 100%);border:2px solid #C9A84C">
     ${typeof refOverrideField==="function"?refOverrideField():""}${typeof brandLink==="function"?brandLink():""}${typeof rptFormatToggle==="function"?rptFormatToggle(true):""}
@@ -4387,6 +4483,6 @@ window.forceUpdate = async function(){
 // The build actually running, so nobody has to infer it from behaviour.
 // A single named constant, updated with every release, so the screen can state
 // the build without inferring it from a variable that lives inside a function.
-const APP_BUILD = "v254";
+const APP_BUILD = "v256";
 window.APP_BUILD = APP_BUILD;
 window.runningVersion = function(){ return APP_BUILD; };

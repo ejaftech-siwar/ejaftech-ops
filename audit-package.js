@@ -415,6 +415,8 @@ head("11. FEATURE PRESERVATION");
     ["Project Report","generateProjectReport"], ["PMBOK section model","PRJ_SECTIONS"],
     ["earned value (SPI/CPI)","_prjEV"], ["project RAG status","PRJ_RAG"],
     ["project doc series","PROJECT_REPORT"],
+    ["empty items suppressed","prjWillPrint"], ["what-will-print preview","prjPreviewCard"],
+    ["type-or-choose fields","_syncSel"],
     ["lazy library loader","function loadLib"], ["needLib guard","function needLib"],
     ["recycle bin","Recycle Bin"], ["approval workflow","apprRequired"],
     ["work item threading","buildWorkItems"], ["offline session snapshot","readLocalSession"],
