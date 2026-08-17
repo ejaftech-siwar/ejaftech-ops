@@ -10,7 +10,7 @@ const REF_PREFIX = {
   ELV_INTEGRATED_REPORT:"ELVI", HANDOVER_DOSSIER:"HOD", QUOTATION:"QUO", VARIATION:"VAR", COST_REPORT:"CST", INVOICE:"INV", EXPENSE_CLAIM:"EXP", ADVANCES_REGISTER:"ADV",
   DAILY_PROGRESS:"DPR", WEEKLY_PROGRESS:"WPR",
   ASSET_REPORT:"AST", CLIENT_REPORT:"CLR", DASHBOARD:"DSH", GENERAL:"RPT",
-  PROJECT_REPORT:"PRJ",
+  PROJECT_REPORT:"PRJ", PROGRESS_REPORT:"PPR",
 };
 const REF_TYPE_LABEL = {
   HR:"HR Report", DL:"Daily Log Report", TR:"Technical Report", RPT:"Flexible Report",
@@ -20,7 +20,7 @@ const REF_TYPE_LABEL = {
   ELVI:"ELV Integrated Report", HOD:"Handover Dossier", QUO:"Quotation", VAR:"Variation Order", CST:"Cost & Revenue Report", INV:"Invoice", EXP:"Expense Report", ADV:"Advances Register",
   DPR:"Daily Progress Report", WPR:"Weekly Progress Report",
   AST:"Asset Report", CLR:"Client Report", DSH:"Dashboard Export",
-  PRJ:"Project Report",
+  PRJ:"Project Report", PPR:"Project Progress Report",
 };
 window.REF_PREFIX=REF_PREFIX; window.REF_TYPE_LABEL=REF_TYPE_LABEL;
 

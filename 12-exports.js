@@ -1398,7 +1398,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v256';"
+      var swCode = "const CACHE='ejaftech-v257';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
@@ -1574,6 +1574,457 @@ function _rptModeSeg(varName,mode){
     <button class="btn ${mode==="manual"?"btn-primary":"btn-secondary"}" style="flex:1" onclick="window.${varName}='manual';render()">✍️ Manual entry</button>
   </div></div>`;
 }
+// ═══ PROJECT PROGRESS REPORT (v257) ══════════════════════════════════════
+// The CONTRACTOR'S monthly report to the client. It is a different document
+// from the two that already exist and answers to a different reader:
+//
+//   Daily / Weekly Progress  — what the crew did.        Internal, ISO 21502.
+//   Project Report (PMBOK)   — how the project is doing. Steering committee.
+//   THIS                     — what we are owed and why.  Contractual.
+//
+// FIDIC Sub-Clause 4.21 sets out what a progress report must contain, and it
+// is the clause an ELV subcontract points at. Its list is not arbitrary:
+// physical progress by discipline, manpower and plant on site, materials
+// delivered, quality and safety records, and — the reason the document
+// exists — anything causing delay, with its cause and its effect on the
+// completion date. A progress report that records a delay WITHOUT naming its
+// cause has, in practice, waived the claim.
+//
+// So this report leads with physical progress per system and ends with delay
+// events and any extension-of-time position. Those two sections are what make
+// it a contractual document rather than a summary.
+const PPR_SECTIONS = [
+  {k:"scopeOfWork", n:"Scope of Work",              h:"What the contract obliges us to deliver on this project. Paste it from the contract or the BOQ \u2014 stated, not paraphrased."},
+  {k:"executive",   n:"Executive Summary",          h:"The month in a paragraph: overall standing, the single most important fact, and what is needed from the client."},
+  {k:"workDone",    n:"Work Executed This Period",  h:"What was physically installed, terminated, tested or commissioned \u2014 by system and by area."},
+  {k:"workNext",    n:"Work Planned Next Period",   h:"What will be executed before the next report, and what each item depends on."},
+  {k:"materials",   n:"Materials & Procurement",    h:"Delivered to site, in transit, ordered, and long-lead items with their promised dates."},
+  {k:"manpower",    n:"Manpower & Plant",           h:"Staff and labour on site, and any plant or access equipment mobilised."},
+  {k:"quality",     n:"Quality & Testing",          h:"Inspections offered, ITRs signed, snags raised and cleared, standards applied."},
+  {k:"hse",         n:"Health, Safety & Environment", h:"Man-hours worked, incidents and near misses, toolbox talks, permits."},
+  {k:"delays",      n:"Delays, Causes & Effect",    h:"Every event that delayed the works, WHAT caused it, and its effect on the completion date. An unrecorded cause is a claim not made."},
+  {k:"eot",         n:"Extension of Time & Claims", h:"Notices served, days claimed, days granted, and anything still outstanding."},
+  {k:"instructions",n:"Client Instructions & Pending Decisions", h:"What has been asked of the client, when, and what is held up while it is awaited."},
+  {k:"remarks",     n:"Remarks",                    h:"Anything the reader should know that has no home above."},
+];
+
+// Physical progress is claimed PER SYSTEM, because an ELV package is accepted
+// system by system and a single blended percentage hides the one that is late.
+window._ppr = window._ppr || {
+  client:"", clientOther:false, project:"", projectOther:false, site:"", siteOther:false,
+  contractNo:"", contractRef:"", reportNo:"", from:"", to:"", issueDate:"",
+  preparedBy:"", preparedByOther:false, approvedBy:"", approvedByOther:false,
+  clientRep:"", consultant:"",
+  commencement:"", contractCompletion:"", forecastCompletion:"", eotDays:"",
+  overallPlanned:"", overallActual:"", currency:"USD",
+  contractValue:"", invoicedToDate:"", certifiedToDate:"",
+  weatherDays:"", manhours:"", ltiFree:"",
+  sections:{},
+};
+window._pprSystems = window._pprSystems || [];   // [{system,scope,planned,actual,remark}]
+window._pprDelays  = window._pprDelays  || [];   // [{event,from,to,cause,responsibility,effectDays,notice}]
+window._pprPhotos  = window._pprPhotos  || [];
+window._pprPlans   = window._pprPlans   || [];
+
+window.pprAddSystem = function(){ window._pprSystems.push({system:"",scope:"",planned:"",actual:"",remark:""}); render(); };
+window.pprDelSystem = function(i){ window._pprSystems.splice(i,1); render(); };
+window.pprSetSystem = function(i,k,v){ if(window._pprSystems[i]) window._pprSystems[i][k]=v; };
+window.pprAddDelay  = function(){ window._pprDelays.push({event:"",from:"",to:"",cause:"",responsibility:"Client",effectDays:"",notice:""}); render(); };
+window.pprDelDelay  = function(i){ window._pprDelays.splice(i,1); render(); };
+window.pprSetDelay  = function(i,k,v){ if(window._pprDelays[i]) window._pprDelays[i][k]=v; };
+window.pprAddPhotos = async function(input){
+  const files = Array.from((input && input.files) || []);
+  for(const f of files){
+    if(window._pprPhotos.length >= 12){ toast("Max 12 photos"); break; }
+    try{ window._pprPhotos.push({data: await compressImage(f), note:""}); }catch(e){}
+  }
+  input.value=""; render();
+};
+window.pprDelPhoto = function(i){ window._pprPhotos.splice(i,1); render(); };
+
+// Weighted physical progress. Weighted by SCOPE VALUE where it is given,
+// because a 90%-complete doorbell and a 10%-complete CCTV headend are not
+// worth averaging together.
+function _pprProgress(){
+  const n = v => { const x = Number(String(v==null?"":v).replace(/[^0-9.\-]/g,"")); return isFinite(x)?x:0; };
+  let wp=0, wa=0, w=0, plain=[], anyWeight=false;
+  (window._pprSystems||[]).forEach(s=>{
+    if(!String(s.system||"").trim()) return;
+    const weight = n(s.scope);
+    if(weight>0) anyWeight = true;
+    const k = weight>0 ? weight : 1;
+    wp += n(s.planned)*k; wa += n(s.actual)*k; w += k;
+    plain.push({p:n(s.planned), a:n(s.actual)});
+  });
+  if(!w) return {planned:null, actual:null, weighted:false, count:0};
+  return {planned:wp/w, actual:wa/w, weighted:anyWeight, count:plain.length};
+}
+Object.assign(window,{PPR_SECTIONS, _pprProgress});
+
+function pprSectionCard(s, i){
+  const path = `_ppr.sections.${s.k}`;
+  const val  = (window._ppr.sections && window._ppr.sections[s.k]) || "";
+  return `<div class="card">
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px">
+      <span style="background:#C9A84C;color:#1B3A6B;font-weight:800;border-radius:8px;padding:2px 8px;font-size:12px">${String(i+1).padStart(2,"0")}</span>
+      <b>${escapeHtml(s.n)}</b>
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin:6px 0 8px">${escapeHtml(s.h)}</div>
+    ${typeof tableToolbar==="function"?tableToolbar(path):""}
+    ${typeof tablePreviewHTML==="function"?tablePreviewHTML(val, "ppr_"+s.k):""}
+    <textarea rows="4" oninput="_ppr.sections.${s.k}=this.value" placeholder="${escapeHtml(s.h)}">${escapeHtml(val)}</textarea>
+  </div>`;
+}
+
+// Same test the printer uses, so the list and the document cannot disagree.
+function pprWillPrint(){
+  const m = window._ppr, f = _prjFilled, pg = _pprProgress(), out = [];
+  out.push({n:"Contract & Report Details",
+    on:[m.client,m.project,m.site,m.contractNo,m.contractRef,m.reportNo,m.from,m.to,
+        m.preparedBy,m.approvedBy,m.clientRep,m.consultant].some(f),
+    why:"needs at least one contract detail"});
+  out.push({n:"Key Dates",
+    on:[m.commencement,m.contractCompletion,m.forecastCompletion,m.eotDays].some(f),
+    why:"no dates entered"});
+  out.push({n:"Overall Physical Progress",
+    on:pg.planned!=null || f(m.overallPlanned) || f(m.overallActual),
+    why:"needs a system or an overall percentage"});
+  out.push({n:"Progress by System", on:(window._pprSystems||[]).some(s=>f(s.system)),
+    why:"needs a named system"});
+  out.push({n:"Financial Position",
+    on:[m.contractValue,m.invoicedToDate,m.certifiedToDate].some(f), why:"no figures entered"});
+  out.push({n:"Safety Record", on:[m.manhours,m.ltiFree,m.weatherDays].some(f), why:"no records entered"});
+  PPR_SECTIONS.forEach(s => out.push({n:s.n, on:f((m.sections||{})[s.k]), why:"section is empty"}));
+  out.push({n:"Delay Events Register", on:(window._pprDelays||[]).some(d=>f(d.event)),
+    why:"no delay event recorded"});
+  out.push({n:"Site Plans & Drawings", on:(window._pprPlans||[]).length>0, why:"no drawing imported"});
+  out.push({n:"Progress Photographs",  on:(window._pprPhotos||[]).length>0, why:"no photo added"});
+  out.push({n:"Signatures", on:(typeof sigAny==="function" && sigAny(["ppr_prep","ppr_appr","ppr_client"])),
+    why:"nobody has signed"});
+  return out;
+}
+function pprPreviewCard(){
+  const rows = pprWillPrint();
+  const inc = rows.filter(r=>r.on).length;
+  return `<div class="card" style="border:2px solid #C9A84C">
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px">
+      <span style="background:#C9A84C;color:#1B3A6B;font-weight:800;border-radius:8px;padding:2px 8px;font-size:12px">\u{1F441}\uFE0F</span>
+      <b>What the report will contain</b>
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin:6px 0 10px">
+      Anything left blank is left OUT of the finished document, in PDF and Word alike.
+      <b>${inc} in, ${rows.length-inc} left out.</b>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:3px">
+      ${rows.map(r=>`<div style="display:flex;align-items:center;gap:8px;font-size:12px;padding:3px 6px;border-radius:6px;background:${r.on?"rgba(46,125,50,.08)":"transparent"}">
+        <span style="width:16px;text-align:center;color:${r.on?"#2E7D32":"var(--muted)"};font-weight:800">${r.on?"\u2713":"\u00b7"}</span>
+        <span style="flex:1;color:${r.on?"var(--fg)":"var(--muted)"};${r.on?"":"text-decoration:line-through;opacity:.65"}">${escapeHtml(r.n)}</span>
+        ${r.on?"":`<span style="font-size:10px;color:var(--muted)">${escapeHtml(r.why)}</span>`}
+      </div>`).join("")}
+    </div>
+  </div>`;
+}
+Object.assign(window,{pprSectionCard, pprWillPrint, pprPreviewCard});
+
+window.generateProjectProgressReport = async function(){
+  const m = window._ppr, pg = _pprProgress();
+  if(!(m.client || m.project)) return toast("\u26a0 Enter at least the client or project");
+  const esc = v => escapeHtml(String(v==null?"":v));
+  const filled = v => { if(v==null) return false; const s=String(v).trim();
+                        return s!=="" && s!=="\u2014" && s!=="-"; };
+  const K = (()=>{ let n=0; return ()=>String(++n).padStart(2,"0"); })();
+  const head = (no,t)=>`<div style="margin:16px 0 6px;padding:5px 9px;background:#0B3D2E;color:#fff;font-weight:700;font-size:12px;border-radius:3px">${no}. ${esc(t)}</div>`;
+  const row = (l,v)=> filled(v) ? `<tr><td style="border:1px solid #ccc;padding:5px 8px;background:#F7F7F7;font-weight:600;width:36%">${esc(l)}</td><td style="border:1px solid #ccc;padding:5px 8px">${esc(v)}</td></tr>` : "";
+  const table = r => String(r).trim() ? `<table style="border-collapse:collapse;width:100%;font-size:11px">${r}</table>` : "";
+  const sect = (t,inner) => String(inner).trim() ? head(K(),t)+inner : "";
+  const grid = (headers, rows) => {
+    if(!rows.length) return "";
+    const keep = headers.map((_,c)=>rows.some(r=>filled(r[c])));
+    if(!keep.some(Boolean)) return "";
+    const th = headers.filter((_,c)=>keep[c]).map(h=>`<th style="border:1px solid #ccc;padding:5px 8px;background:#0B3D2E;color:#fff;text-align:start">${esc(h)}</th>`).join("");
+    const tb = rows.map(r=>`<tr>${r.filter((_,c)=>keep[c]).map(c=>`<td style="border:1px solid #ccc;padding:5px 8px">${c&&c.html?c.html:(filled(c)?esc(c):"")}</td>`).join("")}</tr>`).join("");
+    return `<table style="border-collapse:collapse;width:100%;font-size:11px"><thead><tr>${th}</tr></thead><tbody>${tb}</tbody></table>`;
+  };
+  const cur = esc(m.currency||"USD");
+  const n = v => { const x=Number(String(v==null?"":v).replace(/[^0-9.\-]/g,"")); return isFinite(x)?x:0; };
+  const money = v => filled(v) ? cur+" "+Math.round(n(v)).toLocaleString() : "";
+  const period = [m.from?fmtDate(m.from):"", m.to?fmtDate(m.to):""].filter(Boolean).join(" \u2014 ");
+  let body = "";
+
+  body += sect("Contract & Report Details", table(`
+    ${row("Client", m.client)}${row("Project", m.project)}${row("Site", m.site)}
+    ${row("Contract number", m.contractNo)}${row("Contract / BOQ reference", m.contractRef)}
+    ${row("Report number", m.reportNo)}${row("Reporting period", period)}
+    ${row("Prepared by", m.preparedBy)}${row("Approved by", m.approvedBy)}
+    ${row("Client representative", m.clientRep)}${row("Consultant / Engineer", m.consultant)}`));
+
+  body += sect("Key Dates", table(`
+    ${row("Commencement", m.commencement?fmtDate(m.commencement):"")}
+    ${row("Contract completion", m.contractCompletion?fmtDate(m.contractCompletion):"")}
+    ${row("Forecast completion", m.forecastCompletion?fmtDate(m.forecastCompletion):"")}
+    ${row("Extension of time granted", filled(m.eotDays)? m.eotDays+" days":"")}`));
+
+  const oPlan = filled(m.overallPlanned) ? n(m.overallPlanned) : pg.planned;
+  const oAct  = filled(m.overallActual)  ? n(m.overallActual)  : pg.actual;
+  if(oPlan!=null || oAct!=null){
+    const slip = (oPlan!=null && oAct!=null) ? oAct-oPlan : null;
+    body += head(K(),"Overall Physical Progress") + table(`
+      ${row("Planned", oPlan!=null ? oPlan.toFixed(1)+"%" : "")}
+      ${row("Actual",  oAct !=null ? oAct.toFixed(1)+"%" : "")}
+      ${slip!=null ? `<tr><td style="border:1px solid #ccc;padding:5px 8px;background:#F7F7F7;font-weight:600">Variance</td><td style="border:1px solid #ccc;padding:5px 8px;color:${slip<0?"#C62828":"#2E7D32"};font-weight:700">${slip>0?"+":""}${slip.toFixed(1)}%</td></tr>` : ""}
+      ${pg.weighted ? row("Basis","Weighted by scope value") : ""}`);
+  }
+
+  body += sect("Progress by System", grid(
+    ["System","Scope value","Planned %","Actual %","Remark"],
+    (window._pprSystems||[]).filter(s=>filled(s.system)).map(s=>{
+      const behind = filled(s.planned) && filled(s.actual) && n(s.actual) < n(s.planned);
+      return [ s.system, money(s.scope),
+        filled(s.planned)? n(s.planned).toFixed(1)+"%" : "",
+        filled(s.actual) ? {html:`<span style="color:${behind?"#C62828":"#2E7D32"};font-weight:600">${n(s.actual).toFixed(1)}%</span>`, toString:()=>s.actual} : "",
+        s.remark ];
+    })));
+
+  body += sect("Financial Position", table(`
+    ${row("Contract value", money(m.contractValue))}
+    ${row("Invoiced to date", money(m.invoicedToDate))}
+    ${row("Certified to date", money(m.certifiedToDate))}`));
+
+  body += sect("Safety Record", table(`
+    ${row("Man-hours this period", m.manhours)}
+    ${row("Days without a lost-time injury", m.ltiFree)}
+    ${row("Days lost to weather or access", m.weatherDays)}`));
+
+  PPR_SECTIONS.forEach(s=>{
+    const txt = (m.sections||{})[s.k] || "";
+    if(!filled(txt)) return;
+    body += head(K(), s.n) + `<div style="font-size:11px;line-height:1.75">${
+      typeof textWithTablesHTML==="function" ? textWithTablesHTML(txt,{dash:false}) : esc(txt)}</div>`;
+  });
+
+  body += sect("Delay Events Register", grid(
+    ["Event","From","To","Cause","Responsibility","Effect (days)","Notice ref"],
+    (window._pprDelays||[]).filter(d=>filled(d.event)).map(d=>[
+      d.event, d.from?fmtDate(d.from):"", d.to?fmtDate(d.to):"", d.cause,
+      d.responsibility, d.effectDays, d.notice ])));
+
+  if((window._pprPlans||[]).length)  body += (typeof _rptPlanSheets==="function" ? _rptPlanSheets(window._pprPlans,"Site Plans & Drawings") : "");
+  if((window._pprPhotos||[]).length) body += (typeof _rptPhotoGrid==="function" ? _rptPhotoGrid(window._pprPhotos,"Progress Photographs") : "");
+
+  if(typeof sigAny==="function" && sigAny(["ppr_prep","ppr_appr","ppr_client"])){
+    body += head(K(),"Signatures") + (typeof sigRow==="function" ? sigRow([
+      ["ppr_prep",   m.preparedBy || "Prepared by", "Project Engineer",  "EJAF Technology"],
+      ["ppr_appr",   m.approvedBy || "Approved by", "Projects Manager",  "EJAF Technology"],
+      ["ppr_client", m.clientRep  || m.consultant || "Client / Consultant", "", m.client || ""],
+    ]) : "");
+  }
+
+  // The standards note is a claim about the document, made only when there is a
+  // document to make it about.
+  if(PPR_SECTIONS.some(s=>filled((m.sections||{})[s.k])) || (window._pprSystems||[]).some(s=>filled(s.system))){
+    body += `<div style="margin-top:14px;font-size:9.5px;color:#777;line-height:1.6">
+      Issued as a periodic progress report under FIDIC Sub-Clause 4.21 and structured to ISO 21502.
+      Physical progress is stated per system on the basis recorded above. Delay events are reported with
+      their cause and responsibility; this report does not by itself constitute a notice of claim.
+    </div>`;
+  }
+
+  await openReportPDF("PROGRESS_REPORT",
+    [m.reportNo?("No. "+m.reportNo):"", m.client, m.project].filter(Boolean).join(" \u00b7 ") || period,
+    body, {project:m.project||"", client:m.client||""});
+  toast("Progress report ready!");
+};
+
+function renderProjectProgressReport(){
+  const P = window._ppr;
+  const pg = _pprProgress();
+  const opts = (l,c) => (l||[]).map(v=>`<option ${c===v?"selected":""}>${escapeHtml(v)}</option>`).join("");
+  const projects = (state.projects ||[]).map(p=>p.name).filter(Boolean);
+  const clients  = (state.clients  ||[]).map(c=>c.name).filter(Boolean);
+  const sites    = (state.locations||[]).map(l=>l.name).filter(Boolean);
+  const everyone = Array.from(new Set((state.users||[]).map(u=>(u.employeeName||u.name||"").trim())
+    .filter(Boolean).concat(typeof allEmployees==="function"?allEmployees():[]))).sort();
+  const sysNames = (typeof SYS_TEMPLATES!=="undefined"?SYS_TEMPLATES.map(t=>t.name):[])
+    .concat((typeof ELV_SUBS!=="undefined"?ELV_SUBS.map(s=>s.name):[]));
+  const pct = v => v==null ? "\u2014" : v.toFixed(1)+"%";
+
+  return `${_rptHero("\u{1F4C8}","Project Progress Report",
+      "Contractor's periodic report \u2014 FIDIC Sub-Clause 4.21 & ISO 21502",
+      "linear-gradient(135deg,#0B3D2E 0%,#14664B 60%,#1E8E68 100%)")}
+
+  <div class="card">
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px">
+      <span style="background:#C9A84C;color:#1B3A6B;font-weight:800;border-radius:8px;padding:2px 8px;font-size:12px">01</span>
+      <b>Contract & Report Details</b>
+    </div>
+    <div class="grid2">
+      ${_syncSel("\u{1F4C1} Project", projects, "window._ppr.project", "window._ppr.projectOther", P.project, P.projectOther, "Project name")}
+      ${_syncSel("\u{1F464} Client",  clients,  "window._ppr.client",  "window._ppr.clientOther",  P.client,  P.clientOther,  "Client name")}
+      ${_syncSel("\u{1F4CD} Site",    sites,    "window._ppr.site",    "window._ppr.siteOther",    P.site,    P.siteOther,    "Site or facility")}
+      <div class="field"><label>Contract number</label>
+        <input class="input" value="${escapeHtml(P.contractNo)}" oninput="window._ppr.contractNo=this.value"></div>
+      <div class="field"><label>Contract / BOQ reference</label>
+        <input class="input" value="${escapeHtml(P.contractRef)}" oninput="window._ppr.contractRef=this.value"></div>
+      <div class="field"><label>Report number</label>
+        <input class="input" value="${escapeHtml(P.reportNo)}" oninput="window._ppr.reportNo=this.value" placeholder="e.g. 07"></div>
+      <div class="field"><label>Period from</label>
+        <input class="input" type="date" value="${escapeHtml(P.from)}" oninput="window._ppr.from=this.value"></div>
+      <div class="field"><label>Period to</label>
+        <input class="input" type="date" value="${escapeHtml(P.to)}" oninput="window._ppr.to=this.value"></div>
+      ${_syncSel("\u270D\uFE0F Prepared by", everyone, "window._ppr.preparedBy", "window._ppr.preparedByOther", P.preparedBy, P.preparedByOther, "Name and title")}
+      ${_syncSel("\u2705 Approved by",  everyone, "window._ppr.approvedBy", "window._ppr.approvedByOther", P.approvedBy, P.approvedByOther, "Name and title")}
+      <div class="field"><label>\u{1F91D} Client representative</label>
+        <input class="input" value="${escapeHtml(P.clientRep)}" oninput="window._ppr.clientRep=this.value" placeholder="Name and title"></div>
+      <div class="field"><label>\u{1F3DB}\uFE0F Consultant / Engineer</label>
+        <input class="input" value="${escapeHtml(P.consultant)}" oninput="window._ppr.consultant=this.value" placeholder="Supervising consultant"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px">
+      <span style="background:#C9A84C;color:#1B3A6B;font-weight:800;border-radius:8px;padding:2px 8px;font-size:12px">02</span>
+      <b>Key Dates</b>
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin:6px 0 8px">
+      The forecast date is the one the client reads. If it differs from the contract date, the reason belongs in Delays below.
+    </div>
+    <div class="grid2">
+      <div class="field"><label>Commencement</label>
+        <input class="input" type="date" value="${escapeHtml(P.commencement)}" oninput="window._ppr.commencement=this.value"></div>
+      <div class="field"><label>Contract completion</label>
+        <input class="input" type="date" value="${escapeHtml(P.contractCompletion)}" oninput="window._ppr.contractCompletion=this.value"></div>
+      <div class="field"><label>Forecast completion</label>
+        <input class="input" type="date" value="${escapeHtml(P.forecastCompletion)}" oninput="window._ppr.forecastCompletion=this.value"></div>
+      <div class="field"><label>EOT granted (days)</label>
+        <input class="input" inputmode="numeric" value="${escapeHtml(P.eotDays)}" oninput="window._ppr.eotDays=this.value"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px">
+      <span style="background:#C9A84C;color:#1B3A6B;font-weight:800;border-radius:8px;padding:2px 8px;font-size:12px">03</span>
+      <b>Progress by System</b>
+      <button class="btn btn-sm btn-secondary" style="margin-inline-start:auto" onclick="pprAddSystem()">+ Add</button>
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin:6px 0 8px">
+      Claimed per system, because the package is accepted system by system and one blended figure hides whichever is late.
+      Give a scope value to weight the overall figure by money rather than by count.
+    </div>
+    ${window._pprSystems.length?`<div style="overflow-x:auto"><table class="tbl" style="min-width:640px">
+      <thead><tr><th>System</th><th>Scope value</th><th>Planned %</th><th>Actual %</th><th>Remark</th><th></th></tr></thead>
+      <tbody>${window._pprSystems.map((s,i)=>`<tr>
+        <td><input class="input" list="ppr_sys_list" value="${escapeHtml(s.system)}" onchange="pprSetSystem(${i},'system',this.value)" placeholder="Type or choose"></td>
+        <td><input class="input" inputmode="decimal" value="${escapeHtml(s.scope)}" onchange="pprSetSystem(${i},'scope',this.value);render()"></td>
+        <td><input class="input" inputmode="decimal" value="${escapeHtml(s.planned)}" onchange="pprSetSystem(${i},'planned',this.value);render()"></td>
+        <td><input class="input" inputmode="decimal" value="${escapeHtml(s.actual)}" onchange="pprSetSystem(${i},'actual',this.value);render()"></td>
+        <td><input class="input" value="${escapeHtml(s.remark)}" onchange="pprSetSystem(${i},'remark',this.value)"></td>
+        <td><button class="btn btn-sm" style="background:#FDECEA;color:#C62828;border:none" onclick="pprDelSystem(${i})">\u00d7</button></td>
+      </tr>`).join("")}</tbody></table></div>
+      <datalist id="ppr_sys_list">${sysNames.map(n=>`<option value="${escapeHtml(n)}">`).join("")}</datalist>
+      <div style="display:flex;gap:10px;margin-top:10px">
+        <div style="flex:1;border:1px solid var(--line);border-radius:10px;padding:10px;text-align:center">
+          <div style="font-size:11px;color:var(--muted)">Planned</div>
+          <div style="font-size:20px;font-weight:800">${pct(pg.planned)}</div></div>
+        <div style="flex:1;border:1px solid var(--line);border-radius:10px;padding:10px;text-align:center">
+          <div style="font-size:11px;color:var(--muted)">Actual</div>
+          <div style="font-size:20px;font-weight:800;color:${pg.actual!=null&&pg.planned!=null&&pg.actual<pg.planned?"#C62828":"#2E7D32"}">${pct(pg.actual)}</div></div>
+      </div>
+      <div style="font-size:10px;color:var(--muted);margin-top:4px">${pg.weighted?"Weighted by scope value.":"Unweighted \u2014 add scope values to weight by money."}</div>`
+      :`<div style="color:var(--muted);font-size:13px">No systems yet.</div>`}
+    <div class="grid2" style="margin-top:10px">
+      <div class="field"><label>Overall planned % (override)</label>
+        <input class="input" inputmode="decimal" value="${escapeHtml(P.overallPlanned)}" oninput="window._ppr.overallPlanned=this.value"></div>
+      <div class="field"><label>Overall actual % (override)</label>
+        <input class="input" inputmode="decimal" value="${escapeHtml(P.overallActual)}" oninput="window._ppr.overallActual=this.value"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px">
+      <span style="background:#C9A84C;color:#1B3A6B;font-weight:800;border-radius:8px;padding:2px 8px;font-size:12px">04</span>
+      <b>Financial & Safety Position</b>
+    </div>
+    <div class="grid2">
+      <div class="field"><label>Currency</label>
+        <select class="input" onchange="window._ppr.currency=this.value;render()">
+          ${["USD","IQD"].map(c=>`<option ${P.currency===c?"selected":""}>${c}</option>`).join("")}</select></div>
+      <div class="field"><label>Contract value</label>
+        <input class="input" inputmode="decimal" value="${escapeHtml(P.contractValue)}" oninput="window._ppr.contractValue=this.value"></div>
+      <div class="field"><label>Invoiced to date</label>
+        <input class="input" inputmode="decimal" value="${escapeHtml(P.invoicedToDate)}" oninput="window._ppr.invoicedToDate=this.value"></div>
+      <div class="field"><label>Certified to date</label>
+        <input class="input" inputmode="decimal" value="${escapeHtml(P.certifiedToDate)}" oninput="window._ppr.certifiedToDate=this.value"></div>
+      <div class="field"><label>Man-hours this period</label>
+        <input class="input" inputmode="numeric" value="${escapeHtml(P.manhours)}" oninput="window._ppr.manhours=this.value"></div>
+      <div class="field"><label>Days without a lost-time injury</label>
+        <input class="input" inputmode="numeric" value="${escapeHtml(P.ltiFree)}" oninput="window._ppr.ltiFree=this.value"></div>
+      <div class="field"><label>Days lost to weather / access</label>
+        <input class="input" inputmode="numeric" value="${escapeHtml(P.weatherDays)}" oninput="window._ppr.weatherDays=this.value"></div>
+    </div>
+  </div>
+
+  ${PPR_SECTIONS.map((s,i)=>pprSectionCard(s,i)).join("")}
+
+  <div class="card">
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px">
+      <span style="background:#C9A84C;color:#1B3A6B;font-weight:800;border-radius:8px;padding:2px 8px;font-size:12px">\u23F1\uFE0F</span>
+      <b>Delay Events Register</b>
+      <button class="btn btn-sm btn-secondary" style="margin-inline-start:auto" onclick="pprAddDelay()">+ Add</button>
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin:6px 0 8px">
+      A delay recorded without its cause and its responsible party is, in practice, a claim not made.
+    </div>
+    ${window._pprDelays.length?`<div style="overflow-x:auto"><table class="tbl" style="min-width:760px">
+      <thead><tr><th>Event</th><th>From</th><th>To</th><th>Cause</th><th>Responsibility</th><th>Effect (days)</th><th>Notice ref</th><th></th></tr></thead>
+      <tbody>${window._pprDelays.map((d,i)=>`<tr>
+        <td><input class="input" value="${escapeHtml(d.event)}" onchange="pprSetDelay(${i},'event',this.value)"></td>
+        <td><input class="input" type="date" value="${escapeHtml(d.from)}" onchange="pprSetDelay(${i},'from',this.value)"></td>
+        <td><input class="input" type="date" value="${escapeHtml(d.to)}" onchange="pprSetDelay(${i},'to',this.value)"></td>
+        <td><input class="input" value="${escapeHtml(d.cause)}" onchange="pprSetDelay(${i},'cause',this.value)"></td>
+        <td><select class="input" onchange="pprSetDelay(${i},'responsibility',this.value)">
+          ${opts(["Client","Consultant","Contractor","Third party","Force majeure"], d.responsibility)}</select></td>
+        <td><input class="input" inputmode="numeric" value="${escapeHtml(d.effectDays)}" onchange="pprSetDelay(${i},'effectDays',this.value)"></td>
+        <td><input class="input" value="${escapeHtml(d.notice)}" onchange="pprSetDelay(${i},'notice',this.value)" placeholder="Letter ref"></td>
+        <td><button class="btn btn-sm" style="background:#FDECEA;color:#C62828;border:none" onclick="pprDelDelay(${i})">\u00d7</button></td>
+      </tr>`).join("")}</tbody></table></div>`
+      :`<div style="color:var(--muted);font-size:13px">No delay events recorded.</div>`}
+  </div>
+
+  <div class="card">
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px">
+      <span style="background:#C9A84C;color:#1B3A6B;font-weight:800;border-radius:8px;padding:2px 8px;font-size:12px">\u{1F4F7}</span>
+      <b>Photographs & Drawings</b>
+    </div>
+    <input type="file" accept="image/*" multiple onchange="pprAddPhotos(this)" style="margin-top:8px">
+    ${typeof planBlockHTML==="function"?planBlockHTML("_pprPlans"):""}
+    ${window._pprPhotos.length?`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+      ${window._pprPhotos.map((p,i)=>`<div style="position:relative"><img src="${p.data}" style="width:88px;height:66px;object-fit:cover;border-radius:8px;border:1px solid var(--line)">
+        <button class="btn btn-sm" style="position:absolute;top:-6px;inset-inline-end:-6px;background:#C62828;color:#fff;border:none;border-radius:50%;width:22px;height:22px;padding:0" onclick="pprDelPhoto(${i})">\u00d7</button></div>`).join("")}
+    </div>`:""}
+  </div>
+
+  <div class="card">
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px">
+      <span style="background:#C9A84C;color:#1B3A6B;font-weight:800;border-radius:8px;padding:2px 8px;font-size:12px">\u270D\uFE0F</span>
+      <b>Signatures</b>
+    </div>
+    ${typeof signaturePad==="function"?signaturePad("ppr_prep","Prepared by","The author signs here"):""}
+    ${typeof signaturePad==="function"?signaturePad("ppr_appr","Approved by","EJAF approval"):""}
+    ${typeof signaturePad==="function"?signaturePad("ppr_client","Client / Consultant","Hand the device over"):""}
+  </div>
+
+  ${pprPreviewCard()}
+
+  <div class="card" style="background:linear-gradient(135deg,#0B3D2E 0%,#14664B 100%);border:2px solid #C9A84C">
+    ${typeof refOverrideField==="function"?refOverrideField():""}${typeof brandLink==="function"?brandLink():""}${typeof rptFormatToggle==="function"?rptFormatToggle(true):""}
+    <button class="btn btn-primary" style="background:#C9A84C;color:#1B3A6B;font-weight:700;border:none;width:100%"
+      onclick="generateProjectProgressReport()">${_fmtIcon()} Generate Progress Report (${_fmtName()})</button>
+  </div>
+  ${typeof srSaveBar==="function"?srSaveBar("ppr"):""}
+  ${typeof srSavedList==="function"?srSavedList("ppr"):""}`;
+}
+Object.assign(window,{renderProjectProgressReport});
+
 // ═══ PROJECT REPORT (v254) ══════════════════════════════════════════════
 // A status report for a whole project rather than one system — the document a
 // client or a steering committee reads.
@@ -1962,7 +2413,10 @@ function renderProjectReport(){
       .concat(people)
   )).sort();
 
-  return `${_rptHero("\u{1F4CB}","Project Report","Status report to PMBOK 7 \u2014 scope, progress, cost, risk, decisions")}
+  // _rptHero takes a FOURTH argument, the gradient. Omitting it left the card
+  // with no background at all, so white heading text sat on white paper and
+  // the title was invisible on the device.
+  return `${_rptHero("\u{1F4CB}","Project Report","Status report to PMBOK 7 \u2014 scope, progress, cost, risk, decisions","linear-gradient(135deg,#0F2347 0%,#1B3A6B 60%,#2E5FA3 100%)")}
 
   <div class="card">
     <div class="sec-hdr" style="display:flex;align-items:center;gap:8px">
@@ -2293,6 +2747,7 @@ const SR_KINDS = {
   tech:  {label:"Technical Report", state:["_sr","_srDevs","_srChk","_srSubs","_srInt"], photos:"_srPhotos", plans:"_srPlans"},
   prog:  {label:"Progress Report",  state:["_pr","_prTasks","_prPeople"],      photos:"_prPhotos", plans:"_prPlans"},
   project:{label:"Project Report", state:["_prj","_prjMilestones","_prjRisks"], photos:"_prjPhotos", plans:"_prjPlans"},
+  ppr:   {label:"Project Progress Report", state:["_ppr","_pprSystems","_pprDelays"], photos:"_pprPhotos", plans:"_pprPlans"},
 };
 
 // Re-encode a stored photo small enough that a whole report fits in one
@@ -3258,7 +3713,8 @@ window.srLoadDevices=function(){
 function _srPillList(){
   return SYS_TEMPLATES.map(t=>({id:t.id,ic:t.icon,lb:t.short}))
     .concat([{id:"daily",ic:"📅",lb:"Daily"},{id:"weekly",ic:"📆",lb:"Weekly"},
-             {id:"project",ic:"📋",lb:"Project"}]);
+             {id:"project",ic:"📋",lb:"Project"},
+             {id:"ppr",ic:"📈",lb:"Progress Rpt"}]);
 }
 function renderSystemReports(){
   if(!(isAdmin()||isHR()||hasCap("canExport"))) return `<div class="card"><div class="empty">No access.</div></div>`;
@@ -3270,6 +3726,10 @@ function renderSystemReports(){
   // it reports on a PROJECT, not on a system, so it has its own layout.
   if(window._srTpl==="project"){
     return _pills('_srTpl',_srPillList()) + renderProjectReport();
+  }
+  // The contractor's periodic report to the client — FIDIC 4.21.
+  if(window._srTpl==="ppr"){
+    return _pills('_srTpl',_srPillList()) + renderProjectProgressReport();
   }
   const tpl=sysTemplate(window._srTpl), m=window._sr, mode=window._srMode;
   const clientOpts=(state.clients||[]).map(c=>c.name).filter(Boolean).sort();
@@ -4483,6 +4943,6 @@ window.forceUpdate = async function(){
 // The build actually running, so nobody has to infer it from behaviour.
 // A single named constant, updated with every release, so the screen can state
 // the build without inferring it from a variable that lives inside a function.
-const APP_BUILD = "v256";
+const APP_BUILD = "v257";
 window.APP_BUILD = APP_BUILD;
 window.runningVersion = function(){ return APP_BUILD; };
