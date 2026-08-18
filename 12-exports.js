@@ -1398,7 +1398,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v257';"
+      var swCode = "const CACHE='ejaftech-v258';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
@@ -1819,15 +1819,11 @@ window.generateProjectProgressReport = async function(){
     ]) : "");
   }
 
-  // The standards note is a claim about the document, made only when there is a
-  // document to make it about.
-  if(PPR_SECTIONS.some(s=>filled((m.sections||{})[s.k])) || (window._pprSystems||[]).some(s=>filled(s.system))){
-    body += `<div style="margin-top:14px;font-size:9.5px;color:#777;line-height:1.6">
-      Issued as a periodic progress report under FIDIC Sub-Clause 4.21 and structured to ISO 21502.
-      Physical progress is stated per system on the basis recorded above. Delay events are reported with
-      their cause and responsibility; this report does not by itself constitute a notice of claim.
-    </div>`;
-  }
+  // No standards footnote. The structure follows FIDIC Sub-Clause 4.21 and
+  // ISO 21502, and it still does \u2014 but a paragraph telling the client which
+  // standard the document was written to is boilerplate on a document they
+  // asked for, and the disclaimer about notices of claim invited a legal
+  // reading that was never wanted. Removed at William's instruction.
 
   await openReportPDF("PROGRESS_REPORT",
     [m.reportNo?("No. "+m.reportNo):"", m.client, m.project].filter(Boolean).join(" \u00b7 ") || period,
@@ -2382,13 +2378,7 @@ window.generateProjectReport = async function(){
 
   // The standards note belongs in the document, not only in the code: a client
   // reading this should be able to see what it was written against.
-  // The standards note is a claim about the document. It is only made when the
-  // document actually has narrative sections to make it about.
-  if(PRJ_SECTIONS.some(s => filled((m.sections||{})[s.k]))){
-    body += `<div style="margin-top:14px;font-size:9.5px;color:#777;line-height:1.6">
-      Prepared to the structure of the PMBOK\u00ae Guide (7th edition) and the Practice Standard for Project Status Reporting: scope, progress, cost, quality, risk, and the decisions required. Figures are as recorded on the date of issue.
-    </div>`;
-  }
+  // No standards footnote here either \u2014 same reason as the progress report.
 
   await openReportPDF("PROJECT_REPORT",
     [m.date?fmtDate(m.date):"", m.client, m.project].filter(Boolean).join(" \u00b7 ") || period,
@@ -4943,6 +4933,6 @@ window.forceUpdate = async function(){
 // The build actually running, so nobody has to infer it from behaviour.
 // A single named constant, updated with every release, so the screen can state
 // the build without inferring it from a variable that lives inside a function.
-const APP_BUILD = "v257";
+const APP_BUILD = "v258";
 window.APP_BUILD = APP_BUILD;
 window.runningVersion = function(){ return APP_BUILD; };
