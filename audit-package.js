@@ -418,6 +418,7 @@ head("11. FEATURE PRESERVATION");
     ["empty items suppressed","prjWillPrint"], ["what-will-print preview","prjPreviewCard"],
     ["type-or-choose fields","_syncSel"],
     ["Project Progress Report","generateProjectProgressReport"],
+    ["in-place photo strips","photoStripDelete"], ["unsaved-changes marker","srMarkDirty"],
     ["FIDIC 4.21 sections","PPR_SECTIONS"], ["weighted system progress","_pprProgress"],
     ["delay events register","pprAddDelay"], ["progress doc series","PROGRESS_REPORT"],
     ["lazy library loader","function loadLib"], ["needLib guard","function needLib"],

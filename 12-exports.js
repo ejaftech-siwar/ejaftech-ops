@@ -1398,7 +1398,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v258';"
+      var swCode = "const CACHE='ejaftech-v259';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
@@ -1431,7 +1431,7 @@ window.pmRptAddPhotos=async function(input){
     render();
   }catch(e){ toast("Photo error: "+(e.message||"failed")); }
 };
-window.pmRptDelPhoto=function(i){ window._pmRptPhotos.splice(i,1); render(); };
+window.pmRptDelPhoto = function(i){ photoStripDelete("_pmRptPhotos","pmRptDelPhoto",i,88,66); };
 
 function _rptPhotoGrid(photos,label){
   if(!photos||!photos.length) return "";
@@ -1640,7 +1640,7 @@ window.pprAddPhotos = async function(input){
   }
   input.value=""; render();
 };
-window.pprDelPhoto = function(i){ window._pprPhotos.splice(i,1); render(); };
+window.pprDelPhoto = function(i){ photoStripDelete("_pprPhotos","pprDelPhoto",i,88,66); };
 
 // Weighted physical progress. Weighted by SCOPE VALUE where it is given,
 // because a 90%-complete doorbell and a 10%-complete CCTV headend are not
@@ -1993,10 +1993,7 @@ function renderProjectProgressReport(){
     </div>
     <input type="file" accept="image/*" multiple onchange="pprAddPhotos(this)" style="margin-top:8px">
     ${typeof planBlockHTML==="function"?planBlockHTML("_pprPlans"):""}
-    ${window._pprPhotos.length?`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
-      ${window._pprPhotos.map((p,i)=>`<div style="position:relative"><img src="${p.data}" style="width:88px;height:66px;object-fit:cover;border-radius:8px;border:1px solid var(--line)">
-        <button class="btn btn-sm" style="position:absolute;top:-6px;inset-inline-end:-6px;background:#C62828;color:#fff;border:none;border-radius:50%;width:22px;height:22px;padding:0" onclick="pprDelPhoto(${i})">\u00d7</button></div>`).join("")}
-    </div>`:""}
+    ${photoStripHTML("_pprPhotos","pprDelPhoto",88,66)}
   </div>
 
   <div class="card">
@@ -2116,7 +2113,7 @@ window.prjAddPhotos = async function(input){
   }
   input.value=""; render();
 };
-window.prjDelPhoto = function(i){ window._prjPhotos.splice(i,1); render(); };
+window.prjDelPhoto = function(i){ photoStripDelete("_prjPhotos","prjDelPhoto",i,88,66); };
 window.prjSetRag   = function(v){ window._prj.rag=v; render(); };
 
 // Each PMBOK section is a full import target in its own right \u2014 the same
@@ -2507,10 +2504,7 @@ function renderProjectReport(){
     </div>
     <input type="file" accept="image/*" multiple onchange="prjAddPhotos(this)" style="margin-top:8px">
     ${typeof planBlockHTML==="function"?planBlockHTML("_prjPlans"):""}
-    ${window._prjPhotos.length?`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
-      ${window._prjPhotos.map((p,i)=>`<div style="position:relative"><img src="${p.data}" style="width:88px;height:66px;object-fit:cover;border-radius:8px;border:1px solid var(--line)">
-        <button class="btn btn-sm" style="position:absolute;top:-6px;inset-inline-end:-6px;background:#C62828;color:#fff;border:none;border-radius:50%;width:22px;height:22px;padding:0" onclick="prjDelPhoto(${i})">\u00d7</button></div>`).join("")}
-    </div>`:""}
+    ${photoStripHTML("_prjPhotos","prjDelPhoto",88,66)}
   </div>
 
   <div class="card">
@@ -2534,6 +2528,41 @@ function renderProjectReport(){
   ${typeof srSavedList==="function"?srSavedList("project"):""}`;
 }
 Object.assign(window,{renderProjectReport});
+
+// ═══ PHOTO STRIPS REPAINT IN PLACE (v259) ═══════════════════════════════
+// Removing one photograph used to repaint the ENTIRE tab. The form kept every
+// value — nothing was ever lost — but a report form runs several screens
+// long, and rebuilding it threw the reader back to the top. From halfway down
+// the photo section that is indistinguishable from being kicked out of the
+// report, and it invited the reasonable conclusion that the edit had not taken.
+//
+// The strip now redraws on its own. Everything above and below it, including
+// the scroll position and any half-typed field, is left untouched. The one
+// case that still needs a full repaint is the LAST photo going: the section
+// header and the "what will print" list change state then, and both live
+// outside the strip.
+function photoStripHTML(arrName, delFn, w, h){
+  const arr = window[arrName] || [];
+  if(!arr.length) return `<div id="strip_${arrName}"></div>`;
+  return `<div id="strip_${arrName}" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">${
+    // A photo is normally a data: URL we produced ourselves, but a RESTORED
+    // report carries whatever was stored, and an unescaped quote in there would
+    // close the src attribute and let the rest become markup. Escaped like any
+    // other value \u2014 a data URL survives escaping untouched.
+    arr.map((p,i)=>`<div style="position:relative">
+      <img src="${escapeHtml(p.data)}" style="width:${w}px;height:${h}px;object-fit:cover;border-radius:8px;border:1px solid var(--line)">
+      <button class="btn btn-sm" style="position:absolute;top:-6px;inset-inline-end:-6px;background:#C62828;color:#fff;border:none;border-radius:50%;width:22px;height:22px;padding:0;line-height:1" onclick="${delFn}(${i})">\u00d7</button>
+    </div>`).join("")}</div>`;
+}
+function photoStripDelete(arrName, delFn, i, w, h){
+  const arr = window[arrName]; if(!arr) return;
+  arr.splice(i, 1);
+  if(typeof srMarkDirty==="function") srMarkDirty();
+  const el = document.getElementById("strip_" + arrName);
+  if(!el || !arr.length){ render(); return; }
+  el.outerHTML = photoStripHTML(arrName, delFn, w, h);
+}
+Object.assign(window,{photoStripHTML, photoStripDelete});
 
 // ═══ SITE PLANS FROM PDF (v253) ═══════════════════════════════════════
 // A drawing is not text, so it cannot travel the Word route into a text field.
@@ -2793,6 +2822,19 @@ function _srTitleOf(kind){
   return bits.join(" \u2014 ") || SR_KINDS[kind].label;
 }
 
+// An edit is NOT stored until Save is pressed \u2014 deliberately, so a
+// half-written report never syncs. That is only safe if the person can SEE it.
+// Deleting a photograph and finding it back the next morning is the exact
+// failure this marker exists to prevent.
+window._srDirty = window._srDirty || false;
+window.srMarkDirty = function(){
+  if(window._srDirty) return;
+  window._srDirty = true;
+  const b = document.getElementById("srDirtyFlag");
+  if(b) b.style.display = "";
+};
+window.srClearDirty = function(){ window._srDirty = false; };
+
 window.srSaveReport = async function(kind, withPhotos){
   const k = SR_KINDS[kind];
   if(!k){ toast("Unknown report type"); return; }
@@ -2837,6 +2879,7 @@ window.srSaveReport = async function(kind, withPhotos){
     await fbSave("savedReports", rec);
   }catch(e){ toast("Save failed \u2014 nothing was changed"); return; }
   window._srEditId = null;
+  srClearDirty();
   srNewReport(kind);
   toast(dropped ? `Report saved \u2713 \u2014 ${dropped} photo${dropped>1?"s":""} not stored`
                 : "Report saved \u2713");
@@ -2876,6 +2919,7 @@ window.srOpenReport = function(id){
     if(v !== undefined && v !== null){ try{ window[name] = JSON.parse(JSON.stringify(v)); }catch(e){} }
   });
   window[k.photos] = (r.photos||[]).map(p=>({data:p.data, note:p.note||""}));
+  srClearDirty();          // freshly opened: what is on screen is what is stored
   // The stored drawings are reference copies. They reopen so the report is
   // complete and recognisable, flagged so nobody mistakes them for the
   // print-resolution originals.
@@ -2924,6 +2968,9 @@ function srSaveBar(kind){
       <button class="btn" style="background:#2E7D32;color:#fff;border:none;font-weight:700" onclick="srSaveReport(${jsArg(kind)},true)">\u{1F4BE} ${editing?"Update":"Save"} report${n?` (with ${n} photo${n>1?"s":""})`:""}</button>
       ${n?`<button class="btn btn-secondary" onclick="srSaveReport(${jsArg(kind)},false)" title="Store the report only \u2014 much smaller">\u{1F4BE} Save without photos</button>`:""}
       ${editing?`<button class="btn btn-secondary" onclick="srNewReport(${jsArg(kind)})">\u2795 Start a new one</button>`:""}
+    </div>
+    <div id="srDirtyFlag" style="display:${window._srDirty?"":"none"};margin-top:8px;padding:7px 10px;border-radius:8px;background:rgba(230,81,0,.10);border:1px solid #E65100;color:#E65100;font-size:12px;font-weight:700">
+      \u26a0 Unsaved changes \u2014 press Save, or they are lost when you leave this screen.
     </div>
     <div style="font-size:11px;color:var(--muted);margin-top:8px">
       ${editing?"You are editing a saved report \u2014 saving updates it in place.":"Saving stores this report and clears the form for the next one."}
@@ -2990,7 +3037,7 @@ function renderPMReportTab(){
     <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:700">03</span> Photos <span style="font-size:10px;color:var(--muted);font-weight:500">(optional · max 12 · embedded in the PDF)</span></div>
     <input type="file" accept="image/*" multiple onchange="pmRptAddPhotos(this)" style="margin-top:8px">
     ${typeof planBlockHTML==="function"?planBlockHTML("_pmRptPlans"):""}
-    ${photos.length?`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+    ${photos.length?`<div id="strip__pmRptPhotos" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
       ${photos.map((p,i)=>`<div style="position:relative"><img src="${p.data}" style="width:76px;height:76px;object-fit:cover;border-radius:8px;border:1px solid var(--line)"><button onclick="annoOpen('_pmRptPhotos',${i})" title="Annotate" style="position:absolute;bottom:-6px;right:-6px;background:#03308B;color:#fff;border:none;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:10px;line-height:1">✎</button><button onclick="pmRptDelPhoto(${i})" style="position:absolute;top:-6px;right:-6px;background:#C62828;color:#fff;border:none;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:11px;font-weight:700">×</button></div>`).join("")}
     </div>`:""}
   </div>
@@ -3081,7 +3128,7 @@ window.incManAddPhotos=async function(input){
     render();
   }catch(e){ toast("Photo error: "+(e.message||"failed")); }
 };
-window.incManDelPhoto=function(i){ window._incManPhotos.splice(i,1); render(); };
+window.incManDelPhoto = function(i){ photoStripDelete("_incManPhotos","incManDelPhoto",i,88,66); };
 
 // Synced select bound to app data, with an "✍️ Other" escape hatch that
 // swaps to a free-text input (↩ returns to the list). `flagPath` stores the
@@ -3219,7 +3266,7 @@ function _incManualLayout(){
         <textarea rows="3" oninput="window._incMan.actionTaken=this.value" placeholder="Diagnosis, fix…">${escapeHtml(m.actionTaken||"")}</textarea>${typeof tableToolbar==="function"?tableToolbar("_incMan.actionTaken"):""}${typeof tablePreviewHTML==="function"?tablePreviewHTML(_incMan.actionTaken,"mprev_actionTaken"):""}</div>
       <div class="field" style="grid-column:1/-1"><label>📷 Photos <span style="font-size:10px;color:var(--muted)">(max 6)</span></label>
         <input type="file" accept="image/*" multiple onchange="incManAddPhotos(this)">
-        ${photos.length?`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+        ${photos.length?`<div id="strip__incManPhotos" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
           ${photos.map((p,i)=>`<div style="position:relative"><img src="${p.data}" style="width:76px;height:76px;object-fit:cover;border-radius:8px;border:1px solid var(--line)"><button onclick="annoOpen('_incManPhotos',${i})" title="Annotate" style="position:absolute;bottom:-6px;right:-6px;background:#03308B;color:#fff;border:none;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:10px;line-height:1">✎</button><button onclick="incManDelPhoto(${i})" style="position:absolute;top:-6px;right:-6px;background:#C62828;color:#fff;border:none;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:11px;font-weight:700">×</button></div>`).join("")}
         </div>`:""}
       </div>
@@ -3315,7 +3362,7 @@ window.fmAddPhotos=async function(input){
     render();
   }catch(e){ toast("Photo error: "+(e.message||"failed")); }
 };
-window.fmDelPhoto=function(i){ window._fmPhotos.splice(i,1); render(); };
+window.fmDelPhoto = function(i){ photoStripDelete("_fmPhotos","fmDelPhoto",i,88,66); };
 
 const _fmNet=c=>{const g=parseFloat(c.gross),t=parseFloat(c.tare);return (isFinite(g)&&isFinite(t))?+(g-t).toFixed(2):"";};
 const _fmDens=c=>{const n=parseFloat(_fmNet(c)),v=parseFloat(c.capL);return (isFinite(n)&&isFinite(v)&&v>0)?+(n/v).toFixed(3):"";};
@@ -3442,7 +3489,7 @@ function renderFM200Section(){
     <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:700">${fv==="test"?"08":"04"}</span> Photos <span style="font-size:10px;color:var(--muted);font-weight:500">(max 12)</span></div>
     <input type="file" accept="image/*" multiple onchange="fmAddPhotos(this)" style="margin-top:8px">
     ${typeof planBlockHTML==="function"?planBlockHTML("_fmPlans"):""}
-    ${photos.length?`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+    ${photos.length?`<div id="strip__fmPhotos" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
       ${photos.map((p,i)=>`<div style="position:relative"><img src="${p.data}" style="width:76px;height:76px;object-fit:cover;border-radius:8px;border:1px solid var(--line)"><button onclick="annoOpen('_fmPhotos',${i})" title="Annotate" style="position:absolute;bottom:-6px;right:-6px;background:#03308B;color:#fff;border:none;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:10px;line-height:1">✎</button><button onclick="fmDelPhoto(${i})" style="position:absolute;top:-6px;right:-6px;background:#C62828;color:#fff;border:none;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:11px;font-weight:700">×</button></div>`).join("")}
     </div>`:""}
   </div>
@@ -3670,7 +3717,7 @@ window.srAddPhotos=async function(input){
     render();
   }catch(e){ toast("Photo error: "+(e.message||"failed")); }
 };
-window.srDelPhoto=function(i){ window._srPhotos.splice(i,1); render(); };
+window.srDelPhoto = function(i){ photoStripDelete("_srPhotos","srDelPhoto",i,88,66); };
 
 // Pull the matching devices out of Assets for the chosen project + discipline
 window.srLoadDevices=function(){
@@ -3862,9 +3909,7 @@ function renderSystemReports(){
     <div class="sec-hdr" style="display:flex;align-items:center;gap:8px"><span style="background:#C9A84C;color:#1B3A6B;font-size:11px;padding:2px 8px;border-radius:12px;font-weight:700">${N()}</span> Photos <span style="font-size:10px;color:var(--muted);font-weight:500">(max 12)</span></div>
     <input type="file" accept="image/*" multiple onchange="srAddPhotos(this)" style="margin-top:8px">
     ${typeof planBlockHTML==="function"?planBlockHTML("_srPlans"):""}
-    ${window._srPhotos.length?`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
-      ${window._srPhotos.map((p,i)=>`<div style="position:relative"><img src="${p.data}" style="width:76px;height:76px;object-fit:cover;border-radius:8px;border:1px solid var(--line)"><button onclick="annoOpen('_srPhotos',${i})" title="Annotate" style="position:absolute;bottom:-6px;right:-6px;background:#03308B;color:#fff;border:none;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:10px;line-height:1">✎</button><button onclick="srDelPhoto(${i})" style="position:absolute;top:-6px;right:-6px;background:#C62828;color:#fff;border:none;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:11px;font-weight:700">×</button></div>`).join("")}
-    </div>`:""}
+    ${photoStripHTML("_srPhotos","srDelPhoto",88,66)}
   </div>
 
   <div class="card">
@@ -4586,7 +4631,7 @@ window.prAddPhotos = async function(input){
     render();
   }catch(e){ toast("Photo error: "+(e.message||"failed")); }
 };
-window.prDelPhoto = function(i){ window._prPhotos.splice(i,1); render(); };
+window.prDelPhoto = function(i){ photoStripDelete("_prPhotos","prDelPhoto",i,88,66); };
 
 // Quick range helpers for the weekly report
 window.prThisWeek = function(){
@@ -4766,9 +4811,7 @@ function renderProgressReport(kind){
     ${S(N(),"Photos")} 
     <input type="file" accept="image/*" multiple onchange="prAddPhotos(this)" style="margin-top:8px">
     ${typeof planBlockHTML==="function"?planBlockHTML("_prPlans"):""}
-    ${window._prPhotos.length?`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
-      ${window._prPhotos.map((p,i)=>`<div style="position:relative"><img src="${p.data}" style="width:76px;height:76px;object-fit:cover;border-radius:8px;border:1px solid var(--line)"><button onclick="annoOpen('_prPhotos',${i})" title="Annotate" style="position:absolute;bottom:-6px;right:-6px;background:#03308B;color:#fff;border:none;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:10px;line-height:1">✎</button><button onclick="prDelPhoto(${i})" style="position:absolute;top:-6px;right:-6px;background:#C62828;color:#fff;border:none;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:11px;font-weight:700">×</button></div>`).join("")}
-    </div>`:""}
+    ${photoStripHTML("_prPhotos","prDelPhoto",88,66)}
   </div>
 
   <div class="card">
@@ -4933,6 +4976,6 @@ window.forceUpdate = async function(){
 // The build actually running, so nobody has to infer it from behaviour.
 // A single named constant, updated with every release, so the screen can state
 // the build without inferring it from a variable that lives inside a function.
-const APP_BUILD = "v258";
+const APP_BUILD = "v259";
 window.APP_BUILD = APP_BUILD;
 window.runningVersion = function(){ return APP_BUILD; };
