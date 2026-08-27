@@ -10,7 +10,7 @@ const REF_PREFIX = {
   ELV_INTEGRATED_REPORT:"ELVI", HANDOVER_DOSSIER:"HOD", QUOTATION:"QUO", VARIATION:"VAR", COST_REPORT:"CST", INVOICE:"INV", EXPENSE_CLAIM:"EXP", ADVANCES_REGISTER:"ADV",
   DAILY_PROGRESS:"DPR", WEEKLY_PROGRESS:"WPR",
   ASSET_REPORT:"AST", CLIENT_REPORT:"CLR", DASHBOARD:"DSH", GENERAL:"RPT",
-  PROJECT_REPORT:"PRJ", PROGRESS_REPORT:"PPR",
+  PROJECT_REPORT:"PRJ", PROGRESS_REPORT:"PPR", VEHICLE_REPORT:"VEH",
 };
 const REF_TYPE_LABEL = {
   HR:"HR Report", DL:"Daily Log Report", TR:"Technical Report", RPT:"Flexible Report",
@@ -20,7 +20,7 @@ const REF_TYPE_LABEL = {
   ELVI:"ELV Integrated Report", HOD:"Handover Dossier", QUO:"Quotation", VAR:"Variation Order", CST:"Cost & Revenue Report", INV:"Invoice", EXP:"Expense Report", ADV:"Advances Register",
   DPR:"Daily Progress Report", WPR:"Weekly Progress Report",
   AST:"Asset Report", CLR:"Client Report", DSH:"Dashboard Export",
-  PRJ:"Project Report", PPR:"Project Progress Report",
+  PRJ:"Project Report", PPR:"Project Progress Report", VEH:"Vehicle Maintenance Report",
 };
 window.REF_PREFIX=REF_PREFIX; window.REF_TYPE_LABEL=REF_TYPE_LABEL;
 
@@ -1362,6 +1362,64 @@ Object.assign(window,{_resolveField, _importInto});
 
 // Convert a worksheet into a rectangular array, expanding merges so the shape
 // on screen matches the shape in Excel.
+// ═══ SHARED REPORT PRINTING (v260) ═══════════════════════════════════
+// Six generators had each grown their own copy of the same four helpers, so a
+// rule agreed once had to be applied six times — and until now the "leave
+// blank items out" rule reached only two of them. These are the single copy.
+//
+// This is deliberately NOT a rewrite of the generators. Each keeps its own
+// structure, its own headings and its own document; they simply stop carrying
+// private duplicates of the same printing logic. Unifying the generators
+// themselves would put six working reports at risk to save markup, and that is
+// a trade worth refusing.
+const RPT_DASH = "\u2014";
+
+// The one definition of "there is nothing here". A lone dash or hyphen counts
+// as empty, because that is what a person types when they mean "not applicable".
+function rptFilled(v){
+  if(v == null) return false;
+  const s = String(v).trim();
+  return s !== "" && s !== RPT_DASH && s !== "-" && s !== "--";
+}
+
+// A label/value row that removes ITSELF when there is no value.
+function rptRow(label, value, opts){
+  if(!rptFilled(value)) return "";
+  const o = opts || {};
+  const style = o.color ? `color:${o.color};font-weight:600` : "";
+  const val = o.raw ? value : escapeHtml(String(value));
+  return `<tr><td style="border:1px solid #ccc;padding:5px 8px;background:#F7F7F7;font-weight:600;width:${o.labelWidth||"34%"}">${escapeHtml(String(label))}</td><td style="border:1px solid #ccc;padding:5px 8px;${style}">${val}</td></tr>`;
+}
+
+// A table that disappears when every row inside it removed itself.
+function rptTable(rows){
+  return String(rows||"").trim()
+    ? `<table style="border-collapse:collapse;width:100%;font-size:11px">${rows}</table>` : "";
+}
+
+// A heading printed only when it has something under it. `head` is the
+// generator's own heading builder, so each report keeps its own look.
+function rptSect(head, title, inner){
+  return String(inner||"").trim() ? head(title) + inner : "";
+}
+
+// A grid that drops any column left empty by EVERY row. A register where
+// nobody filled in "Likelihood" should not rule an empty strip down the page.
+// A cell may be {html, toString} when it needs its own colour.
+function rptGrid(headers, rows, headBg){
+  if(!rows || !rows.length) return "";
+  const keep = headers.map((_,c) => rows.some(r => rptFilled(r[c])));
+  if(!keep.some(Boolean)) return "";
+  const bg = headBg || "#1B3A6B";
+  const th = headers.filter((_,c)=>keep[c])
+    .map(h=>`<th style="border:1px solid #ccc;padding:5px 8px;background:${bg};color:#fff;text-align:start">${escapeHtml(String(h))}</th>`).join("");
+  const tb = rows.map(r=>`<tr>${r.filter((_,c)=>keep[c])
+    .map(c=>`<td style="border:1px solid #ccc;padding:5px 8px">${
+      c && c.html ? c.html : (rptFilled(c) ? escapeHtml(String(c)) : "")}</td>`).join("")}</tr>`).join("");
+  return `<table style="border-collapse:collapse;width:100%;font-size:11px"><thead><tr>${th}</tr></thead><tbody>${tb}</tbody></table>`;
+}
+Object.assign(window,{RPT_DASH, rptFilled, rptRow, rptTable, rptSect, rptGrid});
+
 function _xlSheetRows(ws){
   const rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:"", blankrows:false, raw:false});
   const merges = ws["!merges"] || [];

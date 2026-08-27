@@ -1067,8 +1067,10 @@ function renderFinanceReport(){
     return `<div class="card"><div class="empty">No access.</div></div>`;
   const h=_pills('_finRepView',[{id:"claims",   ic:"\u{1F9FE}",lb:"Expense Reports"},
                                 {id:"advances", ic:"\u{1F4B3}",lb:"Advances"},
-                                {id:"cost",     ic:"\u{1F4CA}",lb:"Cost Report"}]);
+                                {id:"cost",     ic:"\u{1F4CA}",lb:"Cost Report"},
+                                {id:"vehicles", ic:"\u{1F697}",lb:"Vehicles"}]);
   const v=window._finRepView||"claims";
+  if(v==="vehicles") return h + renderVehicleReport();
   if(v==="cost")     return h + renderCostReport();
   if(v==="advances") return h + renderAdvancesRegister();
   return h + renderExpenseClaims();

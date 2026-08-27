@@ -1398,7 +1398,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v259';"
+      var swCode = "const CACHE='ejaftech-v261';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
@@ -1422,7 +1422,7 @@ window.pmRptAddPhotos=async function(input){
   try{
     const files=Array.from(input.files||[]); input.value="";
     for(const f of files){
-      if(window._pmRptPhotos.length>=12){ toast("Max 12 photos per report"); break; }
+      if(window._pmRptPhotos.length>=photoMax()){ toast(`Up to ${photoMax()} photos per report`); break; }
       const b64=await compressImage(f,1024,0.6);
       const kb=base64SizeKB(b64);
       if(kb>500){ toast(`Image too large (${kb} KB). Skipped.`); continue; }
@@ -1531,7 +1531,7 @@ window.generateIncidentReport=async function(){
     <table style="border-collapse:collapse;width:100%"><tbody>
       <tr>${cell("Incident date",fmtDate(i.date)+(i.time?" · "+i.time:""))}${cell("Project",escapeHtml(i.project))}${cell("System",escapeHtml(i.system||"Whole project"))}</tr>
       <tr>${cell("Area",escapeHtml(i.area))}${cell("Site",escapeHtml(i.site))}${cell("Device",dev?escapeHtml([dev.deviceName,dev.model,dev.serialNumber].filter(Boolean).join(" · ")):escapeHtml(i.deviceSerial||"—"))}</tr>
-      <tr>${cell("Work started",i.startDate?fmtDate(i.startDate):"—")}${cell("Work finished",i.endDate?fmtDate(i.endDate):"—")}${cell("Reported by",escapeHtml(i.reportedBy||"—"))}</tr>
+      <tr>${cell("Work started",i.startDate?fmtDate(i.startDate):"")}${cell("Work finished",i.endDate?fmtDate(i.endDate):"—")}${cell("Reported by",escapeHtml(i.reportedBy||"—"))}</tr>
     </tbody></table>
     <div class="ksec"><span class="kbad">02</span><h3>Description</h3></div>
     <div style="font-size:12px;line-height:1.7">${typeof textWithTablesHTML==="function"?textWithTablesHTML(i.description):escapeHtml(i.description||"—")}</div>
@@ -1635,7 +1635,7 @@ window.pprSetDelay  = function(i,k,v){ if(window._pprDelays[i]) window._pprDelay
 window.pprAddPhotos = async function(input){
   const files = Array.from((input && input.files) || []);
   for(const f of files){
-    if(window._pprPhotos.length >= 12){ toast("Max 12 photos"); break; }
+    if(window._pprPhotos.length >= photoMax()){ toast(`Up to ${photoMax()} photos`); break; }
     try{ window._pprPhotos.push({data: await compressImage(f), note:""}); }catch(e){}
   }
   input.value=""; render();
@@ -1661,19 +1661,80 @@ function _pprProgress(){
 }
 Object.assign(window,{PPR_SECTIONS, _pprProgress});
 
+// ═══ COLLAPSIBLE SECTIONS (v260) ═════════════════════════════════════
+// A project report is twelve narrative sections, two registers and a photo
+// strip. Filling in the eleventh means scrolling past ten that are already
+// done. Sections now fold, and a FILLED one folds itself: the work you have
+// finished gets out of the way, and what is left is what you can still see.
+//
+// Collapse state lives in memory only. It is a view preference, not data, and
+// it must never travel into a saved report.
+window._secOpen = window._secOpen || {};
+window.secToggle = function(key){
+  // Read the state from the DOM, not from secIsOpen(): that helper needs to
+  // know whether the section HAS content to decide its default, and the toggle
+  // does not. Asking it without that argument made a folded, filled section
+  // report itself as open, so the first tap set it to "closed" \u2014 which it
+  // already was \u2014 and nothing appeared to happen.
+  const cur = document.getElementById("sec_" + key);
+  const isOpen = cur ? cur.style.display !== "none"
+                     : (Object.prototype.hasOwnProperty.call(window._secOpen,key) ? window._secOpen[key] : true);
+  window._secOpen[key] = !isOpen;
+  const b = document.getElementById("sec_" + key);
+  const h = document.getElementById("sech_" + key);
+  if(b){                                   // fold in place \u2014 no full repaint
+    const open = window._secOpen[key];
+    b.style.display = open ? "" : "none";
+    if(h) h.textContent = open ? "\u25BE" : "\u25B8";
+  }else{ render(); }
+};
+// Open by default, and closed once it has content \u2014 unless the person has
+// said otherwise for this section during this session.
+function secIsOpen(key, hasContent){
+  if(Object.prototype.hasOwnProperty.call(window._secOpen, key)) return window._secOpen[key];
+  return !hasContent;
+}
+// A card whose body folds. `badge` keeps each generator's own numbering.
+function foldCard(key, badge, title, hint, body, hasContent){
+  const open = secIsOpen(key, hasContent);
+  return `<div class="card">
+    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px;cursor:pointer" onclick="secToggle(${jsArg(key)})">
+      <span style="background:${hasContent?"#2E7D32":"#C9A84C"};color:${hasContent?"#fff":"#1B3A6B"};font-weight:800;border-radius:8px;padding:2px 8px;font-size:12px">${escapeHtml(badge)}</span>
+      <b style="flex:1">${escapeHtml(title)}</b>
+      ${hasContent?`<span style="color:#2E7D32;font-size:13px">\u2713</span>`:""}
+      <span id="sech_${escapeHtml(key)}" style="color:var(--muted);font-size:13px">${open?"\u25BE":"\u25B8"}</span>
+    </div>
+    <div id="sec_${escapeHtml(key)}" style="display:${open?"":"none"}">
+      ${hint?`<div style="font-size:11px;color:var(--muted);margin:6px 0 8px">${escapeHtml(hint)}</div>`:""}
+      ${body}
+    </div>
+  </div>`;
+}
+// The progress strip that sits above a long form.
+function fillBar(done, total, label){
+  const pctv = total ? Math.round(done/total*100) : 0;
+  return `<div class="card" style="padding:10px 14px">
+    <div style="display:flex;align-items:center;gap:10px">
+      <div style="flex:1">
+        <div style="font-size:12px;font-weight:700">${escapeHtml(label||"Sections completed")}</div>
+        <div style="height:6px;background:var(--line);border-radius:3px;margin-top:5px;overflow:hidden">
+          <div style="height:100%;width:${pctv}%;background:${pctv===100?"#2E7D32":"#C9A84C"};transition:width .25s"></div>
+        </div>
+      </div>
+      <div style="font-size:15px;font-weight:800;color:${pctv===100?"#2E7D32":"var(--fg)"}">${done}/${total}</div>
+    </div>
+  </div>`;
+}
+Object.assign(window,{secToggle, secIsOpen, foldCard, fillBar});
+
 function pprSectionCard(s, i){
   const path = `_ppr.sections.${s.k}`;
   const val  = (window._ppr.sections && window._ppr.sections[s.k]) || "";
-  return `<div class="card">
-    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px">
-      <span style="background:#C9A84C;color:#1B3A6B;font-weight:800;border-radius:8px;padding:2px 8px;font-size:12px">${String(i+1).padStart(2,"0")}</span>
-      <b>${escapeHtml(s.n)}</b>
-    </div>
-    <div style="font-size:11px;color:var(--muted);margin:6px 0 8px">${escapeHtml(s.h)}</div>
+  const has  = rptFilled(val);
+  return foldCard("ppr_"+s.k, String(i+1).padStart(2,"0"), s.n, s.h, `
     ${typeof tableToolbar==="function"?tableToolbar(path):""}
     ${typeof tablePreviewHTML==="function"?tablePreviewHTML(val, "ppr_"+s.k):""}
-    <textarea rows="4" oninput="_ppr.sections.${s.k}=this.value" placeholder="${escapeHtml(s.h)}">${escapeHtml(val)}</textarea>
-  </div>`;
+    <textarea rows="4" oninput="_ppr.sections.${s.k}=this.value;srMarkDirty()" placeholder="${escapeHtml(s.h)}">${escapeHtml(val)}</textarea>`, has);
 }
 
 // Same test the printer uses, so the list and the document cannot disagree.
@@ -1959,6 +2020,7 @@ function renderProjectProgressReport(){
     </div>
   </div>
 
+  ${fillBar(PPR_SECTIONS.filter(s=>rptFilled((P.sections||{})[s.k])).length, PPR_SECTIONS.length, "Report sections completed")}
   ${PPR_SECTIONS.map((s,i)=>pprSectionCard(s,i)).join("")}
 
   <div class="card">
@@ -2108,7 +2170,7 @@ window.prjSetRisk = function(i,k,v){ if(window._prjRisks[i]) window._prjRisks[i]
 window.prjAddPhotos = async function(input){
   const files = Array.from((input && input.files) || []);
   for(const f of files){
-    if(window._prjPhotos.length >= 12){ toast("Max 12 photos"); break; }
+    if(window._prjPhotos.length >= photoMax()){ toast(`Up to ${photoMax()} photos`); break; }
     try{ window._prjPhotos.push({data: await compressImage(f), note:""}); }catch(e){}
   }
   input.value=""; render();
@@ -2122,16 +2184,11 @@ window.prjSetRag   = function(v){ window._prj.rag=v; render(); };
 function prjSectionCard(s, i){
   const path = `_prj.sections.${s.k}`;
   const val  = (window._prj.sections && window._prj.sections[s.k]) || "";
-  return `<div class="card">
-    <div class="sec-hdr" style="display:flex;align-items:center;gap:8px">
-      <span style="background:#C9A84C;color:#1B3A6B;font-weight:800;border-radius:8px;padding:2px 8px;font-size:12px">${String(i+1).padStart(2,"0")}</span>
-      <b>${escapeHtml(s.n)}</b>
-    </div>
-    <div style="font-size:11px;color:var(--muted);margin:6px 0 8px">${escapeHtml(s.h)}</div>
+  const has  = rptFilled(val);
+  return foldCard("prj_"+s.k, String(i+1).padStart(2,"0"), s.n, s.h, `
     ${typeof tableToolbar==="function"?tableToolbar(path):""}
     ${typeof tablePreviewHTML==="function"?tablePreviewHTML(val, "prj_"+s.k):""}
-    <textarea rows="4" oninput="_prj.sections.${s.k}=this.value" placeholder="${escapeHtml(s.h)}">${escapeHtml(val)}</textarea>
-  </div>`;
+    <textarea rows="4" oninput="_prj.sections.${s.k}=this.value;srMarkDirty()" placeholder="${escapeHtml(s.h)}">${escapeHtml(val)}</textarea>`, has);
 }
 
 // ═══ WHAT WILL ACTUALLY PRINT ═════════════════════════════════════════
@@ -2495,6 +2552,7 @@ function renderProjectReport(){
       :`<div style="color:var(--muted);font-size:13px">No risks or issues recorded.</div>`}
   </div>
 
+  ${fillBar(PRJ_SECTIONS.filter(s=>rptFilled((P.sections||{})[s.k])).length, PRJ_SECTIONS.length, "Report sections completed")}
   ${PRJ_SECTIONS.map((s,i)=>prjSectionCard(s,i)).join("")}
 
   <div class="card">
@@ -2577,6 +2635,15 @@ Object.assign(window,{photoStripHTML, photoStripDelete});
 //
 // The 12-photo ceiling is not shared either. A five-page drawing set would
 // otherwise consume most of the allowance for site photographs.
+// Limits are settings, not laws. A twelve-camera survey needs more than twelve
+// photographs; a single-page drawing set needs fewer than eight slots. The
+// defaults are unchanged, so nothing shifts for anyone who never opens this.
+const PHOTO_MAX_DEFAULT = 12, PLAN_MAX_DEFAULT = 8;
+function photoMax(){ const v = Number((state.settings&&state.settings.photoMax) ?? window._photoMax ?? PHOTO_MAX_DEFAULT);
+                     return (isFinite(v) && v>0 && v<=40) ? Math.floor(v) : PHOTO_MAX_DEFAULT; }
+function planMax(){  const v = Number((state.settings&&state.settings.planMax)  ?? window._planMax  ?? PLAN_MAX_DEFAULT);
+                     return (isFinite(v) && v>0 && v<=20) ? Math.floor(v) : PLAN_MAX_DEFAULT; }
+Object.assign(window,{PHOTO_MAX_DEFAULT, PLAN_MAX_DEFAULT, photoMax, planMax});
 const PLAN_MAX      = 8;
 const PLAN_WIDTH    = 2048;   // readable dimension strings
 const PLAN_QUALITY  = 0.82;   // line art suffers badly below this
@@ -2657,7 +2724,7 @@ window.planPickConfirm = async function(){
 
 async function _planAdd(pdf, pageNo, targetArr, fileName){
   const arr = window[targetArr] = (window[targetArr] || []);
-  if(arr.length >= PLAN_MAX){ toast(`Up to ${PLAN_MAX} drawings per report`); return false; }
+  if(arr.length >= planMax()){ toast(`Up to ${planMax()} drawings per report`); return false; }
   toast(`Rendering page ${pageNo}\u2026`);
   try{
     const full = await _planRenderPage(pdf, pageNo, PLAN_WIDTH);
@@ -2709,7 +2776,7 @@ function planBlockHTML(targetArr){
              onchange="planImportOpen(this,${jsArg(targetArr)})">
     </label>
     <span style="font-size:11px;color:var(--muted);margin-inline-start:8px">
-      AutoCAD and Revit drawings redraw sharply. Up to ${PLAN_MAX}, kept at full size for printing \u2014 separate from the photo allowance.
+      AutoCAD and Revit drawings redraw sharply. Up to ${planMax()}, kept at full size for printing \u2014 separate from the photo allowance.
     </span>
     ${arr.length?`<div style="display:flex;flex-direction:column;gap:8px;margin-top:10px">
       ${arr.map((p,i)=>`<div style="display:flex;gap:8px;align-items:flex-start;border:1px solid var(--line);border-radius:10px;padding:8px">
@@ -3297,7 +3364,7 @@ async function _generateIncManual(){
     <table style="border-collapse:collapse;width:100%"><tbody>
       <tr>${cell("Incident date",(i.date?fmtDate(i.date):"—")+(i.time?" · "+i.time:""))}${cell("Project",escapeHtml(i.project))}${cell("System",escapeHtml(i.system||"Whole project"))}</tr>
       <tr>${cell("Area",escapeHtml(i.area))}${cell("Site",escapeHtml(i.site))}${cell("Device",escapeHtml(i.device||"—"))}</tr>
-      <tr>${cell("Work started",i.startDate?fmtDate(i.startDate):"—")}${cell("Work finished",i.endDate?fmtDate(i.endDate):"—")}${cell("Reported by",escapeHtml(i.reportedBy||"—"))}</tr>
+      <tr>${cell("Work started",i.startDate?fmtDate(i.startDate):"")}${cell("Work finished",i.endDate?fmtDate(i.endDate):"—")}${cell("Reported by",escapeHtml(i.reportedBy||"—"))}</tr>
     </tbody></table>
     <div class="ksec"><span class="kbad">02</span><h3>Description</h3></div>
     <div style="font-size:12px;line-height:1.7">${typeof textWithTablesHTML==="function"?textWithTablesHTML(i.description):escapeHtml(i.description||"—")}</div>
@@ -3354,7 +3421,7 @@ window.fmAddPhotos=async function(input){
   try{
     const files=Array.from(input.files||[]); input.value="";
     for(const f of files){
-      if(window._fmPhotos.length>=12){ toast("Max 12 photos"); break; }
+      if(window._fmPhotos.length>=photoMax()){ toast(`Up to ${photoMax()} photos`); break; }
       const b64=await compressImage(f,1024,0.6); const kb=base64SizeKB(b64);
       if(kb>500){ toast(`Image too large (${kb} KB). Skipped.`); continue; }
       window._fmPhotos.push({data:b64,sizeKB:kb});
@@ -3559,7 +3626,9 @@ window.generateFM200Test=async function(){
     </tr>`;
   }).join("");
   const fails=FM_CHK_ITEMS.filter(([k])=>window._fmChk[k].s==="Fail").length;
-  const infoRow=(l,v)=>`<tr><td style="border:1px solid #ccc;background:#F0F4FA;padding:6px 10px;font-weight:700;font-size:11px;width:42%">${l}</td><td style="border:1px solid #ccc;padding:6px 10px;font-size:12px">${v||"&nbsp;"}</td></tr>`;
+  // Self-hiding: a label with nothing beside it used to print an empty ruled
+  // strip, which reads to a client as a question the engineer failed to answer.
+  const infoRow=(l,v)=> rptFilled(v) ? `<tr><td style="border:1px solid #ccc;background:#F0F4FA;padding:6px 10px;font-weight:700;font-size:11px;width:42%">${l}</td><td style="border:1px solid #ccc;padding:6px 10px;font-size:12px">${v}</td></tr>` : "";
   const bodyHTML=`${_fmPrintBar}
     <div style="border:1.5px solid #1B3A6B;border-radius:8px;padding:10px 14px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
       <div>
@@ -3709,7 +3778,7 @@ window.srAddPhotos=async function(input){
   try{
     const files=Array.from(input.files||[]); input.value="";
     for(const f of files){
-      if(window._srPhotos.length>=12){ toast("Max 12 photos"); break; }
+      if(window._srPhotos.length>=photoMax()){ toast(`Up to ${photoMax()} photos`); break; }
       const b64=await compressImage(f,1024,0.6); const kb=base64SizeKB(b64);
       if(kb>500){ toast(`Image too large (${kb} KB). Skipped.`); continue; }
       window._srPhotos.push({data:b64,sizeKB:kb});
@@ -3753,20 +3822,39 @@ function _srPillList(){
              {id:"project",ic:"📋",lb:"Project"},
              {id:"ppr",ic:"📈",lb:"Progress Rpt"}]);
 }
+// The same pills, captioned in two runs: what you inspect, and what you report.
+function _srPillGroups(){
+  const all = _srPillList();
+  const projectIds = ["daily","weekly","project","ppr"];
+  return [
+    {caption:"System inspection & test reports", pills: all.filter(p=>!projectIds.includes(p.id))},
+    {caption:"Project & period reports",         pills: all.filter(p=> projectIds.includes(p.id))},
+  ];
+}
+function _srPillsGrouped(){
+  return _srPillGroups().map(g=>`
+    <div style="font-size:10.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);margin:10px 2px 4px">${escapeHtml(g.caption)}</div>
+    ${_pills('_srTpl', g.pills)}`).join("");
+}
+Object.assign(window,{_srPillGroups, _srPillsGrouped});
 function renderSystemReports(){
   if(!(isAdmin()||isHR()||hasCap("canExport"))) return `<div class="card"><div class="empty">No access.</div></div>`;
   // Project progress reports live in the same pill row but render their own layout
+  // Thirteen pills in one undifferentiated block is a wall, and the three
+  // project-level documents were lost among the seven system templates. A
+  // caption above each run says what the run IS, which is most of what a
+  // grouping has to do.
   if(window._srTpl==="daily"||window._srTpl==="weekly"){
-    return _pills('_srTpl',_srPillList()) + renderProgressReport(window._srTpl);
+    return _srPillsGrouped() + renderProgressReport(window._srTpl);
   }
   // The project status report shares the pill row but is a different document:
   // it reports on a PROJECT, not on a system, so it has its own layout.
   if(window._srTpl==="project"){
-    return _pills('_srTpl',_srPillList()) + renderProjectReport();
+    return _srPillsGrouped() + renderProjectReport();
   }
   // The contractor's periodic report to the client — FIDIC 4.21.
   if(window._srTpl==="ppr"){
-    return _pills('_srTpl',_srPillList()) + renderProjectProgressReport();
+    return _srPillsGrouped() + renderProjectProgressReport();
   }
   const tpl=sysTemplate(window._srTpl), m=window._sr, mode=window._srMode;
   const clientOpts=(state.clients||[]).map(c=>c.name).filter(Boolean).sort();
@@ -3783,7 +3871,7 @@ function renderSystemReports(){
   const N=(()=>{let n=0;return()=>String(++n).padStart(2,"0");})();
 
   return `
-  ${_pills('_srTpl',_srPillList())}
+  ${_srPillsGrouped()}
   ${_rptHero(tpl.icon,tpl.name,"Inspection & Test Report","linear-gradient(135deg,"+tpl.color+" 0%,#1B2A33 100%)")}
   <div class="card" style="padding:10px 12px">
     <div style="display:flex;gap:6px">
@@ -3953,7 +4041,9 @@ window.generateSystemReport=async function(){
   const intFail=intRows.filter(r=>r.s==="Fail").length;
   // Section numbers are counted so the integrated report can add sections
   const K=(()=>{let n=0;return()=>String(++n).padStart(2,"0");})();
-  const infoRow=(l,v)=>`<tr><td style="border:1px solid #ccc;background:#F0F4FA;padding:6px 10px;font-weight:700;font-size:11px;width:42%">${l}</td><td style="border:1px solid #ccc;padding:6px 10px;font-size:12px">${v||"&nbsp;"}</td></tr>`;
+  // Self-hiding: a label with nothing beside it used to print an empty ruled
+  // strip, which reads to a client as a question the engineer failed to answer.
+  const infoRow=(l,v)=> rptFilled(v) ? `<tr><td style="border:1px solid #ccc;background:#F0F4FA;padding:6px 10px;font-weight:700;font-size:11px;width:42%">${l}</td><td style="border:1px solid #ccc;padding:6px 10px;font-size:12px">${v}</td></tr>` : "";
 
   const bodyHTML=`${_fmPrintBar}
     <div style="border:1.5px solid #1B3A6B;border-radius:8px;padding:10px 14px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
@@ -3992,10 +4082,10 @@ window.generateSystemReport=async function(){
     <tbody>${devs.map((d,i)=>`<tr>
       <td style="text-align:center">${String(i+1).padStart(2,"0")}</td>
       <td><strong>${escapeHtml(d.name||"—")}</strong></td>${tpl.multi?`<td style="font-size:9.5px">${elvSub(d.sub)?escapeHtml(elvSub(d.sub).name.split(" / ")[0]):"—"}</td>`:""}<td style="font-size:10px">${escapeHtml(d.model||"—")}</td>
-      <td style="font-size:10px">${escapeHtml(d.serial||"—")}</td><td style="font-size:10px">${escapeHtml(d.location||"—")}</td>
+      <td style="font-size:10px">${escapeHtml(d.serial||"")}</td><td style="font-size:10px">${escapeHtml(d.location||"")}</td>
       <td style="text-align:center;font-size:14px">${d.result==="Pass"?tick:box}</td>
       <td style="text-align:center;font-size:14px">${d.result==="Fail"?tick:box}</td>
-      <td style="font-size:10px">${escapeHtml(d.remark||(d.result==="N/A"?"N/A":"—"))}</td></tr>`).join("")}</tbody></table>
+      <td style="font-size:10px">${escapeHtml(d.remark||(d.result==="N/A"?"N/A":""))}</td></tr>`).join("")}</tbody></table>
     <div style="margin-top:5px;font-size:11px;font-weight:700;color:${devFail?"#C62828":"#2E7D32"}">${devFail?`${devFail} device(s) FAILED`:`All ${devs.length} device(s) passed \u2713`}</div>`:""}
     ${blocks.map(bk=>{const bFail=bk.items.filter((_,i)=>_srChkState(bk.key,i).s==="Fail").length;
       return `<div class="ksec"><span class="kbad">${K()}</span><h3>${tpl.multi?escapeHtml(bk.name)+" — Check List":"Inspection Check List"}</h3></div>
@@ -4006,7 +4096,7 @@ window.generateSystemReport=async function(){
         <td style="font-size:11px">${escapeHtml(it)}</td>
         <td style="text-align:center;font-size:14px">${st.s==="Pass"?tick:box}</td>
         <td style="text-align:center;font-size:14px">${st.s==="Fail"?tick:box}</td>
-        <td style="font-size:10px">${escapeHtml(st.r||(st.s==="N/A"?"N/A":"—"))}</td></tr>`;}).join("")}</tbody></table>
+        <td style="font-size:10px">${escapeHtml(st.r||(st.s==="N/A"?"N/A":""))}</td></tr>`;}).join("")}</tbody></table>
     <div style="margin-top:5px;font-size:11px;font-weight:700;color:${bFail?"#C62828":"#2E7D32"}">${bFail?`${bFail} of ${bk.items.length} item(s) FAILED — corrective action required`:`all ${bk.items.length} items PASSED \u2713`}</div>`;}).join("")}
     ${tpl.multi?`<div class="ksec"><span class="kbad">${K()}</span><h3>Integration Verification Matrix</h3></div>
     <table><thead><tr><th style="width:32px">No.</th><th style="width:150px">Interface</th><th>Verified function</th><th style="width:48px">PASS</th><th style="width:48px">FAIL</th><th>Remarks</th></tr></thead>
@@ -4016,7 +4106,7 @@ window.generateSystemReport=async function(){
       <td style="font-size:11px">${escapeHtml(r.d)}</td>
       <td style="text-align:center;font-size:14px">${r.s==="Pass"?tick:box}</td>
       <td style="text-align:center;font-size:14px">${r.s==="Fail"?tick:box}</td>
-      <td style="font-size:10px">${escapeHtml(r.r||(r.s==="N/A"?"N/A":"—"))}</td></tr>`).join("")
+      <td style="font-size:10px">${escapeHtml(r.r||(r.s==="N/A"?"N/A":""))}</td></tr>`).join("")
       :`<tr><td colspan="6" style="text-align:center;font-size:11px">No cross-system interfaces within the reported scope</td></tr>`}</tbody></table>
     <div style="margin-top:5px;font-size:11px;font-weight:700;color:${intFail?"#C62828":"#2E7D32"}">${intFail?`${intFail} interface(s) FAILED — cause &amp; effect requires correction`:intRows.length?`all ${intRows.length} interfaces verified \u2713`:"Not applicable"}</div>
     <div class="ksec"><span class="kbad">${K()}</span><h3>Consolidated Result</h3></div>
@@ -4623,7 +4713,7 @@ window.prAddPhotos = async function(input){
   try{
     const files=Array.from(input.files||[]); input.value="";
     for(const f of files){
-      if(window._prPhotos.length>=12){ toast("Max 12 photos"); break; }
+      if(window._prPhotos.length>=photoMax()){ toast(`Up to ${photoMax()} photos`); break; }
       const b64=await compressImage(f,1024,0.6); const kb=base64SizeKB(b64);
       if(kb>500){ toast(`Image too large (${kb} KB). Skipped.`); continue; }
       window._prPhotos.push({data:b64,sizeKB:kb});
@@ -4846,7 +4936,9 @@ window.generateProgressReport = async function(kind){
   const manH=people.reduce((s,p)=>s+Number(p.hours||0),0);
   const rag=PR_RAG[m.rag]||PR_RAG.Green;
   const period = daily ? fmtDate(m.date) : `${fmtDate(m.from)} → ${fmtDate(m.to)}`;
-  const infoRow=(l,v)=>`<tr><td style="border:1px solid #ccc;background:#F0F4FA;padding:6px 10px;font-weight:700;font-size:11px;width:42%">${l}</td><td style="border:1px solid #ccc;padding:6px 10px;font-size:12px">${v||"&nbsp;"}</td></tr>`;
+  // Self-hiding: a label with nothing beside it used to print an empty ruled
+  // strip, which reads to a client as a question the engineer failed to answer.
+  const infoRow=(l,v)=> rptFilled(v) ? `<tr><td style="border:1px solid #ccc;background:#F0F4FA;padding:6px 10px;font-weight:700;font-size:11px;width:42%">${l}</td><td style="border:1px solid #ccc;padding:6px 10px;font-size:12px">${v}</td></tr>` : "";
   const block=(t)=>`<div style="border:1px solid #ccc;border-radius:8px;padding:11px;font-size:12px;line-height:1.8;min-height:44px">${(t||"").trim() ? (typeof textWithTablesHTML==="function"?textWithTablesHTML(t,{dash:false}):`<div style="white-space:pre-wrap">${escapeHtml(String(t).trim())}</div>`) : "&nbsp;"}</div>`;
   let n=0; const K=()=>String(++n).padStart(2,"0");
 
@@ -4976,6 +5068,6 @@ window.forceUpdate = async function(){
 // The build actually running, so nobody has to infer it from behaviour.
 // A single named constant, updated with every release, so the screen can state
 // the build without inferring it from a variable that lives inside a function.
-const APP_BUILD = "v259";
+const APP_BUILD = "v261";
 window.APP_BUILD = APP_BUILD;
 window.runningVersion = function(){ return APP_BUILD; };

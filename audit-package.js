@@ -32,7 +32,7 @@ function check(cond, good, badMsg, detail){ cond ? ok(good) : bad(badMsg || good
 const MODULES = ["01-core.js","02-report-engine.js","03-dashboard-logs.js","04-reports.js",
  "05-assets.js","06-database.js","07-instructions.js","08-clients.js","09-tasks-requests.js",
  "10-integrations.js","11-settings.js","12-exports.js","13-fieldops.js","14-finance.js",
- "15-invoicing.js","16-advances.js","17-risks.js","18-performance.js"];
+ "15-invoicing.js","16-advances.js","17-risks.js","18-performance.js","19-vehicles.js"];
 const SUPPORT = ["firebase-init.js","pwa-manifest.js","sw.js","index.html","offline-check.html",
  "app.css","theme.css","manifest.json","README.md"];
 const SDK = ["firebase-app.js","firebase-auth.js","firebase-firestore.js"];
@@ -419,6 +419,12 @@ head("11. FEATURE PRESERVATION");
     ["type-or-choose fields","_syncSel"],
     ["Project Progress Report","generateProjectProgressReport"],
     ["in-place photo strips","photoStripDelete"], ["unsaved-changes marker","srMarkDirty"],
+    ["shared print library","function rptRow"], ["collapsible sections","function foldCard"],
+    ["fill progress bar","function fillBar"], ["grouped report pills","_srPillGroups"],
+    ["configurable limits","function photoMax"],
+    ["vehicle fleet register","function renderVehicles"], ["vehicle maintenance jobs","vehJobSave"],
+    ["oil-change distance reminder","function vehOil"], ["vehicle due alerts","function vehAlerts"],
+    ["vehicle maintenance report","generateVehicleReport"], ["vehicle doc series","VEHICLE_REPORT"],
     ["FIDIC 4.21 sections","PPR_SECTIONS"], ["weighted system progress","_pprProgress"],
     ["delay events register","pprAddDelay"], ["progress doc series","PROGRESS_REPORT"],
     ["lazy library loader","function loadLib"], ["needLib guard","function needLib"],

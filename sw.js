@@ -3,7 +3,7 @@
 // This file MUST sit next to index.html on the server (same folder),
 // alongside: theme.css, app.css, pwa-manifest.js, firebase-init.js, app.js
 
-const CACHE = 'ejaftech-v259';
+const CACHE = 'ejaftech-v261';
 
 // Everything needed to cold-start with no network. The Firebase SDK files are
 // immutable, version-pinned URLs — caching them is what makes offline launch
@@ -13,6 +13,7 @@ const SHELL = [
   './01-core.js','./02-report-engine.js','./03-dashboard-logs.js','./04-reports.js',
   './05-assets.js','./06-database.js','./07-instructions.js','./08-clients.js',
   './09-tasks-requests.js','./10-integrations.js','./11-settings.js','./12-exports.js','./13-fieldops.js','./14-finance.js','./15-invoicing.js','./16-advances.js','./17-risks.js','./18-performance.js',
+  './19-vehicles.js',
   // If these exist in the repo they are precached and offline launch is
   // guaranteed; if not, the .catch() below simply skips them.
   './sdk/firebase-app.js','./sdk/firebase-auth.js','./sdk/firebase-firestore.js',
