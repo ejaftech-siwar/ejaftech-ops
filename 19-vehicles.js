@@ -274,9 +274,86 @@ function _vehSel(label, val, opts, onchange, extra){
     </select>${extra||""}</div>`;
 }
 
+// ═══ FLEET WORKING TOOLS (v262) ══════════════════════════════════════
+// A register of five vehicles reads fine as a plain list. A register of thirty
+// does not: finding one van means scrolling past twenty-nine, and the two that
+// are overdue are indistinguishable from the rest until you read every card.
+// Search, filter and a fleet summary are what turn the list into a tool.
+window._vehQ      = window._vehQ      || "";   // search text
+window._vehFilter = window._vehFilter || "all";// all | due | over | active | inactive
+window.vehSearch  = function(q){
+  window._vehQ = q || "";
+  // Repaint the list ALONE. Rebuilding the tab would take the caret out of the
+  // search box on the first keystroke, which makes the box unusable.
+  const el = document.getElementById("vehListBody");
+  if(el) el.innerHTML = vehListBodyHTML(); else render();
+};
+window.vehSetFilter = function(f){ window._vehFilter = f || "all"; render(); };
+
+// One place decides which vehicles are on screen, so the count in the header
+// and the cards below it can never disagree.
+function vehVisible(){
+  const q = String(window._vehQ||"").trim().toLowerCase();
+  const f = window._vehFilter || "all";
+  return (state.vehicles || []).slice()
+    .filter(v => {
+      if(q){
+        const hay = [v.name,v.plate,v.make,v.model,v.year,v.driver,v.licenceNo,v.notes]
+          .filter(Boolean).join(" ").toLowerCase();
+        if(hay.indexOf(q) < 0) return false;
+      }
+      if(f === "all") return true;
+      if(f === "active")   return (v.status||"active") === "active";
+      if(f === "inactive") return (v.status||"active") !== "active";
+      const al = vehAlerts(v);
+      if(f === "over") return al.some(a => a.sev === "over");
+      if(f === "due")  return al.length > 0;
+      return true;
+    })
+    .sort((a,b) => {
+      // Anything overdue rises to the top: the list should answer "what needs
+      // me today" before it answers "what do we own".
+      const sev = x => { const al = vehAlerts(x);
+        return al.some(a=>a.sev==="over") ? 0 : al.length ? 1 : 2; };
+      const d = sev(a) - sev(b);
+      if(d) return d;
+      return String(a.name||a.plate||"").localeCompare(String(b.name||b.plate||""));
+    });
+}
+
+// Fleet-wide numbers, so the manager sees the shape of the fleet before the detail.
+function vehFleetSummary(){
+  const all = state.vehicles || [];
+  const jobs = state.vehicleJobs || [];
+  let usd = 0, iqd = 0;
+  jobs.forEach(j => { const c = vehJobCost(j); usd += c.usd || 0; iqd += c.iqd || 0; });
+  const alerts = vehFleetAlerts();
+  return {
+    count: all.length,
+    active: all.filter(v => (v.status||"active") === "active").length,
+    over: alerts.filter(a => a.sev === "over").length,
+    soon: alerts.filter(a => a.sev === "soon").length,
+    jobs: jobs.length, usd, iqd,
+  };
+}
+
+function vehFilterPills(){
+  const s = vehFleetSummary();
+  const f = window._vehFilter || "all";
+  const pill = (k, label, n, colour) => `<button type="button" class="btn btn-sm"
+    onclick="vehSetFilter(${jsArg(k)})"
+    style="background:${f===k?(colour||"#1B3A6B"):"var(--card)"};color:${f===k?"#fff":"var(--fg)"};border:1px solid ${f===k?(colour||"#1B3A6B"):"var(--line)"};font-weight:${f===k?"700":"400"}">${escapeHtml(label)}${n!=null?` (${n})`:""}</button>`;
+  return `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
+    ${pill("all","All", s.count)}
+    ${s.over ? pill("over","Overdue", s.over, "#C62828") : ""}
+    ${(s.over+s.soon) ? pill("due","Needs attention", s.over+s.soon, "#E65100") : ""}
+    ${pill("active","In service", s.active)}
+    ${s.count-s.active ? pill("inactive","Off road", s.count-s.active, "#5E5E5E") : ""}
+  </div>`;
+}
+
 function renderVehicleList(){
-  const rows = (state.vehicles || []).slice()
-    .sort((a,b) => String(a.name||a.plate||"").localeCompare(String(b.name||b.plate||"")));
+  const sum = vehFleetSummary();
   const fleet = vehFleetAlerts();
   const over = fleet.filter(a => a.sev === "over").length;
   const soon = fleet.filter(a => a.sev === "soon").length;
@@ -298,10 +375,29 @@ function renderVehicleList(){
 
   <div class="card">
     <div class="card-title" style="display:flex;align-items:center;gap:8px">
-      \u{1F697} Fleet <span style="font-weight:400;color:var(--muted)">(${rows.length})</span>
+      \u{1F697} Fleet <span style="font-weight:400;color:var(--muted)">(${sum.count})</span>
       <button class="btn btn-sm btn-primary" style="margin-inline-start:auto;background:#C9A84C;color:#1B3A6B;font-weight:700" onclick="vehNew()">+ Add vehicle</button>
     </div>
-    ${rows.length ? `<div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">
+    <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--muted);margin-top:4px">
+      <span>\u{1F527} ${sum.jobs} job${sum.jobs===1?"":"s"} recorded</span>
+      ${(sum.usd||sum.iqd) ? `<span>\u{1F4B0} spent to date <strong style="color:var(--fg)">${escapeHtml(vehMoney(sum.usd, sum.iqd))}</strong></span>` : ""}
+    </div>
+    <input class="input" style="margin-top:9px" placeholder="\u{1F50D} Search by name, plate, driver or model\u2026"
+           value="${escapeHtml(window._vehQ||"")}" oninput="vehSearch(this.value)">
+    ${vehFilterPills()}
+    <div id="vehListBody">${vehListBodyHTML()}</div>
+  </div>`;
+}
+
+// The cards alone. Kept apart from the surrounding card so that typing in the
+// search box redraws THIS and nothing else — the box keeps focus and the
+// caret stays where the person left it.
+function vehListBodyHTML(){
+  const rows = vehVisible();
+  const total = (state.vehicles||[]).length;
+  if(!total) return `<div style="color:var(--muted);font-size:13px;margin-top:8px">No vehicles yet. Add the first one above.</div>`;
+  if(!rows.length) return `<div style="color:var(--muted);font-size:13px;margin-top:8px">Nothing matches that search or filter.</div>`;
+  return `${`<div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">
       ${rows.map(v => {
         const st = VEH_STATUS.find(s => s.k === v.status) || VEH_STATUS[0];
         const al = vehAlerts(v);
@@ -333,8 +429,7 @@ function renderVehicleList(){
           </div>
         </div>`;
       }).join("")}
-    </div>` : `<div style="color:var(--muted);font-size:13px;margin-top:8px">No vehicles yet. Add the first one above.</div>`}
-  </div>`;
+    </div>`}`;
 }
 
 function renderVehicleEdit(){
@@ -429,6 +524,18 @@ function renderVehicleJobs(){
   const tot = vehTotals(jobs);
   const al = vehAlerts(v);
 
+  const oil = vehOil(v);
+  const last = jobs.length ? jobs[0] : null;
+  // Cost per kilometre is the number that tells a manager whether a vehicle is
+  // worth keeping. It needs a distance travelled, so it appears only once the
+  // odometer has moved since the first recorded job.
+  const kmSpan = (()=>{
+    const odos = jobs.map(j=>vehNum(j.odometer)).filter(x=>x>0);
+    if(odos.length < 2) return 0;
+    return Math.max(...odos) - Math.min(...odos);
+  })();
+  const perKm = kmSpan > 0 && tot.usd ? (tot.usd / kmSpan) : 0;
+
   return `${_rptHero("\u{1F527}", vehLabel(v), "Maintenance history",
       "linear-gradient(135deg,#12324F 0%,#1B4F72 60%,#2874A6 100%)")}
 
@@ -439,9 +546,30 @@ function renderVehicleJobs(){
       <button class="btn btn-sm btn-secondary" onclick="vehEdit(${jsArg(v.id)})">Edit vehicle</button>
     </div>
     ${al.length ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:9px">${al.map(_vehAlertPill).join("")}</div>` : ""}
-    ${(tot.usd||tot.iqd) ? `<div style="margin-top:9px;font-size:12px">
-      Spent to date: <strong>${escapeHtml(vehMoney(tot.usd, tot.iqd))}</strong>
-      <span style="color:var(--muted)"> across ${tot.count} job${tot.count===1?"":"s"}</span></div>` : ""}
+  </div>
+
+  <div class="card">
+    <div class="card-title">\u{1F4CB} At a glance</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px">
+      ${[
+        v.odometer ? ["Odometer", vehNum(v.odometer).toLocaleString()+" km", ""] : null,
+        oil.remaining != null
+          ? ["Next oil change",
+             oil.remaining > 0 ? Math.round(oil.remaining).toLocaleString()+" km" : "overdue",
+             oil.due==="over" ? "#C62828" : oil.due==="soon" ? "#E65100" : "#2E7D32"]
+          : null,
+        oil.nextAtKm ? ["Due at", vehNum(oil.nextAtKm).toLocaleString()+" km", ""] : null,
+        last && last.date ? ["Last work", fmtDate(last.date), ""] : null,
+        ["Jobs", String(tot.count), ""],
+        (tot.usd||tot.iqd) ? ["Spent to date", vehMoney(tot.usd, tot.iqd), ""] : null,
+        perKm ? ["Cost per km", "USD " + perKm.toFixed(3), ""] : null,
+      ].filter(Boolean).map(([lb,val,col])=>`
+        <div style="flex:1;min-width:118px;border:1px solid var(--line);border-radius:10px;padding:9px 10px">
+          <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">${escapeHtml(lb)}</div>
+          <div style="font-size:15px;font-weight:800;margin-top:2px;${col?`color:${col}`:""}">${escapeHtml(val)}</div>
+        </div>`).join("")}
+    </div>
+    ${perKm ? `<div style="font-size:10px;color:var(--muted);margin-top:7px">Cost per km is USD spend over the ${kmSpan.toLocaleString()} km between the first and last recorded job. IQD costs are excluded from it, because the two currencies are never merged.</div>` : ""}
   </div>
 
   ${jobs.length ? jobs.map(j => {
