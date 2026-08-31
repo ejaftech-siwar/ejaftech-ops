@@ -425,6 +425,8 @@ head("11. FEATURE PRESERVATION");
     ["vehicle register","vehListBodyHTML"], ["fleet search","vehVisible"],
     ["fleet summary","vehFleetSummary"], ["oil interval tracking","function vehOil"],
     ["vehicle report","generateVehicleReport"],
+    ["overnight split","function daySegments"], ["range hours","function hoursInRange"],
+    ["shift end date","function shiftEndDate"],
     ["vehicle fleet register","function renderVehicles"], ["vehicle maintenance jobs","vehJobSave"],
     ["oil-change distance reminder","function vehOil"], ["vehicle due alerts","function vehAlerts"],
     ["vehicle maintenance report","generateVehicleReport"], ["vehicle doc series","VEHICLE_REPORT"],

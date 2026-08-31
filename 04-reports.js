@@ -564,7 +564,18 @@ function renderAnalytics(){
 
   // ── GitHub-style team activity heatmap (last 12 weeks) ──
   const _hmMap={}; let _hmTot=0,_hmMax=0;
-  visibleRows(state.daily).forEach(x=>{ if(x.date){ const v=(_hmMap[x.date]=(_hmMap[x.date]||0)+Number(x.duration||0)); _hmTot+=Number(x.duration||0); if(v>_hmMax)_hmMax=v; } });
+  // Each entry contributes to the day (or two days) it actually covered, so a
+  // night shift lights up both squares in the proportion worked. The running
+  // total is added per SEGMENT, not per entry, or a split shift would be
+  // counted twice.
+  visibleRows(state.daily).forEach(x=>{
+    daySegments(x).forEach(sg=>{
+      if(!sg.date) return;
+      const v=(_hmMap[sg.date]=(_hmMap[sg.date]||0)+sg.hours);
+      _hmTot+=sg.hours;
+      if(v>_hmMax)_hmMax=v;
+    });
+  });
   const _hmToday=new Date(); _hmToday.setHours(0,0,0,0);
   const _hmStart=new Date(_hmToday); _hmStart.setDate(_hmStart.getDate()-(_hmToday.getDay()+77));  // Sunday, 12 weeks back
   const _hmPal=["var(--line)","#CDE9CF","#8FD096","#4CAF50","#1B5E20"];
@@ -719,7 +730,10 @@ function renderExecutive(){
   const pv=new Date(now.getFullYear(),now.getMonth()-1,1);
   const mPrev=`${pv.getFullYear()}-${String(pv.getMonth()+1).padStart(2,"0")}`;
   const daily=state.daily||[];
-  const hrs=(m)=>daily.filter(r=>(r.date||"").startsWith(m)).reduce((a,b)=>a+Number(b.duration||0),0);
+  // A shift that starts on the 31st and ends on the 1st belongs to BOTH months,
+  // in the proportion actually worked. Filtering entries by their start date
+  // put the whole night in the wrong month at every month boundary.
+  const hrs=(m)=>hoursInRange(daily, m+"-01", m+"-31");
   const hNow=hrs(mNow), hPrev=hrs(mPrev);
   const delta=hPrev>0?Math.round((hNow-hPrev)/hPrev*100):null;
   const activeStaff=new Set(daily.filter(r=>(r.date||"").startsWith(mNow)).map(r=>r.employee).filter(Boolean)).size;

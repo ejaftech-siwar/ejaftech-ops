@@ -1106,6 +1106,81 @@ const timeToHrs=(s,e)=>{
   if(mins<0) mins+=24*60;  // overnight shift: end time is on the next calendar day
   return mins/60;
 };
+// ═══ OVERNIGHT SHIFTS SPLIT ACROSS THE TWO DAYS (v263) ════════════════════
+// A shift entered as 30/08 23:00 \u2192 05:00 is six hours of work, one of them on
+// the 30th and five on the 31st. Charging all six to the 30th made a month
+// boundary lie: a shift starting 31/08 and ending 01/09 put September's hours
+// into August, and the man-hours a client is invoiced for did not match the
+// nights the crew actually worked.
+//
+// The ENTRY is still one record \u2014 one task, one description, one project.
+// Splitting the record would break editing, numbering and deletion for no gain.
+// What changes is that anything asking "how many hours fell on this date" now
+// gets a truthful answer.
+//
+// Everything is computed in plain minutes and a UTC date step, so no local
+// timezone or daylight-saving rule can shift a boundary.
+const _MIN_DAY = 24*60;
+function _hm2min(t){
+  const m = /^(\d{1,2}):(\d{2})/.exec(String(t||""));
+  if(!m) return null;
+  const h = +m[1], mi = +m[2];
+  if(!(h>=0 && h<=23 && mi>=0 && mi<=59)) return null;
+  return h*60 + mi;
+}
+// Add whole days to a YYYY-MM-DD string without touching local time.
+function _dateAdd(dateStr, days){
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(dateStr||""));
+  if(!m) return dateStr || "";
+  const d = new Date(Date.UTC(+m[1], +m[2]-1, +m[3]));
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0,10);
+}
+// True when this entry runs past midnight.
+function isOvernight(r){
+  const s = _hm2min(r && r.start), e = _hm2min(r && r.end);
+  return s != null && e != null && e <= s;
+}
+// The date the shift ENDS on. Same day unless it crosses midnight.
+function shiftEndDate(r){
+  if(!r || !r.date) return "";
+  return isOvernight(r) ? _dateAdd(r.date, 1) : r.date;
+}
+// One entry \u2192 the days it actually touched, with the hours on each.
+// Always returns at least one segment so callers never special-case.
+function daySegments(r){
+  if(!r || !r.date) return [];
+  const s = _hm2min(r.start), e = _hm2min(r.end);
+  const total = Number(r.duration || 0);
+  // No usable clock times: the whole entry belongs to its own date, exactly as
+  // before. A typed duration with no times must not silently move.
+  if(s == null || e == null || !(total > 0)) return [{date:r.date, hours:total, part:false}];
+  if(e > s) return [{date:r.date, hours:(e-s)/60, part:false}];
+  const first  = (_MIN_DAY - s)/60;          // start \u2192 midnight
+  const second = e/60;                       // midnight \u2192 end
+  return [
+    {date:r.date,              hours:first,  part:true},
+    {date:_dateAdd(r.date,1),  hours:second, part:true},
+  ];
+}
+// Hours this ONE entry contributed to a given date.
+function hoursOnDate(r, date){
+  let h = 0;
+  daySegments(r).forEach(sg => { if(sg.date === date) h += sg.hours; });
+  return h;
+}
+// Hours a SET of entries contributed inside an inclusive date range. This is
+// the function every period total should use: a shift half inside the range
+// counts for its half, not for all of it and not for none.
+function hoursInRange(rows, from, to){
+  let h = 0;
+  (rows||[]).forEach(r => daySegments(r).forEach(sg => {
+    if((!from || sg.date >= from) && (!to || sg.date <= to)) h += sg.hours;
+  }));
+  return h;
+}
+Object.assign(window,{isOvernight, shiftEndDate, daySegments, hoursOnDate, hoursInRange, _dateAdd, _hm2min});
+
 const dayName=(d)=>d?["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][new Date(d).getDay()]:"";
 
 // Format a day count cleanly: 4.2222… → "4.2", 5 → "5", 4.0 → "4"

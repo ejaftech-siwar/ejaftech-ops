@@ -239,7 +239,7 @@ function dashProjectHealth(){
   const cards=projects.map(p=>{
     const nm=(p.name||"").trim();
     const mine=rowsAll.filter(x=>(x.project||"").trim()===nm);
-    const hrs=mine.filter(x=>_inRange(x.date,r)).reduce((s,x)=>s+Number(x.duration||0),0);
+    const hrs=hoursInRange(mine, r.from, r.to);
     const totalHrs=mine.reduce((s,x)=>s+Number(x.duration||0),0);
     const est=Number(p.estimatedHours||0);
     const pct=est>0?Math.round(totalHrs/est*100):null;
@@ -341,7 +341,12 @@ function dashMyDay(){
   if(!me) return "";
   const t=today();
   const mineToday=(state.daily||[]).filter(r=>r.employee===me&&r.date===t);
-  const hrs=mineToday.reduce((s,r)=>s+Number(r.duration||0),0);
+  // Today's figure counts only the hours that fell on TODAY. Two kinds of entry
+  // can contribute: one starting today (up to midnight) and one that began
+  // YESTERDAY and ran past midnight into today \u2014 which is why the source is
+  // every entry of this person, not only the ones dated today.
+  const mineAll=(state.daily||[]).filter(r=>r.employee===me);
+  const hrs=hoursInRange(mineAll, t, t);
   const r=_dashRange();
   const mineRange=(state.daily||[]).filter(x=>x.employee===me&&_inRange(x.date,r));
   const rangeHrs=mineRange.reduce((s,x)=>s+Number(x.duration||0),0);
@@ -516,7 +521,15 @@ function renderDashboard(){
   const _R=_dashRange(), _P=_prevRange();
   const _emps=(typeof visibleEmployees==="function")?visibleEmployees().filter(Boolean):[];
   const _mine=(rows)=>_emps.length?(rows||[]).filter(x=>_emps.includes(x.employee)):(rows||[]);
-  const _sum=(rows,f,rg)=>rg?_mine(rows).filter(x=>_inRange(x.date,rg)).reduce((s,x)=>s+Number(x[f]||0),0):null;
+  // Hours are summed through daySegments so a night shift contributes only the
+// part that actually fell inside the period. Every OTHER field keeps the plain
+// sum \u2014 a travel day or a per-diem is not divisible by a clock.
+const _sum=(rows,f,rg)=>{
+  if(!rg) return null;
+  const mine = _mine(rows);
+  if(f === "duration" && typeof hoursInRange === "function") return hoursInRange(mine, rg.from, rg.to);
+  return mine.filter(x=>_inRange(x.date,rg)).reduce((s,x)=>s+Number(x[f]||0),0);
+};
   const _pHrs=_sum(state.daily,"duration",_P);
   const _pOT =_sum(state.overtime,"hours",_P)||_sum(state.overtime,"duration",_P);
   const _pTr =_sum(state.travel,"days",_P);
@@ -713,6 +726,12 @@ function renderDailyLog(){
   if(typeof dailyForm.taskCategory === 'undefined') dailyForm.taskCategory = "";
   if(typeof dailyForm.taskSubcategory === 'undefined') dailyForm.taskSubcategory = "";
   const dur=timeToHrs(dailyForm.start,dailyForm.end);
+  // Say plainly that the shift runs into the next day, and how the hours land.
+  // A person entering 23:00 \u2192 05:00 should not have to work out whether the
+  // app understood them.
+  const _ovn = (typeof isOvernight==="function") && isOvernight(dailyForm);
+  const _seg = _ovn && typeof daySegments==="function"
+    ? daySegments({...dailyForm, duration:dur}) : null;
   const dept=projDept(dailyForm.project);
   // Use the UNIFIED global filters (employees/branch/staff-dept/task-dept/projects/locations)
   // plus the local "# Entry" filter which only makes sense here in the Daily Log.
@@ -884,6 +903,13 @@ function renderDailyLog(){
       </div>` : ''}
       <div class="field"><label>Duration</label>
         <div class="auto green ${dur>0?"":"empty"}">${dur>0?fmtHM(dur):"—"}</div></div>
+        ${_ovn && _seg ? `<div class="field full" style="margin-top:-4px">
+          <div style="background:rgba(21,101,192,.10);border:1px solid #1565C0;color:#1565C0;border-radius:8px;padding:7px 10px;font-size:11.5px;line-height:1.6">
+            \u{1F319} <b>Overnight shift</b> \u2014 ends ${escapeHtml(fmtDate(shiftEndDate(dailyForm)))}.
+            The hours are counted on the day each one was worked:
+            <b>${escapeHtml(fmtHM(_seg[0].hours))}</b> on ${escapeHtml(fmtDate(_seg[0].date))},
+            <b>${escapeHtml(fmtHM(_seg[1].hours))}</b> on ${escapeHtml(fmtDate(_seg[1].date))}.
+          </div></div>` : ""}
       <div class="field"><label>Dept (auto)</label>
         <div class="auto purple ${dept?"":"empty"}">${dept||"—"}</div></div>
       <div class="field full"><label>Notes</label>
