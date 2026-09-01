@@ -186,9 +186,9 @@ async function saveLoc(){
   }
   if(oldName && !isAdmin()) return toast("Only Admin can rename locations");
   if(oldName){
-    const affected = state.daily.filter(r=>r.location===oldName).length
-      + state.overtime.filter(r=>r.location===oldName).length
-      + state.travel.filter(r=>r.location===oldName).length;
+    const affected = state.daily.filter(r=>hasPlace(r,"location",oldName)).length
+      + state.overtime.filter(r=>hasPlace(r,"location",oldName)).length
+      + state.travel.filter(r=>hasPlace(r,"location",oldName)).length;
     if(affected > 0 && !await uiConfirm(`Rename "${oldName}" → "${name}"?\n\nThis will update ${affected} record(s).\n\nThis cannot be undone.`)) return;
   }
 

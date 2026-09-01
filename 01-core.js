@@ -1181,6 +1181,52 @@ function hoursInRange(rows, from, to){
 }
 Object.assign(window,{isOvernight, shiftEndDate, daySegments, hoursOnDate, hoursInRange, _dateAdd, _hm2min});
 
+// ═══ SEVERAL PLACES IN ONE DAY (v264) ════════════════════════════════
+// A technician often covers two or three sites in a day. One location field
+// forced a choice: split the work into entries that did not happen separately,
+// or name one site and lose the others.
+//
+// The entry now carries a LIST. The single field is kept alongside it, holding
+// the same names joined with a comma, because roughly two hundred places in
+// this app read `r.location` \u2014 reports, exports, filters, the client portal.
+// Rewriting all of them would risk far more than this feature is worth, and a
+// record written by the new form still reads correctly in every one of them.
+//
+// The list is the truth; the string is the readable copy of it.
+const PLACE_SEP = ", ";
+function placeList(r, field){
+  if(!r) return [];
+  const arr = r[field + "s"];                     // locations / sites / areas
+  if(Array.isArray(arr)) return arr.map(x=>String(x||"").trim()).filter(Boolean);
+  const one = String(r[field] || "").trim();
+  if(!one) return [];
+  // An older record holds a single name, which may itself contain a comma
+  // ("Erbil, Ainkawa" as ONE site name). Only split when there is a companion
+  // list absent AND the string looks like a list this app wrote.
+  return [one];
+}
+function placeText(list){
+  return (list||[]).map(x=>String(x||"").trim()).filter(Boolean).join(PLACE_SEP);
+}
+// Does this entry involve the named place? Used by every filter, so a person
+// who worked at three sites appears under each of them.
+function hasPlace(r, field, value){
+  const want = String(value||"").trim();
+  if(!want) return true;
+  const list = placeList(r, field);
+  if(list.length) return list.some(x => x === want);
+  return String(r && r[field] || "").trim() === want;
+}
+// Write both representations at once, so they can never drift apart.
+function setPlaces(obj, field, list){
+  const clean = (list||[]).map(x=>String(x||"").trim()).filter(Boolean);
+  const uniq = Array.from(new Set(clean));
+  obj[field + "s"] = uniq;
+  obj[field] = placeText(uniq);
+  return uniq;
+}
+Object.assign(window,{PLACE_SEP, placeList, placeText, hasPlace, setPlaces});
+
 const dayName=(d)=>d?["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][new Date(d).getDay()]:"";
 
 // Format a day count cleanly: 4.2222… → "4.2", 5 → "5", 4.0 → "4"
@@ -1771,7 +1817,10 @@ function applyReportFilters(rows, dateField="date"){
   const pf = state.globalProjectFilter || "";
   if(pf) out = out.filter(r => !("project" in r) || r.project === pf); // 3. project (skip if field absent)
   const lf = state.globalLocationFilter || "";
-  if(lf) out = out.filter(r => !("location" in r) || r.location === lf); // 4. location (skip if field absent)
+  // A day split across three sites must appear under EACH of them, so the
+  // match is against the list rather than the joined string. This is the one
+  // filter every report ultimately runs through.
+  if(lf) out = out.filter(r => !("location" in r || "locations" in r) || hasPlace(r, "location", lf)); // 4. location
   const bf = state.globalBranchFilter || "";
   if(bf){                                              // 5. branch (map employee → branch via users + nametags)
     const branchEmployees = new Set([

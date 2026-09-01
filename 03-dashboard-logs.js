@@ -134,6 +134,85 @@ function _prevRange(){
 }
 const _inRange=(d,r)=>d && String(d)>=r.from && String(d)<=r.to;
 
+// ═══ MULTI-PLACE PICKER (v264) ═══════════════════════════════════
+// Tapping a name adds it; tapping the chip removes it. No modal, no second
+// screen, and the order the person picks them in is the order they are stored,
+// because that is usually the order the sites were actually visited.
+window.placeToggle = function(formName, field, name){
+  const form = window[formName];
+  if(!form) return;
+  const cur = placeList(form, field);
+  const i = cur.indexOf(name);
+  if(i >= 0) cur.splice(i,1); else cur.push(name);
+  setPlaces(form, field, cur);
+  // Sites belong to areas. Dropping an area must drop the sites that lived
+  // inside it, or the entry keeps claiming a site the person can no longer see
+  // and the record contradicts itself.
+  if(field === "area" && typeof pruneSitesToAreas === "function") pruneSitesToAreas(form);
+  if(field === "area"){ render(); return; }   // the site list itself changes
+  // Repaint the picker alone: rebuilding the form would close the keyboard and
+  // lose the caret in whatever field the person was typing in.
+  const el = document.getElementById("pick_" + formName + "_" + field);
+  if(el) el.outerHTML = placePicker(formName, field, window["_placeOpts_"+field] || []);
+  else render();
+};
+window.placeClear = function(formName, field){
+  const form = window[formName]; if(!form) return;
+  setPlaces(form, field, []);
+  if(field === "area"){
+    if(typeof pruneSitesToAreas === "function") pruneSitesToAreas(form);
+    render(); return;
+  }
+  const el = document.getElementById("pick_" + formName + "_" + field);
+  if(el) el.outerHTML = placePicker(formName, field, window["_placeOpts_"+field] || []);
+  else render();
+};
+function placePicker(formName, field, options, label){
+  const form = window[formName] || {};
+  const chosen = placeList(form, field);
+  window["_placeOpts_"+field] = options;
+  const opts = (options||[]).map(o=>String(o||"").trim()).filter(Boolean);
+  return `<div id="pick_${escapeHtml(formName)}_${escapeHtml(field)}" class="field full">
+    <label>${escapeHtml(label || (field.charAt(0).toUpperCase()+field.slice(1)))}
+      ${chosen.length>1?`<span style="color:#1565C0;font-weight:700"> \u00b7 ${chosen.length} selected</span>`:""}</label>
+    <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:6px">
+      ${opts.map(o=>{
+        const on = chosen.includes(o);
+        return `<button type="button" class="btn btn-sm" onclick="placeToggle(${jsArg(formName)},${jsArg(field)},${jsArg(o)})"
+          style="background:${on?"#1B3A6B":"var(--card)"};color:${on?"#fff":"var(--fg)"};border:1px solid ${on?"#1B3A6B":"var(--line)"};font-weight:${on?"700":"400"}">${on?"\u2713 ":""}${escapeHtml(o)}</button>`;
+      }).join("")}
+      ${chosen.length?`<button type="button" class="btn btn-sm" onclick="placeClear(${jsArg(formName)},${jsArg(field)})" style="background:#FDECEA;color:#C62828;border:none">Clear</button>`:""}
+    </div>
+    <div style="font-size:11px;color:var(--muted)">
+      ${chosen.length
+        ? `Recorded as <b>${escapeHtml(placeText(chosen))}</b>${chosen.length>1?" \u2014 this entry counts under each of them":""}`
+        : "Tap one or more \u2014 a day spent across several is recorded as such."}
+    </div>
+  </div>`;
+}
+// Sites available across ALL the areas chosen — a technician who covered two
+// areas can pick from the sites of both.
+function sitesForForm(form){
+  const proj = (state.projects||[]).find(p=>(p.name||"").trim()===((form&&form.project)||"").trim());
+  if(!proj) return [];
+  const areas = (typeof getProjectAreas==="function" ? getProjectAreas(proj) : [])
+    .filter(a=>a.active!==false);
+  const chosen = placeList(form, "area");
+  const pool = chosen.length ? areas.filter(a=>chosen.includes(a.name)) : [];
+  const out = [];
+  pool.forEach(a => (a.sites||[]).filter(s=>s.active!==false)
+    .forEach(s => { const n=(s.name||"").trim(); if(n && !out.includes(n)) out.push(n); }));
+  return out;
+}
+// Remove any selected site that no longer belongs to a selected area.
+function pruneSitesToAreas(form){
+  if(!form) return;
+  const allowed = sitesForForm(form);
+  const kept = placeList(form, "site").filter(s => allowed.includes(s));
+  setPlaces(form, "site", kept);
+}
+Object.assign(window,{placePicker, sitesForForm, pruneSitesToAreas});
+
 // ── 2 · trend chip + sparkline ────────────────────────────────────────
 function _trendChip(cur,prev){
   if(prev===null||prev===undefined) return "";        // period unbounded — no baseline
@@ -766,7 +845,7 @@ function renderDailyLog(){
   const empOptions=allEmployees();
   // Location stats (hours by location) — respect active period
   const locStats = state.locations.map(l=>{
-    const items = filterByPeriod(visibleRows(state.daily)).filter(r=>r.location===l.name);
+    const items = filterByPeriod(visibleRows(state.daily)).filter(r=>hasPlace(r,"location",l.name));
     const hours = items.reduce((s,r)=>s+Number(r.duration||0),0);
     return {name:l.name, count:items.length, hours};
   }).filter(l=>l.count>0);
@@ -813,33 +892,32 @@ function renderDailyLog(){
       ${(()=>{
         const proj = state.projects.find(p=>(p.name||"").trim()===(dailyForm.project||"").trim());
         const areas = proj ? getProjectAreas(proj) : [];
-        const activeAreas = areas.filter(a=>a.active!==false);  // only active areas
-        if(activeAreas.length===0) return "";  // project has no areas → skip
-        const selArea = activeAreas.find(a=>a.name===dailyForm.area);
-        const sites = (selArea?.sites||[]).filter(s=>s.active!==false);  // only active sites
+        const activeAreas = areas.filter(a=>a.active!==false);
+        if(activeAreas.length===0) return "";                    // project has no areas
         const siteReq = !isAdmin() && getEmpPermissions(dailyForm.employee||state.profile.employeeName||"").equipmentRequired;
+        const sites = sitesForForm(dailyForm);
+        const chosenAreas = placeList(dailyForm,"area");
         return `
-      <div class="field full"><label>🗺️ Area ${siteReq?'<span class="req">*</span>':'<span style="font-size:10px;color:var(--muted)">(optional)</span>'}</label>
-        <select onchange="window.dailyForm.area=this.value;window.dailyForm.site='';render()">
-          <option value="">— Select Area —</option>
-          ${activeAreas.map(a=>`<option value="${escapeHtml(a.name)}" ${a.name===(dailyForm.area||"")?"selected":""}>${escapeHtml(a.name)}</option>`).join("")}
-        </select></div>
-      ${dailyForm.area && sites.length>0 ? `
-      <div class="field full"><label>📍 Site ${siteReq?'<span class="req">*</span>':'<span style="font-size:10px;color:var(--muted)">(optional)</span>'}</label>
-        <select onchange="window.dailyForm.site=this.value;render()">
-          <option value="">— Select Site —</option>
-          ${sites.map(s=>`<option value="${escapeHtml(s.name)}" ${s.name===(dailyForm.site||"")?"selected":""}>${escapeHtml(s.name)}</option>`).join("")}
-        </select></div>` : (dailyForm.area ? `<div class="field full"><div style="font-size:11px;color:#888;padding:6px 10px;background:#F7F7F7;border-radius:8px">No active sites in this area.</div></div>` : '')}`;
+      ${placePicker("dailyForm","area", activeAreas.map(a=>a.name), "\u{1F5FA}\uFE0F Area" + (siteReq?" *":" (optional)"))}
+      ${chosenAreas.length && sites.length
+        ? placePicker("dailyForm","site", sites, "\u{1F4CD} Site" + (siteReq?" *":" (optional)"))
+        : (chosenAreas.length
+            ? `<div class="field full"><div style="font-size:11px;color:#888;padding:6px 10px;background:#F7F7F7;border-radius:8px">No sites registered under the chosen area${chosenAreas.length>1?"s":""}.</div></div>`
+            : "")}`;
       })()}
       ${(()=>{
         // ── Device Tracking: only for employees granted the permission (admin always sees it) ──
         const emp = dailyForm.employee || state.profile.employeeName || "";
         const perms = getEmpPermissions(emp);
         if(!isAdmin() && !perms.deviceTracking) return "";  // hidden unless permitted
-        if(!dailyForm.site) return "";  // need a site first to filter devices
+        // Device tracking is per site. With several chosen, the first drives
+        // the device list — a device belongs to one site, so there is no
+        // meaningful union to show.
+        const _devSite = placeList(dailyForm,"site")[0] || "";
+        if(!_devSite) return "";
         // Devices that belong to the chosen project + site
         const siteDevices = (state.devices||[]).filter(d=>
-          (d.project||"")===(dailyForm.project||"") && (d.site||"")===(dailyForm.site||"")
+          (d.project||"")===(dailyForm.project||"") && (d.site||"")===_devSite
         );
         if(siteDevices.length===0) return `<div class="field full"><div style="font-size:11px;color:#888;padding:6px 10px;background:#F7F7F7;border-radius:8px">📟 No devices registered at this site.</div></div>`;
         const canFull = isAdmin() || perms.fullDeviceEdit;
@@ -886,11 +964,7 @@ function renderDailyLog(){
         <input type="time" value="${dailyForm.start}" onchange="window.dailyForm.start=this.value;render()"></div>
       <div class="field"><label>End</label>
         <input type="time" value="${dailyForm.end}" onchange="window.dailyForm.end=this.value;render()"></div>
-      <div class="field full"><label>Location <span class="req">*</span></label>
-        <select onchange="window.dailyForm.location=this.value;render()">
-          <option value="">— Select Location —</option>
-          ${state.locations.map(l=>{const n=(l.name||"").trim();return `<option value="${escapeHtml(n)}" ${n===(dailyForm.location||"").trim()?"selected":""}>${escapeHtml(n)}</option>`}).join("")}
-        </select></div>
+      ${placePicker("dailyForm","location",(state.locations||[]).map(l=>(l.name||"").trim()).filter(Boolean),"Location *")}
       ${!isAdmin() && !dailyEditId && getEmpPermissions(dailyForm.employee||state.profile.employeeName||"").gpsRequired ? `
       <div class="field full">
         <div style="display:flex;align-items:center;gap:8px;padding:9px 12px;background:#E8F5E9;border:1px solid #A5D6A7;border-radius:8px;font-size:12px;color:#2E7D32">
@@ -1129,10 +1203,14 @@ async function saveDaily(){
     const proj = state.projects.find(p=>(p.name||"").trim()===(dailyForm.project||"").trim());
     const areas = proj ? getProjectAreas(proj).filter(a=>a.active!==false) : [];
     if(areas.length > 0){
-      if(!dailyForm.area) return toast("⚠ Please select an Area (required)");
-      const selArea = areas.find(a=>a.name===dailyForm.area);
-      const sites = (selArea?.sites||[]).filter(s=>s.active!==false);
-      if(sites.length > 0 && !dailyForm.site){
+      // Several areas may be chosen, so the check is on the LIST being empty
+      // rather than on one field being blank.
+      const chosenAreas = placeList(dailyForm, "area");
+      if(!chosenAreas.length) return toast("⚠ Please select an Area (required)");
+      // Sites are demanded only where the chosen areas actually have any. An
+      // area with no registered sites must not block a legitimate entry.
+      const availSites = sitesForForm(dailyForm);
+      if(availSites.length > 0 && !placeList(dailyForm, "site").length){
         return toast("⚠ Please select a Site (required)");
       }
     }
@@ -1583,7 +1661,7 @@ function renderOvertime(){
       <div class="field"><label>Day (auto)</label><div class="auto green ${day?"":"empty"}">${day||"—"}</div></div>
       <div class="field full"><label>Project</label><select onchange="window.otForm.project=this.value;render()"><option value="">— Select —</option>${state.projects.map(p=>{const n=(p.name||"").trim();return `<option value="${escapeHtml(n)}" ${n===(otForm.project||"").trim()?"selected":""}>${escapeHtml(n)}</option>`}).join("")}</select></div>
       <div class="field"><label>Dept (auto)</label><div class="auto purple ${dept?"":"empty"}">${dept||"—"}</div></div>
-      <div class="field"><label>Location</label><select onchange="window.otForm.location=this.value"><option value="">— Select —</option>${state.locations.map(l=>{const n=(l.name||"").trim();return `<option value="${escapeHtml(n)}" ${n===(otForm.location||"").trim()?"selected":""}>${escapeHtml(n)}</option>`}).join("")}</select></div>
+      ${placePicker("otForm","location",(state.locations||[]).map(l=>(l.name||"").trim()).filter(Boolean),"Location")}
       <div class="field full"><label>Notes</label><input value="${escapeHtml(otForm.notes||"")}" oninput="window.otForm.notes=this.value" placeholder="Optional"></div>
     </div>
     <div class="btn-row">
@@ -1705,7 +1783,7 @@ function renderTravel(){
       <div class="field"><label>Per Diem (auto)</label><div class="auto yellow ${pd>0?"":"empty"}">${pd>0?fmtMoney(pd)+" IQD":"—"}</div></div>
       <div class="field full"><label>Project</label><select onchange="window.trForm.project=this.value;render()"><option value="">— Select —</option>${state.projects.map(p=>{const n=(p.name||"").trim();return `<option value="${escapeHtml(n)}" ${n===(trForm.project||"").trim()?"selected":""}>${escapeHtml(n)}</option>`}).join("")}</select></div>
       <div class="field"><label>Dept (auto)</label><div class="auto purple ${dept?"":"empty"}">${dept||"—"}</div></div>
-      <div class="field"><label>Location</label><select onchange="window.trForm.location=this.value"><option value="">— Select —</option>${state.locations.map(l=>{const n=(l.name||"").trim();return `<option value="${escapeHtml(n)}" ${n===(trForm.location||"").trim()?"selected":""}>${escapeHtml(n)}</option>`}).join("")}</select></div>
+      ${placePicker("trForm","location",(state.locations||[]).map(l=>(l.name||"").trim()).filter(Boolean),"Location")}
       <div class="field"><label>Per Diem Status</label><select onchange="window.trForm.perDiemStatus=this.value;render()">
         <option value="received" ${(trForm.perDiemStatus||"received")==="received"?"selected":""}>✅ Received</option>
         <option value="not_received" ${trForm.perDiemStatus==="not_received"?"selected":""}>❌ Not Received</option>
