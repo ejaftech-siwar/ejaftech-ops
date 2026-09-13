@@ -167,26 +167,35 @@ window.placeClear = function(formName, field){
   if(el) el.outerHTML = placePicker(formName, field, window["_placeOpts_"+field] || []);
   else render();
 };
+// A grid of buttons was readable with four locations and a wall with fourteen.
+// It is a DROPDOWN that adds, with a chip for each place already chosen \u2014 the
+// list stays one line tall however many places exist, and what is selected is
+// still visible at a glance.
 function placePicker(formName, field, options, label){
   const form = window[formName] || {};
   const chosen = placeList(form, field);
   window["_placeOpts_"+field] = options;
   const opts = (options||[]).map(o=>String(o||"").trim()).filter(Boolean);
+  const left = opts.filter(o=>!chosen.includes(o));
   return `<div id="pick_${escapeHtml(formName)}_${escapeHtml(field)}" class="field full">
     <label>${escapeHtml(label || (field.charAt(0).toUpperCase()+field.slice(1)))}
       ${chosen.length>1?`<span style="color:#1565C0;font-weight:700"> \u00b7 ${chosen.length} selected</span>`:""}</label>
-    <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:6px">
-      ${opts.map(o=>{
-        const on = chosen.includes(o);
-        return `<button type="button" class="btn btn-sm" onclick="placeToggle(${jsArg(formName)},${jsArg(field)},${jsArg(o)})"
-          style="background:${on?"#1B3A6B":"var(--card)"};color:${on?"#fff":"var(--fg)"};border:1px solid ${on?"#1B3A6B":"var(--line)"};font-weight:${on?"700":"400"}">${on?"\u2713 ":""}${escapeHtml(o)}</button>`;
-      }).join("")}
-      ${chosen.length?`<button type="button" class="btn btn-sm" onclick="placeClear(${jsArg(formName)},${jsArg(field)})" style="background:#FDECEA;color:#C62828;border:none">Clear</button>`:""}
-    </div>
-    <div style="font-size:11px;color:var(--muted)">
+    ${chosen.length?`<div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:7px">
+      ${chosen.map(c=>`<span style="display:inline-flex;align-items:center;gap:6px;background:#1B3A6B;color:#fff;border-radius:16px;padding:4px 6px 4px 11px;font-size:12px;font-weight:600">
+        ${escapeHtml(c)}
+        <button type="button" onclick="placeToggle(${jsArg(formName)},${jsArg(field)},${jsArg(c)})"
+          style="background:rgba(255,255,255,.22);color:#fff;border:none;border-radius:50%;width:19px;height:19px;line-height:1;padding:0;cursor:pointer;font-size:12px">\u00d7</button>
+      </span>`).join("")}
+      ${chosen.length>1?`<button type="button" class="btn btn-sm" onclick="placeClear(${jsArg(formName)},${jsArg(field)})" style="background:#FDECEA;color:#C62828;border:none">Clear all</button>`:""}
+    </div>`:""}
+    ${left.length?`<select onchange="if(this.value){placeToggle(${jsArg(formName)},${jsArg(field)},this.value);}this.value='';">
+      <option value="">${chosen.length?"\u2795 Add another\u2026":"\u2014 Select \u2014"}</option>
+      ${left.map(o=>`<option value="${escapeHtml(o)}">${escapeHtml(o)}</option>`).join("")}
+    </select>`:`<div style="font-size:11px;color:var(--muted);padding:6px 0">All available have been added.</div>`}
+    <div style="font-size:11px;color:var(--muted);margin-top:5px">
       ${chosen.length
         ? `Recorded as <b>${escapeHtml(placeText(chosen))}</b>${chosen.length>1?" \u2014 this entry counts under each of them":""}`
-        : "Tap one or more \u2014 a day spent across several is recorded as such."}
+        : "Choose one, then add more if the day covered several."}
     </div>
   </div>`;
 }
@@ -292,7 +301,7 @@ function dashFieldToday(){
     <div class="dsh-head"><span class="dsh-h1">📍 Today in the field</span></div>
     <div class="dsh-h2">${list.length} active${silent.length?` · ${silent.length} not logged yet`:""}</div>
     ${list.length?`<div style="display:grid;gap:7px;margin-top:8px">
-      ${list.map(a=>`<button class="dsh-row" onclick="dashOpenEmployee('${escapeHtml(a.emp).replace(/'/g,"\\'")}')">
+      ${list.map(a=>`<button class="dsh-row" onclick="dashOpenEmployee(${jsArg(a.emp)})">
         <span class="dsh-dot" style="background:#2E7D32"></span>
         <span style="flex:1;min-width:0">
           <span style="font-weight:700;font-size:13px;color:var(--text)">${escapeHtml(a.emp)}</span>
@@ -361,7 +370,7 @@ function dashProjectHealth(){
     <div class="dsh-head"><span class="dsh-h1">🏗 Project health</span>${cards.length>6?`<span class="dsh-count">${cards.length}</span>`:""}</div>
     <div class="dsh-h2">${shown.length===cards.length?`${cards.length} active project${cards.length>1?"s":""}`:`showing ${shown.length} of ${cards.length} — those needing attention first`}</div>
     <div style="display:grid;gap:8px;margin-top:8px">
-      ${shown.map(c=>`<button class="dsh-proj" style="border-left-color:${RC[c.rag]}" onclick="dashOpenProject('${escapeHtml(c.nm).replace(/'/g,"\\'")}')">
+      ${shown.map(c=>`<button class="dsh-proj" style="border-left-color:${RC[c.rag]}" onclick="dashOpenProject(${jsArg(c.nm)})">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
           <span style="font-weight:700;font-size:13px;color:var(--text)">${escapeHtml(c.nm)}</span>
           <span style="font-size:12px;font-weight:700;color:${RC[c.rag]}">${fmtHM(c.hrs)}</span>
@@ -401,7 +410,7 @@ function dashProblemDevices(){
     <div style="display:grid;gap:7px;margin-top:8px">
       ${top.map(d=>{
         const dev=(state.devices||[]).find(x=>x.serialNumber===d.sn);
-        return `<button class="dsh-row" onclick="window.incProjFilter='${escapeHtml(d.project||"").replace(/'/g,"\\'")}';switchTab('Incidents')">
+        return `<button class="dsh-row" onclick="window.incProjFilter=${jsArg(d.project||"")};switchTab('Incidents')">
           <span class="dsh-dot" style="background:#C62828"></span>
           <span style="flex:1;min-width:0">
             <span style="font-weight:700;font-size:13px;color:var(--text)">${escapeHtml(dev?(dev.deviceName||dev.model||d.sn):d.sn)}</span>
@@ -481,6 +490,24 @@ window.dashOpenEmployee=function(name){
     if(el) el.scrollIntoView({behavior:"smooth",block:"start"});
   },300);
 };
+// Open the records behind a headline figure. The dashboard's own period stays
+// applied, so the list adds up to the number that was tapped.
+window.dashDrill = function(kind){
+  const tab = (kind === "overtime") ? "Overtime"
+            : (kind === "travel" || kind === "perdiem") ? "Travel"
+            : "Daily Log";
+  // Per diem is recorded ON travel entries, so the Travel tab is where it is
+  // read; the flag lets that screen lead with the per-diem column.
+  window._trvFocusPerDiem = (kind === "perdiem");
+  switchTab(tab);
+  setTimeout(()=>{
+    const el = document.getElementById(
+      kind === "overtime" ? "otListTop" :
+      (kind === "travel" || kind === "perdiem") ? "trListTop" : "dailyListTop");
+    if(el) el.scrollIntoView({behavior:"smooth", block:"start"});
+  }, 300);
+};
+
 // Stalled work items: a triage list you can actually act on
 window._showStalled=false;
 window.dashShowStalled=function(){
@@ -522,12 +549,12 @@ function dashStalledPanel(){
     ${list.length?`<div style="display:grid;gap:7px;margin-top:9px">
       ${list.slice(0,25).map(w=>`<div class="dsh-row" style="cursor:default">
         <span class="dsh-dot" style="background:var(--warn)"></span>
-        <span style="flex:1;min-width:0;cursor:pointer" onclick="dashOpenWorkItem('${escapeHtml(w.key).replace(/'/g,"\\'")}')">
+        <span style="flex:1;min-width:0;cursor:pointer" onclick="dashOpenWorkItem(${jsArg(w.key)})">
           <span style="font-weight:700;font-size:var(--f-lg);color:var(--text)">${escapeHtml(w.title)}</span>
           <span style="display:block;font-size:var(--f-sm);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(w.scopeLabel||"—")} · ${escapeHtml(w.status)}</span>
           <span style="display:block;font-size:var(--f-2xs);color:var(--muted);margin-top:2px">${w.visits} entr${w.visits===1?"y":"ies"} · idle ${days(w.lastDate)}d · last ${fmtDate(w.lastDate)}</span>
         </span>
-        <button class="btn btn-sm" style="background:var(--ok);color:#fff;border:none;font-weight:700;white-space:nowrap;flex:0 0 auto" onclick="closeWorkItem('${escapeHtml(w.key).replace(/'/g,"\\'")}')">✓ Close job</button>
+        <button class="btn btn-sm" style="background:var(--ok);color:#fff;border:none;font-weight:700;white-space:nowrap;flex:0 0 auto" onclick="closeWorkItem(${jsArg(w.key)})">✓ Close job</button>
       </div>`).join("")}
     </div>${list.length>25?`<div style="font-size:11px;color:var(--muted);margin-top:7px">Showing the 25 longest-idle of ${list.length}.</div>`:""}`
     :`<div class="empty empty2" style="margin-top:8px"><span class="e-ic">✅</span><div class="e-t">Nothing stalled</div><div class="e-m">Every open job has been visited recently</div></div>`}
@@ -613,18 +640,22 @@ const _sum=(rows,f,rg)=>{
   const _pOT =_sum(state.overtime,"hours",_P)||_sum(state.overtime,"duration",_P);
   const _pTr =_sum(state.travel,"days",_P);
   const _pPD =_sum(state.travel,"perDiem",_P);
-  const _kpi=(accent,label,val,fmt,sub,prev,cur,series)=>`
-    <div class="kpi" style="--accent:${accent}">
-      <div class="kpi-label">${label}</div>
+  // Each headline figure opens the records behind it. A number a manager cannot
+  // drill into is a number they must take on trust, and "447 hours" raises the
+  // question "whose, and on what" every single time.
+  const _kpi=(accent,label,val,fmt,sub,prev,cur,series,go)=>`
+    <div class="kpi" style="--accent:${accent};${go?"cursor:pointer":""}"
+         ${go?`onclick="dashDrill(${jsArg(go)})" title="Tap to see the entries behind this figure"`:""}>
+      <div class="kpi-label">${label}${go?` <span style="opacity:.5;font-weight:400">\u203A</span>`:""}</div>
       <div class="kpi-value"><span class="cnt" data-v="${val}" data-fmt="${fmt}">${fmt==="hm"?"0:00":"0"}</span></div>
       <div class="kpi-sub">${sub} ${_trendChip(cur,prev)}</div>
       ${_sparkline(series,accent)}
     </div>`;
   let h = (typeof partialDataNotice==="function"?partialDataNotice():"") + hero + exportBar + (isEmployee()&&typeof dashMyDay==="function"?dashMyDay():"") + `<div class="kpi-grid">
-    ${_kpi("#2E5FA3","Total Hours",tHrs,"hm",isEmployee()?"your hours":apprFilter(applyReportFilters(visibleRows(state.daily))).length+" sessions",_pHrs,tHrs,_dailySeries(_mine(state.daily),"duration",_R))}
-    ${_kpi("#E65100","Overtime",tOT,"hm",applyReportFilters(visibleRows(state.overtime)).length+" entries",_pOT,tOT,_dailySeries(_mine(state.overtime),"hours",_R))}
-    ${_kpi("#2E7D32","Travel Days",tTr,"int",applyReportFilters(visibleRows(state.travel)).length+" trips",_pTr,tTr,_dailySeries(_mine(state.travel),"days",_R))}
-    ${_kpi("#6A1B9A","Per Diem",tPD,"money","IQD total",_pPD,tPD,_dailySeries(_mine(state.travel),"perDiem",_R))}
+    ${_kpi("#2E5FA3","Total Hours",tHrs,"hm",isEmployee()?"your hours":apprFilter(applyReportFilters(visibleRows(state.daily))).length+" sessions",_pHrs,tHrs,_dailySeries(_mine(state.daily),"duration",_R),'daily')}
+    ${_kpi("#E65100","Overtime",tOT,"hm",applyReportFilters(visibleRows(state.overtime)).length+" entries",_pOT,tOT,_dailySeries(_mine(state.overtime),"hours",_R),'overtime')}
+    ${_kpi("#2E7D32","Travel Days",tTr,"int",applyReportFilters(visibleRows(state.travel)).length+" trips",_pTr,tTr,_dailySeries(_mine(state.travel),"days",_R),'travel')}
+    ${_kpi("#6A1B9A","Per Diem",tPD,"money","IQD total",_pPD,tPD,_dailySeries(_mine(state.travel),"perDiem",_R),'perdiem')}
   </div>`;
   // ── the operational picture, above the historical charts ──
   if(!isEmployee()){
@@ -1673,7 +1704,7 @@ function renderOvertime(){
   ${renderEmployeeFilterUI("Filter Overtime")}
 
   <div class="card">
-    <div class="filter-row"><span class="card-title" style="margin:0">Overtime Log</span><span class="count-pill">${rows.length}</span></div>
+    <div id="otListTop"></div><div class="filter-row"><span class="card-title" style="margin:0">Overtime Log</span><span class="count-pill">${rows.length}</span></div>
     <div class="tbl-wrap"><table class="tbl">
       <thead><tr>${!isEmployee()?"<th>Employee</th>":""}<th>Date</th><th>Day</th><th>Hrs</th><th>Project</th><th>Location</th><th></th></tr></thead>
       <tbody>${rows.length===0?`<tr><td colspan="7" class="empty empty2"><span class="e-ic">⏰</span><div class="e-t">No overtime recorded</div><div class="e-m">Overtime you log will appear here</div></td></tr>`:rows.map(r=>{
@@ -1800,7 +1831,7 @@ function renderTravel(){
   ${renderEmployeeFilterUI("Filter Travel")}
 
   <div class="card">
-    <div class="filter-row"><span class="card-title" style="margin:0">Travel Log</span><span class="count-pill">${rows.length}</span></div>
+    <div id="trListTop"></div><div class="filter-row"><span class="card-title" style="margin:0">Travel Log</span><span class="count-pill">${rows.length}</span></div>
     <div class="tbl-wrap"><table class="tbl">
       <thead><tr>${!isEmployee()?"<th>Employee</th>":""}<th>From</th><th>To</th><th>Days</th><th>Project</th><th>Location</th><th>Per Diem</th><th>Status</th><th></th></tr></thead>
       <tbody>${rows.length===0?`<tr><td colspan="9" class="empty empty2"><span class="e-ic">✈️</span><div class="e-t">No trips recorded</div><div class="e-m">Travel entries with per-diem will appear here</div></td></tr>`:rows.map(r=>{

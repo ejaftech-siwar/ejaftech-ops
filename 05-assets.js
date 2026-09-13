@@ -1918,7 +1918,7 @@ function renderMaintenance(){
         <div style="font-size:10px;color:var(--muted);font-weight:700;letter-spacing:.4px;margin-bottom:5px">SITE PROGRESS — tap to mark complete (${dn.length}/${u.length})</div>
         <div style="display:flex;gap:5px;flex-wrap:wrap">
           ${u.map(x=>{const on=dn.includes(x);
-            return `<button type="button" class="btn btn-sm ${on?"":"btn-secondary"}" style="${on?"background:#2E7D32;color:#fff;border:none;":""}font-weight:700;font-size:11px" onclick="pmToggleUnitDone('${s.id}','${escapeHtml(x).replace(/'/g,"\\'")}')">${on?"✓ ":""}${escapeHtml(x)}</button>`;}).join("")}
+            return `<button type="button" class="btn btn-sm ${on?"":"btn-secondary"}" style="${on?"background:#2E7D32;color:#fff;border:none;":""}font-weight:700;font-size:11px" onclick="pmToggleUnitDone('${s.id}',${jsArg(x)})">${on?"✓ ":""}${escapeHtml(x)}</button>`;}).join("")}
         </div></div>`;})()}`;};
 
   // grouped table (by site/area) when a project is selected — professional detail view
@@ -1999,12 +1999,12 @@ function renderMaintenance(){
       ${pmForm.project&&areas.length?`<div class="field" style="grid-column:1/-1"><label>🗺️ Areas <span style="font-size:10px;color:var(--muted)">(tap to select several — none = whole project)</span></label>
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">
           ${areas.map(ar=>{const on=(pmForm.areas||[]).includes(ar.name);
-            return `<button type="button" class="btn btn-sm ${on?"":"btn-secondary"}" style="${on?"background:#1B3A6B;color:#F0D68A;border:none;":""}font-weight:700" onclick="pmToggleArea('${escapeHtml(ar.name).replace(/'/g,"\\'")}')">${on?"✓ ":""}${escapeHtml(ar.name)}</button>`;}).join("")}
+            return `<button type="button" class="btn btn-sm ${on?"":"btn-secondary"}" style="${on?"background:#1B3A6B;color:#F0D68A;border:none;":""}font-weight:700" onclick="pmToggleArea(${jsArg(ar.name)})">${on?"✓ ":""}${escapeHtml(ar.name)}</button>`;}).join("")}
         </div></div>`:""}
       ${(pmForm.areas||[]).length&&sites.length?`<div class="field" style="grid-column:1/-1"><label>📍 Sites <span style="font-size:10px;color:var(--muted)">(tap to select several — none = whole selected areas)</span></label>
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">
           ${sites.map(x=>{const on=(pmForm.sites||[]).includes(x.name);
-            return `<button type="button" class="btn btn-sm ${on?"":"btn-secondary"}" style="${on?"background:#2E5FA3;color:#fff;border:none;":""}font-weight:700" onclick="pmToggleSite('${escapeHtml(x.name).replace(/'/g,"\\'")}')" title="${escapeHtml(x._area)}">${on?"✓ ":""}${escapeHtml(x.name)}</button>`;}).join("")}
+            return `<button type="button" class="btn btn-sm ${on?"":"btn-secondary"}" style="${on?"background:#2E5FA3;color:#fff;border:none;":""}font-weight:700" onclick="pmToggleSite(${jsArg(x.name)})" title="${escapeHtml(x._area)}">${on?"✓ ":""}${escapeHtml(x.name)}</button>`;}).join("")}
         </div></div>`:""}
       <div class="field" style="grid-column:1/-1"><label>📟 Device <span style="font-size:10px;color:var(--muted)">(optional — identified by Serial + Model${pmForm.project?`, ${devPool.length} in scope`:""})</span></label>
         <select onchange="window.pmForm.deviceSerial=this.value">

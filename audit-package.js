@@ -429,6 +429,7 @@ head("11. FEATURE PRESERVATION");
     ["multi-place picker","function placePicker"], ["place matching","function hasPlace"],
     ["place list storage","function setPlaces"],
     ["area-site hierarchy","function sitesForForm"], ["site pruning","function pruneSitesToAreas"],
+    ["KPI drill-down","window.dashDrill"],
     ["shift end date","function shiftEndDate"],
     ["vehicle fleet register","function renderVehicles"], ["vehicle maintenance jobs","vehJobSave"],
     ["oil-change distance reminder","function vehOil"], ["vehicle due alerts","function vehAlerts"],

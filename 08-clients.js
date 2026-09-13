@@ -23,7 +23,7 @@ function renderClients(){
         ${allProjects.length===0?'<span style="font-size:12px;color:var(--muted)">No projects yet — add projects first</span>':
           allProjects.map(p=>`<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px">
             <input type="checkbox" ${(clientForm.projects||[]).includes(p)?"checked":""}
-              onchange="window.toggleClientProject('${escapeHtml(p).replace(/'/g,"\\'")}')"
+              onchange="window.toggleClientProject(${jsArg(p)})"
               style="width:15px;height:15px;cursor:pointer">
             ${escapeHtml(p)}
           </label>`).join("")}
