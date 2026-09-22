@@ -633,17 +633,17 @@ function projectFinance(name){
   // can never disagree; materials are added from recorded consumption.
   const econ = (typeof projectEconomics==="function") ? projectEconomics(n) : null;
   const hours   = econ ? Number(econ.hours||0)
-                       : (state.daily||[]).filter(r=>(r.project||"").trim()===n)
-                           .reduce((s,r)=>s+Number(r.duration||0),0);
+                       : (state.daily||[]).filter(r=>hasProject(r,n))
+                           .reduce((s,r)=>s+projectShare(r,n,"duration"),0);
   const hourly  = Number(p.hourlyCost||0);
   const labour  = econ ? (hours*hourly) : hours*hourly;
   const perDiem = econ ? Number(econ.perDiem||0)
-                       : (state.travel||[]).filter(t=>(t.project||"").trim()===n)
-                           .reduce((s,t)=>s+Number(t.perDiem||0),0);
+                       : (state.travel||[]).filter(t=>hasProject(t,n))
+                           .reduce((s,t)=>s+projectShare(t,n,"perDiem"),0);
   const material= (typeof partsConsumption==="function") ? Number(partsConsumption(n).totalCost||0) : 0;
   // Overtime is real money and was previously counted nowhere.
-  const otHours = (state.overtime||[]).filter(o=>(o.project||"").trim()===n)
-                    .reduce((s,o)=>s+num(o.hours),0);
+  const otHours = (state.overtime||[]).filter(o=>hasProject(o,n))
+                    .reduce((s,o)=>s+num(o.hours)*projectRatio(o,n),0);
   const otCost  = otHours * hourly * otMultiplier();
   // Ledger expenses: subcontractors, fuel, purchases and the rest. They never
   // overlap the derived streams above, so nothing is counted twice.
@@ -1396,13 +1396,14 @@ function crStreams(){
   const inR=(d)=>{ if(!d) return false; if(from&&d<from) return false; if(to&&d>to) return false; return true; };
   const p=f.project, rate=num(p.hourlyCost), cur=f.currency;
 
-  const dRows=(state.daily||[]).filter(r=>(r.project||"").trim()===n && (!from&&!to ? true : inR(r.date)));
-  const hours=dRows.reduce((s,r)=>s+num(r.duration),0);
-  const material=dRows.reduce((s,r)=>s+((typeof partsEntryCost==="function")?num(partsEntryCost(r)):0),0);
-  const otH=(state.overtime||[]).filter(o=>(o.project||"").trim()===n && (!from&&!to ? true : inR(o.date)))
-              .reduce((s,o)=>s+num(o.hours),0);
-  const pd=(state.travel||[]).filter(t=>(t.project||"").trim()===n && (!from&&!to ? true : inR(t.from||t.date)))
-              .reduce((s,t)=>s+num(t.perDiem),0);
+  const dRows=(state.daily||[]).filter(r=>hasProject(r,n) && (!from&&!to ? true : inR(r.date)));
+  const hours=dRows.reduce((s,r)=>s+num(r.duration)*projectRatio(r,n),0);
+  // Parts used on a shared entry are divided the same way as its hours.
+  const material=dRows.reduce((s,r)=>s+((typeof partsEntryCost==="function")?num(partsEntryCost(r)):0)*projectRatio(r,n),0);
+  const otH=(state.overtime||[]).filter(o=>hasProject(o,n) && (!from&&!to ? true : inR(o.date)))
+              .reduce((s,o)=>s+num(o.hours)*projectRatio(o,n),0);
+  const pd=(state.travel||[]).filter(t=>hasProject(t,n) && (!from&&!to ? true : inR(t.from||t.date)))
+              .reduce((s,t)=>s+num(t.perDiem)*projectRatio(t,n),0);
   const exp=expenseTotals(n, cur, from, to);
 
   const cost=[

@@ -201,11 +201,30 @@ function placePicker(formName, field, options, label){
 }
 // Sites available across ALL the areas chosen — a technician who covered two
 // areas can pick from the sites of both.
+// Areas across every project on the entry. With two projects chosen, the
+// person may have worked in an area of either.
+function areasForForm(form){
+  const names = projectList(form);
+  const out = [];
+  names.forEach(n => {
+    const proj = (state.projects||[]).find(p=>(p.name||"").trim()===n);
+    if(!proj) return;
+    (typeof getProjectAreas==="function" ? getProjectAreas(proj) : [])
+      .filter(a=>a.active!==false)
+      .forEach(a => { if(!out.some(x=>x.name===a.name)) out.push(a); });
+  });
+  return out;
+}
+// Drop any area (and through it any site) that no longer belongs to a chosen project.
+function pruneAreasToProjects(form){
+  if(!form) return;
+  const allowed = areasForForm(form).map(a=>a.name);
+  setPlaces(form, "area", placeList(form,"area").filter(a=>allowed.includes(a)));
+  pruneSitesToAreas(form);
+}
 function sitesForForm(form){
-  const proj = (state.projects||[]).find(p=>(p.name||"").trim()===((form&&form.project)||"").trim());
-  if(!proj) return [];
-  const areas = (typeof getProjectAreas==="function" ? getProjectAreas(proj) : [])
-    .filter(a=>a.active!==false);
+  const areas = areasForForm(form);
+  if(!areas.length) return [];
   const chosen = placeList(form, "area");
   const pool = chosen.length ? areas.filter(a=>chosen.includes(a.name)) : [];
   const out = [];
@@ -221,6 +240,77 @@ function pruneSitesToAreas(form){
   setPlaces(form, "site", kept);
 }
 Object.assign(window,{placePicker, sitesForForm, pruneSitesToAreas});
+
+// ═══ PROJECT PICKER WITH ALLOCATION (v268) ═══════════════════════════════
+// One project behaves exactly as it always did. Choose a second and a line
+// appears for each, asking how much of the entry belongs to it, with a running
+// total against the whole so the person can see the gap close as they type.
+window.projToggle = function(formName, name){
+  const form = window[formName]; if(!form) return;
+  const cur = projectList(form);
+  const i = cur.indexOf(name);
+  if(i >= 0) cur.splice(i,1); else cur.push(name);
+  setProjects(form, cur);
+  // The project decides which codes, areas and sites exist. Dropping one must
+  // drop what hung off it, or the entry names a site on a project it no
+  // longer belongs to.
+  if(formName === "dailyForm"){
+    if(projectList(form).length !== 1) form.projectCode = "";
+    if(typeof pruneAreasToProjects === "function") pruneAreasToProjects(form);
+  }
+  render();
+};
+window.projAlloc = function(formName, name, v){
+  const form = window[formName]; if(!form) return;
+  form.projectAlloc = form.projectAlloc || {};
+  form.projectAlloc[name] = v;
+  // Update the running total in place. Rebuilding the form here would take
+  // the caret out of the number box on every keystroke.
+  const el = document.getElementById("alloc_sum_" + formName);
+  if(el) el.outerHTML = projAllocSummary(formName);
+};
+// `total` is the whole the allocations must add up to; `unit` names it.
+function projAllocSummary(formName){
+  const form = window[formName] || {};
+  const spec = window["_projAllocSpec_" + formName] || {total:0, unit:"hours"};
+  const err = projectAllocError(form, spec.total, spec.unit);
+  let sum = 0; projectList(form).forEach(p => { sum += Number((form.projectAlloc||{})[p]) || 0; });
+  const ok = !err;
+  return `<div id="alloc_sum_${escapeHtml(formName)}" style="margin-top:6px;padding:7px 10px;border-radius:8px;font-size:12px;font-weight:700;
+    background:${ok?"rgba(46,125,50,.10)":"rgba(230,81,0,.10)"};border:1px solid ${ok?"#2E7D32":"#E65100"};color:${ok?"#2E7D32":"#E65100"}">
+    ${ok ? `\u2713 Allocated ${+sum.toFixed(2)} of ${+Number(spec.total).toFixed(2)} ${escapeHtml(spec.unit)} \u2014 each project is charged only its share`
+         : `\u26a0 ${escapeHtml(err)}`}
+  </div>`;
+}
+function projectPicker(formName, options, total, unit, label){
+  const form = window[formName] || {};
+  const chosen = projectList(form);
+  window["_projAllocSpec_" + formName] = {total: Number(total)||0, unit};
+  const left = (options||[]).map(o=>String(o||"").trim()).filter(o=>o && !chosen.includes(o));
+  const alloc = form.projectAlloc || {};
+  return `<div class="field full" id="projpick_${escapeHtml(formName)}">
+    <label>${escapeHtml(label||"Project *")}${chosen.length>1?` <span style="color:#1565C0;font-weight:700">\u00b7 ${chosen.length} projects</span>`:""}</label>
+    ${chosen.length?`<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:7px">
+      ${chosen.map(c=>`<div style="display:flex;align-items:center;gap:8px;background:rgba(27,58,107,.06);border:1px solid var(--line);border-radius:10px;padding:5px 6px 5px 11px">
+        <span style="flex:1;min-width:0;font-weight:700;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(c)}</span>
+        ${chosen.length>1?`<input class="input" inputmode="decimal" style="width:84px;text-align:center;padding:5px 6px"
+            placeholder="${escapeHtml(unit)}" value="${escapeHtml(alloc[c]==null?"":String(alloc[c]))}"
+            oninput="projAlloc(${jsArg(formName)},${jsArg(c)},this.value)">`:""}
+        <button type="button" onclick="projToggle(${jsArg(formName)},${jsArg(c)})"
+          style="background:#FDECEA;color:#C62828;border:none;border-radius:50%;width:24px;height:24px;line-height:1;padding:0;cursor:pointer;flex:0 0 auto">\u00d7</button>
+      </div>`).join("")}
+    </div>`:""}
+    ${left.length?`<select onchange="if(this.value){projToggle(${jsArg(formName)},this.value);}this.value='';">
+      <option value="">${chosen.length?"\u2795 Add another project\u2026":"\u2014 Select \u2014"}</option>
+      ${left.map(o=>`<option value="${escapeHtml(o)}">${escapeHtml(o)}</option>`).join("")}
+    </select>`:""}
+    ${chosen.length>1 ? projAllocSummary(formName)
+      : `<div style="font-size:11px;color:var(--muted);margin-top:5px">${chosen.length
+          ? "Add another project if this entry covered more than one \u2014 you will then split the " + escapeHtml(unit) + " between them."
+          : "Choose the project this work was for."}</div>`}
+  </div>`;
+}
+Object.assign(window,{projectPicker, projAllocSummary, areasForForm, pruneAreasToProjects});
 
 // ── 2 · trend chip + sparkline ────────────────────────────────────────
 function _trendChip(cur,prev){
@@ -326,7 +416,7 @@ function dashProjectHealth(){
   const rowsAll=state.daily||[];
   const cards=projects.map(p=>{
     const nm=(p.name||"").trim();
-    const mine=rowsAll.filter(x=>(x.project||"").trim()===nm);
+    const mine=rowsAll.filter(x=>hasProject(x,nm));
     const hrs=hoursInRange(mine, r.from, r.to);
     const totalHrs=mine.reduce((s,x)=>s+Number(x.duration||0),0);
     const est=Number(p.estimatedHours||0);
@@ -899,13 +989,12 @@ function renderDailyLog(){
           :`<select onchange="window.dailyForm.employee=this.value;render()"><option value="">— Select —</option>${(isSupervisor()&&!isHR()?myTeamEmployees():empOptions).map(e=>`<option ${e===dailyForm.employee?"selected":""}>${escapeHtml(e)}</option>`).join("")}</select>
           ${isSupervisor()&&!isHR()?`<p style="font-size:11px;color:#6A1B9A;margin-top:4px">👔 You can log for your team members.</p>`:''}`}
       </div>
-      <div class="field full"><label>Project <span class="req">*</span></label>
-        <select onchange="window.dailyForm.project=this.value;window.dailyForm.projectCode='';window.dailyForm.pmFinal=false;window.dailyForm.area='';window.dailyForm.site='';render()">
-          <option value="">— Select —</option>
-          ${state.projects.map(p=>{const n=(p.name||"").trim();return `<option value="${escapeHtml(n)}" ${n===(dailyForm.project||"").trim()?"selected":""}>${escapeHtml(n)}</option>`}).join("")}
-        </select></div>
+      ${projectPicker("dailyForm",(state.projects||[]).map(p=>(p.name||"").trim()).filter(Boolean),timeToHrs(dailyForm.start,dailyForm.end)||Number(dailyForm.duration)||0,"hours","Project *")}
       ${(()=>{
-        const _pc = state.projects.find(p=>(p.name||"").trim()===(dailyForm.project||"").trim());
+        // A project code names a contract of ONE project. With several projects
+        // on the entry it cannot mean anything, so it is not offered.
+        if(projectList(dailyForm).length !== 1) return "";
+        const _pc = state.projects.find(p=>(p.name||"").trim()===projectList(dailyForm)[0]);
         const _codes = (_pc && Array.isArray(_pc.codes)) ? _pc.codes : [];
         if(!_codes.length) return "";
         const _isPM = String(dailyForm.projectCode||"").trim().toLowerCase()==="preventive maintenance";
@@ -921,10 +1010,8 @@ function renderDailyLog(){
         </div>`;
       })()}
       ${(()=>{
-        const proj = state.projects.find(p=>(p.name||"").trim()===(dailyForm.project||"").trim());
-        const areas = proj ? getProjectAreas(proj) : [];
-        const activeAreas = areas.filter(a=>a.active!==false);
-        if(activeAreas.length===0) return "";                    // project has no areas
+        const activeAreas = areasForForm(dailyForm);             // across every chosen project
+        if(activeAreas.length===0) return "";
         const siteReq = !isAdmin() && getEmpPermissions(dailyForm.employee||state.profile.employeeName||"").equipmentRequired;
         const sites = sitesForForm(dailyForm);
         const chosenAreas = placeList(dailyForm,"area");
@@ -1202,7 +1289,15 @@ async function saveDaily(){
   }
   if(!dailyForm.employee) return toast("⚠ Employee field is empty");
   if(!dailyForm.date)     return toast("⚠ Date is required");
-  if(!dailyForm.project)  return toast("⚠ Please select a Project");
+  if(!projectList(dailyForm).length)  return toast("⚠ Please select a Project");
+  // Several projects: the hours must be divided between them and must add up
+  // to the whole entry. Saving an unbalanced split is what would bill the
+  // same hours to two clients.
+  {
+    const _tot = timeToHrs(dailyForm.start, dailyForm.end) || Number(dailyForm.duration) || 0;
+    const _e = projectAllocError(dailyForm, _tot, "hours");
+    if(_e) return toast("⚠ " + _e);
+  }
   if(!dailyForm.location) return toast("⚠ Please select a Location");
 
   // ── Per-employee permission checks ──
@@ -1377,6 +1472,13 @@ async function saveDailyAndNext(){
     return toast("At least 1 resolution photo is required");
   }
   if(isEmployee()) return toast("Use Save for single entry");
+  // The save-and-next path must enforce the same split rule as plain Save, or
+  // it becomes the way an unbalanced entry reaches the ledger.
+  {
+    const _tot = timeToHrs(dailyForm.start, dailyForm.end) || Number(dailyForm.duration) || 0;
+    const _e = projectAllocError(dailyForm, _tot, "hours");
+    if(_e) return toast("⚠ " + _e);
+  }
   // Save first
   const entryNoNext = getNextDailyEntryNo();
   const recordForEmail = {
@@ -1690,7 +1792,7 @@ function renderOvertime(){
         <input type="time" value="${otForm.end||''}" onchange="window.otForm.end=this.value;window.updateOTDuration();render()"></div>
       <div class="field"><label>OT Duration (auto)</label><div class="auto orange ${otForm.hours&&Number(otForm.hours)>0?"":"empty"}" style="font-weight:700;font-size:16px;color:#E65100">${otForm.hours&&Number(otForm.hours)>0?fmtHM(Number(otForm.hours)):"—"}</div></div>
       <div class="field"><label>Day (auto)</label><div class="auto green ${day?"":"empty"}">${day||"—"}</div></div>
-      <div class="field full"><label>Project</label><select onchange="window.otForm.project=this.value;render()"><option value="">— Select —</option>${state.projects.map(p=>{const n=(p.name||"").trim();return `<option value="${escapeHtml(n)}" ${n===(otForm.project||"").trim()?"selected":""}>${escapeHtml(n)}</option>`}).join("")}</select></div>
+      ${projectPicker("otForm",(state.projects||[]).map(p=>(p.name||"").trim()).filter(Boolean),Number(otForm.hours)||timeToHrs(otForm.start,otForm.end)||0,"hours","Project")}
       <div class="field"><label>Dept (auto)</label><div class="auto purple ${dept?"":"empty"}">${dept||"—"}</div></div>
       ${placePicker("otForm","location",(state.locations||[]).map(l=>(l.name||"").trim()).filter(Boolean),"Location")}
       <div class="field full"><label>Notes</label><input value="${escapeHtml(otForm.notes||"")}" oninput="window.otForm.notes=this.value" placeholder="Optional"></div>
@@ -1726,6 +1828,7 @@ async function saveOT(){
   const computed = timeToHrs(otForm.start, otForm.end);
   if(computed <= 0) return toast("End time must be after start time");
   otForm.hours = computed.toFixed(4);
+  { const _e = projectAllocError(otForm, computed, "hours"); if(_e) return toast("⚠ " + _e); }
   // Strict employee guard: force own name on save
   if(isEmployee()){
     if(!state.profile.employeeName) return toast("Your account has no employee profile. Contact admin.");
@@ -1749,6 +1852,7 @@ async function saveOTAndNext(){
   const computed = timeToHrs(otForm.start, otForm.end);
   if(computed <= 0) return toast("End time must be after start time");
   otForm.hours = computed.toFixed(4);
+  { const _e = projectAllocError(otForm, computed, "hours"); if(_e) return toast("⚠ " + _e); }
   await fbSave("overtime",{
     id:undefined,
     ...otForm,hours:+otForm.hours,
@@ -1812,7 +1916,7 @@ function renderTravel(){
       <div class="field"><label>To <span class="req">*</span></label><input type="date" min="${trForm.date||""}" value="${trForm.dateTo||""}" onchange="window.trForm.dateTo=this.value;window.trForm.dateAuto=false;trSyncDays()"></div>
       <div class="field"><label>Days (auto)</label><div class="auto green ${Number(trForm.days)>0?"":"empty"}">${Number(trForm.days)>0?trForm.days+(Number(trForm.days)===1?" day":" days"):"—"}</div></div>
       <div class="field"><label>Per Diem (auto)</label><div class="auto yellow ${pd>0?"":"empty"}">${pd>0?fmtMoney(pd)+" IQD":"—"}</div></div>
-      <div class="field full"><label>Project</label><select onchange="window.trForm.project=this.value;render()"><option value="">— Select —</option>${state.projects.map(p=>{const n=(p.name||"").trim();return `<option value="${escapeHtml(n)}" ${n===(trForm.project||"").trim()?"selected":""}>${escapeHtml(n)}</option>`}).join("")}</select></div>
+      ${projectPicker("trForm",(state.projects||[]).map(p=>(p.name||"").trim()).filter(Boolean),Number(trForm.days)||0,"days","Project")}
       <div class="field"><label>Dept (auto)</label><div class="auto purple ${dept?"":"empty"}">${dept||"—"}</div></div>
       ${placePicker("trForm","location",(state.locations||[]).map(l=>(l.name||"").trim()).filter(Boolean),"Location")}
       <div class="field"><label>Per Diem Status</label><select onchange="window.trForm.perDiemStatus=this.value;render()">
@@ -1854,6 +1958,7 @@ async function saveTr(){
   if(trForm.dateTo<trForm.date) return toast("⚠ 'To' date cannot be before 'From'");
   trSyncDays();
   if(!Number(trForm.days)) return toast("⚠ Invalid travel range");
+  { const _e = projectAllocError(trForm, Number(trForm.days), "days"); if(_e) return toast("⚠ " + _e); }
   // Strict employee guard: force own name on save
   if(isEmployee()){
     if(!state.profile.employeeName) return toast("Your account has no employee profile. Contact admin.");
@@ -1878,6 +1983,7 @@ async function saveTrAndNext(){
   if(trForm.dateTo<trForm.date) return toast("⚠ 'To' date cannot be before 'From'");
   trSyncDays();
   if(!Number(trForm.days)) return toast("⚠ Invalid travel range");
+  { const _e = projectAllocError(trForm, Number(trForm.days), "days"); if(_e) return toast("⚠ " + _e); }
   if(isEmployee()) return toast("Use Save for single entry");
   await fbSave("travel",{
     id:undefined,

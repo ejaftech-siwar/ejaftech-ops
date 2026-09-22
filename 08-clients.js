@@ -51,7 +51,10 @@ function renderClients(){
       : `<div style="display:flex;flex-direction:column;gap:10px">
         ${(state.clients||[]).map(c=>{
           const projList = (c.projects||[]);
-          const totalHrs = state.daily.filter(r=>projList.includes(r.project)).reduce((s,r)=>s+Number(r.duration||0),0);
+          // Only the client's share: an entry split between this client's
+          // project and another's must not show the other's hours here.
+          const totalHrs = state.daily.filter(r=>projectList(r).some(p=>projList.includes(p)))
+            .reduce((s,r)=>s+projList.reduce((a,p)=>a+projectShare(r,p,"duration"),0),0);
           const estHrs = projList.reduce((s,pn)=>{
             const p = state.projects.find(x=>(x.name||"").trim()===pn);
             return s + Number(p?.estimatedHours||0);

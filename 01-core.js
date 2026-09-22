@@ -1227,6 +1227,109 @@ function setPlaces(obj, field, list){
 }
 Object.assign(window,{PLACE_SEP, placeList, placeText, hasPlace, setPlaces});
 
+// ═══ PER DIEM: TOTAL, RECEIVED, OUTSTANDING (v267) ══════════════════════
+// A single "per diem" figure hid the one question that matters to the person
+// owed it: how much of it has actually been paid. One definition here, so the
+// dashboard, the HR report and the per-employee report can never disagree.
+//
+// A trip recorded before the status field existed has no status. Those were
+// always treated as received by the form, so they stay received here — a
+// report that suddenly reclassified years of old trips as unpaid would be
+// worse than the gap it was meant to close.
+function pdIsReceived(r){
+  return String((r && r.perDiemStatus) || "received") !== "not_received";
+}
+function perDiemBreakdown(rows){
+  let total = 0, received = 0, pending = 0, recN = 0, penN = 0;
+  (rows||[]).forEach(r => {
+    const v = Number(r && r.perDiem || 0);
+    if(!(v > 0)) return;
+    total += v;
+    if(pdIsReceived(r)){ received += v; recN++; } else { pending += v; penN++; }
+  });
+  return {total, received, pending, receivedTrips:recN, pendingTrips:penN};
+}
+Object.assign(window,{pdIsReceived, perDiemBreakdown});
+
+// ═══ ONE ENTRY, SEVERAL PROJECTS — HOURS ALLOCATED BY HAND (v268) ═════════════
+// A location can be shared freely: a day in Erbil and Duhok is simply a day in
+// both. A PROJECT cannot. Project hours are multiplied by an hourly cost, and
+// travel per diem is charged to a project, so counting an eight-hour entry
+// under two projects bills sixteen hours and halves every margin.
+//
+// So an entry that names several projects carries an ALLOCATION: how much of
+// it belongs to each. The person types it; the app refuses to save until the
+// parts add up to the whole. From then on every per-project figure takes its
+// share through projectShare(), never the full amount.
+//
+// The share is a RATIO, applied to whatever field is being summed. Allocate
+// the hours of a day entry and its duration splits exactly; allocate the days
+// of a trip and its per diem splits in the same proportion. One allocation,
+// every field consistent.
+//
+// A single-project entry needs no allocation and behaves exactly as before.
+function projectList(r){
+  if(!r) return [];
+  if(Array.isArray(r.projects) && r.projects.length)
+    return r.projects.map(x=>String(x||"").trim()).filter(Boolean);
+  const one = String(r.project || "").trim();
+  return one ? [one] : [];
+}
+function hasProject(r, name){
+  const want = String(name||"").trim();
+  if(!want) return true;
+  return projectList(r).includes(want);
+}
+// The fraction of this entry that belongs to one project: 0 to 1.
+function projectRatio(r, name){
+  const list = projectList(r);
+  const want = String(name||"").trim();
+  if(!list.includes(want)) return 0;
+  if(list.length === 1) return 1;
+  const a = r.projectAlloc || {};
+  let tot = 0; list.forEach(p => { tot += Math.max(0, Number(a[p]) || 0); });
+  // An allocation that does not exist or sums to nothing cannot be trusted to
+  // say anything, so the entry is divided evenly rather than counted in full
+  // under every project. Saving never produces this state; it only guards
+  // records edited outside the form.
+  if(!(tot > 0)) return 1 / list.length;
+  return Math.max(0, Number(a[want]) || 0) / tot;
+}
+// The portion of `field` (duration, hours, perDiem, days…) charged to a project.
+function projectShare(r, name, field){
+  return (Number(r && r[field]) || 0) * projectRatio(r, name);
+}
+// Write the list and the readable joined copy together, and keep only
+// allocations for projects still on the list.
+function setProjects(obj, list){
+  const uniq = Array.from(new Set((list||[]).map(x=>String(x||"").trim()).filter(Boolean)));
+  obj.projects = uniq;
+  obj.project  = uniq.join(", ");
+  const old = obj.projectAlloc || {}, next = {};
+  uniq.forEach(p => { if(old[p] != null && old[p] !== "") next[p] = old[p]; });
+  obj.projectAlloc = uniq.length > 1 ? next : {};
+  return uniq;
+}
+// Does the allocation account for the whole entry? Returns null when it does,
+// or a sentence saying what is wrong — the form shows it verbatim.
+function projectAllocError(obj, total, unit){
+  const list = projectList(obj);
+  if(list.length < 2) return null;
+  const a = obj.projectAlloc || {};
+  let sum = 0;
+  for(const p of list){
+    const v = Number(a[p]);
+    if(a[p] === "" || a[p] == null || !isFinite(v)) return `Enter the ${unit} for ${p}`;
+    if(v < 0) return `${p} cannot have negative ${unit}`;
+    sum += v;
+  }
+  const t = Number(total) || 0;
+  if(Math.abs(sum - t) > 0.01)
+    return `The ${unit} add up to ${+sum.toFixed(2)}, but the entry is ${+t.toFixed(2)} \u2014 they must match`;
+  return null;
+}
+Object.assign(window,{projectList, hasProject, projectRatio, projectShare, setProjects, projectAllocError});
+
 const dayName=(d)=>d?["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][new Date(d).getDay()]:"";
 
 // Format a day count cleanly: 4.2222… → "4.2", 5 → "5", 4.0 → "4"
@@ -1815,7 +1918,9 @@ function applyReportFilters(rows, dateField="date"){
   const sel = state.globalEmployeeFilter || [];
   if(sel.length > 0) out = out.filter(r => sel.includes(r.employee)); // 2. employee
   const pf = state.globalProjectFilter || "";
-  if(pf) out = out.filter(r => !("project" in r) || r.project === pf); // 3. project (skip if field absent)
+  // The joined string "A, B" would never equal "A", so a shared entry would
+  // vanish from both projects' reports. Match against the list instead.
+  if(pf) out = out.filter(r => !("project" in r || "projects" in r) || hasProject(r, pf)); // 3. project
   const lf = state.globalLocationFilter || "";
   // A day split across three sites must appear under EACH of them, so the
   // match is against the list rather than the joined string. This is the one
@@ -4505,11 +4610,14 @@ function projectEconomics(name){
   if(!p) return null;
   const rate  = Number(p.hourlyCost)||0;
   const value = Number(p.contractValue)||0;
-  const rows  = (state.daily||[]).filter(r=>(r.project||"").trim()===(name||"").trim());
-  const hours = rows.reduce((s,r)=>s+Number(r.duration||0),0);
+  // Each entry contributes only ITS SHARE to this project. An entry split
+  // across two projects is not billed twice.
+  const nm    = (name||"").trim();
+  const rows  = (state.daily||[]).filter(r=>hasProject(r, nm));
+  const hours = rows.reduce((s,r)=>s+projectShare(r, nm, "duration"),0);
   const perDiem = (state.travel||[])
-    .filter(t=>(t.project||"").trim()===(name||"").trim())
-    .reduce((s,t)=>s+Number(t.perDiem||0),0);
+    .filter(t=>hasProject(t, nm))
+    .reduce((s,t)=>s+projectShare(t, nm, "perDiem"),0);
   const cost = hours*rate + perDiem;
   if(!value && !rate) return null;         // nothing to compare against yet
   const margin = value ? value-cost : null;

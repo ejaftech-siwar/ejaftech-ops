@@ -291,6 +291,11 @@ function renderHRReport(){
         <div style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:1px">Per Diem</div>
         <div style="font-family:'DM Serif Display',serif;font-size:22px;color:#6A1B9A;margin-top:2px">${fmtMoney(tot("pd"))}</div>
         <div style="font-size:10px;color:var(--muted)">IQD total</div>
+        ${(()=>{ const b=perDiemBreakdown(applyReportFilters(state.travel));
+          return b.total>0 ? `<div style="margin-top:6px;padding-top:6px;border-top:1px dashed var(--line);font-size:11px;line-height:1.6">
+            <div style="color:#2E7D32">\u2713 Received <strong>${fmtMoney(b.received)}</strong></div>
+            <div style="color:${b.pending>0?"#C62828":"var(--muted)"}">\u23F3 Not received <strong>${fmtMoney(b.pending)}</strong></div>
+          </div>` : ""; })()}
       </div>
       <div style="border:1px solid var(--line);border-left:4px solid #C62828;border-radius:8px;padding:12px;background:var(--card)">
         <div style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:1px">Leave Days</div>
@@ -395,15 +400,36 @@ function renderHRReport(){
     const my=applyReportFilters(state.travel).filter(r=>r.employee===emp);
     const sd=my.reduce((a,r)=>a+Number(r.days||0),0);
     const sp=my.reduce((a,r)=>a+Number(r.perDiem||0),0);
+    const pdb=perDiemBreakdown(my);   // total / received / outstanding
     h+=`<div style="border:1px solid var(--line);border-radius:12px;margin-bottom:10px;overflow:hidden;border-left:4px solid #2E7D32">
       <div style="background:linear-gradient(135deg,#1B3A6B,#2E5FA3);color:white;padding:8px 12px;font-weight:700;font-size:12px;display:flex;justify-content:space-between;align-items:center">
         <span>▶ ${employeeBadge(emp)}</span>
         <span style="background:#C9A84C;color:#1B3A6B;padding:2px 10px;border-radius:12px;font-size:11px">${my.length} trips</span>
       </div>
       ${my.length===0?`<div class="empty">No travel</div>`:`<div class="tbl-wrap"><table class="tbl">
-        <thead><tr><th>From</th><th>To</th><th>Days</th><th>Project</th><th>Location</th><th>Per Diem</th></tr></thead>
-        <tbody>${my.map((r,idx)=>`<tr style="background:${idx%2?'#F5F8FC':'white'}"><td>${fmtDate(r.date)}</td><td>${(()=>{const t=trEnd(r);return (t&&t!==r.date)?fmtDate(t):'—';})()}</td><td><strong>${fmtDays(r.days)}</strong></td><td>${escapeHtml(r.project||"—")}</td><td>${escapeHtml(r.location||"—")}</td><td><strong style="color:#6A1B9A">${fmtMoney(r.perDiem)}</strong></td></tr>`).join("")}</tbody></table></div>`}
+        <thead><tr><th>From</th><th>To</th><th>Days</th><th>Project</th><th>Location</th><th>Per Diem</th><th>Status</th></tr></thead>
+        <tbody>${my.map((r,idx)=>`<tr style="background:${idx%2?'#F5F8FC':'white'}"><td>${fmtDate(r.date)}</td><td>${(()=>{const t=trEnd(r);return (t&&t!==r.date)?fmtDate(t):'—';})()}</td><td><strong>${fmtDays(r.days)}</strong></td><td>${escapeHtml(r.project||"—")}</td><td>${escapeHtml(r.location||"—")}</td><td><strong style="color:#6A1B9A">${fmtMoney(r.perDiem)}</strong></td><td>${Number(r.perDiem||0)>0
+            ? (pdIsReceived(r)
+                ? `<span style="color:#2E7D32;font-weight:700">\u2713 Received</span>`
+                : `<span style="color:#C62828;font-weight:700">\u23F3 Not received</span>`)
+            : ""}</td></tr>`).join("")}</tbody></table></div>`}
       <div style="background:linear-gradient(135deg,#2E7D32,#1B5E20);color:white;padding:8px 12px;font-weight:700;font-size:12px;display:flex;justify-content:space-between"><span>Subtotal</span><span>${sd} days · ${fmtMoney(sp)} IQD</span></div>
+      ${pdb.total>0?`<div style="display:flex;gap:0;border-top:1px solid var(--line)">
+        <div style="flex:1;padding:8px 12px;border-inline-end:1px solid var(--line)">
+          <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:700">Per diem total</div>
+          <div style="font-size:15px;font-weight:800;color:#6A1B9A">${fmtMoney(pdb.total)} IQD</div>
+        </div>
+        <div style="flex:1;padding:8px 12px;border-inline-end:1px solid var(--line)">
+          <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:700">\u2713 Received</div>
+          <div style="font-size:15px;font-weight:800;color:#2E7D32">${fmtMoney(pdb.received)} IQD</div>
+          <div style="font-size:10px;color:var(--muted)">${pdb.receivedTrips} trip${pdb.receivedTrips===1?"":"s"}</div>
+        </div>
+        <div style="flex:1;padding:8px 12px">
+          <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:700">\u23F3 Not received</div>
+          <div style="font-size:15px;font-weight:800;color:${pdb.pending>0?"#C62828":"var(--muted)"}">${fmtMoney(pdb.pending)} IQD</div>
+          <div style="font-size:10px;color:var(--muted)">${pdb.pendingTrips} trip${pdb.pendingTrips===1?"":"s"}</div>
+        </div>
+      </div>`:""}
     </div>`;
   });
   h+=`</div>`;
