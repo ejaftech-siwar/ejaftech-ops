@@ -433,6 +433,8 @@ head("11. FEATURE PRESERVATION");
     ["per diem breakdown","function perDiemBreakdown"],
     ["project allocation","function projectShare"], ["allocation guard","function projectAllocError"],
     ["multi-project picker","function projectPicker"],
+    ["split save","async function saveDailyMulti"], ["per-project resolution","function resTabsHTML"],
+    ["time slicing","function projectTimeSlices"], ["overtime split","async function _otSaveSplit"],
     ["shift end date","function shiftEndDate"],
     ["vehicle fleet register","function renderVehicles"], ["vehicle maintenance jobs","vehJobSave"],
     ["oil-change distance reminder","function vehOil"], ["vehicle due alerts","function vehAlerts"],

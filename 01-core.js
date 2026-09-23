@@ -1321,6 +1321,7 @@ function projectAllocError(obj, total, unit){
     const v = Number(a[p]);
     if(a[p] === "" || a[p] == null || !isFinite(v)) return `Enter the ${unit} for ${p}`;
     if(v < 0) return `${p} cannot have negative ${unit}`;
+    if(v === 0) return `${p} has no ${unit} \u2014 give it a share or remove it`;
     sum += v;
   }
   const t = Number(total) || 0;
@@ -1328,7 +1329,38 @@ function projectAllocError(obj, total, unit){
     return `The ${unit} add up to ${+sum.toFixed(2)}, but the entry is ${+t.toFixed(2)} \u2014 they must match`;
   return null;
 }
-Object.assign(window,{projectList, hasProject, projectRatio, projectShare, setProjects, projectAllocError});
+// Departments of every project on an entry, for display. A single project
+// returns exactly what projDept always did.
+function projDeptsText(obj){
+  const out = [];
+  projectList(obj).forEach(p => { const d = projDept(p); if(d && !out.includes(d)) out.push(d); });
+  return out.join(", ");
+}
+// Divide a clock window between projects, in the order they were chosen.
+// Each part becomes a complete, ordinary entry with its own start and end, so
+// every time-based figure (days, months, the overnight split) stays exact and
+// nothing is counted twice. The last part always ends on the real end time,
+// so rounding to the minute can never lose or add time.
+function _min2hm(m){ m = ((m % 1440) + 1440) % 1440;
+  return String(Math.floor(m/60)).padStart(2,"0") + ":" + String(m%60).padStart(2,"0"); }
+function projectTimeSlices(start, end, list, alloc){
+  const s = _hm2min(start), e = _hm2min(end);
+  if(s == null || e == null || !list || !list.length) return null;
+  let span = e - s; if(span <= 0) span += 1440;
+  const w = list.map(p => Math.max(0, Number((alloc||{})[p]) || 0));
+  const tot = w.reduce((a,b)=>a+b, 0);
+  if(!(tot > 0)) return null;
+  let acc = 0; const out = [];
+  list.forEach((p,i) => {
+    const from = s + Math.round(acc / tot * span);
+    acc += w[i];
+    const to = (i === list.length-1) ? s + span : s + Math.round(acc / tot * span);
+    out.push({project:p, start:_min2hm(from), end:_min2hm(to), hours:(to-from)/60});
+  });
+  return out;
+}
+Object.assign(window,{projectList, hasProject, projectRatio, projectShare, setProjects, projectAllocError,
+  projDeptsText, projectTimeSlices, _min2hm});
 
 const dayName=(d)=>d?["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][new Date(d).getDay()]:"";
 

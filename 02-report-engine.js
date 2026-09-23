@@ -991,13 +991,25 @@ async function exportPDF(){
     if(!my.length&&!isEmployee())return '';
     const sd=my.reduce((a,r)=>a+Number(r.days||0),0);
     const sp=my.reduce((a,r)=>a+Number(r.perDiem||0),0);
+    const pb=perDiemBreakdown(my);
     return `<div class="emp-block tr">
       <div class="emp-head"><span>▶ ${employeeBadge(emp)}</span><span class="emp-head-tag">${my.length} trips</span></div>
       ${!my.length?`<div class="empty">No travel</div>`:`<table><thead><tr><th>From</th><th>To</th><th>Days</th><th>Project</th><th>Location</th><th>Per Diem</th><th>Status</th></tr></thead>
       <tbody>${my.map(r=>`<tr><td>${fmtDate(r.date)}</td><td>${(()=>{const t=trEnd(r);return (t&&t!==r.date)?fmtDate(t):'<span style="color:#9AA7B8">—</span>';})()}</td><td><strong>${fmtDays(r.days)}</strong></td><td>${escapeHtml(r.project||'—')}</td><td>${escapeHtml(r.location||'—')}</td><td style="color:#6A1B9A;font-weight:700">${fmtMoney(r.perDiem)}</td><td style="font-weight:700;color:${(r.perDiemStatus||'received')==='received'?'#2E7D32':'#C62828'}">${(r.perDiemStatus||'received')==='received'?'✅ Received':'❌ Not Received'}</td></tr>`).join('')}</tbody></table>`}
       <div class="emp-sub"><span>Subtotal</span><span>${sd} days · ${fmtMoney(sp)} IQD</span></div>
+      ${pb.total>0?`<div class="emp-sub" style="background:#F1F8F1;color:#1B5E20"><span>\u2713 Received</span><span>${fmtMoney(pb.received)} IQD \u00b7 ${pb.receivedTrips} trip${pb.receivedTrips===1?"":"s"}</span></div>
+      <div class="emp-sub" style="background:${pb.pending>0?"#FDECEA":"#F5F5F5"};color:${pb.pending>0?"#B71C1C":"#777"}"><span>\u23F3 Not received</span><span>${fmtMoney(pb.pending)} IQD \u00b7 ${pb.pendingTrips} trip${pb.pendingTrips===1?"":"s"}</span></div>`:""}
     </div>`;
   }).filter(Boolean).join('');
+  // The figure a manager actually settles: what the company owes across the
+  // whole team, set apart from what it has already paid.
+  const _pdTeam = perDiemBreakdown(emps.flatMap(emp=>applyReportFilters(state.travel).filter(r=>r.employee===emp)));
+  const trGrand = (_pdTeam.total>0 && emps.length>1) ? `<div class="emp-block tr" style="border-color:#1B3A6B">
+      <div class="emp-head" style="background:#1B3A6B"><span>GRAND TOTAL \u2014 all employees</span><span class="emp-head-tag">per diem</span></div>
+      <div class="emp-sub"><span>Per diem total</span><span>${fmtMoney(_pdTeam.total)} IQD</span></div>
+      <div class="emp-sub" style="background:#F1F8F1;color:#1B5E20"><span>\u2713 Received</span><span>${fmtMoney(_pdTeam.received)} IQD \u00b7 ${_pdTeam.receivedTrips} trips</span></div>
+      <div class="emp-sub" style="background:${_pdTeam.pending>0?"#FDECEA":"#F5F5F5"};color:${_pdTeam.pending>0?"#B71C1C":"#777"}"><span>\u23F3 Not received</span><span>${fmtMoney(_pdTeam.pending)} IQD \u00b7 ${_pdTeam.pendingTrips} trips</span></div>
+    </div>` : "";
 
   const sn=state.leaves.length>0;
   const bodyHTML=`
@@ -1018,6 +1030,7 @@ async function exportPDF(){
     ${otBlocks||'<div class="empty">No overtime entries</div>'}
     <div class="ksec"><span class="kbad">${sn?'05':'04'}</span><h3>Travel by Employee</h3></div>
     ${trBlocks||'<div class="empty">No travel entries</div>'}
+    ${trGrand}
     <script>setTimeout(()=>window.print(),500)<\/script>`;
 
   await openReportPDF("HR_REPORT", period, bodyHTML);

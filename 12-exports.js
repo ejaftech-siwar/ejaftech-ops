@@ -96,6 +96,9 @@ function renderFlexReports(){
       ot: eOT.reduce((s,r)=>s+Number(r.hours||0),0),
       travelDays: eTr.reduce((s,r)=>s+Number(r.days||0),0),
       perDiem: eTr.reduce((s,r)=>s+Number(r.perDiem||0),0),
+      // Received and outstanding, from the same definition every report uses.
+      pdReceived: perDiemBreakdown(eTr).received,
+      pdPending:  perDiemBreakdown(eTr).pending,
       leaveDays: eLv.reduce((sum, r) => {
         if(r.days !== undefined && r.days !== null && !isNaN(Number(r.days))) return sum + Number(r.days);
         if(r.hours !== undefined && r.hours !== null && !isNaN(Number(r.hours))) return sum + (Number(r.hours) / WORK_HOURS_PER_DAY);
@@ -117,6 +120,8 @@ function renderFlexReports(){
   const totOT=empStats.reduce((s,e)=>s+e.ot,0);
   const totTr=empStats.reduce((s,e)=>s+e.travelDays,0);
   const totPD=empStats.reduce((s,e)=>s+e.perDiem,0);
+  const totPDR=empStats.reduce((s,e)=>s+(e.pdReceived||0),0);   // all employees, received
+  const totPDP=empStats.reduce((s,e)=>s+(e.pdPending||0),0);    // all employees, not received
   const totLv=empStats.reduce((s,e)=>s+e.leaveDays,0);
 
   // ═══════ HEADER (Unified Brand Style) ═══════
@@ -182,6 +187,10 @@ function renderFlexReports(){
         <div style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:1px">Per Diem</div>
         <div style="font-family:'DM Serif Display',serif;font-size:22px;color:#6A1B9A;margin-top:2px">${fmtMoney(totPD)}</div>
         <div style="font-size:10px;color:var(--muted)">IQD total</div>
+        ${totPD>0?`<div style="margin-top:6px;padding-top:6px;border-top:1px dashed var(--line);font-size:11px;line-height:1.7">
+          <div style="color:#2E7D32">\u2713 Received <strong>${fmtMoney(totPDR)}</strong></div>
+          <div style="color:${totPDP>0?"#C62828":"var(--muted)"}">\u23F3 Not received <strong>${fmtMoney(totPDP)}</strong></div>
+        </div>`:""}
       </div>
       <div style="border:1px solid var(--line);border-left:4px solid #C62828;border-radius:8px;padding:12px;background:var(--card)">
         <div style="font-size:10px;color:var(--muted);text-transform:uppercase;font-weight:700;letter-spacing:1px">Leave Days</div>
@@ -222,6 +231,8 @@ function renderFlexReports(){
           <th style="color:white">OT</th>
           <th style="color:white">Travel</th>
           <th style="color:white">Per Diem</th>
+          <th style="color:white">\u2713 Received</th>
+          <th style="color:white">\u23F3 Not received</th>
           <th style="color:white">Leave</th>
         </tr></thead>
         <tbody>${empStats.map((e,idx)=>`<tr style="background:${idx%2?'#F5F8FC':'white'}">
@@ -231,8 +242,21 @@ function renderFlexReports(){
           <td style="color:#E65100;font-weight:600">${fmtHM(e.ot)}</td>
           <td style="color:#2E7D32;font-weight:600">${fmtDays(e.travelDays)}d</td>
           <td style="color:#6A1B9A;font-weight:600">${fmtMoney(e.perDiem)}</td>
+          <td style="color:#2E7D32;font-weight:600">${fmtMoney(e.pdReceived||0)}</td>
+          <td style="color:${(e.pdPending||0)>0?"#C62828":"var(--muted)"};font-weight:600">${fmtMoney(e.pdPending||0)}</td>
           <td style="color:#C62828;font-weight:600">${(Number(e.leaveDays)||0).toFixed(2)}</td>
         </tr>`).join("")}</tbody>
+        <tfoot><tr style="background:#1B3A6B;color:#fff;font-weight:800">
+          <td style="color:#fff">TOTAL \u2014 all employees</td>
+          <td style="color:#fff">${fmtHM(totH)}</td>
+          <td style="color:#fff">${empStats.reduce((s,e)=>s+e.sessions,0)}</td>
+          <td style="color:#fff">${fmtHM(totOT)}</td>
+          <td style="color:#fff">${fmtDays(totTr)}d</td>
+          <td style="color:#fff">${fmtMoney(totPD)}</td>
+          <td style="color:#A5D6A7">${fmtMoney(totPDR)}</td>
+          <td style="color:${totPDP>0?"#FFAB91":"#fff"}">${fmtMoney(totPDP)}</td>
+          <td style="color:#fff">${fmtDays(totLv)}</td>
+        </tr></tfoot>
       </table></div>
     </div>`;
   }
@@ -371,10 +395,14 @@ async function exportFilteredExcel(){
     setCell(ws1,'F5','Sessions',headerStyle);
     setCell(ws1,'G5','OT Entries',headerStyle);
     setCell(ws1,'H5','Trips',headerStyle);
+    setCell(ws1,'I5','Per Diem Received',headerStyle);
+    setCell(ws1,'J5','Per Diem Not Received',headerStyle);
     const totH = dr.reduce((s,r)=>s+Number(r.duration||0),0);
     const totOT = or.reduce((s,r)=>s+Number(r.hours||0),0);
     const totTr = tr.reduce((s,r)=>s+Number(r.days||0),0);
     const totPD = tr.reduce((s,r)=>s+Number(r.perDiem||0),0);
+    const _pdAll = perDiemBreakdown(tr);                 // every employee in the export
+    const totPDR = _pdAll.received, totPDP = _pdAll.pending;
     const totLv = lv.reduce((s,r)=>s+Number(r.days||0),0);
     setCell(ws1,'A6',fmtHM(totH),numStyle(false,COLORS.navyLight));
     setCell(ws1,'B6',fmtHM(totOT),numStyle(false,COLORS.orange));
@@ -384,6 +412,8 @@ async function exportFilteredExcel(){
     setCell(ws1,'F6',dr.length,numStyle(false));
     setCell(ws1,'G6',or.length,numStyle(false));
     setCell(ws1,'H6',tr.length,numStyle(false));
+    setCell(ws1,'I6',totPDR,numStyle(false,COLORS.green));
+    setCell(ws1,'J6',totPDP,numStyle(false,COLORS.red));
 
     // Department totals
     setCell(ws1,'A8','DEPARTMENT TOTALS',{...headerStyle,fill:{fgColor:{rgb:COLORS.purple}}});
@@ -407,7 +437,7 @@ async function exportFilteredExcel(){
     // Employee totals
     const empRowStart = 11 + state.departments.length;
     setCell(ws1,`A${empRowStart}`,'EMPLOYEE TOTALS',{...headerStyle,fill:{fgColor:{rgb:COLORS.green}}});
-    setMerge(ws1,{s:{r:empRowStart-1,c:0},e:{r:empRowStart-1,c:6}});
+    setMerge(ws1,{s:{r:empRowStart-1,c:0},e:{r:empRowStart-1,c:8}});
     const empHeadRow = empRowStart + 1;
     setCell(ws1,`A${empHeadRow}`,'Employee',headerStyle);
     setCell(ws1,`B${empHeadRow}`,'Hours',headerStyle);
@@ -415,7 +445,9 @@ async function exportFilteredExcel(){
     setCell(ws1,`D${empHeadRow}`,'OT',headerStyle);
     setCell(ws1,`E${empHeadRow}`,'Travel',headerStyle);
     setCell(ws1,`F${empHeadRow}`,'Per Diem',headerStyle);
-    setCell(ws1,`G${empHeadRow}`,'Leaves',headerStyle);
+    setCell(ws1,`G${empHeadRow}`,'Received',headerStyle);
+    setCell(ws1,`H${empHeadRow}`,'Not Received',headerStyle);
+    setCell(ws1,`I${empHeadRow}`,'Leaves',headerStyle);
     allowedEmps.forEach((e,idx)=>{
       const row = empHeadRow + 1 + idx;
       const alt = idx%2===1;
@@ -424,6 +456,7 @@ async function exportFilteredExcel(){
       const eo = or.filter(r=>r.employee===e).reduce((s,r)=>s+Number(r.hours||0),0);
       const td = tr.filter(r=>r.employee===e).reduce((s,r)=>s+Number(r.days||0),0);
       const pd = tr.filter(r=>r.employee===e).reduce((s,r)=>s+Number(r.perDiem||0),0);
+      const pdB = perDiemBreakdown(tr.filter(r=>r.employee===e));
       const lvd = lv.filter(r=>r.employee===e).reduce((s,r)=>s+Number(r.days||0),0);
       setCell(ws1,`A${row}`,e,empNameStyle(alt));
       setCell(ws1,`B${row}`,fmtHM(eh),numStyle(alt,COLORS.navyLight));
@@ -431,7 +464,9 @@ async function exportFilteredExcel(){
       setCell(ws1,`D${row}`,fmtHM(eo),numStyle(alt,COLORS.orange));
       setCell(ws1,`E${row}`,td,numStyle(alt,COLORS.green));
       setCell(ws1,`F${row}`,pd,numStyle(alt,COLORS.purple));
-      setCell(ws1,`G${row}`,lvd,numStyle(alt,COLORS.red));
+      setCell(ws1,`G${row}`,pdB.received,numStyle(alt,COLORS.green));
+      setCell(ws1,`H${row}`,pdB.pending,numStyle(alt,COLORS.red));
+      setCell(ws1,`I${row}`,lvd,numStyle(alt,COLORS.red));
     });
     const grandRow = empHeadRow + 1 + allowedEmps.length;
     setCell(ws1,`A${grandRow}`,'GRAND TOTAL',totalRowStyle);
@@ -440,10 +475,12 @@ async function exportFilteredExcel(){
     setCell(ws1,`D${grandRow}`,fmtHM(totOT),totalRowStyle);
     setCell(ws1,`E${grandRow}`,totTr,totalRowStyle);
     setCell(ws1,`F${grandRow}`,totPD,totalRowStyle);
-    setCell(ws1,`G${grandRow}`,totLv,totalRowStyle);
+    setCell(ws1,`G${grandRow}`,totPDR,totalRowStyle);
+    setCell(ws1,`H${grandRow}`,totPDP,totalRowStyle);
+    setCell(ws1,`I${grandRow}`,totLv,totalRowStyle);
 
-    ws1['!ref'] = `A1:H${grandRow}`;
-    ws1['!cols'] = [{wch:24},{wch:14},{wch:12},{wch:14},{wch:12},{wch:14},{wch:12},{wch:10}];
+    ws1['!ref'] = `A1:J${grandRow}`;
+    ws1['!cols'] = [{wch:24},{wch:14},{wch:12},{wch:14},{wch:12},{wch:14},{wch:14},{wch:16},{wch:18},{wch:20}];
     ws1['!rows'] = [{hpt:28},{hpt:18},{hpt:8},{hpt:22},{hpt:20},{hpt:22}];
     XLSX.utils.book_append_sheet(wb, ws1, 'Summary');
 
@@ -568,6 +605,8 @@ async function exportFilteredPDF(){
     const totOT = or.reduce((s,r)=>s+Number(r.hours||0),0);
     const totTr = tr.reduce((s,r)=>s+Number(r.days||0),0);
     const totPD = tr.reduce((s,r)=>s+Number(r.perDiem||0),0);
+    const _pdAll = perDiemBreakdown(tr);                 // every employee in the export
+    const totPDR = _pdAll.received, totPDP = _pdAll.pending;
     const totLv = lv.reduce((s,r)=>s+Number(r.days||0),0);
     const todayStr = new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
 
@@ -592,6 +631,9 @@ async function exportFilteredPDF(){
         ot: eOT.reduce((s,r)=>s+Number(r.hours||0),0),
         travelDays: eTr.reduce((s,r)=>s+Number(r.days||0),0),
         perDiem: eTr.reduce((s,r)=>s+Number(r.perDiem||0),0),
+      // Received and outstanding, from the same definition every report uses.
+      pdReceived: perDiemBreakdown(eTr).received,
+      pdPending:  perDiemBreakdown(eTr).pending,
         leaveDays: eLv.reduce((sum, r) => {
         if(r.days !== undefined && r.days !== null && !isNaN(Number(r.days))) return sum + Number(r.days);
         if(r.hours !== undefined && r.hours !== null && !isNaN(Number(r.hours))) return sum + (Number(r.hours) / WORK_HOURS_PER_DAY);
@@ -639,7 +681,7 @@ async function exportFilteredPDF(){
       <div class="kpi" style="border-left-color:#2E5FA3"><div class="kpi-label">Total Hours</div><div class="kpi-val" style="color:#2E5FA3">${fmtHM(totH)}</div><div class="kpi-sub">${dr.length} sessions</div></div>
       <div class="kpi" style="border-left-color:#E65100"><div class="kpi-label">Overtime</div><div class="kpi-val" style="color:#E65100">${fmtHM(totOT)}</div><div class="kpi-sub">${or.length} entries</div></div>
       <div class="kpi" style="border-left-color:#2E7D32"><div class="kpi-label">Travel Days</div><div class="kpi-val" style="color:#2E7D32">${fmtDays(totTr)}</div><div class="kpi-sub">${tr.length} trips</div></div>
-      <div class="kpi" style="border-left-color:#6A1B9A"><div class="kpi-label">Per Diem</div><div class="kpi-val" style="color:#6A1B9A">${fmtMoney(totPD)}</div><div class="kpi-sub">IQD total</div></div>
+      <div class="kpi" style="border-left-color:#6A1B9A"><div class="kpi-label">Per Diem</div><div class="kpi-val" style="color:#6A1B9A">${fmtMoney(totPD)}</div><div class="kpi-sub">IQD total \u00b7 \u2713 ${fmtMoney(totPDR)} received \u00b7 \u23F3 ${fmtMoney(totPDP)} not received</div></div>
       <div class="kpi" style="border-left-color:#C62828"><div class="kpi-label">Leave Days</div><div class="kpi-val" style="color:#C62828">${fmtDays(totLv)}</div><div class="kpi-sub">${lv.length} entries</div></div>
     </div>`;
 
@@ -663,12 +705,14 @@ async function exportFilteredPDF(){
       <td style="color:#E65100;font-weight:600">${fmtHM(r.ot)}</td>
       <td style="color:#2E7D32;font-weight:600">${fmtDays(r.travelDays)}</td>
       <td style="color:#6A1B9A;font-weight:600">${fmtMoney(r.perDiem)}</td>
+      <td style="color:#2E7D32;font-weight:600">${fmtMoney(r.pdReceived||0)}</td>
+      <td style="color:${(r.pdPending||0)>0?"#C62828":"#888"};font-weight:600">${fmtMoney(r.pdPending||0)}</td>
       <td style="color:#C62828;font-weight:600">${fmtDays(r.leaveDays)}</td>
     </tr>`).join("");
     const grandRow = !isEmployee()?`<tr class="grand">
       <td>GRAND TOTAL</td>
       ${state.departments.map(d=>`<td>${fmtHM(empStats.reduce((s,e)=>s+(e.byDept[d.name]||0),0))}</td>`).join('')}
-      <td>${fmtHM(totH)}</td><td>${fmtHM(totOT)}</td><td>${fmtDays(totTr)}</td><td>${fmtMoney(totPD)}</td><td>${fmtDays(totLv)}</td>
+      <td>${fmtHM(totH)}</td><td>${fmtHM(totOT)}</td><td>${fmtDays(totTr)}</td><td>${fmtMoney(totPD)}</td><td>${fmtMoney(totPDR)}</td><td>${fmtMoney(totPDP)}</td><td>${fmtDays(totLv)}</td>
     </tr>`:'';
 
     const projBlocks = projStats.map((p,i)=>{
@@ -703,7 +747,7 @@ async function exportFilteredPDF(){
       <div class="kc kb"><div class="kl">Total Hours</div><div class="kv">${fmtHM(totH)}</div><div class="ks">${dr.length} sessions</div></div>
       <div class="kc ko"><div class="kl">Overtime</div><div class="kv">${fmtHM(totOT)}</div><div class="ks">${or.length} entries</div></div>
       <div class="kc kg"><div class="kl">Travel Days</div><div class="kv">${fmtDays(totTr)}</div><div class="ks">${tr.length} trips</div></div>
-      <div class="kc kp"><div class="kl">Per Diem</div><div class="kv">${fmtMoney(totPD)}</div><div class="ks">IQD total</div></div>
+      <div class="kc kp"><div class="kl">Per Diem</div><div class="kv">${fmtMoney(totPD)}</div><div class="ks">\u2713 ${fmtMoney(totPDR)} received \u00b7 \u23F3 ${fmtMoney(totPDP)} not received</div></div>
       <div class="kc krd"><div class="kl">Leave Days</div><div class="kv">${fmtDays(totLv)}</div><div class="ks">${lv.length} entries</div></div>
     </div>`;
     // Counted section numbers: adding a section never means renumbering by hand.
@@ -719,7 +763,7 @@ async function exportFilteredPDF(){
       <div class="ksec"><span class="kbad">${KS()}</span><h3>Department Performance</h3></div>
       ${deptBlocks||'<div class="empty">No departments configured</div>'}
       ${!isEmployee()?`<div class="ksec"><span class="kbad">${KS()}</span><h3>Employee Breakdown</h3></div>
-      <table><thead><tr><th>Employee</th>${deptHeaders}<th>Total</th><th>OT</th><th>Travel</th><th>Per Diem</th><th>Leave</th></tr></thead>
+      <table><thead><tr><th>Employee</th>${deptHeaders}<th>Total</th><th>OT</th><th>Travel</th><th>Per Diem</th><th>\u2713 Received</th><th>\u23F3 Not received</th><th>Leave</th></tr></thead>
       <tbody>${empRows}</tbody><tfoot>${grandRow}</tfoot></table>`:''}
 
       ${projStats.length?`<div class="ksec"><span class="kbad">${KS()}</span><h3>Project Breakdown</h3></div>
@@ -1398,7 +1442,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v268';"
+      var swCode = "const CACHE='ejaftech-v269';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
@@ -5068,6 +5112,6 @@ window.forceUpdate = async function(){
 // The build actually running, so nobody has to infer it from behaviour.
 // A single named constant, updated with every release, so the screen can state
 // the build without inferring it from a variable that lives inside a function.
-const APP_BUILD = "v268";
+const APP_BUILD = "v269";
 window.APP_BUILD = APP_BUILD;
 window.runningVersion = function(){ return APP_BUILD; };

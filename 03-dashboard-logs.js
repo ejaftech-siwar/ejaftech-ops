@@ -257,6 +257,7 @@ window.projToggle = function(formName, name){
   if(formName === "dailyForm"){
     if(projectList(form).length !== 1) form.projectCode = "";
     if(typeof pruneAreasToProjects === "function") pruneAreasToProjects(form);
+    resSyncProjects(form);
   }
   render();
 };
@@ -311,6 +312,88 @@ function projectPicker(formName, options, total, unit, label){
   </div>`;
 }
 Object.assign(window,{projectPicker, projAllocSummary, areasForForm, pruneAreasToProjects});
+
+// ═══ ONE RESOLUTION PER PROJECT (v269) ═══════════════════════════════════
+// Work on two projects is two pieces of work: a different description, a
+// different status, different parts and different photographs. The resolution
+// block is NOT duplicated for this — it is one block with a tab per project,
+// and switching tabs swaps that project's answers in and out of the same
+// fields. Every existing control (parts picker, photo capture, category
+// cascade) therefore works unchanged for each project.
+const RES_FIELDS = ["workType","taskStatus","taskCategory","taskSubcategory",
+                    "resolutionText","resolutionImages","partsUsed"];
+const _resClone = v => Array.isArray(v) ? JSON.parse(JSON.stringify(v))
+                     : (v && typeof v === "object") ? JSON.parse(JSON.stringify(v)) : v;
+function resStash(form){
+  if(!form || !form.resProj) return;
+  form.projRes = form.projRes || {};
+  const o = {}; RES_FIELDS.forEach(k => { o[k] = _resClone(form[k]); });
+  form.projRes[form.resProj] = o;
+}
+function resApply(form, o){
+  RES_FIELDS.forEach(k => {
+    const v = o ? o[k] : undefined;
+    form[k] = (v !== undefined) ? _resClone(v)
+            : (k === "resolutionImages" || k === "partsUsed") ? [] : "";
+  });
+}
+function resLoad(form, p){ resApply(form, (form.projRes||{})[p]); form.resProj = p; }
+// Keep the per-project answers in step with the project list.
+function resSyncProjects(form){
+  if(!form) return;
+  const list = projectList(form);
+  form.projRes = form.projRes || {};
+  if(list.length <= 1){
+    if(form.resProj){
+      resStash(form);
+      const kept = list[0] ? form.projRes[list[0]] : null;
+      if(kept) resApply(form, kept);
+    }
+    form.projRes = {}; form.resProj = "";
+    return;
+  }
+  // Entering several-project mode: whatever is already typed belongs to the
+  // FIRST project, because that is the one the person was writing about.
+  if(!form.resProj) form.resProj = list[0];
+  resStash(form);
+  Object.keys(form.projRes).forEach(k => { if(!list.includes(k)) delete form.projRes[k]; });
+  if(!list.includes(form.resProj)) resLoad(form, list[0]);
+}
+window.resTab = function(p){
+  if(!window.dailyForm) return;
+  resStash(window.dailyForm);
+  resLoad(window.dailyForm, p);
+  render();
+};
+// The resolution a project will actually be saved with.
+function resFor(form, p){
+  if(p === form.resProj){ const o = {}; RES_FIELDS.forEach(k => { o[k] = _resClone(form[k]); }); return o; }
+  return (form.projRes||{})[p] || {};
+}
+function resTabsHTML(form){
+  const list = projectList(form);
+  if(list.length < 2) return "";
+  const slices = projectTimeSlices(form.start, form.end, list, form.projectAlloc) || [];
+  return `<div style="margin-bottom:10px">
+    <div style="font-size:11px;color:#7F6000;font-weight:700;margin-bottom:6px">
+      Each project is its own piece of work \u2014 fill in the resolution for each one.</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      ${list.map(p => {
+        const on = p === form.resProj;
+        const r = resFor(form, p);
+        const done = String(r.resolutionText||"").trim().length >= 10;
+        const sl = slices.find(x=>x.project===p);
+        return `<button type="button" onclick="resTab(${jsArg(p)})" style="flex:1;min-width:120px;text-align:start;cursor:pointer;
+          padding:7px 10px;border-radius:10px;border:2px solid ${on?"#1B3A6B":"#C9A84C"};
+          background:${on?"#1B3A6B":"#fff"};color:${on?"#fff":"#1B3A6B"}">
+          <div style="font-weight:800;font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${done?"\u2713 ":""}${escapeHtml(p)}</div>
+          <div style="font-size:10.5px;opacity:.8">${sl?escapeHtml(sl.start+"\u2013"+sl.end+" \u00b7 "+fmtHM(sl.hours)):""}${projDept(p)?" \u00b7 "+escapeHtml(projDept(p)):""}</div>
+        </button>`;
+      }).join("")}
+    </div>
+  </div>`;
+}
+Object.assign(window,{RES_FIELDS, resStash, resLoad, resSyncProjects, resFor, resTabsHTML});
 
 // ── 2 · trend chip + sparkline ────────────────────────────────────────
 function _trendChip(cur,prev){
@@ -932,7 +1015,7 @@ function renderDailyLog(){
   const _ovn = (typeof isOvernight==="function") && isOvernight(dailyForm);
   const _seg = _ovn && typeof daySegments==="function"
     ? daySegments({...dailyForm, duration:dur}) : null;
-  const dept=projDept(dailyForm.project);
+  const dept=projDeptsText(dailyForm);
   // Use the UNIFIED global filters (employees/branch/staff-dept/task-dept/projects/locations)
   // plus the local "# Entry" filter which only makes sense here in the Daily Log.
   const _jumped = !!(window._logEmpFilter || window._logProjFilter || window._logWiIds || dailyEntryNo);
@@ -1114,6 +1197,7 @@ function renderDailyLog(){
             <span style="background:#C9A84C;color:#1B3A6B;padding:3px 10px;border-radius:8px;font-size:11px;font-weight:700;letter-spacing:0.5px">RESOLUTION</span>
             <span style="font-size:12px;color:#7F6000;font-weight:600">📋 Required — Document work performed</span>
           </div>
+          ${resTabsHTML(dailyForm)}
 
           <!-- ═══ WORK ITEM LINK — continue an open job instead of starting a new one ═══ -->
           ${(()=>{
@@ -1282,6 +1366,148 @@ function renderDailyLog(){
   </div>`;
 }
 
+// ═══ SAVE AN ENTRY SPLIT BETWEEN PROJECTS (v269) ═══════════════════════════════
+// One entry per project, each a complete ordinary record: its own share of the
+// clock, its own department, its own resolution, status, parts and photos, its
+// own entry number. Linked by a split group so the pieces can be recognised as
+// one visit. Because every piece is a normal single-project record, nothing
+// downstream — approvals, job threads, PM sync, reports, exports, costing —
+// needs to know that a split ever happened.
+async function saveDailyMulti(gpsData){
+  const f = dailyForm;
+  resStash(f);
+  const list = projectList(f);
+  const slices = projectTimeSlices(f.start, f.end, list, f.projectAlloc);
+  if(!slices) return toast("⚠ Enter a start and end time, so the hours can be divided between the projects");
+  const chosenAreas = placeList(f,"area"), chosenSites = placeList(f,"site");
+  const group = "sg_" + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+  const cleanParts = arr => Array.isArray(arr)
+    ? arr.filter(l => String((l&&(l.name||l.code))||"").trim() && Number((l&&l.qty)||0) > 0)
+         .map(l => ({code:String(l.code||"").trim(), name:String(l.name||"").trim(),
+                     unit:String(l.unit||"").trim(), qty:Number(l.qty||0),
+                     unitCost:(l.unitCost===""||l.unitCost==null) ? 0 : Number(l.unitCost||0)}))
+    : [];
+  const wasNew  = !dailyEditId;
+  const prevRow = dailyEditId ? (state.daily||[]).find(x=>x.id===dailyEditId) : null;
+  const selfRev = (isAdmin()||isHR()) && !canApprove({employee: f.employee});
+  // Entry numbers are taken once and counted forward. Asking again after each
+  // save could return the same number twice before the first write arrives.
+  let nextNo = getNextDailyEntryNo();
+  const saved = [];
+  for(let i = 0; i < slices.length; i++){
+    const sl = slices[i], p = sl.project;
+    const proj = (state.projects||[]).find(x=>(x.name||"").trim()===p);
+    const pAreasObj = proj ? getProjectAreas(proj) : [];
+    const myAreas = chosenAreas.filter(a => pAreasObj.some(x=>x.name===a));
+    const pSites = [];
+    pAreasObj.filter(a=>myAreas.includes(a.name))
+      .forEach(a => (a.sites||[]).forEach(s => pSites.push((s.name||"").trim())));
+    const mySites = chosenSites.filter(s => pSites.includes(s));
+
+    const rec = {...f};
+    delete rec.projRes; delete rec.resProj;          // form state, not data
+    Object.assign(rec, resFor(f, p));
+    setProjects(rec, [p]);
+    setPlaces(rec, "area", myAreas);
+    setPlaces(rec, "site", mySites);
+    rec.projectCode = "";
+    rec.start = sl.start; rec.end = sl.end;
+    rec.duration = +timeToHrs(sl.start, sl.end).toFixed(4);
+    rec.dept = projDept(p);
+    rec.partsUsed = cleanParts(rec.partsUsed);
+    rec.splitGroup = group; rec.splitIndex = i + 1; rec.splitOf = slices.length;
+
+    const isEditRow = (i === 0 && !!dailyEditId);   // the entry being edited keeps its id
+    if(!isEditRow){ rec.entryNo = nextNo; nextNo++; }
+    const isNewRow = !isEditRow;
+    const appr = selfRev ? APPR.APPROVED
+               : (isNewRow || !prevRow || isRejectedAppr(prevRow)) ? APPR.SUBMITTED
+               : apprOf(prevRow);
+    await fbSave("daily", {
+      id: isEditRow ? dailyEditId : undefined,
+      ...rec,
+      approval: appr,
+      approvalNote: appr===APPR.SUBMITTED ? "" : ((prevRow&&prevRow.approvalNote)||""),
+      createdBy: state.profile.uid,
+      ...gpsData,
+    });
+    saved.push(rec);
+  }
+
+  await _dailyDeviceSync();
+  clearDailyDraft();
+  window._draftToastShown = false;
+  dailyForm = null; dailyEditId = null;
+  render();
+  window.scrollTo({top:0, behavior:'smooth'});
+  saveToast(`Saved \u2713 \u2014 ${saved.length} entries, one per project`);
+  if(wasNew && (emailGetSettings().triggers||[]).includes("daily")){
+    saved.forEach(r => _emailBuffer.push(r));
+    if(_emailBufferTimer){ clearTimeout(_emailBufferTimer); _emailBufferTimer = null; }
+    flushTaskEmailBuffer();                          // one combined email, not one per piece
+  }
+}
+window.saveDailyMulti = saveDailyMulti;
+
+// Overtime split between projects: one record per project, each with its own
+// department and its own share of the clock — the same rule as the Daily Log.
+async function _otSaveSplit(isEdit){
+  const list = projectList(otForm);
+  const slices = projectTimeSlices(otForm.start, otForm.end, list, otForm.projectAlloc);
+  if(!slices) return false;
+  const group = "sg_" + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+  for(let i = 0; i < slices.length; i++){
+    const sl = slices[i];
+    const rec = {...otForm};
+    setProjects(rec, [sl.project]);
+    rec.start = sl.start; rec.end = sl.end;
+    rec.hours = +timeToHrs(sl.start, sl.end).toFixed(4);
+    rec.splitGroup = group; rec.splitIndex = i + 1; rec.splitOf = slices.length;
+    await fbSave("overtime", {
+      id: (isEdit && i === 0) ? otEditId : undefined,
+      ...rec,
+      dept: projDept(sl.project), day: dayName(otForm.date),
+      createdBy: state.profile.uid,
+    });
+  }
+  return true;
+}
+window._otSaveSplit = _otSaveSplit;
+
+// Device sync after a daily save, shared by the single and the split path.
+async function _dailyDeviceSync(){
+  // ── Central device sync: if a device was selected and edited, update the devices collection ──
+  if(dailyForm.deviceSerial && window._devEdit){
+    const dev = (state.devices||[]).find(d=>d.serialNumber===dailyForm.deviceSerial);
+    if(dev){
+      const perms2 = getEmpPermissions(dailyForm.employee||state.profile.employeeName||"");
+      const canFull = isAdmin() || perms2.fullDeviceEdit;
+      // Basic fields everyone with tracking can update
+      const patch = {
+        status: window._devEdit.status ?? dev.status,
+        installDate: window._devEdit.installDate ?? dev.installDate,
+        updatedAt: new Date().toISOString(),
+        updatedFrom: "daily-log",
+        updatedByName: dailyForm.employee||state.profile.employeeName||"",
+      };
+      // Full-edit fields only if permitted
+      if(canFull){
+        if(window._devEdit.ipAddress !== undefined) patch.ipAddress = window._devEdit.ipAddress;
+        if(window._devEdit.model !== undefined) patch.model = window._devEdit.model;
+        if(window._devEdit.vendor !== undefined) patch.vendor = window._devEdit.vendor;
+        if(window._devEdit.warrantyExp !== undefined) patch.warrantyExp = window._devEdit.warrantyExp;
+        if(window._devEdit.stack !== undefined) patch.stack = window._devEdit.stack;
+      }
+      try{
+        const {db, doc, setDoc} = window.__fb;
+        await setDoc(doc(db,"devices",dev.id), patch, {merge:true});
+        saveToast("📟 Device updated centrally ✓");
+      }catch(e){ /* device sync is best-effort; entry already saved */ }
+    }
+  }
+  window._devEdit = null;
+}
+
 async function saveDaily(){
   // Specific validation messages — tell the user exactly what's missing
   if(isEmployee() && !state.profile.employeeName){
@@ -1304,30 +1530,41 @@ async function saveDaily(){
   // Admin: resolution photos optional always. Employee: depends on their permission record.
   const perms = getEmpPermissions(dailyForm.employee);
 
-  // Resolution validation for new entries
+  // Resolution validation for new entries. With several projects EACH one's
+  // resolution is held to the same rules, and a failure opens that project's
+  // tab so the person sees exactly which piece of work is incomplete.
   if(!dailyEditId){
-    const txt = (dailyForm.resolutionText||"").trim();
-    if(isAdmin()){
-      // Admin: text optional too if resolution not strictly needed — keep min text rule relaxed
-      if(txt.length > 0 && txt.length < 10) return toast("Resolution description too short (min 10 chars)");
-    } else if(perms.resolutionRequired){
-      if(txt.length < 10) return toast("Resolution description required (min 10 chars)");
-      if(!dailyForm.resolutionImages || dailyForm.resolutionImages.length < 1){
-        return toast("At least 1 resolution photo is required");
+    const _resErr = (r) => {
+      const txt = (r.resolutionText||"").trim();
+      if(isAdmin()){
+        if(txt.length > 0 && txt.length < 10) return "Resolution description too short (min 10 chars)";
+      } else if(perms.resolutionRequired){
+        if(txt.length < 10) return "Resolution description required (min 10 chars)";
+        if(!r.resolutionImages || r.resolutionImages.length < 1) return "At least 1 resolution photo is required";
+        if(!r.workType) return "⚠ Please select a Work Type";
+        if(!r.taskStatus) return "⚠ Please select a Task Status";
+        if(!r.taskCategory) return "⚠ Please select a Category";
+        if(!r.taskSubcategory) return "⚠ Please select a Subcategory";
       }
-      // Technical classification also required when resolution is enabled
-      if(!dailyForm.workType) return toast("⚠ Please select a Work Type");
-      if(!dailyForm.taskStatus) return toast("⚠ Please select a Task Status");
-      if(!dailyForm.taskCategory) return toast("⚠ Please select a Category");
-      if(!dailyForm.taskSubcategory) return toast("⚠ Please select a Subcategory");
+      return null;
+    };
+    const _plist = projectList(dailyForm);
+    if(_plist.length > 1){
+      resStash(dailyForm);
+      for(const _p of _plist){
+        const _e = _resErr(resFor(dailyForm, _p));
+        if(_e){ if(_p !== dailyForm.resProj){ resLoad(dailyForm, _p); render(); } return toast(_p + ": " + _e); }
+      }
+    } else {
+      const _e = _resErr(dailyForm);
+      if(_e) return toast(_e);
     }
   }
 
   // Area/Site requirement: if admin enabled it for this employee AND the project has areas,
   // the employee must pick an area and a site.
   if(!isAdmin() && perms.equipmentRequired){
-    const proj = state.projects.find(p=>(p.name||"").trim()===(dailyForm.project||"").trim());
-    const areas = proj ? getProjectAreas(proj).filter(a=>a.active!==false) : [];
+    const areas = areasForForm(dailyForm);                 // every chosen project
     if(areas.length > 0){
       // Several areas may be chosen, so the check is on the LIST being empty
       // rather than on one field being blank.
@@ -1367,6 +1604,10 @@ async function saveDaily(){
       gpsData = { gpsLat: gps.lat, gpsLng: gps.lng, gpsAccuracy: gps.accuracy };
     }
   }
+
+  // Several projects: each becomes its own entry. Handled apart so the single
+  // path below is left exactly as it has always been.
+  if(projectList(dailyForm).length > 1) return await saveDailyMulti(gpsData);
 
   // Auto-assign entry number for new entries only
   const entryNoToSave = dailyEditId ? undefined : getNextDailyEntryNo();
@@ -1410,36 +1651,7 @@ async function saveDaily(){
     window.pmOnDailySaved(savedRecord, !!dailyForm.pmFinal, isNewDailyEntry);
   }
 
-  // ── Central device sync: if a device was selected and edited, update the devices collection ──
-  if(dailyForm.deviceSerial && window._devEdit){
-    const dev = (state.devices||[]).find(d=>d.serialNumber===dailyForm.deviceSerial);
-    if(dev){
-      const perms2 = getEmpPermissions(dailyForm.employee||state.profile.employeeName||"");
-      const canFull = isAdmin() || perms2.fullDeviceEdit;
-      // Basic fields everyone with tracking can update
-      const patch = {
-        status: window._devEdit.status ?? dev.status,
-        installDate: window._devEdit.installDate ?? dev.installDate,
-        updatedAt: new Date().toISOString(),
-        updatedFrom: "daily-log",
-        updatedByName: dailyForm.employee||state.profile.employeeName||"",
-      };
-      // Full-edit fields only if permitted
-      if(canFull){
-        if(window._devEdit.ipAddress !== undefined) patch.ipAddress = window._devEdit.ipAddress;
-        if(window._devEdit.model !== undefined) patch.model = window._devEdit.model;
-        if(window._devEdit.vendor !== undefined) patch.vendor = window._devEdit.vendor;
-        if(window._devEdit.warrantyExp !== undefined) patch.warrantyExp = window._devEdit.warrantyExp;
-        if(window._devEdit.stack !== undefined) patch.stack = window._devEdit.stack;
-      }
-      try{
-        const {db, doc, setDoc} = window.__fb;
-        await setDoc(doc(db,"devices",dev.id), patch, {merge:true});
-        saveToast("📟 Device updated centrally ✓");
-      }catch(e){ /* device sync is best-effort; entry already saved */ }
-    }
-  }
-  window._devEdit = null;
+  await _dailyDeviceSync();
 
   clearDailyDraft();                 // MUST run BEFORE render(): otherwise the
   window._draftToastShown=false;     // re-render finds the old draft and restores it
@@ -1472,6 +1684,10 @@ async function saveDailyAndNext(){
     return toast("At least 1 resolution photo is required");
   }
   if(isEmployee()) return toast("Use Save for single entry");
+  // A split entry becomes several records with their own resolutions. That is
+  // Save's job; Save & Next would write it as one record with no department.
+  if(projectList(dailyForm).length > 1)
+    return toast("⚠ An entry split between projects is saved with Save \u2014 then add the next person");
   // The save-and-next path must enforce the same split rule as plain Save, or
   // it becomes the way an unbalanced entry reaches the ledger.
   {
@@ -1834,12 +2050,16 @@ async function saveOT(){
     if(!state.profile.employeeName) return toast("Your account has no employee profile. Contact admin.");
     otForm.employee = state.profile.employeeName;
   }
+  if(projectList(otForm).length > 1){
+    if(!(await _otSaveSplit(!!otEditId))) return toast("\u26a0 Enter a start and end time to divide the overtime");
+  } else {
   await fbSave("overtime",{
     id:otEditId||undefined,
     ...otForm,hours:+otForm.hours,
     dept:projDept(otForm.project),day:dayName(otForm.date),
     createdBy:state.profile.uid,
   });
+  }
   const _wasEditOT=!!otEditId;
   otForm=null;otEditId=null;
   render(); window.scrollTo({top:0,behavior:'smooth'});   // fresh blank form (missing render() left dead inputs)
@@ -1853,12 +2073,16 @@ async function saveOTAndNext(){
   if(computed <= 0) return toast("End time must be after start time");
   otForm.hours = computed.toFixed(4);
   { const _e = projectAllocError(otForm, computed, "hours"); if(_e) return toast("⚠ " + _e); }
+  if(projectList(otForm).length > 1){
+    if(!(await _otSaveSplit(false))) return toast("\u26a0 Enter a start and end time to divide the overtime");
+  } else {
   await fbSave("overtime",{
     id:undefined,
     ...otForm,hours:+otForm.hours,
     dept:projDept(otForm.project),day:dayName(otForm.date),
     createdBy:state.profile.uid,
   });
+  }
   const savedEmp = otForm.employee;
   otForm = {...otForm, employee:""};
   render();
@@ -1968,7 +2192,7 @@ async function saveTr(){
     id:trEditId||undefined,
     ...trForm,days:+trForm.days,
     dateTo: trForm.dateTo||trForm.date,
-    dept:projDept(trForm.project),
+    dept:projDeptsText(trForm),
     perDiem:+trForm.days*PER_DIEM_RATE,
     perDiemStatus: trForm.perDiemStatus||"received",
     createdBy:state.profile.uid,
@@ -1989,7 +2213,7 @@ async function saveTrAndNext(){
     id:undefined,
     ...trForm,days:+trForm.days,
     dateTo: trForm.dateTo||trForm.date,
-    dept:projDept(trForm.project),
+    dept:projDeptsText(trForm),
     perDiem:+trForm.days*PER_DIEM_RATE,
     perDiemStatus: trForm.perDiemStatus||"received",
     createdBy:state.profile.uid,
