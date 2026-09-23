@@ -2987,6 +2987,19 @@ function _ackWrite(p){
 
 Object.assign(window,{_ackWrite,LOCAL_ACK_MS});
 
+// A copy of a record, minus its id. Every save that names its target id
+// explicitly and then spreads a form object used to let the FORM's id win,
+// because a spread after a property overrides it. A form built from an
+// existing record carries that record's id, so a save meant to create a new
+// document silently overwrote the old one. Spreading through this makes the
+// explicit id the only one that can reach the write.
+function _withoutId(o){
+  if(!o || typeof o !== "object" || Array.isArray(o)) return o;
+  const {id, ...rest} = o;
+  return rest;
+}
+window._withoutId = _withoutId;
+
 async function fbSave(col,item){
   try{
     const{db,doc,setDoc}=window.__fb;

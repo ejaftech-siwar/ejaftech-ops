@@ -624,7 +624,7 @@ async function submitClientRequest(){
   };
   await fbSave("clientRequests",{
     id: undefined,
-    ...savedRequest,
+    ..._withoutId(savedRequest),
     createdBy: state.profile.uid,
   });
   requestForm=null;
@@ -789,6 +789,6 @@ const WA_FIELDS = [
 
 window.saveSLA=async function(k,v){
   const cur=getSLA();
-  await fbSave("settings",{id:"sla",...cur,[k]:Math.max(1,Number(v)||cur[k])});
+  await fbSave("settings",{id:"sla",..._withoutId(cur),[k]:Math.max(1,Number(v)||cur[k])});
   saveToast("⏱ SLA target saved ✓");
 };

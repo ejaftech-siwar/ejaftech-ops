@@ -1405,8 +1405,15 @@ async function saveDailyMulti(gpsData){
     const mySites = chosenSites.filter(s => pSites.includes(s));
 
     const rec = {...f};
+    // When an existing entry is opened for editing, the form is a copy of that
+    // record \u2014 including its id. Carried into every piece, it made each write
+    // land on the SAME document, so the second project overwrote the first and
+    // only one survived. The id is removed here and assigned explicitly below.
+    delete rec.id;
     delete rec.projRes; delete rec.resProj;          // form state, not data
-    Object.assign(rec, resFor(f, p));
+    // Each project gets exactly its own resolution. A project whose tab was
+    // never filled saves an EMPTY resolution, never a copy of another project's.
+    resApply(rec, resFor(f, p));
     setProjects(rec, [p]);
     setPlaces(rec, "area", myAreas);
     setPlaces(rec, "site", mySites);
@@ -1418,18 +1425,24 @@ async function saveDailyMulti(gpsData){
     rec.splitGroup = group; rec.splitIndex = i + 1; rec.splitOf = slices.length;
 
     const isEditRow = (i === 0 && !!dailyEditId);   // the entry being edited keeps its id
-    if(!isEditRow){ rec.entryNo = nextNo; nextNo++; }
+    if(!isEditRow){
+      rec.entryNo = nextNo; nextNo++;
+      // A new piece is new work: it must not inherit the edited entry's link to
+      // an earlier job, its approval history or its creation stamp.
+      delete rec.threadId; delete rec.approval; delete rec.approvalNote;
+      delete rec.createdAt; delete rec.approvedBy; delete rec.approvedAt;
+    }
     const isNewRow = !isEditRow;
     const appr = selfRev ? APPR.APPROVED
                : (isNewRow || !prevRow || isRejectedAppr(prevRow)) ? APPR.SUBMITTED
                : apprOf(prevRow);
     await fbSave("daily", {
-      id: isEditRow ? dailyEditId : undefined,
       ...rec,
       approval: appr,
       approvalNote: appr===APPR.SUBMITTED ? "" : ((prevRow&&prevRow.approvalNote)||""),
       createdBy: state.profile.uid,
       ...gpsData,
+      id: isEditRow ? dailyEditId : undefined,         // LAST: nothing above may override it
     });
     saved.push(rec);
   }
@@ -1459,15 +1472,16 @@ async function _otSaveSplit(isEdit){
   for(let i = 0; i < slices.length; i++){
     const sl = slices[i];
     const rec = {...otForm};
+    delete rec.id;                                    // see saveDailyMulti: an inherited id overwrote the other piece
     setProjects(rec, [sl.project]);
     rec.start = sl.start; rec.end = sl.end;
     rec.hours = +timeToHrs(sl.start, sl.end).toFixed(4);
     rec.splitGroup = group; rec.splitIndex = i + 1; rec.splitOf = slices.length;
     await fbSave("overtime", {
-      id: (isEdit && i === 0) ? otEditId : undefined,
       ...rec,
       dept: projDept(sl.project), day: dayName(otForm.date),
       createdBy: state.profile.uid,
+      id: (isEdit && i === 0) ? otEditId : undefined,   // LAST
     });
   }
   return true;
@@ -1638,7 +1652,7 @@ async function saveDaily(){
                   : apprOf(_prevRow);
   await fbSave("daily",{
     id:dailyEditId||undefined,
-    ...savedRecord,
+    ..._withoutId(savedRecord),
     approval:_apprNext,
     approvalNote: _apprNext===APPR.SUBMITTED ? "" : ((_prevRow&&_prevRow.approvalNote)||""),
     createdBy:state.profile.uid,
@@ -1705,7 +1719,7 @@ async function saveDailyAndNext(){
   };
   await fbSave("daily",{
     id:undefined,
-    ...recordForEmail,
+    ..._withoutId(recordForEmail),
     approval: ((isAdmin()||isHR()) && !canApprove({employee: recordForEmail.employee})) ? APPR.APPROVED : APPR.SUBMITTED,
     createdBy:state.profile.uid,
   });
@@ -1965,6 +1979,15 @@ function editDaily(id){
       deviceSerial:r.deviceSerial||"",
     };
     dailyEditId=id;
+    // An entry saved before resolutions were per project holds ONE resolution
+    // for several projects. Opening it gives every project a copy of that text,
+    // so saving it again never leaves any project with an empty description.
+    if(projectList(dailyForm).length > 1 && !dailyForm.resProj){
+      const shared = {}; RES_FIELDS.forEach(k => { shared[k] = dailyForm[k]; });
+      dailyForm.projRes = {};
+      projectList(dailyForm).forEach(p => { dailyForm.projRes[p] = JSON.parse(JSON.stringify(shared)); });
+      dailyForm.resProj = projectList(dailyForm)[0];
+    }
     // Pre-load the device edit buffer if this entry references a device
     if(r.deviceSerial){ window._loadDeviceEdit(r.deviceSerial); } else { window._devEdit = null; }
     render();
@@ -2055,7 +2078,7 @@ async function saveOT(){
   } else {
   await fbSave("overtime",{
     id:otEditId||undefined,
-    ...otForm,hours:+otForm.hours,
+    ..._withoutId(otForm),hours:+otForm.hours,
     dept:projDept(otForm.project),day:dayName(otForm.date),
     createdBy:state.profile.uid,
   });
@@ -2078,7 +2101,7 @@ async function saveOTAndNext(){
   } else {
   await fbSave("overtime",{
     id:undefined,
-    ...otForm,hours:+otForm.hours,
+    ..._withoutId(otForm),hours:+otForm.hours,
     dept:projDept(otForm.project),day:dayName(otForm.date),
     createdBy:state.profile.uid,
   });
@@ -2190,7 +2213,7 @@ async function saveTr(){
   }
   await fbSave("travel",{
     id:trEditId||undefined,
-    ...trForm,days:+trForm.days,
+    ..._withoutId(trForm),days:+trForm.days,
     dateTo: trForm.dateTo||trForm.date,
     dept:projDeptsText(trForm),
     perDiem:+trForm.days*PER_DIEM_RATE,
@@ -2211,7 +2234,7 @@ async function saveTrAndNext(){
   if(isEmployee()) return toast("Use Save for single entry");
   await fbSave("travel",{
     id:undefined,
-    ...trForm,days:+trForm.days,
+    ..._withoutId(trForm),days:+trForm.days,
     dateTo: trForm.dateTo||trForm.date,
     dept:projDeptsText(trForm),
     perDiem:+trForm.days*PER_DIEM_RATE,
@@ -2503,7 +2526,7 @@ async function saveLeave(){
   const amount = computeLeaveAmount(leaveForm);
   await fbSave("leaves", {
     id: leaveEditId || undefined,
-    ...leaveForm,
+    ..._withoutId(leaveForm),
     hours: amount.hours,
     days: amount.days,
     createdBy: state.profile.uid,
@@ -2532,7 +2555,7 @@ async function saveLeaveAndNext(){
   const amount = computeLeaveAmount(leaveForm);
   await fbSave("leaves", {
     id: undefined,
-    ...leaveForm,
+    ..._withoutId(leaveForm),
     hours: amount.hours,
     days: amount.days,
     createdBy: state.profile.uid,

@@ -394,6 +394,23 @@ head("10. RENDER STABILITY");
         "scheduleRender() is MISSING — snapshot bursts will repaint repeatedly");
 }
 
+/* ── 10b. WRITE SAFETY ───────────────────────────────────────────────── */
+head("10b. WRITE SAFETY");
+{
+  // fbSave(col, { id: X, ...form }) lets the FORM's id win, because a spread
+  // after a property overrides it. A form copied from an existing record
+  // therefore overwrote that record instead of creating a new one \u2014 which is
+  // exactly how a two-project entry lost one of its projects in v269.
+  let unsafe = [];
+  MODULES.filter(exists).forEach(f => {
+    const s = read(f);
+    const re = /fbSave\(\s*"\w+"\s*,\s*\{\s*id\s*:\s*[^,]+?,\s*\.\.\.(?!_withoutId)(\w+)/g;
+    let m; while((m = re.exec(s))) unsafe.push(`${f}:${s.slice(0,m.index).split("\n").length}  ...${m[1]}`);
+  });
+  check(!unsafe.length, "no save lets a spread object override its explicit id",
+        `${unsafe.length} save(s) can OVERWRITE the wrong record`, unsafe.join("\n      "));
+}
+
 /* ── 11. NOTHING LOST ───────────────────────────────────────────────────── */
 head("11. FEATURE PRESERVATION");
 {

@@ -625,7 +625,7 @@ window.createShareLink=async function(clientId){
   const client=(state.clients||[]).find(c=>c.id===clientId); if(!client) return;
   const token=_shareToken();
   const payload=_buildSharePayload(client);
-  await fbSave("publicShares",{id:token,...payload,revoked:false,createdAt:new Date().toISOString()});
+  await fbSave("publicShares",{id:token,..._withoutId(payload),revoked:false,createdAt:new Date().toISOString()});
   try{ await navigator.clipboard.writeText(_shareUrl(token)); toast("🔗 Link created & copied ✓"); }
   catch(e){ toast("🔗 Link created ✓"); }
   render();
@@ -655,7 +655,7 @@ async function _refreshAllShares(manual){
       const payload=_buildSharePayload(client);
       // skip write when nothing visible changed — keeps Firestore writes minimal
       if(!manual && JSON.stringify(sl.projects||[])===JSON.stringify(payload.projects)) continue;
-      await fbSave("publicShares",{id:sl.id,...sl,...payload});
+      await fbSave("publicShares",{id:sl.id,..._withoutId(sl),...payload});
     }
     if(manual) toast("↻ Live view refreshed ✓");
   }catch(e){ console.error(e); }

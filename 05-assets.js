@@ -1100,7 +1100,7 @@ async function saveDevice(){
   };
 
   const wasEdit = !!deviceEditId;
-  await fbSave("devices", {id: deviceEditId||undefined, ...data});
+  await fbSave("devices", {id: deviceEditId||undefined, ..._withoutId(data)});
   toast(wasEdit?"Device updated ✓":"Device added ✓");
   if(wasEdit) window._assetView = "devices";   // finished editing — back to the list
   deviceForm = blankDevice();
