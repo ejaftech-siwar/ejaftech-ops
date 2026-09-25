@@ -452,6 +452,7 @@ head("11. FEATURE PRESERVATION");
     ["multi-project picker","function projectPicker"],
     ["split save","async function saveDailyMulti"], ["per-project resolution","function resTabsHTML"],
     ["time slicing","function projectTimeSlices"], ["overtime split","async function _otSaveSplit"],
+    ["h:mm allocation","function allocNum"], ["allocation auto-fill","function _allocHint"],
     ["shift end date","function shiftEndDate"],
     ["vehicle fleet register","function renderVehicles"], ["vehicle maintenance jobs","vehJobSave"],
     ["oil-change distance reminder","function vehOil"], ["vehicle due alerts","function vehAlerts"],

@@ -251,6 +251,7 @@ window.projToggle = function(formName, name){
   const i = cur.indexOf(name);
   if(i >= 0) cur.splice(i,1); else cur.push(name);
   setProjects(form, cur);
+  if(form._allocTyped) Object.keys(form._allocTyped).forEach(k => { if(!cur.includes(k)) delete form._allocTyped[k]; });
   // The project decides which codes, areas and sites exist. Dropping one must
   // drop what hung off it, or the entry names a site on a project it no
   // longer belongs to.
@@ -265,21 +266,59 @@ window.projAlloc = function(formName, name, v){
   const form = window[formName]; if(!form) return;
   form.projectAlloc = form.projectAlloc || {};
   form.projectAlloc[name] = v;
-  // Update the running total in place. Rebuilding the form here would take
-  // the caret out of the number box on every keystroke.
+  form._allocTyped = form._allocTyped || {};
+  form._allocTyped[name] = String(v).trim() !== "";
+  // When exactly ONE project is still untyped, it takes whatever is left.
+  // Type 4 against a 7:20 entry and the other becomes 3:20 on its own \u2014 the
+  // person never has to work out that twenty minutes is 0.33 of an hour, and
+  // the remainder is stored exactly, so the two always add up.
+  const spec = window["_projAllocSpec_" + formName] || {total:0, unit:"hours"};
+  const list = projectList(form);
+  const untyped = list.filter(p => !form._allocTyped[p]);
+  if(untyped.length === 1 && Number(spec.total) > 0){
+    let used = 0;
+    list.forEach(p => { if(p !== untyped[0]) used += Math.max(0, allocNum(form.projectAlloc[p]) || 0); });
+    const rest = Number(spec.total) - used;
+    if(rest > 0.0001){
+      form.projectAlloc[untyped[0]] = +rest.toFixed(6);
+      const i = list.indexOf(untyped[0]);
+      const box = document.getElementById("alloc_in_" + formName + "_" + i);
+      if(box) box.value = _allocShow(form.projectAlloc[untyped[0]], spec.unit);
+    }
+  }
+  // Refresh the h:mm reading beside every box, and the running total, in
+  // place. Rebuilding the form would take the caret out of the box.
+  list.forEach((p,i) => {
+    const h = document.getElementById("alloc_hint_" + formName + "_" + i);
+    if(h) h.textContent = _allocHint(form.projectAlloc[p], spec.unit);
+  });
   const el = document.getElementById("alloc_sum_" + formName);
   if(el) el.outerHTML = projAllocSummary(formName);
+}
+// How a stored share appears in its box: what the person typed, or a tidy
+// two-decimal number when the app filled it in.
+function _allocShow(v, unit){
+  if(v == null || v === "") return "";
+  if(typeof v === "number") return String(+v.toFixed(2));
+  return String(v);
+}
+// The same share spelled the way the Duration box spells it.
+function _allocHint(v, unit){
+  const n = allocNum(v);
+  if(!isFinite(n) || n <= 0) return "";
+  return unit === "hours" ? "= " + fmtHM(n) : "= " + (+n.toFixed(2)) + " d";
 };
 // `total` is the whole the allocations must add up to; `unit` names it.
 function projAllocSummary(formName){
   const form = window[formName] || {};
   const spec = window["_projAllocSpec_" + formName] || {total:0, unit:"hours"};
   const err = projectAllocError(form, spec.total, spec.unit);
-  let sum = 0; projectList(form).forEach(p => { sum += Number((form.projectAlloc||{})[p]) || 0; });
+  let sum = 0; projectList(form).forEach(p => { sum += allocNum((form.projectAlloc||{})[p]) || 0; });
   const ok = !err;
+  const show = x => spec.unit === "hours" ? fmtHM(x) : String(+Number(x).toFixed(2));
   return `<div id="alloc_sum_${escapeHtml(formName)}" style="margin-top:6px;padding:7px 10px;border-radius:8px;font-size:12px;font-weight:700;
     background:${ok?"rgba(46,125,50,.10)":"rgba(230,81,0,.10)"};border:1px solid ${ok?"#2E7D32":"#E65100"};color:${ok?"#2E7D32":"#E65100"}">
-    ${ok ? `\u2713 Allocated ${+sum.toFixed(2)} of ${+Number(spec.total).toFixed(2)} ${escapeHtml(spec.unit)} \u2014 each project is charged only its share`
+    ${ok ? `\u2713 Allocated ${escapeHtml(show(sum))} of ${escapeHtml(show(spec.total))} ${escapeHtml(spec.unit)} \u2014 each project is charged only its share`
          : `\u26a0 ${escapeHtml(err)}`}
   </div>`;
 }
@@ -292,10 +331,13 @@ function projectPicker(formName, options, total, unit, label){
   return `<div class="field full" id="projpick_${escapeHtml(formName)}">
     <label>${escapeHtml(label||"Project *")}${chosen.length>1?` <span style="color:#1565C0;font-weight:700">\u00b7 ${chosen.length} projects</span>`:""}</label>
     ${chosen.length?`<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:7px">
-      ${chosen.map(c=>`<div style="display:flex;align-items:center;gap:8px;background:rgba(27,58,107,.06);border:1px solid var(--line);border-radius:10px;padding:5px 6px 5px 11px">
-        <span style="flex:1;min-width:0;font-weight:700;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(c)}</span>
-        ${chosen.length>1?`<input class="input" inputmode="decimal" style="width:84px;text-align:center;padding:5px 6px"
-            placeholder="${escapeHtml(unit)}" value="${escapeHtml(alloc[c]==null?"":String(alloc[c]))}"
+      ${chosen.map((c,ci)=>`<div style="display:flex;align-items:center;gap:8px;background:rgba(27,58,107,.06);border:1px solid var(--line);border-radius:10px;padding:5px 6px 5px 11px">
+        <span style="flex:1;min-width:0;overflow:hidden">
+          <span style="display:block;font-weight:700;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(c)}</span>
+          ${chosen.length>1?`<span id="alloc_hint_${escapeHtml(formName)}_${ci}" style="display:block;font-size:11px;color:#2E7D32;font-weight:700">${escapeHtml(_allocHint(alloc[c], unit))}</span>`:""}
+        </span>
+        ${chosen.length>1?`<input id="alloc_in_${escapeHtml(formName)}_${ci}" class="input" inputmode="decimal" style="width:84px;text-align:center;padding:5px 6px"
+            placeholder="${unit==="hours"?"e.g. 4":"days"}" value="${escapeHtml(_allocShow(alloc[c], unit))}"
             oninput="projAlloc(${jsArg(formName)},${jsArg(c)},this.value)">`:""}
         <button type="button" onclick="projToggle(${jsArg(formName)},${jsArg(c)})"
           style="background:#FDECEA;color:#C62828;border:none;border-radius:50%;width:24px;height:24px;line-height:1;padding:0;cursor:pointer;flex:0 0 auto">\u00d7</button>
@@ -305,13 +347,15 @@ function projectPicker(formName, options, total, unit, label){
       <option value="">${chosen.length?"\u2795 Add another project\u2026":"\u2014 Select \u2014"}</option>
       ${left.map(o=>`<option value="${escapeHtml(o)}">${escapeHtml(o)}</option>`).join("")}
     </select>`:""}
+    ${chosen.length>1 && unit==="hours" ? `<div style="font-size:11px;color:var(--muted);margin:-2px 0 4px">
+        Type the hours for one project and the last one fills itself. 3.5 or 3:30 both mean three and a half hours.</div>` : ""}
     ${chosen.length>1 ? projAllocSummary(formName)
       : `<div style="font-size:11px;color:var(--muted);margin-top:5px">${chosen.length
           ? "Add another project if this entry covered more than one \u2014 you will then split the " + escapeHtml(unit) + " between them."
           : "Choose the project this work was for."}</div>`}
   </div>`;
 }
-Object.assign(window,{projectPicker, projAllocSummary, areasForForm, pruneAreasToProjects});
+Object.assign(window,{projectPicker, projAllocSummary, areasForForm, pruneAreasToProjects, _allocShow, _allocHint});
 
 // ═══ ONE RESOLUTION PER PROJECT (v269) ═══════════════════════════════════
 // Work on two projects is two pieces of work: a different description, a
@@ -1410,7 +1454,7 @@ async function saveDailyMulti(gpsData){
     // land on the SAME document, so the second project overwrote the first and
     // only one survived. The id is removed here and assigned explicitly below.
     delete rec.id;
-    delete rec.projRes; delete rec.resProj;          // form state, not data
+    delete rec.projRes; delete rec.resProj; delete rec._allocTyped;   // form state, not data
     // Each project gets exactly its own resolution. A project whose tab was
     // never filled saves an EMPTY resolution, never a copy of another project's.
     resApply(rec, resFor(f, p));
@@ -1473,6 +1517,7 @@ async function _otSaveSplit(isEdit){
     const sl = slices[i];
     const rec = {...otForm};
     delete rec.id;                                    // see saveDailyMulti: an inherited id overwrote the other piece
+    delete rec._allocTyped;
     setProjects(rec, [sl.project]);
     rec.start = sl.start; rec.end = sl.end;
     rec.hours = +timeToHrs(sl.start, sl.end).toFixed(4);

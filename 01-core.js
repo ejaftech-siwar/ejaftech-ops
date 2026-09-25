@@ -1268,6 +1268,23 @@ Object.assign(window,{pdIsReceived, perDiemBreakdown});
 // every field consistent.
 //
 // A single-project entry needs no allocation and behaves exactly as before.
+// Read an allocation as hours. The Duration box shows hours:minutes (7:20),
+// so a person naturally types a share the same way \u2014 "3:20" \u2014 and a plain
+// Number() read that as nothing at all. Both forms are accepted: 3:20 and
+// 3.33 mean the same share. Arabic-Indic digits and a comma or Arabic decimal
+// mark are normalised first, because a phone set to Arabic types them.
+function allocNum(v){
+  if(v == null) return NaN;
+  if(typeof v === "number") return v;
+  let s = String(v).trim()
+    .replace(/[\u0660-\u0669]/g, d => String(d.charCodeAt(0) - 0x0660))
+    .replace(/[\u06F0-\u06F9]/g, d => String(d.charCodeAt(0) - 0x06F0))
+    .replace(/[\u066B,]/g, ".");
+  if(!s) return NaN;
+  const hm = /^(\d+):([0-5]?\d)$/.exec(s);
+  if(hm) return (+hm[1]) + (+hm[2]) / 60;
+  return Number(s);
+}
 function projectList(r){
   if(!r) return [];
   if(Array.isArray(r.projects) && r.projects.length)
@@ -1287,13 +1304,13 @@ function projectRatio(r, name){
   if(!list.includes(want)) return 0;
   if(list.length === 1) return 1;
   const a = r.projectAlloc || {};
-  let tot = 0; list.forEach(p => { tot += Math.max(0, Number(a[p]) || 0); });
+  let tot = 0; list.forEach(p => { tot += Math.max(0, allocNum(a[p]) || 0); });
   // An allocation that does not exist or sums to nothing cannot be trusted to
   // say anything, so the entry is divided evenly rather than counted in full
   // under every project. Saving never produces this state; it only guards
   // records edited outside the form.
   if(!(tot > 0)) return 1 / list.length;
-  return Math.max(0, Number(a[want]) || 0) / tot;
+  return Math.max(0, allocNum(a[want]) || 0) / tot;
 }
 // The portion of `field` (duration, hours, perDiem, days…) charged to a project.
 function projectShare(r, name, field){
@@ -1318,15 +1335,19 @@ function projectAllocError(obj, total, unit){
   const a = obj.projectAlloc || {};
   let sum = 0;
   for(const p of list){
-    const v = Number(a[p]);
+    const v = allocNum(a[p]);
     if(a[p] === "" || a[p] == null || !isFinite(v)) return `Enter the ${unit} for ${p}`;
     if(v < 0) return `${p} cannot have negative ${unit}`;
     if(v === 0) return `${p} has no ${unit} \u2014 give it a share or remove it`;
     sum += v;
   }
   const t = Number(total) || 0;
-  if(Math.abs(sum - t) > 0.01)
-    return `The ${unit} add up to ${+sum.toFixed(2)}, but the entry is ${+t.toFixed(2)} \u2014 they must match`;
+  // Half a minute of tolerance: 3.33 is the honest two-decimal spelling of
+  // 3:20, and refusing it would punish the person for the arithmetic.
+  if(Math.abs(sum - t) > 0.01){
+    const show = x => unit === "hours" && typeof fmtHM === "function" ? fmtHM(x) : String(+x.toFixed(2));
+    return `The ${unit} add up to ${show(sum)}, but the entry is ${show(t)} \u2014 they must match`;
+  }
   return null;
 }
 // Departments of every project on an entry, for display. A single project
@@ -1347,7 +1368,7 @@ function projectTimeSlices(start, end, list, alloc){
   const s = _hm2min(start), e = _hm2min(end);
   if(s == null || e == null || !list || !list.length) return null;
   let span = e - s; if(span <= 0) span += 1440;
-  const w = list.map(p => Math.max(0, Number((alloc||{})[p]) || 0));
+  const w = list.map(p => Math.max(0, allocNum((alloc||{})[p]) || 0));
   const tot = w.reduce((a,b)=>a+b, 0);
   if(!(tot > 0)) return null;
   let acc = 0; const out = [];
@@ -1359,7 +1380,7 @@ function projectTimeSlices(start, end, list, alloc){
   });
   return out;
 }
-Object.assign(window,{projectList, hasProject, projectRatio, projectShare, setProjects, projectAllocError,
+Object.assign(window,{allocNum, projectList, hasProject, projectRatio, projectShare, setProjects, projectAllocError,
   projDeptsText, projectTimeSlices, _min2hm});
 
 const dayName=(d)=>d?["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][new Date(d).getDay()]:"";
@@ -2995,7 +3016,10 @@ Object.assign(window,{_ackWrite,LOCAL_ACK_MS});
 // explicit id the only one that can reach the write.
 function _withoutId(o){
   if(!o || typeof o !== "object" || Array.isArray(o)) return o;
-  const {id, ...rest} = o;
+  // Screen-only state rides along on the form object and must not reach the
+  // database either: which allocation boxes were typed, and the per-project
+  // resolution tabs.
+  const {id, _allocTyped, projRes, resProj, ...rest} = o;
   return rest;
 }
 window._withoutId = _withoutId;
