@@ -644,8 +644,10 @@ function buildScheduledSummary(group){
   const deptOK   = (r) => !g.dept   || (r.dept||"")===g.dept;
   const keep = (r) => branchOK(r) && deptOK(r);
 
-  const daily  = (state.daily||[]).filter(r=>inRange(r.date) && keep(r));
-  const ot     = (state.overtime||[]).filter(r=>inRange(r.date) && keep(r));
+  // The payroll period (25th \u2192 24th) cuts through night shifts at both ends;
+  // each side of midnight is counted in the period it was worked.
+  const daily  = rowsInRange(state.daily||[], from, to).filter(r=>keep(r));
+  const ot     = rowsInRange(state.overtime||[], from, to).filter(r=>keep(r));
   const travel = (state.travel||[]).filter(r=>inRange(r.date) && keep(r));
   const leaves = (state.leaves||[]).filter(r=>inRange(r.fromDate||r.date) && branchOK(r));
 

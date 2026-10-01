@@ -238,8 +238,7 @@ function footprintFor(projectName, from, to){
     // A total on its own is not actionable; intensity lets one project be
     // compared with another regardless of size.
     perHour:(function(){
-      const h=(state.daily||[]).filter(r=>matches(r.project)&&inRange(r.date))
-        .reduce((s,r)=>s+Number(r.duration||0),0);
+      const h=hoursInRange((state.daily||[]).filter(r=>matches(r.project)), from, to);   // night shifts split at midnight
       return h>0 ? Math.round(total/h*100)/100 : null;
     })(),
     cfg,

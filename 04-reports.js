@@ -778,13 +778,14 @@ function renderExecutive(){
   const projHrsAll={}, projHrsM={};
   daily.forEach(r=>{const k=(r.project||"").trim();if(!k)return;
     projHrsAll[k]=(projHrsAll[k]||0)+Number(r.duration||0);
-    if((r.date||"").startsWith(mNow)) projHrsM[k]=(projHrsM[k]||0)+Number(r.duration||0);});
+    const _m=hoursInRange([r], mNow+"-01", mNow+"-31");            // this month's side of midnight only
+    if(_m) projHrsM[k]=(projHrsM[k]||0)+_m;});
   const port=projActive.map(p=>{const n=(p.name||"").trim();
     const est=Number(p.estimatedHours||0), used=projHrsAll[n]||0;
     return {n, code:(Array.isArray(p.codes)&&p.codes[0])||"", st:p.status||"", est, used,
       pct:est>0?Math.round(used/est*100):null, m:projHrsM[n]||0};
   }).sort((x,y)=>(y.pct||0)-(x.pct||0));
-  const by={}; daily.filter(r=>(r.date||"").startsWith(mNow)).forEach(r=>{if(r.employee)by[r.employee]=(by[r.employee]||0)+Number(r.duration||0);});
+  const by={}; daily.forEach(r=>{ if(!r.employee) return; const _m=hoursInRange([r], mNow+"-01", mNow+"-31"); if(_m) by[r.employee]=(by[r.employee]||0)+_m; });
   const top3=Object.entries(by).sort((a,b)=>b[1]-a[1]).slice(0,3);
   const kpi=(v,l,c2,sub)=>`<div class="ex-k" style="border-top:3px solid ${c2}"><div class="ex-kv" style="color:${c2}">${v}</div><div class="ex-kl">${l}</div>${sub?`<div class="ex-ks">${sub}</div>`:""}</div>`;
   const sevc={high:"#C62828",med:"#E65100",low:"#2E5FA3"};

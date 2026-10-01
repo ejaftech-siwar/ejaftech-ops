@@ -1396,11 +1396,13 @@ function crStreams(){
   const inR=(d)=>{ if(!d) return false; if(from&&d<from) return false; if(to&&d>to) return false; return true; };
   const p=f.project, rate=num(p.hourlyCost), cur=f.currency;
 
-  const dRows=(state.daily||[]).filter(r=>hasProject(r,n) && (!from&&!to ? true : inR(r.date)));
+  // Labour cost for a period is the hours WORKED in it: a night shift at the
+  // edge of the period is charged only for its side of midnight.
+  const dRows=((!from&&!to) ? (state.daily||[]) : rowsInRange(state.daily||[], from, to)).filter(r=>hasProject(r,n));
   const hours=dRows.reduce((s,r)=>s+num(r.duration)*projectRatio(r,n),0);
   // Parts used on a shared entry are divided the same way as its hours.
   const material=dRows.reduce((s,r)=>s+((typeof partsEntryCost==="function")?num(partsEntryCost(r)):0)*projectRatio(r,n),0);
-  const otH=(state.overtime||[]).filter(o=>hasProject(o,n) && (!from&&!to ? true : inR(o.date)))
+  const otH=((!from&&!to) ? (state.overtime||[]) : rowsInRange(state.overtime||[], from, to)).filter(o=>hasProject(o,n))
               .reduce((s,o)=>s+num(o.hours)*projectRatio(o,n),0);
   const pd=(state.travel||[]).filter(t=>hasProject(t,n) && (!from&&!to ? true : inR(t.from||t.date)))
               .reduce((s,t)=>s+num(t.perDiem)*projectRatio(t,n),0);

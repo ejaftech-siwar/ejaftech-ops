@@ -459,7 +459,12 @@ function _sparkline(vals,color){
 // daily totals across the current range — feeds the sparklines
 function _dailySeries(rows,field,r){
   const win = r.unbounded ? {from:r.sparkFrom,to:r.sparkTo} : r;
-  const map={}; (rows||[]).forEach(x=>{ if(_inRange(x.date,win)) map[x.date]=(map[x.date]||0)+Number(x[field]||0); });
+  // Hours are placed on the day they were worked, so a night shift draws on
+  // both days of the sparkline. Money and counts stay on the entry's date.
+  const map={}; (rows||[]).forEach(x=>{
+    const segs = (field==="duration"||field==="hours") ? daySegments(x, field) : [{date:x.date, hours:Number(x[field]||0)}];
+    segs.forEach(sg=>{ if(_inRange(sg.date,win)) map[sg.date]=(map[sg.date]||0)+sg.hours; });
+  });
   const out=[]; const a=new Date(win.from+"T00:00:00"), b=new Date(win.to+"T00:00:00");
   for(let d=new Date(a); d<=b; d.setDate(d.getDate()+1)){
     const k=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
@@ -653,8 +658,8 @@ function dashMyDay(){
   const mineAll=(state.daily||[]).filter(r=>r.employee===me);
   const hrs=hoursInRange(mineAll, t, t);
   const r=_dashRange();
-  const mineRange=(state.daily||[]).filter(x=>x.employee===me&&_inRange(x.date,r));
-  const rangeHrs=mineRange.reduce((s,x)=>s+Number(x.duration||0),0);
+  const mineRange=rowsInRange((state.daily||[]).filter(x=>x.employee===me), r.from, r.to);
+  const rangeHrs=mineRange.reduce((s,x)=>s+Number(x.duration||0),0);   // trimmed at midnight
   let open=0;
   try{ if(typeof buildWorkItems==="function")
     open=buildWorkItems((state.daily||[]).filter(x=>x.employee===me)).filter(w=>!w.closed).length; }catch(e){}
@@ -850,7 +855,7 @@ function renderDashboard(){
 const _sum=(rows,f,rg)=>{
   if(!rg) return null;
   const mine = _mine(rows);
-  if(f === "duration" && typeof hoursInRange === "function") return hoursInRange(mine, rg.from, rg.to);
+  if((f === "duration" || f === "hours") && typeof hoursInRange === "function") return hoursInRange(mine, rg.from, rg.to, f);
   return mine.filter(x=>_inRange(x.date,rg)).reduce((s,x)=>s+Number(x[f]||0),0);
 };
   const _pHrs=_sum(state.daily,"duration",_P);
@@ -1463,6 +1468,9 @@ async function saveDailyMulti(gpsData){
     setPlaces(rec, "site", mySites);
     rec.projectCode = "";
     rec.start = sl.start; rec.end = sl.end;
+    // A part that starts after midnight is dated the next day \u2014 the day it
+    // was actually worked \u2014 so every report counts it there.
+    if(sl.dayOffset) rec.date = _dateAdd(f.date, sl.dayOffset);
     rec.duration = +timeToHrs(sl.start, sl.end).toFixed(4);
     rec.dept = projDept(p);
     rec.partsUsed = cleanParts(rec.partsUsed);
@@ -1520,11 +1528,12 @@ async function _otSaveSplit(isEdit){
     delete rec._allocTyped;
     setProjects(rec, [sl.project]);
     rec.start = sl.start; rec.end = sl.end;
+    if(sl.dayOffset) rec.date = _dateAdd(otForm.date, sl.dayOffset);   // after midnight = next day
     rec.hours = +timeToHrs(sl.start, sl.end).toFixed(4);
     rec.splitGroup = group; rec.splitIndex = i + 1; rec.splitOf = slices.length;
     await fbSave("overtime", {
       ...rec,
-      dept: projDept(sl.project), day: dayName(otForm.date),
+      dept: projDept(sl.project), day: dayName(rec.date),
       createdBy: state.profile.uid,
       id: (isEdit && i === 0) ? otEditId : undefined,   // LAST
     });

@@ -32,7 +32,8 @@ function check(cond, good, badMsg, detail){ cond ? ok(good) : bad(badMsg || good
 const MODULES = ["01-core.js","02-report-engine.js","03-dashboard-logs.js","04-reports.js",
  "05-assets.js","06-database.js","07-instructions.js","08-clients.js","09-tasks-requests.js",
  "10-integrations.js","11-settings.js","12-exports.js","13-fieldops.js","14-finance.js",
- "15-invoicing.js","16-advances.js","17-risks.js","18-performance.js","19-vehicles.js"];
+ "15-invoicing.js","16-advances.js","17-risks.js","18-performance.js","19-vehicles.js",
+ "20-refguide.js"];
 const SUPPORT = ["firebase-init.js","pwa-manifest.js","sw.js","index.html","offline-check.html",
  "app.css","theme.css","manifest.json","README.md"];
 const SDK = ["firebase-app.js","firebase-auth.js","firebase-firestore.js"];
@@ -453,6 +454,10 @@ head("11. FEATURE PRESERVATION");
     ["split save","async function saveDailyMulti"], ["per-project resolution","function resTabsHTML"],
     ["time slicing","function projectTimeSlices"], ["overtime split","async function _otSaveSplit"],
     ["h:mm allocation","function allocNum"], ["allocation auto-fill","function _allocHint"],
+    ["reference guide","function renderTechRefGuide"], ["Word converter","function trgDocxHtml"],
+    ["Excel converter","function trgXlsxHtml"], ["guide asset storage","window.trgSave"],
+    ["stored markup sanitiser","function _trgSanitize"],
+    ["period trim at midnight","function trimToRange"], ["rows in range","function rowsInRange"],
     ["shift end date","function shiftEndDate"],
     ["vehicle fleet register","function renderVehicles"], ["vehicle maintenance jobs","vehJobSave"],
     ["oil-change distance reminder","function vehOil"], ["vehicle due alerts","function vehAlerts"],

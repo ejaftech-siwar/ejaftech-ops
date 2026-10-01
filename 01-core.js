@@ -1148,19 +1148,32 @@ function shiftEndDate(r){
 }
 // One entry \u2192 the days it actually touched, with the hours on each.
 // Always returns at least one segment so callers never special-case.
-function daySegments(r){
+// Which figure on this record measures its time: a work entry stores
+// `duration`, an overtime entry stores `hours`. Both split the same way.
+function _shiftField(r){
+  if(!r) return null;
+  if(Number(r.duration) > 0) return "duration";
+  if(Number(r.hours) > 0 && r.start && r.end) return "hours";
+  return null;
+}
+function daySegments(r, field){
   if(!r || !r.date) return [];
+  field = field || _shiftField(r) || "duration";
+  const date = String(r.date).slice(0,10);
   const s = _hm2min(r.start), e = _hm2min(r.end);
-  const total = Number(r.duration || 0);
+  const total = Number(r[field] || 0);
   // No usable clock times: the whole entry belongs to its own date, exactly as
   // before. A typed duration with no times must not silently move.
-  if(s == null || e == null || !(total > 0)) return [{date:r.date, hours:total, part:false}];
-  if(e > s) return [{date:r.date, hours:(e-s)/60, part:false}];
+  if(s == null || e == null || !(total > 0)) return [{date, hours:total, part:false}];
+  if(e > s) return [{date, hours:total, part:false}];
   const first  = (_MIN_DAY - s)/60;          // start \u2192 midnight
   const second = e/60;                       // midnight \u2192 end
+  // The two parts are scaled to the STORED figure, so they always add up to
+  // exactly what the entry says \u2014 never a minute more or less.
+  const k = (first + second) > 0 ? total / (first + second) : 1;
   return [
-    {date:r.date,              hours:first,  part:true},
-    {date:_dateAdd(r.date,1),  hours:second, part:true},
+    {date,                  hours:first  * k, part:true},
+    {date:_dateAdd(date,1), hours:second * k, part:true},
   ];
 }
 // Hours this ONE entry contributed to a given date.
@@ -1172,14 +1185,52 @@ function hoursOnDate(r, date){
 // Hours a SET of entries contributed inside an inclusive date range. This is
 // the function every period total should use: a shift half inside the range
 // counts for its half, not for all of it and not for none.
-function hoursInRange(rows, from, to){
+function hoursInRange(rows, from, to, field){
   let h = 0;
-  (rows||[]).forEach(r => daySegments(r).forEach(sg => {
+  (rows||[]).forEach(r => daySegments(r, field).forEach(sg => {
     if((!from || sg.date >= from) && (!to || sg.date <= to)) h += sg.hours;
   }));
   return h;
 }
-Object.assign(window,{isOvernight, shiftEndDate, daySegments, hoursOnDate, hoursInRange, _dateAdd, _hm2min});
+// \u2550\u2550\u2550 A PERIOD THAT CUTS THROUGH A NIGHT SHIFT (v273) \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+// Every report selects its entries by date. A shift from 23:00 on the 1st to
+// 05:00 on the 2nd is dated the 1st, so a report for the 1st took all six
+// hours and a report for the 2nd took none. This returns what the period
+// actually contains:
+//   the whole shift inside the period  \u2192 the entry itself, untouched
+//   only one side of midnight inside   \u2192 a copy carrying just that side,
+//                                         dated the day it was worked
+//   neither side inside                \u2192 nothing
+// Totals, per-employee figures, per-project costs and every export take the
+// right hours with no change of their own. The copy keeps the entry's id, so
+// opening or approving it from a report still reaches the real record.
+function trimToRange(r, from, to){
+  if(!r) return null;
+  const inR = d => !!d && (!from || d >= from) && (!to || d <= to);
+  const field = _shiftField(r);
+  if(!field || !isOvernight(r)) return inR(String(r.date||"").slice(0,10)) ? r : null;
+  const seg = daySegments(r, field);
+  const inside = seg.filter(sg => inR(sg.date));
+  if(!inside.length) return null;
+  if(inside.length === seg.length) return r;
+  const sg = inside[0], first = (sg === seg[0]);
+  const part = Object.assign({}, r, {
+    date:sg.date,
+    start:first ? r.start : "00:00",
+    end:  first ? "00:00" : r.end,
+    _dayPart:first ? 1 : 2,
+    _fullHours:Number(r[field]) || 0,
+  });
+  part[field] = +sg.hours.toFixed(4);
+  return part;
+}
+function rowsInRange(rows, from, to){
+  const out = [];
+  (rows||[]).forEach(r => { const t = trimToRange(r, from, to); if(t) out.push(t); });
+  return out;
+}
+Object.assign(window,{isOvernight, shiftEndDate, daySegments, hoursOnDate, hoursInRange, _dateAdd, _hm2min,
+  _shiftField, trimToRange, rowsInRange});
 
 // ═══ SEVERAL PLACES IN ONE DAY (v264) ════════════════════════════════
 // A technician often covers two or three sites in a day. One location field
@@ -1376,7 +1427,10 @@ function projectTimeSlices(start, end, list, alloc){
     const from = s + Math.round(acc / tot * span);
     acc += w[i];
     const to = (i === list.length-1) ? s + span : s + Math.round(acc / tot * span);
-    out.push({project:p, start:_min2hm(from), end:_min2hm(to), hours:(to-from)/60});
+    // A part that STARTS after midnight was worked on the next day. Without
+    // this, 03:00\u201305:00 carried the previous date and counted on the wrong day.
+    out.push({project:p, start:_min2hm(from), end:_min2hm(to), hours:(to-from)/60,
+              dayOffset: from >= _MIN_DAY ? 1 : 0});
   });
   return out;
 }
@@ -3800,7 +3854,11 @@ function inActivePeriod(dateStr){
 function filterByPeriod(rows, dateField="date"){
   const f = getPeriodFrom(), t = getPeriodTo();
   if(!f && !t) return rows;
-  return rows.filter(r=>inActivePeriod(r[dateField]));
+  // Entries dated by their start (work, overtime) are trimmed to the period,
+  // so a night shift is charged to the days it was actually worked. Anything
+  // dated another way (a leave's "from") is filtered exactly as before.
+  if(dateField !== "date") return rows.filter(r=>inActivePeriod(r[dateField]));
+  return rowsInRange(rows, f, t);
 }
 
 window.editPeriod=function(e){

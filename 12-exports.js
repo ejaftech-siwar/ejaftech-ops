@@ -69,9 +69,9 @@ function renderFlexReports(){
     : allowedEmpsBase;
   allowedEmps = _identityAllowed(allowedEmps);   // staff-dept + branch (was ignored — the reported bug)
   const projF = f.project || ""; // project filter
-  const dailyFiltered = apprFilter(state.daily).filter(r=>inRange(r) && allowedEmps.includes(r.employee) && _reportRowOK(r) && (!projF || r.project===projF));
-  const otFiltered = state.overtime.filter(r=>inRange(r) && allowedEmps.includes(r.employee) && _reportRowOK(r) && (!projF || r.project===projF));
-  const trFiltered = state.travel.filter(r=>inRange(r) && allowedEmps.includes(r.employee) && _reportRowOK(r) && (!projF || r.project===projF));
+  const dailyFiltered = apprFilter(rowsInRange(state.daily, f.from, f.to)).filter(r=>allowedEmps.includes(r.employee) && _reportRowOK(r) && (!projF || hasProject(r,projF)));
+  const otFiltered = rowsInRange(state.overtime, f.from, f.to).filter(r=>allowedEmps.includes(r.employee) && _reportRowOK(r) && (!projF || hasProject(r,projF)));
+  const trFiltered = state.travel.filter(r=>inRange(r) && allowedEmps.includes(r.employee) && _reportRowOK(r) && (!projF || hasProject(r,projF)));
   const lvFiltered = state.leaves.filter(r=>leaveInRange(r) && allowedEmps.includes(r.employee) && _reportRowOK(r));
 
   // Stats per department
@@ -325,9 +325,9 @@ async function exportFilteredExcel(){
     if(_selX.length>0 && !isEmployee()) allowedEmps = allowedEmps.filter(x=>_selX.includes(x));
     allowedEmps = _identityAllowed(allowedEmps);
     const projF = f.project || "";
-    const dr = apprFilter(state.daily).filter(r=>inRange(r) && allowedEmps.includes(r.employee) && _reportRowOK(r) && (!projF||r.project===projF));
-    const or = state.overtime.filter(r=>inRange(r) && allowedEmps.includes(r.employee) && _reportRowOK(r) && (!projF||r.project===projF));
-    const tr = state.travel.filter(r=>inRange(r) && allowedEmps.includes(r.employee) && _reportRowOK(r) && (!projF||r.project===projF));
+    const dr = apprFilter(rowsInRange(state.daily, f.from, f.to)).filter(r=>allowedEmps.includes(r.employee) && _reportRowOK(r) && (!projF || hasProject(r,projF)));
+    const or = rowsInRange(state.overtime, f.from, f.to).filter(r=>allowedEmps.includes(r.employee) && _reportRowOK(r) && (!projF || hasProject(r,projF)));
+    const tr = state.travel.filter(r=>inRange(r) && allowedEmps.includes(r.employee) && _reportRowOK(r) && (!projF || hasProject(r,projF)));
     const lv = state.leaves.filter(r=>leaveInRange(r) && allowedEmps.includes(r.employee) && _reportRowOK(r));
 
     const wb = XLSX.utils.book_new();
@@ -596,9 +596,9 @@ async function exportFilteredPDF(){
     if(_selX.length>0 && !isEmployee()) allowedEmps = allowedEmps.filter(x=>_selX.includes(x));
     allowedEmps = _identityAllowed(allowedEmps);
     const projF = f.project || "";
-    const dr = apprFilter(state.daily).filter(r=>inRange(r) && allowedEmps.includes(r.employee) && _reportRowOK(r) && (!projF||r.project===projF));
-    const or = state.overtime.filter(r=>inRange(r) && allowedEmps.includes(r.employee) && _reportRowOK(r) && (!projF||r.project===projF));
-    const tr = state.travel.filter(r=>inRange(r) && allowedEmps.includes(r.employee) && _reportRowOK(r) && (!projF||r.project===projF));
+    const dr = apprFilter(rowsInRange(state.daily, f.from, f.to)).filter(r=>allowedEmps.includes(r.employee) && _reportRowOK(r) && (!projF || hasProject(r,projF)));
+    const or = rowsInRange(state.overtime, f.from, f.to).filter(r=>allowedEmps.includes(r.employee) && _reportRowOK(r) && (!projF || hasProject(r,projF)));
+    const tr = state.travel.filter(r=>inRange(r) && allowedEmps.includes(r.employee) && _reportRowOK(r) && (!projF || hasProject(r,projF)));
     const lv = state.leaves.filter(r=>leaveInRange(r) && allowedEmps.includes(r.employee) && _reportRowOK(r));
 
     const totH = dr.reduce((s,r)=>s+Number(r.duration||0),0);
@@ -1442,7 +1442,7 @@ if('serviceWorker' in navigator){
       });
     }).catch(function(){
       // Fallback: Blob-based SW (network-first for HTML so the app always updates)
-      var swCode = "const CACHE='ejaftech-v271';"
+      var swCode = "const CACHE='ejaftech-v273';"
         + "self.addEventListener('install',e=>self.skipWaiting());"
         + "self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));"
         + "self.addEventListener('fetch',e=>{"
@@ -2878,6 +2878,7 @@ const SR_KINDS = {
   prog:  {label:"Progress Report",  state:["_pr","_prTasks","_prPeople"],      photos:"_prPhotos", plans:"_prPlans"},
   project:{label:"Project Report", state:["_prj","_prjMilestones","_prjRisks"], photos:"_prjPhotos", plans:"_prjPlans"},
   ppr:   {label:"Project Progress Report", state:["_ppr","_pprSystems","_pprDelays"], photos:"_pprPhotos", plans:"_pprPlans"},
+  trg:   {label:"Technical Reference Guide", state:["_trg"], photos:"_trgNoPhotos", plans:"_trgNoPlans"},
 };
 
 // Re-encode a stored photo small enough that a whole report fits in one
@@ -2947,6 +2948,7 @@ window.srMarkDirty = function(){
 window.srClearDirty = function(){ window._srDirty = false; };
 
 window.srSaveReport = async function(kind, withPhotos){
+  if(kind === "trg" && typeof trgSave === "function") return trgSave();   // pages live in reportAssets
   const k = SR_KINDS[kind];
   if(!k){ toast("Unknown report type"); return; }
   const state0 = _srSnapshot(kind);
@@ -3021,6 +3023,8 @@ window.srNewReport = function(kind){
 };
 
 window.srOpenReport = function(id){
+  { const _r = (state.savedReports||[]).find(x=>x.id===id);
+    if(_r && _r.kind === "trg" && typeof trgOpen === "function") return trgOpen(_r); }
   const r = (state.savedReports||[]).find(x=>x.id===id);
   if(!r){ toast("That report is no longer there"); return; }
   const k = SR_KINDS[r.kind];
@@ -3043,6 +3047,16 @@ window.srOpenReport = function(id){
 };
 
 window.srDeleteReport = async function(id){
+  // A guide's pages are separate documents; deleting only the report would
+  // leave them in the database forever, unreachable and still paid for.
+  { const _r = (state.savedReports||[]).find(x=>x.id===id);
+    if(_r && _r.kind === "trg" && typeof _trgDeleteAssets === "function"){
+      if(!confirm(`Delete "${_r.title||"this guide"}" and all its pages? This cannot be undone.`)) return;
+      try{ await _trgDeleteAssets(id); await fbDelete("savedReports", id);
+           if(window._srEditId===id) window._srEditId=null; render(); toast("Guide deleted"); }
+      catch(e){ toast("Could not delete that guide"); }
+      return;
+    } }
   const r = (state.savedReports||[]).find(x=>x.id===id);
   if(!r) return;
   if(!confirm(`Delete "${r.title||r.kindLabel}"? This cannot be undone.`)) return;
@@ -3864,15 +3878,18 @@ function _srPillList(){
   return SYS_TEMPLATES.map(t=>({id:t.id,ic:t.icon,lb:t.short}))
     .concat([{id:"daily",ic:"📅",lb:"Daily"},{id:"weekly",ic:"📆",lb:"Weekly"},
              {id:"project",ic:"📋",lb:"Project"},
-             {id:"ppr",ic:"📈",lb:"Progress Rpt"}]);
+             {id:"ppr",ic:"📈",lb:"Progress Rpt"},
+             {id:"trg",ic:"📘",lb:"Tech Guide"}]);
 }
 // The same pills, captioned in two runs: what you inspect, and what you report.
 function _srPillGroups(){
   const all = _srPillList();
   const projectIds = ["daily","weekly","project","ppr"];
+  const refIds = ["trg"];
   return [
-    {caption:"System inspection & test reports", pills: all.filter(p=>!projectIds.includes(p.id))},
+    {caption:"System inspection & test reports", pills: all.filter(p=>!projectIds.includes(p.id) && !refIds.includes(p.id))},
     {caption:"Project & period reports",         pills: all.filter(p=> projectIds.includes(p.id))},
+    {caption:"Reference documents",              pills: all.filter(p=> refIds.includes(p.id))},
   ];
 }
 function _srPillsGrouped(){
@@ -3897,6 +3914,9 @@ function renderSystemReports(){
     return _srPillsGrouped() + renderProjectReport();
   }
   // The contractor's periodic report to the client — FIDIC 4.21.
+  if(window._srTpl==="trg"){
+    return _srPillsGrouped() + renderTechRefGuide();
+  }
   if(window._srTpl==="ppr"){
     return _srPillsGrouped() + renderProjectProgressReport();
   }
@@ -4257,7 +4277,8 @@ function hdCollect(){
 
   const pms       = (state.pmSchedules||[]).filter(s=>(s.project||"").trim()===pname);
   const incidents = (state.incidents||[]).filter(i=>(i.project||"").trim()===pname && (!i.date || inRange(i.date)));
-  const entries   = (state.daily||[]).filter(r=>(r.project||"").trim()===pname && inRange(r.date));
+  // Trimmed to the period, so a night shift at its edge counts only the part worked inside it.
+  const entries   = rowsInRange(state.daily||[], from, to).filter(r=>hasProject(r, pname));
   const requests  = (state.clientRequests||[]).filter(r=>(r.project||"").trim()===pname);
 
   const hours = entries.reduce((s,r)=>s+Number(r.duration||0),0);
@@ -5112,6 +5133,6 @@ window.forceUpdate = async function(){
 // The build actually running, so nobody has to infer it from behaviour.
 // A single named constant, updated with every release, so the screen can state
 // the build without inferring it from a variable that lives inside a function.
-const APP_BUILD = "v271";
+const APP_BUILD = "v273";
 window.APP_BUILD = APP_BUILD;
 window.runningVersion = function(){ return APP_BUILD; };
