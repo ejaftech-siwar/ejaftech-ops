@@ -1434,6 +1434,54 @@ function projectTimeSlices(start, end, list, alloc){
   });
   return out;
 }
+// \u2550\u2550\u2550 AN ENTRY IS STORED ONE DAY AT A TIME (v274) \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+// A night shift kept as ONE record dated the 30th is seven hours on the 30th
+// to everything that lists or groups by date: the Daily Log itself, every
+// per-entry export, every per-day table. Correcting each of those separately
+// would never end. So the record itself is cut at midnight when it is saved,
+// and each day holds exactly what was worked on it.
+//
+// The cut is made per project first (each project's share of the clock), then
+// at midnight. Every piece is an ordinary entry: its own date, start, end and
+// hours. `last` marks the final piece of each project \u2014 the one that carries
+// that project's photographs, spare parts and closing status, so nothing is
+// duplicated and a job closed at 04:00 is not also "closed" at midnight.
+function dailyPieces(start, end, list, alloc){
+  list = (list && list.length) ? list : [""];
+  let slices;
+  if(list.length > 1) slices = projectTimeSlices(start, end, list, alloc);
+  else {
+    const s = _hm2min(start), e = _hm2min(end);
+    if(s == null || e == null) return null;
+    let span = e - s; if(span <= 0) span += 1440;
+    slices = [{project:list[0], start, end, hours:span/60, dayOffset:0}];
+  }
+  if(!slices) return null;
+  const pieces = [];
+  slices.forEach(sl => {
+    const s = _hm2min(sl.start), e = _hm2min(sl.end);
+    if(e > s || !(sl.hours > 0)){ pieces.push({...sl}); return; }        // inside one day
+    pieces.push({project:sl.project, start:sl.start, end:"00:00", hours:(1440 - s)/60, dayOffset:sl.dayOffset});
+    if(e > 0) pieces.push({project:sl.project, start:"00:00", end:sl.end, hours:e/60, dayOffset:sl.dayOffset + 1});
+  });
+  // the last piece of each project
+  const seen = {};
+  for(let i = pieces.length - 1; i >= 0; i--){
+    const p = pieces[i].project;
+    pieces[i].last = !seen[p]; seen[p] = true;
+  }
+  return pieces;
+}
+// The status a piece carries when the job continued past it. A job closed at
+// 04:00 was still open at midnight; recording the evening piece as "Closed"
+// too would make the job list show one job closing twice.
+function openStatusFor(finalStatus){
+  if(!isClosedStatus(finalStatus)) return finalStatus;
+  const names = (state.techStatuses || []).map(x => String((x && (x.name || x.label)) || x || "").trim()).filter(Boolean);
+  return names.find(n => /progress/i.test(n)) || names.find(n => !isClosedStatus(n)) || "In Progress";
+}
+Object.assign(window,{dailyPieces, openStatusFor});
+
 Object.assign(window,{allocNum, projectList, hasProject, projectRatio, projectShare, setProjects, projectAllocError,
   projDeptsText, projectTimeSlices, _min2hm});
 

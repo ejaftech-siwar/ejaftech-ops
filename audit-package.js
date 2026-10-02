@@ -458,6 +458,7 @@ head("11. FEATURE PRESERVATION");
     ["Excel converter","function trgXlsxHtml"], ["guide asset storage","window.trgSave"],
     ["stored markup sanitiser","function _trgSanitize"],
     ["period trim at midnight","function trimToRange"], ["rows in range","function rowsInRange"],
+    ["stored one day at a time","function dailyPieces"], ["shared piece writer","async function _writeDailyPieces"],
     ["shift end date","function shiftEndDate"],
     ["vehicle fleet register","function renderVehicles"], ["vehicle maintenance jobs","vehJobSave"],
     ["oil-change distance reminder","function vehOil"], ["vehicle due alerts","function vehAlerts"],

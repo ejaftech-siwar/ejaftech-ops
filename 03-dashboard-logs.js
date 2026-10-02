@@ -1230,7 +1230,7 @@ function renderDailyLog(){
         ${_ovn && _seg ? `<div class="field full" style="margin-top:-4px">
           <div style="background:rgba(21,101,192,.10);border:1px solid #1565C0;color:#1565C0;border-radius:8px;padding:7px 10px;font-size:11.5px;line-height:1.6">
             \u{1F319} <b>Overnight shift</b> \u2014 ends ${escapeHtml(fmtDate(shiftEndDate(dailyForm)))}.
-            The hours are counted on the day each one was worked:
+            It is saved as one entry for each day, so every day shows exactly the hours worked on it:
             <b>${escapeHtml(fmtHM(_seg[0].hours))}</b> on ${escapeHtml(fmtDate(_seg[0].date))},
             <b>${escapeHtml(fmtHM(_seg[1].hours))}</b> on ${escapeHtml(fmtDate(_seg[1].date))}.
           </div></div>` : ""}
@@ -1404,7 +1404,13 @@ function renderDailyLog(){
           <td>${escapeHtml(r.project||"")}${r.projectCode?` <span style="font-size:9px;background:#FFF3E0;color:#E65100;border:1px solid #EAD3AE;padding:1px 6px;border-radius:8px;font-weight:700">${escapeHtml(r.projectCode)}</span>`:""}${(r.area||r.site)?`<div style="font-size:10px;color:#1565C0;margin-top:2px">${r.area?`🗺️ ${escapeHtml(r.area)}`:''}${r.site?` · 📍 ${escapeHtml(r.site)}`:''}</div>`:''}</td>
           <td>${deptBadge(r.dept)}</td>
           <td>${r.location?`<span style="background:#E3F2FD;color:#1565C0;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600">📍 ${escapeHtml(r.location)}</span>`:'<span style="color:#bbb;font-style:italic;font-size:11px">—</span>'} ${gpsBadgeHTML(r)}</td>
-          <td><strong style="color:#2E7D32">${fmtHM(r.duration)}</strong></td>
+          <td><strong style="color:#2E7D32">${fmtHM(r.duration)}</strong>${
+            // An entry saved before v274 that still runs past midnight is ONE
+            // record on one day. Say so, and say how to fix it: Update cuts it.
+            (!r.splitGroup && typeof isOvernight==="function" && isOvernight(r))
+              ? `<div style="font-size:10px;color:#1565C0;font-weight:700;white-space:nowrap" title="Open with \u270F\uFE0F and press Update to record each day separately">\u{1F319} ${daySegments(r).map(s=>fmtHM(s.hours)+" "+fmtDate(s.date).slice(0,6)).join(" + ")} \u2014 Update to split</div>`
+              : (r.splitGroup && r.splitOf > 1 ? `<div style="font-size:10px;color:var(--muted)">\u{1F517} ${r.splitIndex}/${r.splitOf}</div>` : "")
+          }</td>
           <td>${hasRes?`<button class="btn btn-sm" style="background:#FFF8E1;border:1px solid #C9A84C;color:#7F6000;font-weight:700" onclick="viewResolution('${r.id}')" title="View resolution">📷 ${imgs.length}</button>`:'<span style="color:#bbb;font-style:italic;font-size:11px">—</span>'}</td>
           <td>${canEdit?`<button class="btn btn-sm btn-secondary" onclick="editDaily('${r.id}')">${ICN.edit}</button>
               <button class="btn btn-sm btn-danger" onclick="delDaily('${r.id}')">${ICN.del}</button>`:""}${canUseWhatsApp() && (waGetSettings().triggers||[]).includes("daily")?`<button class="btn btn-sm" style="background:#25D366;color:white;border:none;font-weight:700;margin-left:4px" onclick="openWaShareById('${r.id}')" title="Share to WhatsApp">📲</button>`:""}${canUseEmail() && (emailGetSettings().triggers||[]).includes("daily")?`<button class="btn btn-sm" style="background:#03308B;color:white;border:none;font-weight:700;margin-left:4px" onclick="openEmailShareById('${r.id}')" title="Send Email">📧</button>`:""}</td>
@@ -1415,19 +1421,24 @@ function renderDailyLog(){
   </div>`;
 }
 
-// ═══ SAVE AN ENTRY SPLIT BETWEEN PROJECTS (v269) ═══════════════════════════════
-// One entry per project, each a complete ordinary record: its own share of the
-// clock, its own department, its own resolution, status, parts and photos, its
-// own entry number. Linked by a split group so the pieces can be recognised as
-// one visit. Because every piece is a normal single-project record, nothing
-// downstream — approvals, job threads, PM sync, reports, exports, costing —
-// needs to know that a split ever happened.
-async function saveDailyMulti(gpsData){
-  const f = dailyForm;
+// ═══ SAVE AN ENTRY AS ONE RECORD PER PROJECT AND PER DAY (v269 · v274) ═══════════
+// Each piece is a complete ordinary record: its own date, start, end and
+// hours; its own department and resolution; its own entry number. Pieces are
+// linked by a split group so they can be recognised as one visit. Because
+// every piece is a normal single-project, single-day record, nothing
+// downstream — the Daily Log list, approvals, job threads, PM sync, reports,
+// exports, costing — needs to know that a split ever happened.
+//
+// A piece that is not the last of its project (the evening side of a night
+// shift) carries the description but not the photographs or spare parts, and
+// an open status if the job was closed later: the parts are counted once, the
+// photos stored once, and the job closes once — at the time it really did.
+async function _writeDailyPieces(f, gpsData, editId){
   resStash(f);
   const list = projectList(f);
-  const slices = projectTimeSlices(f.start, f.end, list, f.projectAlloc);
-  if(!slices) return toast("⚠ Enter a start and end time, so the hours can be divided between the projects");
+  const single = list.length <= 1;
+  const pieces = dailyPieces(f.start, f.end, list, f.projectAlloc);
+  if(!pieces){ toast("⚠ Enter a start and end time so the hours can be placed on the right day"); return null; }
   const chosenAreas = placeList(f,"area"), chosenSites = placeList(f,"site");
   const group = "sg_" + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
   const cleanParts = arr => Array.isArray(arr)
@@ -1436,52 +1447,55 @@ async function saveDailyMulti(gpsData){
                      unit:String(l.unit||"").trim(), qty:Number(l.qty||0),
                      unitCost:(l.unitCost===""||l.unitCost==null) ? 0 : Number(l.unitCost||0)}))
     : [];
-  const wasNew  = !dailyEditId;
-  const prevRow = dailyEditId ? (state.daily||[]).find(x=>x.id===dailyEditId) : null;
+  const prevRow = editId ? (state.daily||[]).find(x=>x.id===editId) : null;
   const selfRev = (isAdmin()||isHR()) && !canApprove({employee: f.employee});
   // Entry numbers are taken once and counted forward. Asking again after each
   // save could return the same number twice before the first write arrives.
   let nextNo = getNextDailyEntryNo();
   const saved = [];
-  for(let i = 0; i < slices.length; i++){
-    const sl = slices[i], p = sl.project;
+  for(let i = 0; i < pieces.length; i++){
+    const pc = pieces[i], p = pc.project;
     const proj = (state.projects||[]).find(x=>(x.name||"").trim()===p);
     const pAreasObj = proj ? getProjectAreas(proj) : [];
-    const myAreas = chosenAreas.filter(a => pAreasObj.some(x=>x.name===a));
+    const myAreas = single ? chosenAreas : chosenAreas.filter(a => pAreasObj.some(x=>x.name===a));
     const pSites = [];
     pAreasObj.filter(a=>myAreas.includes(a.name))
       .forEach(a => (a.sites||[]).forEach(s => pSites.push((s.name||"").trim())));
-    const mySites = chosenSites.filter(s => pSites.includes(s));
+    const mySites = single ? chosenSites : chosenSites.filter(s => pSites.includes(s));
 
     const rec = {...f};
-    // When an existing entry is opened for editing, the form is a copy of that
-    // record \u2014 including its id. Carried into every piece, it made each write
-    // land on the SAME document, so the second project overwrote the first and
-    // only one survived. The id is removed here and assigned explicitly below.
+    // The form of an existing entry is a copy of that record, id included; an
+    // inherited id would make every piece overwrite the same document.
     delete rec.id;
     delete rec.projRes; delete rec.resProj; delete rec._allocTyped;   // form state, not data
-    // Each project gets exactly its own resolution. A project whose tab was
-    // never filled saves an EMPTY resolution, never a copy of another project's.
-    resApply(rec, resFor(f, p));
+    // Each project gets exactly its own resolution; a project whose tab was
+    // never filled saves an EMPTY one, never a copy of another project's.
+    if(!single) resApply(rec, resFor(f, p));
     setProjects(rec, [p]);
     setPlaces(rec, "area", myAreas);
     setPlaces(rec, "site", mySites);
-    rec.projectCode = "";
-    rec.start = sl.start; rec.end = sl.end;
-    // A part that starts after midnight is dated the next day \u2014 the day it
-    // was actually worked \u2014 so every report counts it there.
-    if(sl.dayOffset) rec.date = _dateAdd(f.date, sl.dayOffset);
-    rec.duration = +timeToHrs(sl.start, sl.end).toFixed(4);
+    rec.projectCode = single ? (f.projectCode || "") : "";
+    rec.start = pc.start; rec.end = pc.end;
+    rec.date = pc.dayOffset ? _dateAdd(f.date, pc.dayOffset) : f.date;
+    rec.duration = +timeToHrs(pc.start, pc.end).toFixed(4);
     rec.dept = projDept(p);
     rec.partsUsed = cleanParts(rec.partsUsed);
-    rec.splitGroup = group; rec.splitIndex = i + 1; rec.splitOf = slices.length;
+    if(!pc.last){
+      rec.resolutionImages = [];
+      rec.partsUsed = [];
+      rec.taskStatus = openStatusFor(rec.taskStatus);
+      rec.pmFinal = false;
+    }
+    if(pieces.length > 1){ rec.splitGroup = group; rec.splitIndex = i + 1; rec.splitOf = pieces.length; }
+    else { delete rec.splitGroup; delete rec.splitIndex; delete rec.splitOf; }
 
-    const isEditRow = (i === 0 && !!dailyEditId);   // the entry being edited keeps its id
+    const isEditRow = (i === 0 && !!editId);        // the entry being edited keeps its id
     if(!isEditRow){
       rec.entryNo = nextNo; nextNo++;
-      // A new piece is new work: it must not inherit the edited entry's link to
-      // an earlier job, its approval history or its creation stamp.
-      delete rec.threadId; delete rec.approval; delete rec.approvalNote;
+      // A new piece must not inherit the edited entry's link to an earlier
+      // job, its approval history or its creation stamp.
+      if(i > 0) delete rec.threadId;
+      delete rec.approval; delete rec.approvalNote;
       delete rec.createdAt; delete rec.approvedBy; delete rec.approvedAt;
     }
     const isNewRow = !isEditRow;
@@ -1494,18 +1508,36 @@ async function saveDailyMulti(gpsData){
       approvalNote: appr===APPR.SUBMITTED ? "" : ((prevRow&&prevRow.approvalNote)||""),
       createdBy: state.profile.uid,
       ...gpsData,
-      id: isEditRow ? dailyEditId : undefined,         // LAST: nothing above may override it
+      id: isEditRow ? editId : undefined,           // LAST: nothing above may override it
     });
     saved.push(rec);
   }
-
+  return saved;
+}
+// "3:00 on 30 Sep, 4:00 on 01 Oct" — what was written, in the person's terms.
+function _piecesSummary(saved){
+  const byDay = {};
+  saved.forEach(r => { byDay[r.date] = (byDay[r.date] || 0) + (Number(r.duration) || 0); });
+  return Object.keys(byDay).sort().map(d => fmtHM(byDay[d]) + " on " + fmtDate(d)).join(", ");
+}
+async function saveDailyMulti(gpsData){
+  const f = dailyForm;
+  const wasNew = !dailyEditId;
+  const saved = await _writeDailyPieces(f, gpsData, dailyEditId);
+  if(!saved) return;
+  // PM sync runs ONCE, on the piece that carries the final status.
+  const lastPm = saved.filter(r => String(r.projectCode||"").trim().toLowerCase()==="preventive maintenance").pop();
+  if(lastPm && typeof window.pmOnDailySaved==="function") window.pmOnDailySaved(lastPm, !!f.pmFinal, wasNew);
   await _dailyDeviceSync();
   clearDailyDraft();
   window._draftToastShown = false;
   dailyForm = null; dailyEditId = null;
   render();
   window.scrollTo({top:0, behavior:'smooth'});
-  saveToast(`Saved \u2713 \u2014 ${saved.length} entries, one per project`);
+  const days = new Set(saved.map(r=>r.date)).size;
+  const projects = new Set(saved.map(r=>r.project)).size;
+  saveToast(saved.length === 1 ? "Saved \u2713"
+    : `Saved \u2713 \u2014 ${projects>1?projects+" projects, ":""}${days>1?"each day counted separately: ":""}${_piecesSummary(saved)}`);
   if(wasNew && (emailGetSettings().triggers||[]).includes("daily")){
     saved.forEach(r => _emailBuffer.push(r));
     if(_emailBufferTimer){ clearTimeout(_emailBufferTimer); _emailBufferTimer = null; }
@@ -1513,12 +1545,13 @@ async function saveDailyMulti(gpsData){
   }
 }
 window.saveDailyMulti = saveDailyMulti;
+window._writeDailyPieces = _writeDailyPieces;
 
 // Overtime split between projects: one record per project, each with its own
 // department and its own share of the clock — the same rule as the Daily Log.
 async function _otSaveSplit(isEdit){
   const list = projectList(otForm);
-  const slices = projectTimeSlices(otForm.start, otForm.end, list, otForm.projectAlloc);
+  const slices = dailyPieces(otForm.start, otForm.end, list, otForm.projectAlloc);
   if(!slices) return false;
   const group = "sg_" + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
   for(let i = 0; i < slices.length; i++){
@@ -1675,7 +1708,7 @@ async function saveDaily(){
 
   // Several projects: each becomes its own entry. Handled apart so the single
   // path below is left exactly as it has always been.
-  if(projectList(dailyForm).length > 1) return await saveDailyMulti(gpsData);
+  if(projectList(dailyForm).length > 1 || isOvernight(dailyForm)) return await saveDailyMulti(gpsData);
 
   // Auto-assign entry number for new entries only
   const entryNoToSave = dailyEditId ? undefined : getNextDailyEntryNo();
@@ -1762,6 +1795,21 @@ async function saveDailyAndNext(){
     const _tot = timeToHrs(dailyForm.start, dailyForm.end) || Number(dailyForm.duration) || 0;
     const _e = projectAllocError(dailyForm, _tot, "hours");
     if(_e) return toast("⚠ " + _e);
+  }
+  // A night shift is saved one day at a time here too, so a crew entered with
+  // Save & Next is counted exactly like a person entered with Save.
+  if(isOvernight(dailyForm)){
+    const saved = await _writeDailyPieces(dailyForm, {}, null);
+    if(!saved) return;
+    if((emailGetSettings().triggers||[]).includes("daily")) saved.forEach(r => bufferTaskEmail(r));
+    const savedEmp = dailyForm.employee;
+    window._devEdit = null;
+    dailyForm = { ...dailyForm, employee: "" };
+    saveDailyDraft();
+    render();
+    window.scrollTo({top:0, behavior:'smooth'});
+    saveToast(`Saved for ${savedEmp} \u2713 \u2014 ${_piecesSummary(saved)} \u2014 same task ready for next employee`);
+    return;
   }
   // Save first
   const entryNoNext = getNextDailyEntryNo();
@@ -2127,7 +2175,7 @@ async function saveOT(){
     if(!state.profile.employeeName) return toast("Your account has no employee profile. Contact admin.");
     otForm.employee = state.profile.employeeName;
   }
-  if(projectList(otForm).length > 1){
+  if(projectList(otForm).length > 1 || isOvernight(otForm)){
     if(!(await _otSaveSplit(!!otEditId))) return toast("\u26a0 Enter a start and end time to divide the overtime");
   } else {
   await fbSave("overtime",{
@@ -2150,7 +2198,7 @@ async function saveOTAndNext(){
   if(computed <= 0) return toast("End time must be after start time");
   otForm.hours = computed.toFixed(4);
   { const _e = projectAllocError(otForm, computed, "hours"); if(_e) return toast("⚠ " + _e); }
-  if(projectList(otForm).length > 1){
+  if(projectList(otForm).length > 1 || isOvernight(otForm)){
     if(!(await _otSaveSplit(false))) return toast("\u26a0 Enter a start and end time to divide the overtime");
   } else {
   await fbSave("overtime",{
